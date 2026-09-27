@@ -51,6 +51,9 @@
 .active:hover {
   background: var(--accent-soft);
   color: var(--accent-strong);
+  box-shadow:
+    inset 0 1px 0 var(--line-specular),
+    inset 0 0 0 1px var(--line-glass);
 }
 
 .active::before {

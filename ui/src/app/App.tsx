@@ -5,6 +5,7 @@ import { dismissIssue, issues, notify, reportError } from "../lib/errors";
 import { Home } from "../views/home/Home";
 import { Planned } from "../views/Planned";
 import styles from "./App.module.css";
+import { followPointerOnGlass } from "./glass";
 import { navigate, path } from "./router";
 import { Sidebar } from "./Sidebar";
 import { TitleBar } from "./TitleBar";
@@ -40,6 +41,7 @@ export function App(): JSX.Element {
     }),
   );
   onCleanup(transport.listen("client-status", (next) => mutate(next)));
+  onCleanup(followPointerOnGlass());
 
   // The core moves the UI along with the game. It hears about every view shown, so it never
   // switches away from a page the player opened themselves.

@@ -1,4 +1,4 @@
-import { type Accessor, createEffect, onCleanup } from "solid-js";
+import { type Accessor, createEffect, createSignal, onCleanup } from "solid-js";
 import { css, extractPalette, type Palette } from "./palette";
 
 /**
@@ -121,9 +121,58 @@ function follow(el: () => HTMLElement | null, names: readonly string[], source: 
   });
 }
 
-/** Lights the page (backdrop, heroes) with the colors of `source` while the caller is mounted. */
+/**
+ * Where the light comes from: the center of `anchor` (the art a view shows), in % of the window.
+ * Measured when the anchor appears and when the window or anchor resizes, never polled.
+ */
+function followAnchor(anchor: Accessor<HTMLElement | undefined>): void {
+  createEffect(() => {
+    const host = document.querySelector<HTMLElement>("[data-ambient-host]");
+    const el = anchor();
+    if (!host) return;
+    if (!el) {
+      host.style.removeProperty("--amb-x");
+      host.style.removeProperty("--amb-y");
+      return;
+    }
+    const place = () => {
+      const h = host.getBoundingClientRect();
+      const a = el.getBoundingClientRect();
+      if (h.width === 0 || h.height === 0) return;
+      const x = ((a.left + a.width / 2 - h.left) / h.width) * 100;
+      const y = ((a.top + a.height / 3 - h.top) / h.height) * 100;
+      host.style.setProperty("--amb-x", `${Math.round(Math.min(95, Math.max(5, x)))}%`);
+      host.style.setProperty("--amb-y", `${Math.round(Math.min(60, Math.max(0, y)))}%`);
+    };
+    place();
+    const observer = new ResizeObserver(place);
+    observer.observe(host);
+    observer.observe(el);
+    onCleanup(() => {
+      observer.disconnect();
+      host.style.removeProperty("--amb-x");
+      host.style.removeProperty("--amb-y");
+    });
+  });
+}
+
+/**
+ * Lights the window with the colors of `source` while the caller is mounted. The light radiates
+ * from the element marked with `lightFrom` (the art a view shows), else from the top center.
+ */
 export function useAmbient(source: Accessor<string | undefined>): void {
   follow(() => document.querySelector<HTMLElement>("[data-ambient-host]"), VARS.amb, source);
+  followAnchor(lightAnchor);
+}
+
+const [lightAnchor, setLightAnchor] = createSignal<HTMLElement>();
+
+/** Marks the element the page light radiates from (use in a ref); cleared when it unmounts. */
+export function lightFrom(el: HTMLElement): void {
+  setLightAnchor(el);
+  onCleanup(() => {
+    if (lightAnchor() === el) setLightAnchor(undefined);
+  });
 }
 
 /** Tints one element (`--tone-a/b/c`) with the colors of `source`. Use from a ref callback. */

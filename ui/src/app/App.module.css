@@ -4,9 +4,14 @@
  */
 .shell {
   background:
-    radial-gradient(60% 50% at 20% 0%, color-mix(in oklab, var(--amb-a) 30%, transparent), transparent 72%),
-    radial-gradient(45% 45% at 85% 4%, color-mix(in oklab, var(--amb-b) 24%, transparent), transparent 70%),
-    radial-gradient(80% 50% at 50% 110%, color-mix(in oklab, var(--amb-c) 11%, transparent), transparent 70%), var(--bg-0);
+    radial-gradient(55% 55% at var(--amb-x) var(--amb-y), color-mix(in oklab, var(--amb-a) 34%, transparent), transparent 72%),
+    radial-gradient(
+      45% 50% at calc(100% - var(--amb-x)) calc(var(--amb-y) + 25%),
+      color-mix(in oklab, var(--amb-b) 18%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(70% 45% at calc(100% - var(--amb-x)) 110%, color-mix(in oklab, var(--amb-c) 12%, transparent), transparent 70%),
+    var(--bg-0);
   display: grid;
   grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
   grid-template-rows: var(--titlebar-h) minmax(0, 1fr);

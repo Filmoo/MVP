@@ -47,6 +47,7 @@ function Row(props: { s: Suggestion; selected: boolean; expanded: boolean; onSel
       <button
         type="button"
         class={`${styles.row} ${props.s.tier > 0 ? styles.lower : ""}`}
+        data-glass
         aria-pressed={props.selected}
         onClick={() => props.onSelect()}
         data-testid="suggestion"
