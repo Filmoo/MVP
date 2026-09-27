@@ -22,6 +22,8 @@ pub const RIOT_ROOT_PEM: &[u8] = include_bytes!("riotgames.pem");
 pub enum TlsError {
     #[error("invalid root certificate: {0}")]
     Pem(String),
+    #[error("cannot read root certificate: {0}")]
+    Io(#[from] std::io::Error),
     #[error(transparent)]
     Rustls(#[from] rustls::Error),
 }
@@ -52,6 +54,18 @@ pub fn pinned_client_config(root_pem: &[u8]) -> Result<Arc<ClientConfig>, TlsErr
 /// Config for the real League client: Riot's root.
 pub fn riot_client_config() -> Result<Arc<ClientConfig>, TlsError> {
     pinned_client_config(RIOT_ROOT_PEM)
+}
+
+/// Development builds may trust another root instead (the mock client's CA), named by this
+/// variable. Ignored in release builds.
+pub const DEV_ROOT_ENV: &str = "SCOUT_LCU_CA";
+
+/// Riot's root, or the development override in debug builds.
+pub fn client_config_from_env() -> Result<Arc<ClientConfig>, TlsError> {
+    match std::env::var_os(DEV_ROOT_ENV).filter(|_| cfg!(debug_assertions)) {
+        Some(path) => pinned_client_config(&std::fs::read(path)?),
+        None => riot_client_config(),
+    }
 }
 
 #[derive(Debug)]

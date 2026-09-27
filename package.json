@@ -18,7 +18,8 @@
     "test:unit": "pnpm --filter @scout/ui test:unit",
     "test:e2e": "pnpm --filter @scout/ui test:e2e",
     "check:fast": "node scripts/check.mjs fast",
-    "check": "node scripts/check.mjs full"
+    "check": "node scripts/check.mjs full",
+    "mock-lcu": "cargo run -p mock-lcu"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.14",

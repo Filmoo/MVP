@@ -1,6 +1,9 @@
 //! Commands the UI can invoke. Names and payloads mirror `ui/src/data/transport.ts`.
 
 use domain::{AppInfo, ClientStatus, PlayerProfile};
+use tauri::Manager as _;
+
+use crate::core::Core;
 
 #[tauri::command]
 #[allow(
@@ -17,9 +20,15 @@ pub fn app_info(app: tauri::AppHandle) -> AppInfo {
 }
 
 #[tauri::command]
-pub fn client_status() -> ClientStatus {
-    // Wired to the LCU connector once it lands; until then the client is never found.
-    ClientStatus::not_running()
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub fn client_status(app: tauri::AppHandle) -> ClientStatus {
+    app.try_state::<Core>()
+        .map_or_else(ClientStatus::not_running, |core| {
+            core.status.borrow().clone()
+        })
 }
 
 #[tauri::command]

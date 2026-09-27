@@ -11,6 +11,7 @@ publish = false
 
 [workspace.dependencies]
 # Internal crates
+companion = { path = "crates/companion" }
 domain = { path = "crates/domain" }
 lcu = { path = "crates/lcu" }
 mock-lcu = { path = "crates/mock-lcu" }

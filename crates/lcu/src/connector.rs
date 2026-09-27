@@ -55,7 +55,7 @@ impl ConnectorConfig {
     pub fn for_league_client(paths: Vec<String>) -> Result<Self, crate::tls::TlsError> {
         Ok(Self {
             discover: Box::new(crate::discovery::find_credentials),
-            tls: crate::tls::riot_client_config()?,
+            tls: crate::tls::client_config_from_env()?,
             paths,
             poll_interval: Duration::from_secs(2),
             startup_grace: Duration::from_secs(20),

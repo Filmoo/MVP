@@ -1,6 +1,7 @@
 //! Desktop shell. Keeps the Rust core running (tray) and hosts the UI window.
 
 mod commands;
+mod core;
 mod tray;
 
 use tauri::Manager as _;
@@ -20,6 +21,7 @@ pub fn run() {
         }))
         .setup(|app| {
             tray::install(app.handle())?;
+            core::start(app.handle());
             if let Some(window) = app.get_webview_window("main") {
                 tracing::debug!(label = window.label(), "main window created");
             }

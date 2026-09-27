@@ -14,12 +14,15 @@ name = "scout_desktop"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
+companion.workspace = true
 domain.workspace = true
+lcu.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-single-instance = "2"
 tracing.workspace = true
+tokio.workspace = true
 tracing-subscriber.workspace = true
 
 [lints]

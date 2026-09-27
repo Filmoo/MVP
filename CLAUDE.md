@@ -16,7 +16,9 @@ No in-game overlay for now (keep the architecture overlay-ready).
 - `apps/desktop/` Tauri shell (window, tray, commands). `tauri.conf.json` lives here.
 - `crates/domain` UI-facing types → exported to `ui/src/data/generated/*.ts` by ts-rs
   (`cargo test -p domain`; never edit generated files).
-- `crates/lcu` League client API (lockfile, auth; REST/WebSocket next).
+- `crates/lcu` League client API: pinned Riot root TLS, REST, WAMP events, discovery, connector.
+- `crates/mock-lcu` fake League client (tests + `pnpm mock-lcu` for dev without League).
+- `crates/companion` app core (Tauri-free): client status/phases → domain types.
 - `crates/stats` pure statistics (smoothing, intervals, draft scoring) — property-tested.
 - `ui/` SolidJS app. `src/data/transport.ts` is the only door to the core:
   Tauri IPC in the app, scripted **mock scenarios** (`src/data/mock/scenarios.ts`) in a browser.
@@ -27,6 +29,8 @@ No in-game overlay for now (keep the architecture overlay-ready).
 - `pnpm install` then `node scripts/fetch-dev-assets.mjs` (champion/item icons for dev & tests).
 - `pnpm dev` UI in the browser with mock data → http://127.0.0.1:1420/?scenario=default
 - `pnpm app` full desktop app (needs Tauri system deps). `pnpm build:exe` → NSIS installer.
+- Without League: `pnpm mock-lcu`, then run a debug app with
+  `SCOUT_LCU_LOCKFILE=.cache/mock-lcu/lockfile SCOUT_LCU_CA=.cache/mock-lcu/ca.pem` (debug builds only).
 - `node scripts/check.mjs fast|ui|full` — the quality gates (also run by the Stop hook and CI).
 - `pnpm --filter @scout/ui screenshots` → `reports/screenshots/*.png` for design review.
 
