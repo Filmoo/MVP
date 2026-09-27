@@ -19,11 +19,10 @@ except where marked.
   League client or on Windows** (CI builds the .exe and measures RAM/CPU only).
 
 ## Open jobs, in order
-1. **Merge `claude/wip-backend-updates-config`** (pushed, not merged): app updates (Tauri updater
-   manifest, channels, staged rollout, `mvp-backend release …` CLI), `/v1/config` RemoteConfig,
-   opt-in `/v1/reports`, rate limiting, metrics, cache snapshot. It conflicts with the stats routes in
-   `apps/backend/src/{lib.rs,main.rs}`, `apps/backend/README.md`, `docs/architecture.md`:
-   keep both sides (stats routes must sit behind the same middleware), then `check.mjs full`.
+1. *(done)* App updates, `/v1/config` RemoteConfig, opt-in `/v1/reports`, rate limiting, metrics
+   and the Riot cache snapshot are merged in `apps/backend` (see its README). Stats downloads share
+   the per-install rate limit (60 burst, 120/min): the app must cache stats files and revalidate
+   with `If-None-Match`.
 2. **Glass backdrop shader** (was in progress; if a `claude/wip-glass-shader` branch exists, review
    and merge it, else build it): one WebGL canvas behind the shell rendering the ambient light plus a
    very subtle procedural pattern, with refraction of that backdrop under `data-refract` glass

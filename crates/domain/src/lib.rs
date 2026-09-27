@@ -12,6 +12,7 @@ mod draft;
 mod game_data;
 mod live;
 mod player;
+mod remote;
 mod scout;
 mod settings;
 mod stats;
@@ -25,6 +26,10 @@ pub use draft::{
 pub use game_data::{ChampionInfo, GameData, ItemInfo, SpellInfo};
 pub use live::{LiveGame, LivePlayer, Scouting};
 pub use player::{Division, MatchSummary, PlayerProfile, RankedEntry, RiotId, Role, Tier};
+pub use remote::{
+    Banner, BannerSeverity, CrashReport, FeatureFlags, KillSwitches, LocalizedText, MinVersion,
+    RemoteConfig, ReportKind,
+};
 pub use scout::{ChampionRecord, ScoutCard, ScoutRequest, ScoutTag};
 pub use settings::{AutoAcceptEvent, Settings, ViewRoute};
 pub use stats::{

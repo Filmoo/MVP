@@ -155,6 +155,30 @@ impl RiotSource for CachedRiot {
     }
 }
 
+// ---- Access for the disk snapshot (store.rs) and metrics (ops.rs) ----
+pub(crate) type AccountCache = Cache<(String, String), Account>;
+
+impl CachedRiot {
+    pub(crate) fn client(&self) -> &RiotClient {
+        &self.client
+    }
+
+    /// Accounts by Riot ID, accounts by PUUID, compacted matches.
+    pub(crate) fn caches(
+        &self,
+    ) -> (
+        &AccountCache,
+        &Cache<String, Account>,
+        &Cache<String, Arc<Value>>,
+    ) {
+        (
+            &self.accounts_by_riot_id,
+            &self.accounts_by_puuid,
+            &self.matches,
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use serde_json::json;

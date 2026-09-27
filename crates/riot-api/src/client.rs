@@ -1,5 +1,6 @@
 use std::fmt;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use reqwest::StatusCode;
@@ -93,6 +94,26 @@ pub struct RiotClient {
     key: ApiKey,
     limiter: Arc<RateLimiter>,
     config: Config,
+    calls: Arc<Counters>,
+}
+
+/// HTTP calls made to Riot since the client was created (clones share them), for metrics.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct CallCounts {
+    /// 2xx answers.
+    pub ok: u64,
+    pub not_found: u64,
+    pub rate_limited: u64,
+    /// Any other status, or no answer (transport error).
+    pub failed: u64,
+}
+
+#[derive(Debug, Default)]
+struct Counters {
+    ok: AtomicU64,
+    not_found: AtomicU64,
+    rate_limited: AtomicU64,
+    failed: AtomicU64,
 }
 
 impl RiotClient {
@@ -116,7 +137,29 @@ impl RiotClient {
                 config.headroom_percent,
             )),
             config,
+            calls: Arc::default(),
         })
+    }
+
+    /// Calls made so far (every attempt counts, retries included).
+    pub fn call_counts(&self) -> CallCounts {
+        let c = &self.calls;
+        CallCounts {
+            ok: c.ok.load(Ordering::Relaxed),
+            not_found: c.not_found.load(Ordering::Relaxed),
+            rate_limited: c.rate_limited.load(Ordering::Relaxed),
+            failed: c.failed.load(Ordering::Relaxed),
+        }
+    }
+
+    fn count(&self, status: Option<StatusCode>) {
+        let counter = match status {
+            Some(s) if s.is_success() => &self.calls.ok,
+            Some(StatusCode::NOT_FOUND) => &self.calls.not_found,
+            Some(StatusCode::TOO_MANY_REQUESTS) => &self.calls.rate_limited,
+            _ => &self.calls.failed,
+        };
+        counter.fetch_add(1, Ordering::Relaxed);
     }
 
     /// GET `path` on `route`, rate limited under `method` (the endpoint's limit scope).
@@ -135,13 +178,21 @@ impl RiotClient {
         let mut attempt = 0;
         loop {
             self.limiter.acquire(route.id(), method).await;
-            let res = self
+            let res = match self
                 .http
                 .get(&url)
                 .header("X-Riot-Token", &self.key.0)
                 .send()
-                .await?;
+                .await
+            {
+                Ok(res) => res,
+                Err(e) => {
+                    self.count(None);
+                    return Err(e.into());
+                }
+            };
             let status = res.status();
+            self.count(Some(status));
             let headers = res.headers().clone();
             self.limiter.update(
                 route.id(),

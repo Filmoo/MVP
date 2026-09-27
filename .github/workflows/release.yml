@@ -1,6 +1,13 @@
 name: Release
 
-# Push a tag like v0.2.0 to publish a GitHub release with the Windows installer.
+# Push a tag like v0.2.0 to publish a draft GitHub release with the Windows installer and its
+# updater signature. The job summary prints the `mvp-backend release add` command that offers
+# the update to installed apps (see apps/backend/README.md, "App updates").
+#
+# Secrets (repository settings → Secrets and variables → Actions; never committed):
+#   TAURI_SIGNING_PRIVATE_KEY           contents of the key made by `pnpm tauri signer generate`
+#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD  its password
+# The matching public key goes in the app's updater config (plugins.updater.pubkey).
 on:
   push:
     tags: ["v*"]
@@ -13,6 +20,15 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Check the updater signing key
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "::error::TAURI_SIGNING_PRIVATE_KEY is not set: installed apps could not verify this update."
+            exit 1
+          fi
       - name: Rust toolchain (from rust-toolchain.toml)
         run: rustup show active-toolchain || rustup toolchain install
       - uses: Swatinem/rust-cache@v2
@@ -22,10 +38,39 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm build:exe
+      # createUpdaterArtifacts: the bundler signs the NSIS installer and writes `<installer>.sig`
+      # (minisign, one base64 line) next to it; the updater downloads the installer itself.
+      - name: Build the signed installer
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: pnpm build:exe --config '{"bundle":{"createUpdaterArtifacts":true}}'
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
           draft: true
           files: |
-            target/release/bundle/nsis/*.exe
+            target/release/bundle/nsis/*-setup.exe
+            target/release/bundle/nsis/*-setup.exe.sig
+      - name: Updater command
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          installer=$(ls target/release/bundle/nsis/*-setup.exe | head -n 1)
+          name=$(basename "$installer")
+          signature=$(tr -d '\r\n' < "$installer.sig")
+          channel=stable
+          case "$version" in *-*) channel=beta ;; esac
+          url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/${name// /.}"
+          {
+            echo "### Offer this update to installed apps"
+            echo "Publish the draft release first (draft assets are not downloadable), then on the server:"
+            echo '```sh'
+            echo "docker exec mvp-backend mvp-backend release add --version $version --channel $channel \\"
+            echo "  --url '$url' \\"
+            echo "  --signature '$signature' \\"
+            echo "  --notes-en '…' --notes-fr '…' --rollout 10"
+            echo '```'
+            echo "Then widen it with \`release promote --version $version --rollout 50\` (and 100), or pull it with \`release block --version $version\`."
+          } >> "$GITHUB_STEP_SUMMARY"
