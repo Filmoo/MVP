@@ -1,0 +1,60 @@
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-5);
+  flex-wrap: wrap;
+}
+
+.phase {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-5);
+  border-radius: var(--radius-full);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  grid-template-areas:
+    "teams teams"
+    "picks why";
+  gap: var(--space-6);
+  align-items: start;
+}
+
+.teams {
+  grid-area: teams;
+  min-width: 0;
+}
+
+.picks {
+  grid-area: picks;
+  min-width: 0;
+}
+
+.why {
+  grid-area: why;
+  min-width: 0;
+  position: sticky;
+  top: var(--space-8);
+}
+
+@container page (max-width: 959px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "teams"
+      "picks"
+      "why";
+  }
+  .why {
+    position: static;
+  }
+}

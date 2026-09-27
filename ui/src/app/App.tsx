@@ -10,6 +10,7 @@ import { Sidebar } from "./Sidebar";
 import { TitleBar } from "./TitleBar";
 
 const Settings = lazy(() => import("../views/settings/Settings"));
+const Draft = lazy(() => import("../views/draft/Draft"));
 const Harness = lazy(() => import("../widgets/Harness"));
 
 function Toasts(): JSX.Element {
@@ -59,11 +60,7 @@ export function App(): JSX.Element {
               <Home />
             </Match>
             <Match when={path() === "/draft"}>
-              <Planned
-                title="Draft helper"
-                icon="draft"
-                description="Stats-only pick and ban help that updates with every hover, pick and ban."
-              />
+              <Draft />
             </Match>
             <Match when={path() === "/live"}>
               <Planned title="Live game" icon="live" description="Everyone in your game at a glance, from the loading screen on." />

@@ -12,6 +12,18 @@
     "performance-summary": {
       "renderMs": 4,
       "domNodes": 140
+    },
+    "draft-teams": {
+      "renderMs": 6,
+      "domNodes": 180
+    },
+    "draft-suggestions": {
+      "renderMs": 8,
+      "domNodes": 260
+    },
+    "draft-why": {
+      "renderMs": 4,
+      "domNodes": 120
     }
   },
   "bootMs": 900,

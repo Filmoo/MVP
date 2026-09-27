@@ -31,7 +31,8 @@ pub fn run() {
             commands::app_info,
             commands::client_status,
             commands::current_profile,
-            commands::game_data
+            commands::game_data,
+            commands::draft_state
         ])
         .run(tauri::generate_context!())
         .expect("failed to run the Tauri application");

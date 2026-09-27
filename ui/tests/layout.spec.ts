@@ -32,6 +32,19 @@ for (const scenario of scenarioNames) {
   }
 }
 
+// Views that only show content in a specific scenario, at every window size.
+const SCENARIO_VIEWS = [{ view: "/draft", scenario: "champ-select" }] as const;
+for (const { view, scenario } of SCENARIO_VIEWS) {
+  for (const size of SIZES) {
+    test(`${view}/${scenario} @ ${size.name} ${size.width}×${size.height}`, async ({ page }) => {
+      const errors = trackErrors(page);
+      await openApp(page, { view, scenario, width: size.width, height: size.height });
+      expect(await page.evaluate(auditLayout)).toEqual([]);
+      expect(errors).toEqual([]);
+    });
+  }
+}
+
 // Live resizing (no reload) must re-layout correctly at every step.
 test("resize sweep keeps layout sound", async ({ page }) => {
   const errors = trackErrors(page);

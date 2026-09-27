@@ -38,6 +38,18 @@ for (const { scenario, sizes } of SHOTS) {
   }
 }
 
+for (const [width, height] of [
+  [1280, 800],
+  [1920, 1080],
+  [820, 760],
+  [420, 800],
+] as const) {
+  test(`draft champ-select ${width}x${height}`, async ({ page }) => {
+    await openApp(page, { view: "/draft", scenario: "champ-select", width, height });
+    await page.screenshot({ path: `${OUT}/draft-champ-select-${width}x${height}.png`, fullPage: width < 900 });
+  });
+}
+
 for (const view of VIEWS.slice(1)) {
   test(`${view} 1280x800`, async ({ page }) => {
     await openApp(page, { view });

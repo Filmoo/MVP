@@ -1,5 +1,6 @@
 import type { AppInfo } from "./generated/AppInfo";
 import type { ClientStatus } from "./generated/ClientStatus";
+import type { DraftView } from "./generated/DraftView";
 import type { GameData } from "./generated/GameData";
 import type { PlayerProfile } from "./generated/PlayerProfile";
 
@@ -10,12 +11,16 @@ export interface Commands {
   current_profile: { args: undefined; result: PlayerProfile | null };
   /** `null` until the core has loaded the current patch (a `game-data` event follows). */
   game_data: { args: undefined; result: GameData | null };
+  /** Current champion select, `null` outside of it (`draft` events follow changes). */
+  draft_state: { args: undefined; result: DraftView | null };
 }
 
 /** Events pushed by the core. */
 export interface Events {
   "client-status": ClientStatus;
   "game-data": GameData;
+  /** `null` when champion select ends. */
+  draft: DraftView | null;
 }
 
 export type CommandName = keyof Commands;

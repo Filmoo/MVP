@@ -17,6 +17,11 @@ for (const scenario of scenarioNames) {
   });
 }
 
+test("/draft in champion select only uses design tokens", async ({ page }) => {
+  await openApp(page, { view: "/draft", scenario: "champ-select" });
+  expect(await page.evaluate(auditTokens)).toEqual([]);
+});
+
 test("every view has exactly one page heading", async ({ page }) => {
   for (const view of VIEWS) {
     await openApp(page, { view });

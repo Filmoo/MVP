@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { duration, kdaRatio, percent, perMinute, queueName, timeAgo, winRate } from "./format";
+import { duration, games, kdaRatio, percent, perMinute, queueName, signedPoints, timeAgo, winRate } from "./format";
 
 describe("format", () => {
   it("formats KDA ratios including perfect games", () => {
@@ -28,6 +28,20 @@ describe("format", () => {
     expect(winRate(0, 0)).toBeNull();
     expect(winRate(142, 128)).toBeCloseTo(0.5259, 3);
     expect(percent(0.5259)).toBe("53%");
+  });
+
+  it("signs percentage points with a true minus", () => {
+    expect(signedPoints(3.14)).toBe("+3.1");
+    expect(signedPoints(-2.06)).toBe("−2.1");
+    expect(signedPoints(0.04)).toBe("0.0");
+    expect(signedPoints(-0.04)).toBe("0.0");
+  });
+
+  it("formats game counts", () => {
+    expect(games(812)).toBe("812");
+    expect(games(3244)).toBe("3,244");
+    expect(games(127_400)).toBe("127.4K");
+    expect(games(1_912_400)).toBe("1.9M");
   });
 
   it("names queues", () => {

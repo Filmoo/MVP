@@ -70,3 +70,16 @@ export function compactNumber(value: number): string {
     maximumFractionDigits: 1,
   }).format(value);
 }
+
+/** `+3.1` / `−2.1` (true minus sign) for percentage-point deltas. */
+export function signedPoints(points: number, digits = 1): string {
+  const rounded = Number(points.toFixed(digits));
+  if (rounded === 0) return (0).toFixed(digits);
+  return `${rounded > 0 ? "+" : "−"}${Math.abs(rounded).toFixed(digits)}`;
+}
+
+/** Game counts: `812`, `3,244`, `127k`, `1.9M`. */
+export function games(n: number): string {
+  if (n < 10_000) return new Intl.NumberFormat("en").format(Math.round(n));
+  return compactNumber(n);
+}

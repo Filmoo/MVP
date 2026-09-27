@@ -1,0 +1,168 @@
+import type { DraftView } from "../generated/DraftView";
+import type { Reason } from "../generated/Reason";
+import { FIXTURE_NOW } from "./fixtures";
+
+// Champion ids (Data Dragon keys).
+const C = {
+  malphite: 54,
+  shen: 98,
+  ornn: 516,
+  ksante: 897,
+  camille: 164,
+  garen: 86,
+  darius: 122,
+  gwen: 887,
+  jax: 24,
+  irelia: 39,
+  leeSin: 64,
+  ahri: 103,
+  thresh: 412,
+  viego: 234,
+  hwei: 910,
+  yone: 777,
+  zed: 238,
+  kaisa: 145,
+  nautilus: 111,
+  sylas: 517,
+  aatrox: 266,
+  ambessa: 799,
+  mel: 800,
+  smolder: 901,
+} as const;
+
+const r = (
+  kind: Reason["kind"],
+  points: number,
+  games: number,
+  kept: number,
+  championId: number | null = null,
+  probability = 1,
+): Reason => ({
+  kind,
+  championId,
+  points,
+  games,
+  kept,
+  probability,
+});
+
+/** Mid-draft: you're picking top, Irelia is locked on the enemy team. */
+export const champSelectDraft: DraftView = {
+  phase: "picking",
+  secondsLeft: 24,
+  myRole: "top",
+  allies: [
+    { championId: C.malphite, hovering: true, role: "top", roleOdds: [], isMe: true, picking: true },
+    { championId: C.leeSin, hovering: false, role: "jungle", roleOdds: [], isMe: false, picking: false },
+    { championId: C.ahri, hovering: false, role: "middle", roleOdds: [], isMe: false, picking: false },
+    { championId: null, hovering: false, role: "bottom", roleOdds: [], isMe: false, picking: false },
+    { championId: C.thresh, hovering: true, role: "support", roleOdds: [], isMe: false, picking: false },
+  ],
+  enemies: [
+    {
+      championId: C.irelia,
+      hovering: false,
+      role: "top",
+      roleOdds: [
+        { role: "top", probability: 0.94 },
+        { role: "middle", probability: 0.06 },
+      ],
+      isMe: false,
+      picking: false,
+    },
+    {
+      championId: C.viego,
+      hovering: false,
+      role: "jungle",
+      roleOdds: [{ role: "jungle", probability: 0.97 }],
+      isMe: false,
+      picking: false,
+    },
+    {
+      championId: C.hwei,
+      hovering: false,
+      role: "middle",
+      roleOdds: [
+        { role: "middle", probability: 0.71 },
+        { role: "support", probability: 0.29 },
+      ],
+      isMe: false,
+      picking: false,
+    },
+    { championId: null, hovering: false, role: null, roleOdds: [], isMe: false, picking: true },
+    { championId: null, hovering: false, role: null, roleOdds: [], isMe: false, picking: true },
+  ],
+  allyBans: [C.yone, C.zed, C.kaisa, C.ambessa, C.smolder],
+  enemyBans: [C.sylas, C.aatrox, C.mel, C.nautilus, C.gwen],
+  team: { percent: 51.5, plusMinus: 1.6 },
+  suggestions: [
+    {
+      championId: C.malphite,
+      estimate: { percent: 54.6, plusMinus: 2.0 },
+      gain: 3.1,
+      tier: 0,
+      mine: { games: 41, wins: 23 },
+      reasons: [
+        r("lane", 4.3, 3244, 0.85, C.irelia, 0.94),
+        r("base", 0.9, 127_400, 1),
+        r("jungle", 0.2, 6021, 0.72, C.viego),
+        r("duo", 0.3, 11_020, 0.24, C.ahri),
+        r("matchup", -0.4, 8104, 0.31, C.hwei, 0.71),
+      ],
+    },
+    {
+      championId: C.shen,
+      estimate: { percent: 54.0, plusMinus: 2.1 },
+      gain: 2.5,
+      tier: 0,
+      mine: null,
+      reasons: [
+        r("lane", 2.2, 2911, 0.83, C.irelia, 0.94),
+        r("base", 0.4, 88_200, 1),
+        r("duo", 0.5, 4880, 0.18, C.leeSin),
+        r("jungle", -0.1, 3002, 0.57, C.viego),
+      ],
+    },
+    {
+      championId: C.ornn,
+      estimate: { percent: 53.7, plusMinus: 2.3 },
+      gain: 2.2,
+      tier: 0,
+      mine: { games: 6, wins: 4 },
+      reasons: [r("lane", 1.9, 1802, 0.76, C.irelia, 0.94), r("base", 0.6, 61_000, 1), r("matchup", -0.2, 2104, 0.21, C.hwei, 0.71)],
+    },
+    {
+      championId: C.jax,
+      estimate: { percent: 52.1, plusMinus: 1.9 },
+      gain: 0.6,
+      tier: 1,
+      mine: null,
+      reasons: [r("base", 0.7, 142_900, 1), r("lane", -0.3, 7820, 0.93, C.irelia, 0.94), r("jungle", 0.2, 9010, 0.8, C.viego)],
+    },
+    {
+      championId: C.ksante,
+      estimate: { percent: 51.8, plusMinus: 2.2 },
+      gain: 0.3,
+      tier: 1,
+      mine: null,
+      reasons: [r("lane", 0.8, 2206, 0.79, C.irelia, 0.94), r("base", -0.6, 70_300, 1)],
+    },
+    {
+      championId: C.garen,
+      estimate: { percent: 50.2, plusMinus: 2.0 },
+      gain: -1.3,
+      tier: 2,
+      mine: { games: 12, wins: 5 },
+      reasons: [r("lane", -1.8, 4410, 0.89, C.irelia, 0.94), r("base", 0.3, 98_700, 1)],
+    },
+    {
+      championId: C.camille,
+      estimate: { percent: 49.4, plusMinus: 2.1 },
+      gain: -2.1,
+      tier: 2,
+      mine: null,
+      reasons: [r("lane", -2.6, 5102, 0.9, C.irelia, 0.94), r("base", 0.2, 83_100, 1)],
+    },
+  ],
+  data: { bracket: "Emerald+", patch: "26.19", games: 1_912_400, updatedAt: FIXTURE_NOW - 3 * 3_600_000 },
+};

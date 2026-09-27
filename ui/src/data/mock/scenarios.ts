@@ -1,5 +1,6 @@
 import type { ClientStatus } from "../generated/ClientStatus";
 import type { CommandName, Commands, EventName, Events } from "../transport";
+import { champSelectDraft } from "./draft-fixtures";
 import { corruptProfile, extremeProfile, newPlayerProfile, profile } from "./fixtures";
 
 export type MockResponse<T> = { data: T; delayMs?: number } | { error: string; delayMs?: number };
@@ -21,12 +22,21 @@ const base: Scenario["responses"] = {
   app_info: { data: { name: "Scout", version: "0.1.0", platform: "web" } },
   client_status: { data: connectedIdle },
   current_profile: { data: profile },
+  draft_state: { data: null },
 };
 
 export const scenarios = {
   default: {
     description: "Client connected, rich profile.",
     responses: base,
+  },
+  "champ-select": {
+    description: "Mid-draft: you're picking top against a locked Irelia.",
+    responses: {
+      ...base,
+      client_status: { data: { connection: "connected", phase: "champSelect" } },
+      draft_state: { data: champSelectDraft },
+    },
   },
   "not-running": {
     description: "League client is not running; no profile.",

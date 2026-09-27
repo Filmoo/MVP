@@ -2,7 +2,7 @@ import { createSignal, type JSX, Show } from "solid-js";
 import { useData } from "../data/context";
 import styles from "./GameIcon.module.css";
 
-type Size = 16 | 20 | 24 | 28 | 32 | 40 | 44 | 48 | 56 | 64 | 80;
+type Size = 16 | 20 | 24 | 28 | 32 | 36 | 40 | 44 | 48 | 56 | 64 | 80;
 
 function ImageWithFallback(props: {
   src: string | undefined;

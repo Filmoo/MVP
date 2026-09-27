@@ -1,6 +1,6 @@
 //! Commands the UI can invoke. Names and payloads mirror `ui/src/data/transport.ts`.
 
-use domain::{AppInfo, ClientStatus, GameData, PlayerProfile};
+use domain::{AppInfo, ClientStatus, DraftView, GameData, PlayerProfile};
 use tauri::Manager as _;
 
 use crate::core::{Core, GameDataState};
@@ -33,6 +33,12 @@ pub fn client_status(app: tauri::AppHandle) -> ClientStatus {
 
 #[tauri::command]
 pub fn current_profile() -> Option<PlayerProfile> {
+    None
+}
+
+/// Current champion select; wired to the client's champ-select session next.
+#[tauri::command]
+pub fn draft_state() -> Option<DraftView> {
     None
 }
 
