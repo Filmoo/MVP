@@ -11,9 +11,10 @@ function NavItem(props: { route: Route }): JSX.Element {
       class={`${styles.item} ${active() ? styles.active : ""}`}
       aria-current={active() ? "page" : undefined}
       title={props.route.label}
+      aria-label={props.route.label}
     >
-      <Icon name={props.route.icon} />
-      <span class={styles.label}>{props.route.label}</span>
+      <Icon name={props.route.icon} size={20} />
+      <span class={styles.label}>{props.route.short}</span>
     </a>
   );
 }

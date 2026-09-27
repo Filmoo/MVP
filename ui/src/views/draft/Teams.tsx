@@ -2,8 +2,9 @@ import { For, type JSX, Show } from "solid-js";
 import { useData } from "../../data/context";
 import type { DraftSlot } from "../../data/generated/DraftSlot";
 import type { DraftView } from "../../data/generated/DraftView";
+import { useTone } from "../../design/ambient";
 import { Card } from "../../design/Card";
-import { ChampionIcon } from "../../design/GameIcon";
+import { ChampionIcon, championIconUrl } from "../../design/GameIcon";
 import { percent } from "../../lib/format";
 import { ROLE_LABEL, ROLE_SHORT } from "../../lib/roles";
 import styles from "./Teams.module.css";
@@ -28,7 +29,10 @@ function Slot(props: { slot: DraftSlot; enemy: boolean }): JSX.Element {
   const text = () => lines(props.slot, props.enemy);
   return (
     <li
-      class={`${styles.slot} ${props.slot.picking ? styles.picking : ""} ${props.slot.hovering ? styles.hovering : ""}`}
+      ref={(el) => useTone(el, () => (props.slot.championId === null ? undefined : championIconUrl(gameData(), props.slot.championId)))}
+      class={`${styles.slot} ${props.slot.picking ? styles.picking : ""} ${props.slot.hovering ? styles.hovering : ""} ${
+        props.slot.championId === null ? "" : styles.filled
+      }`}
       data-testid={props.enemy ? "enemy-slot" : "ally-slot"}
     >
       <Show when={props.slot.championId} fallback={<div class={styles.empty} aria-hidden="true" />}>
@@ -67,12 +71,35 @@ function Team(props: { title: string; slots: DraftSlot[]; bans: number[]; enemy:
   );
 }
 
+/** Both teams' win chances, like the "vs" of a scoreboard. */
+function Odds(props: { percent: number; plusMinus: number }): JSX.Element {
+  return (
+    <div
+      class={`${styles.odds} num`}
+      role="img"
+      aria-label={`Win chance: your team ${props.percent.toFixed(1)}%, ± ${props.plusMinus.toFixed(1)}`}
+    >
+      <span class={styles.oddsLabel}>Win chance</span>
+      <div class={styles.oddsLine}>
+        <span class={styles.us}>{props.percent.toFixed(1)}</span>
+        <span class={styles.vs}>vs</span>
+        <span class={styles.them}>{(100 - props.percent).toFixed(1)}</span>
+      </div>
+      <div class={styles.split}>
+        <div class={styles.splitUs} style={{ width: `${props.percent}%` }} />
+      </div>
+      <span class={styles.oddsPm}>± {props.plusMinus.toFixed(1)} pts</span>
+    </div>
+  );
+}
+
 export function Teams(props: { draft: DraftView }): JSX.Element {
   return (
     <Card>
       <div class={styles.strip}>
-        <div class={styles.teams}>
+        <div class={`${styles.teams} ${props.draft.team ? styles.withOdds : ""}`}>
           <Team title="Your team" slots={props.draft.allies} bans={props.draft.allyBans} enemy={false} />
+          <Show when={props.draft.team}>{(team) => <Odds percent={team().percent} plusMinus={team().plusMinus} />}</Show>
           <Team title="Enemy team" slots={props.draft.enemies} bans={props.draft.enemyBans} enemy />
         </div>
       </div>

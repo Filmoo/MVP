@@ -59,6 +59,8 @@ export async function settle(page: Page): Promise<void> {
       await Promise.race([Promise.all(pending.map(wait)), new Promise((r) => setTimeout(r, 1_000))]);
       await new Promise((r) => setTimeout(r, 50));
     }
+    // "complete" comes before an async-decoded image is painted: wait for decoding too.
+    await Promise.all([...document.images].filter(inView).map((img) => img.decode().catch(() => undefined)));
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
   });
 }

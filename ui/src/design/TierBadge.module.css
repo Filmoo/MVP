@@ -53,3 +53,8 @@
 .challenger {
   color: var(--rank-challenger);
 }
+
+.crest {
+  flex: none;
+  filter: drop-shadow(0 0 10px color-mix(in oklab, currentColor 45%, transparent));
+}

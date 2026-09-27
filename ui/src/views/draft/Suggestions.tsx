@@ -127,8 +127,8 @@ export function Suggestions(props: {
       actions={
         <Show when={props.draft.team}>
           {(team) => (
-            <span class={`${styles.teamNow} num`}>
-              Team now <b>{team().percent.toFixed(1)}%</b> ± {team().plusMinus.toFixed(1)}
+            <span class={`${styles.teamNow} num`} title={`Your team now: ${team().percent.toFixed(1)}%. The small number is the change.`}>
+              Win chance if picked
             </span>
           )}
         </Show>

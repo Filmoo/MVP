@@ -4,20 +4,23 @@ import type { IconName } from "../design/Icon";
 export interface Route {
   path: string;
   label: string;
+  /** Under the icon in the rail. */
+  short: string;
   icon: IconName;
 }
 
 export const mainRoutes: readonly Route[] = [
-  { path: "/", label: "Home", icon: "home" },
-  { path: "/draft", label: "Draft", icon: "draft" },
-  { path: "/live", label: "Live game", icon: "live" },
-  { path: "/champions", label: "Champions", icon: "champions" },
-  { path: "/tier-list", label: "Tier list", icon: "tiers" },
+  { path: "/", label: "Home", short: "Home", icon: "home" },
+  { path: "/draft", label: "Draft", short: "Draft", icon: "draft" },
+  { path: "/live", label: "Live game", short: "Live", icon: "live" },
+  { path: "/champions", label: "Champions", short: "Champs", icon: "champions" },
+  { path: "/tier-list", label: "Tier list", short: "Tiers", icon: "tiers" },
 ];
 
 export const settingsRoute: Route = {
   path: "/settings",
   label: "Settings",
+  short: "Settings",
   icon: "settings",
 };
 

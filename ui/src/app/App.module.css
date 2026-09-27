@@ -25,12 +25,6 @@
   scrollbar-gutter: stable;
 }
 
-@media (max-width: 899px) {
-  .shell {
-    grid-template-columns: var(--sidebar-w-collapsed) minmax(0, 1fr);
-  }
-}
-
 @media (max-width: 559px) {
   .shell {
     grid-template-columns: minmax(0, 1fr);

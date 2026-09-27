@@ -11,6 +11,7 @@
   --bg-2: #161724; /* cards */
   --bg-3: #1d1f2e; /* raised: hover, inputs */
   --bg-4: #262839; /* active / selected */
+  --bg-glass: #161724c7; /* panels floating over art */
 
   --line-1: #1e2030; /* hairlines inside cards */
   --line-2: #2a2d42; /* card borders, dividers */
@@ -86,8 +87,7 @@
 
   /* Layout. */
   --titlebar-h: 40px;
-  --sidebar-w: 216px;
-  --sidebar-w-collapsed: 64px;
+  --sidebar-w: 72px; /* icon rail with labels */
   --content-max: 1440px;
   --aside-w: 340px; /* side column next to a main list (Home, Draft) */
 
@@ -112,8 +112,8 @@
 }
 
 /*
- * Ambient light (see design/ambient.ts): views set these to colors sampled from what they show.
- * Registered so the glow can glide between colors; defaults are the brand pastels.
+ * Colors from content (see design/ambient.ts): pages set --amb-*, widgets --tone-*, to pastels
+ * sampled from what they show. Registered so a change glides; defaults are the brand pastels.
  */
 @property --amb-a {
   syntax: "<color>";
@@ -128,12 +128,30 @@
 @property --amb-c {
   syntax: "<color>";
   inherits: true;
-  initial-value: #ffa0b4;
+  initial-value: #c9c2e8;
+}
+@property --tone-a {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #b9a9ff;
+}
+@property --tone-b {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #93bcff;
+}
+@property --tone-c {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #c9c2e8;
 }
 
-:root[data-ambient="ready"] {
+[data-tone="ready"] {
   transition:
-    --amb-a 500ms var(--ease),
-    --amb-b 500ms var(--ease),
-    --amb-c 500ms var(--ease);
+    --amb-a 450ms var(--ease),
+    --amb-b 450ms var(--ease),
+    --amb-c 450ms var(--ease),
+    --tone-a 450ms var(--ease),
+    --tone-b 450ms var(--ease),
+    --tone-c 450ms var(--ease);
 }

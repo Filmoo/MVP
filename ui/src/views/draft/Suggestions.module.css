@@ -72,7 +72,7 @@
   column-gap: var(--space-6);
   row-gap: var(--space-1);
   width: 100%;
-  padding: var(--space-4) var(--space-5);
+  padding: var(--space-3) var(--space-5);
   border: 0;
   border-radius: var(--radius-3);
   background: transparent;
@@ -209,7 +209,7 @@
 /* Wide lists: name, reasons and estimate on one line. */
 @container suggestions (min-width: 720px) {
   .row {
-    grid-template-columns: 40px minmax(180px, max-content) minmax(0, 1fr) auto;
+    grid-template-columns: 40px minmax(0, 240px) minmax(0, 1fr) auto;
     grid-template-areas: "icon name chips pct";
     column-gap: var(--space-8);
   }

@@ -3,7 +3,7 @@ import { useData } from "../../data/context";
 import type { DraftView } from "../../data/generated/DraftView";
 import { useAmbient } from "../../design/ambient";
 import { Card } from "../../design/Card";
-import { championIconUrl } from "../../design/GameIcon";
+import { championArtUrl } from "../../design/GameIcon";
 import { EmptyState, ErrorState, Skeleton } from "../../design/States";
 import { duration } from "../../lib/format";
 import { Widget } from "../../widgets/Widget";
@@ -31,7 +31,7 @@ export function DraftContent(props: { draft: DraftView }): JSX.Element {
   const suggestion = () => props.draft.suggestions.find((s) => s.championId === selected());
   // The screen takes the colors of the pick being explained.
   const { gameData } = useData();
-  useAmbient(() => championIconUrl(gameData(), selected()));
+  useAmbient(() => championArtUrl(gameData(), selected()));
   const select = (championId: number) => {
     setClicked(championId);
     setExpanded((open) => (open === championId ? undefined : championId));

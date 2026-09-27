@@ -3,7 +3,7 @@ import { useData } from "../../data/context";
 import type { ClientStatus } from "../../data/generated/ClientStatus";
 import { useAmbient } from "../../design/ambient";
 import { Card } from "../../design/Card";
-import { championIconUrl } from "../../design/GameIcon";
+import { championArtUrl } from "../../design/GameIcon";
 import { EmptyState, ErrorState, Skeleton } from "../../design/States";
 import { Widget } from "../../widgets/Widget";
 import page from "../page.module.css";
@@ -38,10 +38,10 @@ function HomeSkeleton(): JSX.Element {
 export function Home(): JSX.Element {
   const { transport, gameData } = useData();
   const [profile, { refetch }] = createResource(() => transport.call("current_profile"));
-  // The page takes the colors of the player's most played recent champion.
+  // The page takes its colors from the art in the hero: the player's most played recent champion.
   useAmbient(() => {
     const p = profile.state === "ready" ? profile() : undefined;
-    return p ? championIconUrl(gameData(), summarize(p.recentMatches).champions[0]?.championId) : undefined;
+    return p ? championArtUrl(gameData(), summarize(p.recentMatches).champions[0]?.championId) : undefined;
   });
 
   // Reload when the client comes up and after every game (new match, new LP).

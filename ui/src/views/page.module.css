@@ -15,8 +15,8 @@
  * Live screens (champ select, live game) fit the window instead of scrolling: the page is exactly
  * as tall as the view and its panels scroll inside. Short or narrow windows fall back to scrolling.
  */
-@media (min-width: 1224px) and (min-height: 600px) {
-  /* 1224px = sidebar + page padding + the 960px wide layout of live screens. */
+@media (min-width: 1080px) and (min-height: 600px) {
+  /* 1080px = rail + page padding + the 960px wide layout of live screens. */
   .live {
     height: 100%;
   }

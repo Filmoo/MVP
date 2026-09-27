@@ -98,22 +98,20 @@ export function championIconUrl(gameData: GameDataView | undefined, championId: 
   return key && gameData ? `${gameData.assetBase}/img/champion/${key}.png` : undefined;
 }
 
-/** Decorative champion art (loading-screen crop). Nothing renders until game data is known. */
+/** URL of a champion's art (loading-screen crop): what heroes show and take their colors from. */
+export function championArtUrl(gameData: GameDataView | undefined, championId: number | undefined): string | undefined {
+  const key = championId === undefined ? undefined : gameData?.champions.get(championId)?.key;
+  return key && gameData ? `${gameData.artBase}/img/champion/centered/${key}_0.jpg` : undefined;
+}
+
+/** Decorative champion art. Nothing renders until game data is known. */
 export function ChampionArt(props: { championId: number; class?: string | undefined }): JSX.Element {
   const { gameData } = useData();
-  const key = () => gameData()?.champions.get(props.championId)?.key;
+  const url = () => championArtUrl(gameData(), props.championId);
   const [failed, setFailed] = createSignal(false);
   return (
-    <Show when={key() && !failed()}>
-      <img
-        class={props.class}
-        src={`${gameData()?.artBase}/img/champion/centered/${key()}_0.jpg`}
-        alt=""
-        aria-hidden="true"
-        decoding="async"
-        draggable={false}
-        onError={() => setFailed(true)}
-      />
+    <Show when={url() && !failed()}>
+      <img class={props.class} src={url()} alt="" aria-hidden="true" decoding="async" draggable={false} onError={() => setFailed(true)} />
     </Show>
   );
 }
