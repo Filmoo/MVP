@@ -1,0 +1,124 @@
+/*
+ * Settings on the left, the app's identity beside them, from the same left edge as every page.
+ * Capped widths: a switch stays within reach of its label on wide windows.
+ */
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 800px) minmax(var(--aside-w), 400px);
+  justify-content: start;
+  grid-template-areas: "main aside";
+  gap: var(--space-6);
+  align-items: start;
+}
+
+.main {
+  grid-area: main;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  min-width: 0;
+}
+
+.aside {
+  grid-area: aside;
+  min-width: 0;
+  position: sticky;
+  top: var(--space-8);
+}
+
+@container page (max-width: 959px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "main"
+      "aside";
+  }
+  .aside {
+    position: static;
+  }
+}
+
+.slider {
+  width: 248px;
+  max-width: 100%;
+}
+
+.saveError {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  margin-top: var(--space-6);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-3);
+  background: var(--loss-soft);
+  color: var(--loss);
+  font-size: var(--text-md);
+  overflow-wrap: anywhere;
+}
+
+.saveErrorIcon {
+  flex: none;
+  margin-top: var(--space-1);
+}
+
+/* About */
+.about {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-7);
+}
+
+.identity {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+.mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--space-11);
+  height: var(--space-11);
+  border-radius: var(--radius-4);
+  background: var(--bg-3);
+  border: 1px solid var(--line-2);
+  color: var(--bg-3);
+  --logo-ink: var(--bg-3);
+}
+
+.identityText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.appName {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.04em;
+}
+
+.version {
+  font-size: var(--text-md);
+  color: var(--text-3);
+}
+
+.note {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.noteTitle {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--text-2);
+}
+
+.note p {
+  font-size: var(--text-md);
+  color: var(--text-3);
+  overflow-wrap: anywhere;
+}

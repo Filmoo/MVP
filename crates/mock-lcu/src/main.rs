@@ -14,7 +14,7 @@ const CYCLE: &[(&str, u64)] = &[
     ("None", 4),
     ("Lobby", 4),
     ("Matchmaking", 5),
-    ("ReadyCheck", 3),
+    ("ReadyCheck", 8),
     ("ChampSelect", 20),
     ("GameStart", 4),
     ("InProgress", 20),
@@ -60,6 +60,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     loop {
         for (phase, seconds) in CYCLE {
             tracing::info!(phase, "gameflow");
+            if *phase == "ReadyCheck" {
+                // Accepted by the app when auto-accept is on (the POST is logged by the mock).
+                mock.start_ready_check();
+                tokio::time::sleep(Duration::from_secs(*seconds)).await;
+                let accepted = mock.count("POST", mock_lcu::READY_CHECK_ACCEPT);
+                tracing::info!(accepted, "ready check over (accept requests so far)");
+                mock.remove(mock_lcu::READY_CHECK);
+                continue;
+            }
             mock.set(lcu_phase_path(), json!(phase));
             if *phase == "ChampSelect" {
                 play_champ_select(&mock).await;

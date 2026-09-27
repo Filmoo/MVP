@@ -61,6 +61,20 @@
   overflow-wrap: anywhere;
 }
 
+.toastIcon {
+  flex: none;
+  margin-top: var(--space-1);
+  color: var(--loss);
+}
+
+.success {
+  border-left-color: var(--good);
+}
+
+.success .toastIcon {
+  color: var(--good);
+}
+
 .toast button {
   margin-left: auto;
   border: 0;

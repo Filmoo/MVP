@@ -1,7 +1,9 @@
 //! Commands the UI can invoke. Names and payloads mirror `ui/src/data/transport.ts`.
 
-use domain::{AppInfo, ClientStatus, DraftView, GameData, PlayerProfile};
-use tauri::Manager as _;
+use companion::settings::SettingsStore;
+use domain::{AppInfo, ClientStatus, DraftView, GameData, PlayerProfile, Settings};
+use tauri::{Emitter as _, Manager as _};
+use tauri_plugin_autostart::ManagerExt as _;
 
 use crate::core::{Core, GameDataState};
 
@@ -70,4 +72,55 @@ pub fn draft_state(app: tauri::AppHandle) -> Option<DraftView> {
 pub fn game_data(app: tauri::AppHandle) -> Option<GameData> {
     app.try_state::<GameDataState>()
         .and_then(|state| state.0.read().ok().and_then(|data| data.clone()))
+}
+
+/// The player's settings.
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub fn get_settings(store: tauri::State<'_, SettingsStore>) -> Settings {
+    store.get()
+}
+
+/// Saves new settings and applies them; answers what was saved (a `settings` event follows).
+/// On failure nothing changes and the error says why.
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub fn update_settings(
+    app: tauri::AppHandle,
+    store: tauri::State<'_, SettingsStore>,
+    settings: Settings,
+) -> Result<Settings, String> {
+    let before = store.get();
+    if settings.launch_at_startup != before.launch_at_startup {
+        let autolaunch = app.autolaunch();
+        let result = if settings.launch_at_startup {
+            autolaunch.enable()
+        } else {
+            autolaunch.disable()
+        };
+        result.map_err(|error| format!("couldn't change the Windows startup entry: {error}"))?;
+    }
+    let saved = store.update(settings).map_err(|error| error.to_string())?;
+    if let Err(error) = app.emit("settings", &saved) {
+        tracing::warn!(%error, "cannot emit settings");
+    }
+    Ok(saved)
+}
+
+/// The UI shows `path`: automatic view switches never fight a user who went elsewhere.
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub fn view_changed(app: tauri::AppHandle, path: String) {
+    if let Some(core) = app.try_state::<Core>() {
+        core.views.report(&path);
+    }
 }

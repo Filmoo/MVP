@@ -2,6 +2,9 @@
 
 use std::sync::RwLock;
 
+use companion::ViewReporter;
+use companion::automation::CoreEvent;
+use companion::settings::SettingsStore;
 use domain::{ClientStatus, DraftView, GameData};
 use tauri::{AppHandle, Emitter as _, Manager as _, Runtime};
 use tokio::sync::watch;
@@ -12,6 +15,7 @@ pub struct Core {
     pub status: watch::Receiver<ClientStatus>,
     pub draft: watch::Receiver<Option<DraftView>>,
     pub client: watch::Receiver<Option<lcu::LcuClient>>,
+    pub views: ViewReporter,
 }
 
 /// Game data of the current patch, once loaded.
@@ -19,7 +23,7 @@ pub struct Core {
 pub struct GameDataState(pub RwLock<Option<GameData>>);
 
 /// Starts following the League client and pushes every status change to the UI.
-pub fn start<R: Runtime>(app: &AppHandle<R>) {
+pub fn start<R: Runtime>(app: &AppHandle<R>, settings: &SettingsStore) {
     app.manage(GameDataState::default());
     load_game_data(app);
 
@@ -30,15 +34,24 @@ pub fn start<R: Runtime>(app: &AppHandle<R>) {
             return;
         }
     };
+    let settings = settings.subscribe();
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
-        let companion = companion::start(config);
+        let companion = companion::start(config, settings);
         app.manage(Core {
             status: companion.status.clone(),
             draft: companion.draft.clone(),
             client: companion.client.clone(),
+            views: companion.views.clone(),
         });
         forward(&app, companion.draft.clone(), "draft");
+        let events_app = app.clone();
+        let mut events = companion.events;
+        tauri::async_runtime::spawn(async move {
+            while let Some(event) = events.recv().await {
+                handle(&events_app, event);
+            }
+        });
         let mut status = companion.status.clone();
         while status.changed().await.is_ok() {
             let current = status.borrow_and_update().clone();
@@ -48,6 +61,18 @@ pub fn start<R: Runtime>(app: &AppHandle<R>) {
             }
         }
     });
+}
+
+/// Carries out what the core asks for: window moves and automation notices for the UI.
+fn handle<R: Runtime>(app: &AppHandle<R>, event: CoreEvent) {
+    match event {
+        CoreEvent::Window(intent) => crate::window::apply(app, intent),
+        CoreEvent::AutoAccept(outcome) => {
+            if let Err(error) = app.emit("auto-accept", outcome) {
+                tracing::warn!(%error, "cannot emit auto-accept");
+            }
+        }
+    }
 }
 
 /// Pushes every change of `rx` to the UI as `event`.

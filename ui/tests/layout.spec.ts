@@ -33,7 +33,11 @@ for (const scenario of scenarioNames) {
 }
 
 // Views that only show content in a specific scenario, at every window size.
-const SCENARIO_VIEWS = [{ view: "/draft", scenario: "champ-select" }] as const;
+const SCENARIO_VIEWS = [
+  { view: "/draft", scenario: "champ-select" },
+  { view: "/settings", scenario: "settings-custom" },
+  { view: "/settings", scenario: "settings-error" },
+] as const;
 for (const { view, scenario } of SCENARIO_VIEWS) {
   for (const size of SIZES) {
     test(`${view}/${scenario} @ ${size.name} ${size.width}×${size.height}`, async ({ page }) => {

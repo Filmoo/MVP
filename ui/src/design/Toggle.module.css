@@ -1,0 +1,51 @@
+.toggle {
+  --toggle-w: 38px;
+  --toggle-h: 22px;
+  --thumb: 16px;
+  position: relative;
+  flex: none;
+  width: var(--toggle-w);
+  height: var(--toggle-h);
+  padding: 0;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-full);
+  background: var(--bg-4);
+  cursor: pointer;
+  transition:
+    background-color var(--dur-2) var(--ease),
+    border-color var(--dur-2) var(--ease);
+}
+
+.thumb {
+  position: absolute;
+  top: 50%;
+  left: var(--space-1);
+  width: var(--thumb);
+  height: var(--thumb);
+  border-radius: var(--radius-full);
+  background: var(--text-2);
+  transform: translateY(-50%);
+  transition:
+    transform var(--dur-2) var(--ease),
+    background-color var(--dur-2) var(--ease);
+}
+
+.toggle:hover .thumb {
+  background: var(--text-1);
+}
+
+.toggle[aria-checked="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+/* Travel = track − borders − thumb − both insets. */
+.toggle[aria-checked="true"] .thumb {
+  background: var(--text-on-accent);
+  transform: translate(calc(var(--toggle-w) - 2px - var(--thumb) - 2 * var(--space-1)), -50%);
+}
+
+.toggle:disabled {
+  cursor: default;
+  opacity: 0.4;
+}

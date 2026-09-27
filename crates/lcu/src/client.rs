@@ -73,6 +73,11 @@ impl LcuClient {
         })
     }
 
+    /// `POST path` with an optional JSON body; `Value::Null` for empty answers (204).
+    pub async fn post(&self, path: &str, body: Option<&Value>) -> Result<Value, LcuError> {
+        self.request(Method::POST, path, body).await
+    }
+
     /// Sends a request; `Value::Null` for empty bodies (204).
     pub async fn request(
         &self,
