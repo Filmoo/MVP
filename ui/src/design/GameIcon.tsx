@@ -1,6 +1,7 @@
 import { createSignal, type JSX, Show } from "solid-js";
 import { useData } from "../data/context";
 import type { GameDataView } from "../data/static-data";
+import { lightFrom } from "./ambient";
 import styles from "./GameIcon.module.css";
 
 type Size = 16 | 20 | 24 | 28 | 32 | 36 | 40 | 44 | 48 | 56 | 64 | 72 | 80;
@@ -105,13 +106,24 @@ export function championArtUrl(gameData: GameDataView | undefined, championId: n
 }
 
 /** Decorative champion art. Nothing renders until game data is known. */
-export function ChampionArt(props: { championId: number; class?: string | undefined }): JSX.Element {
+export function ChampionArt(props: { championId: number; class?: string | undefined; light?: boolean }): JSX.Element {
   const { gameData } = useData();
   const url = () => championArtUrl(gameData(), props.championId);
   const [failed, setFailed] = createSignal(false);
   return (
     <Show when={url() && !failed()}>
-      <img class={props.class} src={url()} alt="" aria-hidden="true" decoding="async" draggable={false} onError={() => setFailed(true)} />
+      <img
+        ref={(el) => {
+          if (props.light) lightFrom(el);
+        }}
+        class={props.class}
+        src={url()}
+        alt=""
+        aria-hidden="true"
+        decoding="async"
+        draggable={false}
+        onError={() => setFailed(true)}
+      />
     </Show>
   );
 }

@@ -743,3 +743,39 @@ async fn riot_calls_and_cache_hits_are_counted() {
         "{text}"
     );
 }
+
+// ---------------------------------------------------------------------------------------------
+// Published stats behind the platform layers
+
+#[tokio::test]
+async fn stats_keep_their_etag_and_are_rate_limited() {
+    let published = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(published.path().join("v1")).unwrap();
+    std::fs::write(
+        published.path().join("v1/index.json"),
+        br#"{"patches":[],"current":null}"#,
+    )
+    .unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let mut s = settings(dir.path());
+    s.rate_burst = 2;
+    s.rate_per_minute = 1;
+    let ops = Ops::new(s).unwrap();
+    let state = AppState::with_stats(None, Some(published.path().to_path_buf()));
+    let origins: Vec<String> = DEFAULT_ALLOWED_ORIGINS.map(str::to_owned).to_vec();
+    let base = serve(service(&state, &origins, &ops)).await;
+    let http = http();
+    let get = || {
+        http.get(format!("{base}/v1/stats/index"))
+            .header("x-mvp-install", INSTALL)
+    };
+
+    let res = get().send().await.unwrap();
+    assert_eq!(res.status().as_u16(), 200);
+    assert_eq!(res.headers()["cache-control"], "public, max-age=300");
+    assert!(res.headers().contains_key("x-request-id"));
+    let etag = res.headers()["etag"].to_str().unwrap().to_owned();
+    let res = get().header("if-none-match", &etag).send().await.unwrap();
+    assert_eq!(res.status().as_u16(), 304);
+    assert_eq!(get().send().await.unwrap().status().as_u16(), 429);
+}

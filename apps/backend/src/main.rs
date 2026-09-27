@@ -57,7 +57,10 @@ async fn serve(
         .clone()
         .map(|key| RiotClient::new(key, live_riot_config()))
         .transpose()?;
-    let state = AppState::new(client);
+    if let Some(dir) = &settings.stats_dir {
+        tracing::info!(dir = %dir.display(), "serving published stats");
+    }
+    let state = AppState::with_stats(client, settings.stats_dir.clone());
     tracing::info!(settings = ?ops_settings, "platform services");
     let ops = Ops::new(ops_settings)?;
 

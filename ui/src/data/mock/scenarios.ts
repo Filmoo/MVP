@@ -3,6 +3,7 @@ import type { PlayerProfile } from "../generated/PlayerProfile";
 import type { CommandName, Commands, EventName, Events } from "../transport";
 import { champSelectDraft } from "./draft-fixtures";
 import { corruptProfile, extremeProfile, newPlayerProfile, profile } from "./fixtures";
+import { customSettings, defaultSettings, saveSettings } from "./settings-fixtures";
 
 /** Profile captured by `capture-profile`, served by the dev server; falls back to the fixture. */
 async function loadCapturedProfile(): Promise<PlayerProfile> {
@@ -15,14 +16,16 @@ async function loadCapturedProfile(): Promise<PlayerProfile> {
   return profile;
 }
 
-export type MockResponse<T> =
+export type MockResponse<T, A = undefined> =
   | { data: T; delayMs?: number }
   | { error: string; delayMs?: number }
-  | { load: () => Promise<T>; delayMs?: number };
+  | { load: () => Promise<T>; delayMs?: number }
+  /** Answers from the command's arguments (e.g. echoes saved settings). */
+  | { handle: (args: A) => T; delayMs?: number };
 
 export interface Scenario {
   description: string;
-  responses: { [K in CommandName]?: MockResponse<Commands[K]["result"]> };
+  responses: { [K in CommandName]?: MockResponse<Commands[K]["result"], Commands[K]["args"]> };
   /** Events emitted after the given delay (ms) once the app subscribes. */
   timeline?: ReadonlyArray<{
     afterMs: number;
@@ -38,6 +41,9 @@ const base: Scenario["responses"] = {
   client_status: { data: connectedIdle },
   current_profile: { data: profile },
   draft_state: { data: null },
+  get_settings: { data: defaultSettings },
+  update_settings: { handle: (args) => saveSettings(args.settings), delayMs: 60 },
+  view_changed: { data: null },
 };
 
 export const scenarios = {
@@ -71,6 +77,7 @@ export const scenarios = {
       ...base,
       client_status: { data: connectedIdle, delayMs: 2_500 },
       current_profile: { data: profile, delayMs: 2_500 },
+      get_settings: { data: defaultSettings, delayMs: 2_500 },
     },
   },
   "profile-error": {
@@ -91,6 +98,23 @@ export const scenarios = {
   extreme: {
     description: "Longest names, biggest numbers: layout must not overflow.",
     responses: { ...base, current_profile: { data: extremeProfile } },
+  },
+  "settings-custom": {
+    description: "Automations on (auto-accept after 4 s), app defaults changed.",
+    responses: { ...base, get_settings: { data: customSettings } },
+  },
+  "settings-error": {
+    description: "Settings can't be read: error state with retry.",
+    responses: { ...base, get_settings: { error: "Settings file is locked by another program" } },
+  },
+  "settings-save-error": {
+    description: "Saving fails: the switch flips back and the card says why.",
+    responses: { ...base, update_settings: { error: "settings file not writable: Access is denied. (os error 5)", delayMs: 60 } },
+  },
+  "match-accepted": {
+    description: "Auto-accept just accepted a match: a confirmation toast shows.",
+    responses: { ...base, get_settings: { data: customSettings } },
+    timeline: [{ afterMs: 300, event: "auto-accept", payload: { kind: "accepted" } }],
   },
 } satisfies Record<string, Scenario>;
 

@@ -19,6 +19,15 @@ JSON, camelCase. Types come from `crates/domain` and are exported to
 | `GET /v1/config?version=&channel=` | `RemoteConfig` + `ETag`; 304 on `If-None-Match` (see [Remote config](#remote-config)) |
 | `POST /v1/reports` (`CrashReport`) | 202 (see [Crash reports](#crash-reports-and-privacy)) |
 | `GET /metrics` | Prometheus text; only with `METRICS_TOKEN` (bearer) or on `ADMIN_BIND` |
+| `GET /v1/stats/index` | `StatsIndex`: published patches and the `current` one |
+| `GET /v1/stats/{patch}/{queue}/{file…}` | a published stats file, e.g. `16.19/420/emeraldPlus/builds/103.json` |
+
+Stats routes serve the files `mvp-crawler publish` wrote under `STATS_DIR` (layout and types:
+`docs/architecture.md`, Stats pipeline). They need no Riot key, answer with an `ETag` (send
+`If-None-Match` → `304`) and `Cache-Control` (index 5 min, patch files 1 h), and 404 when the
+file (or `STATS_DIR`) is absent. Like every `/v1/*` route they go through the per-install rate
+limit (60 at once, then 120 a minute): the app keeps downloaded files and revalidates them
+with `If-None-Match` rather than refetching a whole patch at once.
 
 - `platform` is a Riot platform id: `euw1`, `eun1`, `na1`, `kr`, `br1`, `jp1`, `la1`, `la2`,
   `me1`, `oc1`, `ru`, `sg2`, `tr1`, `tw2`, `vn2`.
@@ -263,6 +272,7 @@ dismissible by `id`.
 | `RATE_LIMIT_BURST` / `RATE_LIMIT_PER_MINUTE` | `60` / `120` | Per install (or IP) on `/v1/*`. |
 | `REQUEST_TIMEOUT_SECS` | `45` | Whole-request timeout. |
 | `CACHE_SNAPSHOT` | on | `0` to skip saving/restoring the Riot caches. |
+| `STATS_DIR` | — | Published stats root (e.g. `.cache/crawler/stats`); stats routes 404 without it. |
 | `RUST_LOG` | `info` | Log filter (`tracing`). |
 | `LOG_FORMAT` | text | `json` for JSON lines (set in the image). |
 
@@ -314,5 +324,46 @@ Health: the image's `HEALTHCHECK` runs `mvp-backend healthcheck` (probes `GET /h
 uptime monitor can poll `https://api.example.com/health` (`riotKey: false` means the key is
 missing). Prometheus (or a Grafana agent) on the VPS scrapes `127.0.0.1:9100/metrics`.
 
-Later: published per-patch aggregates go to Cloudflare R2 (the crawler is not built yet); the
-config's `statsIndexUrl` points the app at them.
+## Stats pipeline: crawl and publish (`apps/crawler`)
+
+`mvp-crawler` fills the stats the app downloads (champion records, tier list, matchups,
+builds, draft priors): Emerald+ ladders → recent ranked solo (420) and ARAM (450) games →
+per-game facts in SQLite → per-patch JSON. Same key rules as the backend: server-side only.
+
+```sh
+# Crawl (resumable; stop anytime, run again to continue). A dev key works, slowly:
+RIOT_API_KEY=RGAPI-… cargo run --release -p mvp-crawler -- crawl --platform euw1 --max-matches 500
+# Publish the two newest patches from what was crawled (no Riot calls; Data Dragon for items):
+cargo run --release -p mvp-crawler -- publish
+# What's stored:
+cargo run --release -p mvp-crawler -- status
+# Serve them:
+STATS_DIR=.cache/crawler/stats RIOT_API_KEY=RGAPI-… cargo run -p mvp-backend
+curl http://127.0.0.1:8787/v1/stats/index
+```
+
+| Flag (env) | Default | |
+| --- | --- | --- |
+| `--data-dir` (`CRAWL_DATA_DIR`) | `.cache/crawler` | `crawl.sqlite`, the Data Dragon cache and `stats/` (never committed) |
+| `--platform` (`CRAWL_PLATFORM`) | `euw1` | platform whose ladders are crawled |
+| `--max-matches` (`CRAWL_MAX_MATCHES`) | `500` | matches fetched by this run (counted or not) |
+| `--players-per-bracket` | `300` | ladder players seeded per bracket (emerald, diamond, master = Master+) |
+| `--brackets` | `emerald,diamond,master` | brackets to crawl |
+| `--since-days` / `--ids-per-player` | `14` / `20` | match-id window and page size per player and queue |
+| `--concurrency` | `4` | matches in flight (the rate limiter still paces every call) |
+| `--no-timelines` | off | skip timelines (halves requests; no skill order or items) |
+| `publish --out` | `{data dir}/stats` | stats root (what `STATS_DIR` points to) |
+| `publish --patch 16.19` (repeatable) | two newest | patches to publish |
+| `publish --min-role-games / --min-pair-games / --min-current-games` | `50 / 10 / 20000` | publication thresholds |
+| `publish --ddragon URL` or `off` | Riot's CDN | item classes source (`off`: builds without items) |
+
+Budget: each counted game costs 2 requests (match + timeline) plus one match-id list per
+player and queue. A development key (100 requests / 2 min) does ~2,000 games a day; volumes
+worth publishing (≥ 20k ranked games per patch for `current`) need the production key.
+Idempotent by construction: a match id is stored once, and publishing always recomputes from
+the stored facts (so fixing an aggregation bug only needs a republish, never a recrawl).
+
+**TODO (next step):** upload `{data dir}/stats/v1` to Cloudflare R2 after each publish (e.g.
+`rclone sync`, credentials only in the VPS environment, never in this repo), put the CDN URL
+in `config.json`'s `statsIndexUrl` (the app reads it from `RemoteConfig`), and schedule crawl + publish (systemd timer or cron). Until then the backend
+serves the files itself.

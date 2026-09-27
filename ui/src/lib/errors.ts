@@ -4,19 +4,36 @@ export interface AppIssue {
   id: number;
   message: string;
   at: number;
+  /** `error`: something failed (stays until dismissed); `success`: a confirmation (fades on its own). */
+  tone: "error" | "success";
 }
 
 const [issues, setIssues] = createSignal<AppIssue[]>([]);
 let nextId = 1;
 
-/** Last unexpected errors, surfaced in a non-blocking toast. */
+/** How long a confirmation stays on screen. */
+const SUCCESS_MS = 4_000;
+
+/** Last unexpected errors and confirmations, surfaced in non-blocking toasts. */
 export { issues };
+
+function push(message: string, tone: AppIssue["tone"]): number {
+  const id = nextId++;
+  setIssues((list) => [...list.slice(-2), { id, message, at: Date.now(), tone }]);
+  return id;
+}
 
 export function reportError(error: unknown, context?: string): void {
   const message = error instanceof Error ? error.message : String(error);
   // Keep the console trace for developers; users get the toast.
   console.error(context ? `[${context}]` : "[error]", error);
-  setIssues((list) => [...list.slice(-2), { id: nextId++, message, at: Date.now() }]);
+  push(message, "error");
+}
+
+/** A short confirmation ("Match accepted"). One timer per toast, only while it shows. */
+export function notify(message: string): void {
+  const id = push(message, "success");
+  setTimeout(() => dismissIssue(id), SUCCESS_MS);
 }
 
 export function dismissIssue(id: number): void {

@@ -1,0 +1,21 @@
+[package]
+name = "aggregate"
+description = "Pure stats pipeline: Match-V5 games (+ timelines) → compact per-game facts → mergeable per patch × queue × bracket aggregates → the published per-patch JSON files."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+domain.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+stats.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+
+[lints]
+workspace = true

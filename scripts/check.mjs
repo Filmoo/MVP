@@ -26,9 +26,19 @@ const web = [
 const build = [["UI build + bundle budgets", "pnpm", ["--filter", "@scout/ui", "build"]]];
 const ui = [
   [
-    "UI: layout, coherence, errors",
+    "UI: layout, coherence, errors, interactions",
     "pnpm",
-    ["--filter", "@scout/ui", "exec", "playwright", "test", "--project=layout", "--project=coherence", "--project=errors"],
+    [
+      "--filter",
+      "@scout/ui",
+      "exec",
+      "playwright",
+      "test",
+      "--project=layout",
+      "--project=coherence",
+      "--project=errors",
+      "--project=interactions",
+    ],
   ],
   ["UI: performance budgets", "pnpm", ["--filter", "@scout/ui", "exec", "playwright", "test", "--project=perf", "--workers=1"]],
 ];

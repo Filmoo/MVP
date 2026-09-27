@@ -24,6 +24,18 @@
     "draft-why": {
       "renderMs": 4,
       "domNodes": 120
+    },
+    "settings-automation": {
+      "renderMs": 3,
+      "domNodes": 44
+    },
+    "settings-app": {
+      "renderMs": 2,
+      "domNodes": 26
+    },
+    "settings-about": {
+      "renderMs": 2,
+      "domNodes": 28
     }
   },
   "bootMs": 900,

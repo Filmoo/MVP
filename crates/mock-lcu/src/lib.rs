@@ -59,6 +59,28 @@ struct Shared {
 }
 
 impl Shared {
+    fn set(&self, path: &str, value: Value) {
+        let existed = lock(&self.docs)
+            .insert(path.to_owned(), value.clone())
+            .is_some();
+        let _ = self.events.send(ApiEvent {
+            uri: path.to_owned(),
+            event_type: if existed { "Update" } else { "Create" },
+            data: value,
+        });
+    }
+
+    /// The player answers the current ready check (from the client UI or through the API).
+    fn respond_to_ready_check(&self, response: &str) -> bool {
+        let current = lock(&self.docs).get(READY_CHECK).cloned();
+        let Some(mut check) = current else {
+            return false;
+        };
+        check["playerResponse"] = json!(response);
+        self.set(READY_CHECK, check);
+        true
+    }
+
     fn authorized(&self, headers: &HeaderMap) -> bool {
         let expected = format!(
             "Basic {}",
@@ -131,7 +153,7 @@ impl MockLcu {
             shared,
             server,
         };
-        mock.set("/lol-gameflow/v1/gameflow-phase", json!("None"));
+        mock.set(GAMEFLOW_PHASE, json!("None"));
         Ok(mock)
     }
 
@@ -160,14 +182,7 @@ impl MockLcu {
 
     /// Sets the document served at `path` and pushes an `Update`/`Create` event for it.
     pub fn set(&self, path: &str, value: Value) {
-        let existed = lock(&self.shared.docs)
-            .insert(path.to_owned(), value.clone())
-            .is_some();
-        let _ = self.shared.events.send(ApiEvent {
-            uri: path.to_owned(),
-            event_type: if existed { "Update" } else { "Create" },
-            data: value,
-        });
+        self.shared.set(path, value);
     }
 
     /// Removes the document at `path` (404 afterwards) and pushes a `Delete` event.
@@ -187,7 +202,50 @@ impl MockLcu {
             .map(|(m, p)| (m.to_string(), p.clone()))
             .collect()
     }
+
+    /// How many `method path` requests were received.
+    pub fn count(&self, method: &str, path: &str) -> usize {
+        lock(&self.shared.requests)
+            .iter()
+            .filter(|(m, p)| m.as_str() == method && p == path)
+            .count()
+    }
+
+    /// A match is found: the ready check pops up (nobody answered yet) and the gameflow phase
+    /// turns to `ReadyCheck`. `POST …/ready-check/accept|decline` answer it like the client does.
+    pub fn start_ready_check(&self) {
+        self.set(
+            READY_CHECK,
+            json!({ "state": "InProgress", "playerResponse": "None", "timer": 0.0, "declinerIds": [], "dodgeWarning": "None", "suppressUx": false }),
+        );
+        self.set(GAMEFLOW_PHASE, json!("ReadyCheck"));
+    }
+
+    /// The player clicks Decline in the client.
+    pub fn decline_ready_check(&self) {
+        self.shared.respond_to_ready_check("Declined");
+    }
+
+    /// The player clicks Accept in the client.
+    pub fn accept_ready_check(&self) {
+        self.shared.respond_to_ready_check("Accepted");
+    }
+
+    /// The ready check is over (everyone answered or it timed out): the client moves to `phase`.
+    pub fn end_ready_check(&self, phase: &str) {
+        self.remove(READY_CHECK);
+        self.set(GAMEFLOW_PHASE, json!(phase));
+    }
 }
+
+const GAMEFLOW_PHASE: &str = "/lol-gameflow/v1/gameflow-phase";
+
+/// The current ready check (404 when there is none).
+pub const READY_CHECK: &str = "/lol-matchmaking/v1/ready-check";
+/// Accepts the current ready check.
+pub const READY_CHECK_ACCEPT: &str = "/lol-matchmaking/v1/ready-check/accept";
+/// Declines the current ready check.
+pub const READY_CHECK_DECLINE: &str = "/lol-matchmaking/v1/ready-check/decline";
 
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     m.lock().unwrap_or_else(PoisonError::into_inner)
@@ -210,6 +268,18 @@ async fn handle(State(shared): State<Arc<Shared>>, req: Request<Body>) -> Respon
 }
 
 fn route(shared: &Shared, method: &Method, uri: &Uri) -> Response {
+    let answer = match (method, uri.path()) {
+        (&Method::POST, READY_CHECK_ACCEPT) => Some("Accepted"),
+        (&Method::POST, READY_CHECK_DECLINE) => Some("Declined"),
+        _ => None,
+    };
+    if let Some(response) = answer {
+        return if shared.respond_to_ready_check(response) {
+            StatusCode::NO_CONTENT.into_response()
+        } else {
+            lcu_error(StatusCode::NOT_FOUND, "No ready check")
+        };
+    }
     let docs = lock(&shared.docs);
     match (method, docs.get(uri.path())) {
         (&Method::GET, Some(value)) => (StatusCode::OK, axum::Json(value.clone())).into_response(),

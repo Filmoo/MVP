@@ -39,6 +39,9 @@ export function createGameData(transport: Transport): Accessor<GameDataView | un
       return loaded ? index(loaded) : undefined;
     } catch {
       return undefined;
+    } finally {
+      // Lets tests (and anything else) know names and art URLs are resolved, or never will be.
+      document.documentElement.dataset.gameData = "settled";
     }
   });
   onCleanup(transport.listen("game-data", (loaded) => mutate(index(loaded))));

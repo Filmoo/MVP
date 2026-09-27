@@ -4,6 +4,8 @@
 //! - `GET /health` → `Health`
 //! - `GET /v1/players/{platform}/{gameName}/{tagLine}` → `PlayerProfile`
 //! - `POST /v1/players/batch` (`ScoutRequest`) → `ScoutCard[]` for loading-screen scouting
+//! - `GET /v1/stats/index` → `StatsIndex`; `GET /v1/stats/{patch}/{queue}/{file…}` → the
+//!   published stats files (from `STATS_DIR`, written by `mvp-crawler publish`)
 //!
 //! Failures answer `ApiError`. Riot-backed routes answer 503 `riotKeyMissing` without a key.
 //!
@@ -14,6 +16,7 @@
 mod cache;
 mod error;
 mod source;
+mod stats_files;
 
 // ---- Platform services: updates, remote config, reports, hardening ----
 pub mod admin;
@@ -46,6 +49,7 @@ pub fn service(state: &AppState, allowed_origins: &[String], ops: &Ops) -> Route
 // ---- end platform services ----
 
 use std::net::SocketAddr;
+use std::path::{Path as FsPath, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -89,11 +93,14 @@ pub struct Settings {
     pub bind: SocketAddr,
     pub allowed_origins: Vec<String>,
     pub riot_key: Option<ApiKey>,
+    /// Root of the published stats files (`STATS_DIR`); stats routes answer 404 without it.
+    pub stats_dir: Option<PathBuf>,
 }
 
 impl Settings {
     /// `RIOT_API_KEY` (optional: without it Riot-backed routes answer 503),
-    /// `BIND` (default `127.0.0.1:8787`), `ALLOWED_ORIGINS` (comma-separated).
+    /// `BIND` (default `127.0.0.1:8787`), `ALLOWED_ORIGINS` (comma-separated),
+    /// `STATS_DIR` (published stats, e.g. `.cache/crawler/stats`).
     pub fn from_env() -> Result<Self, String> {
         let bind = std::env::var("BIND").unwrap_or_else(|_| DEFAULT_BIND.to_owned());
         let bind = bind
@@ -111,6 +118,9 @@ impl Settings {
             bind,
             allowed_origins,
             riot_key: ApiKey::from_env(),
+            stats_dir: std::env::var_os("STATS_DIR")
+                .filter(|d| !d.is_empty())
+                .map(PathBuf::from),
         })
     }
 }
@@ -129,6 +139,7 @@ struct Inner {
     /// Keyed by platform and lower-cased Riot ID.
     profiles: Cache<(Platform, String, String), PlayerProfile>,
     cards: Cache<(Platform, String), ScoutCard>,
+    stats_dir: Option<PathBuf>,
 }
 
 /// Shared state of the service.
@@ -138,11 +149,21 @@ pub struct AppState(Arc<Inner>);
 impl AppState {
     /// `riot`: `None` when no API key is configured.
     pub fn new(riot: Option<RiotClient>) -> Self {
+        Self::with_stats(riot, None)
+    }
+
+    /// Also serves the published stats files under `stats_dir` (see `stats_files`).
+    pub fn with_stats(riot: Option<RiotClient>, stats_dir: Option<PathBuf>) -> Self {
         Self(Arc::new(Inner {
             riot: riot.map(CachedRiot::new),
             profiles: Cache::new(Some(PROFILE_TTL), PROFILES_MAX),
             cards: Cache::new(Some(CARD_TTL), CARDS_MAX),
+            stats_dir,
         }))
+    }
+
+    fn stats_dir(&self) -> Option<&FsPath> {
+        self.0.stats_dir.as_deref()
     }
 
     fn riot(&self) -> Result<&CachedRiot, Failure> {
@@ -183,6 +204,8 @@ pub fn app(state: AppState, allowed_origins: &[String]) -> Router {
             get(player_profile),
         )
         .route("/v1/players/batch", post(scout_batch))
+        .route("/v1/stats/index", get(stats_files::index))
+        .route("/v1/stats/{patch}/{queue}/{*file}", get(stats_files::file))
         .fallback(|| async { Failure::not_found() })
         .layer(cors)
         .with_state(state)

@@ -39,6 +39,11 @@ export async function settle(page: Page): Promise<void> {
   await expect(page.locator("[data-state=loading]")).toHaveCount(0, { timeout: 10_000 });
   await page.evaluate(async () => {
     await document.fonts.ready;
+    // Art and names depend on game data: wait until it has loaded (or failed).
+    for (let i = 0; i < 60 && document.documentElement.dataset.gameData !== "settled"; i++) {
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     // Screenshots and audits need every image now, not when it scrolls into view.
     for (const img of document.images) img.loading = "eager";
     const inView = (img: HTMLImageElement) => {

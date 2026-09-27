@@ -30,7 +30,7 @@ function MatchRow(props: { match: MatchSummary }): JSX.Element {
   const slots = () => Array.from({ length: ITEM_SLOTS }, (_, i) => m().items[i]);
 
   return (
-    <li class={`${styles.row} ${styles[outcome()]}`} data-testid="match-row" data-outcome={outcome()}>
+    <li class={`${styles.row} ${styles[outcome()]} glass-pill`} data-glass data-testid="match-row" data-outcome={outcome()}>
       <ChampionIcon championId={m().championId} size={40} />
       <div class={styles.outcome}>
         <span class={styles.result}>{label[outcome()]}</span>

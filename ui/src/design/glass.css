@@ -1,0 +1,27 @@
+/*
+ * Glass highlight: elements marked `data-glass` catch a soft light where the pointer is, like iOS
+ * glass. The position comes from one passive, frame-throttled pointer listener (app/glass.ts), so
+ * nothing runs unless the pointer moves over glass; at rest the highlight is simply hidden.
+ */
+[data-glass]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(240px circle at var(--mx, 50%) var(--my, -60%), var(--bg-highlight), transparent 65%);
+  opacity: 0;
+  transition: opacity var(--dur-2) var(--ease);
+}
+
+[data-glass]:hover::after {
+  opacity: 1;
+}
+
+/* A pill of glass inside a card: faint fill, lit top edge. */
+.glass-pill {
+  background-image: linear-gradient(180deg, var(--bg-sheen), transparent);
+  box-shadow:
+    inset 0 1px 0 var(--line-glass),
+    inset 0 0 0 1px var(--bg-sheen);
+}

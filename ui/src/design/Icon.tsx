@@ -15,6 +15,7 @@ const paths = {
   minimize: "M5 12h14",
   maximize: "M5 5h14v14H5z",
   close: "M6 6l12 12M18 6 6 18",
+  check: "M5 12.5l4.5 4.5L19 7.5",
   history: "M3 12a9 9 0 1 0 3-6.7M3 4v4h4M12 7v5l3 2",
   sparkles: "M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z",
 } as const;

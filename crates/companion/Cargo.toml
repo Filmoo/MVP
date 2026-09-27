@@ -12,12 +12,13 @@ domain.workspace = true
 lcu.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+thiserror.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
 mock-lcu.workspace = true
-serde_json.workspace = true
+tempfile = "3"
 
 [lints]
 workspace = true

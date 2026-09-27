@@ -3,24 +3,18 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use domain::{ClientConnection, ClientStatus, GameflowPhase};
+use companion::Companion;
+use companion::automation::{CoreEvent, WindowIntent};
+use domain::{AutoAcceptEvent, ClientConnection, ClientStatus, GameflowPhase, Settings, ViewRoute};
 use lcu::ConnectorConfig;
 use lcu::tls::pinned_client_config;
 use mock_lcu::MockLcu;
 use serde_json::json;
+use tokio::sync::watch;
 
-async fn wait_for(status: &mut tokio::sync::watch::Receiver<ClientStatus>, want: ClientStatus) {
-    tokio::time::timeout(Duration::from_secs(5), status.wait_for(|s| *s == want))
-        .await
-        .unwrap()
-        .unwrap();
-}
-
-#[tokio::test]
-async fn publishes_status_from_the_client() {
-    let mock = Arc::new(MockLcu::start().await.unwrap());
+fn config_for(mock: &MockLcu) -> ConnectorConfig {
     let lockfile = mock.lockfile();
-    let companion = companion::start(ConnectorConfig {
+    ConnectorConfig {
         discover: Box::new(move || {
             lcu::Lockfile::parse(&lockfile)
                 .ok()
@@ -30,7 +24,21 @@ async fn publishes_status_from_the_client() {
         paths: vec![],
         poll_interval: Duration::from_millis(50),
         startup_grace: Duration::from_secs(1),
-    });
+    }
+}
+
+async fn wait_for(status: &mut watch::Receiver<ClientStatus>, want: ClientStatus) {
+    tokio::time::timeout(Duration::from_secs(5), status.wait_for(|s| *s == want))
+        .await
+        .unwrap()
+        .unwrap();
+}
+
+#[tokio::test]
+async fn publishes_status_from_the_client() {
+    let mock = Arc::new(MockLcu::start().await.unwrap());
+    let (_settings, settings_rx) = watch::channel(Settings::default());
+    let companion = companion::start(config_for(&mock), settings_rx);
     let mut status = companion.status.clone();
 
     let connected = |phase| ClientStatus {
@@ -48,27 +56,8 @@ async fn publishes_status_from_the_client() {
 #[tokio::test]
 async fn follows_champion_select() {
     let mock = Arc::new(MockLcu::start().await.unwrap());
-    let lockfile = mock.lockfile();
-    let companion = companion::start(ConnectorConfig {
-        discover: Box::new(move || {
-            lcu::Lockfile::parse(&lockfile)
-                .ok()
-                .map(|l| l.credentials())
-        }),
-        tls: pinned_client_config(mock.ca_pem().as_bytes()).unwrap(),
-        paths: vec![],
-        poll_interval: Duration::from_millis(50),
-        startup_grace: Duration::from_secs(1),
-    });
+    let (companion, _settings) = connected(&mock, Settings::default()).await;
     let mut draft = companion.draft.clone();
-    let mut status = companion.status.clone();
-    tokio::time::timeout(
-        Duration::from_secs(5),
-        status.wait_for(|s| s.connection == ClientConnection::Connected),
-    )
-    .await
-    .unwrap()
-    .unwrap();
 
     // Session exists before the phase flips: read on entry.
     mock.set(
@@ -138,4 +127,173 @@ async fn reads_the_local_profile() {
     assert_eq!(profile.region, "EUW");
     assert_eq!(profile.solo_queue.unwrap().tier, domain::Tier::Gold);
     assert!(profile.recent_matches.is_empty());
+}
+
+// ── Automations ────────────────────────────────────────────────────────────────────────────
+
+/// A core connected to `mock` (event subscriptions in place) with `settings`.
+async fn connected(mock: &MockLcu, settings: Settings) -> (Companion, watch::Sender<Settings>) {
+    let (settings_tx, settings_rx) = watch::channel(settings);
+    let companion = companion::start(config_for(mock), settings_rx);
+    let mut status = companion.status.clone();
+    tokio::time::timeout(
+        Duration::from_secs(5),
+        status.wait_for(|s| s.connection == ClientConnection::Connected),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    // Let the mock register the subscriptions.
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    (companion, settings_tx)
+}
+
+async fn next_event(companion: &mut Companion) -> CoreEvent {
+    tokio::time::timeout(Duration::from_secs(5), companion.events.recv())
+        .await
+        .unwrap()
+        .unwrap()
+}
+
+fn auto_accept(delay: u8) -> Settings {
+    Settings {
+        auto_accept: true,
+        auto_accept_delay_seconds: delay,
+        // Only the ready check matters in these tests.
+        auto_switch_view: false,
+        bring_to_front_on_champ_select: false,
+        ..Settings::default()
+    }
+}
+
+async fn accept_posts_after(mock: &MockLcu, wait: Duration) -> usize {
+    tokio::time::sleep(wait).await;
+    mock.count("POST", mock_lcu::READY_CHECK_ACCEPT)
+}
+
+#[tokio::test]
+async fn accepts_the_ready_check_once() {
+    let mock = MockLcu::start().await.unwrap();
+    let (mut companion, _settings) = connected(&mock, auto_accept(0)).await;
+    mock.start_ready_check();
+    assert_eq!(
+        next_event(&mut companion).await,
+        CoreEvent::AutoAccept(AutoAcceptEvent::Accepted)
+    );
+    // The same ready check again (a repeated phase event): no second accept.
+    mock.set(lcu::GAMEFLOW_PHASE, json!("ReadyCheck"));
+    assert_eq!(
+        accept_posts_after(&mock, Duration::from_millis(300)).await,
+        1
+    );
+}
+
+#[tokio::test]
+async fn waits_the_delay_before_accepting() {
+    let mock = MockLcu::start().await.unwrap();
+    let (mut companion, _settings) = connected(&mock, auto_accept(1)).await;
+    mock.start_ready_check();
+    assert_eq!(
+        accept_posts_after(&mock, Duration::from_millis(500)).await,
+        0
+    );
+    assert_eq!(
+        next_event(&mut companion).await,
+        CoreEvent::AutoAccept(AutoAcceptEvent::Accepted)
+    );
+    assert_eq!(mock.count("POST", mock_lcu::READY_CHECK_ACCEPT), 1);
+}
+
+#[tokio::test]
+async fn off_by_default() {
+    let mock = MockLcu::start().await.unwrap();
+    let (_companion, _settings) = connected(&mock, Settings::default()).await;
+    mock.start_ready_check();
+    assert_eq!(
+        accept_posts_after(&mock, Duration::from_millis(500)).await,
+        0
+    );
+}
+
+#[tokio::test]
+async fn never_overrides_the_players_answer() {
+    let mock = MockLcu::start().await.unwrap();
+    let (_companion, _settings) = connected(&mock, auto_accept(1)).await;
+    mock.start_ready_check();
+    mock.decline_ready_check();
+    assert_eq!(
+        accept_posts_after(&mock, Duration::from_millis(1_500)).await,
+        0
+    );
+}
+
+#[tokio::test]
+async fn cancels_when_the_ready_check_ends() {
+    let mock = MockLcu::start().await.unwrap();
+    let (_companion, _settings) = connected(&mock, auto_accept(1)).await;
+    mock.start_ready_check();
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    mock.end_ready_check("Matchmaking");
+    // A ready check document without the phase coming back must not be accepted either.
+    mock.set(
+        mock_lcu::READY_CHECK,
+        json!({ "state": "InProgress", "playerResponse": "None" }),
+    );
+    assert_eq!(
+        accept_posts_after(&mock, Duration::from_millis(1_500)).await,
+        0
+    );
+}
+
+#[tokio::test]
+async fn switching_it_on_during_the_pop_up_accepts() {
+    let mock = MockLcu::start().await.unwrap();
+    let (mut companion, settings) = connected(
+        &mock,
+        Settings {
+            auto_accept: false,
+            ..auto_accept(0)
+        },
+    )
+    .await;
+    mock.start_ready_check();
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    assert_eq!(mock.count("POST", mock_lcu::READY_CHECK_ACCEPT), 0);
+    settings.send_modify(|s| s.auto_accept = true);
+    assert_eq!(
+        next_event(&mut companion).await,
+        CoreEvent::AutoAccept(AutoAcceptEvent::Accepted)
+    );
+}
+
+#[tokio::test]
+async fn follows_the_game_with_the_window() {
+    let mock = MockLcu::start().await.unwrap();
+    let (mut companion, _settings) = connected(&mock, Settings::default()).await;
+    mock.set(lcu::GAMEFLOW_PHASE, json!("ChampSelect"));
+    assert_eq!(
+        next_event(&mut companion).await,
+        CoreEvent::Window(WindowIntent {
+            focus: true,
+            navigate: Some(ViewRoute::Draft)
+        })
+    );
+    companion.views.report("/draft");
+    mock.set(lcu::GAMEFLOW_PHASE, json!("InProgress"));
+    assert_eq!(
+        next_event(&mut companion).await,
+        CoreEvent::Window(WindowIntent {
+            focus: false,
+            navigate: Some(ViewRoute::Live)
+        })
+    );
+    companion.views.report("/live");
+    mock.set(lcu::GAMEFLOW_PHASE, json!("EndOfGame"));
+    assert_eq!(
+        next_event(&mut companion).await,
+        CoreEvent::Window(WindowIntent {
+            focus: false,
+            navigate: Some(ViewRoute::Home)
+        })
+    );
 }

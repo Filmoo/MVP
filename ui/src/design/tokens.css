@@ -13,6 +13,17 @@
   --bg-4: #262839; /* active / selected */
   --bg-glass: #161724c7; /* panels floating over art */
 
+  /* Glass (iOS-like): translucent fills over the ambient light, specular edges, soft depth.
+     Real blur only on surfaces that never scroll (chrome, panels over art). */
+  --bg-card: #1617249c; /* cards: 61% so the light shows through */
+  --bg-chrome: #0f10198c; /* title bar and rail, blurred */
+  --bg-sheen: #ffffff0a; /* top-lit sheen on glass */
+  --bg-highlight: #ffffff1c; /* pointer highlight on glass */
+  --line-glass: #ffffff14; /* glass edge */
+  --line-specular: #ffffff24; /* lit top edge */
+  --shadow-glass: 0 14px 36px -18px rgb(0 0 0 / 0.7);
+  --blur-glass: blur(22px) saturate(150%);
+
   --line-1: #1e2030; /* hairlines inside cards */
   --line-2: #2a2d42; /* card borders, dividers */
 
@@ -130,6 +141,16 @@
   inherits: true;
   initial-value: #c9c2e8;
 }
+@property --amb-x {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+@property --amb-y {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 0%;
+}
 @property --tone-a {
   syntax: "<color>";
   inherits: true;
@@ -151,6 +172,8 @@
     --amb-a 450ms var(--ease),
     --amb-b 450ms var(--ease),
     --amb-c 450ms var(--ease),
+    --amb-x 600ms var(--ease),
+    --amb-y 600ms var(--ease),
     --tone-a 450ms var(--ease),
     --tone-b 450ms var(--ease),
     --tone-c 450ms var(--ease);

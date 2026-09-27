@@ -41,7 +41,7 @@ export function ProfileHeader(props: { profile: PlayerProfile }): JSX.Element {
   return (
     <div class={styles.wrap}>
       <div class={styles.hero}>
-        <Show when={main()}>{(id) => <ChampionArt championId={id()} class={styles.art} />}</Show>
+        <Show when={main()}>{(id) => <ChampionArt championId={id()} class={styles.art} light />}</Show>
         <div class={styles.top}>
           <div class={styles.avatar}>
             <ProfileIcon iconId={props.profile.profileIconId} size={72} />

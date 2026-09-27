@@ -27,3 +27,16 @@ before the production-key application.
 
 **Gray (decide per feature, document the reasoning)**: auto-accept, auto-pick/ban, premade
 detection, composite player scores, live win probability, sending data to third-party services.
+
+### Gray-area decisions
+- **Auto-accept (2026-09-27, shipped).** Allowed as a clearly opted-in convenience: it acts only in
+  the player's own client and only answers a prompt the player would answer anyway.
+  Guard rails: **off by default** (Settings → Automation); a **visible delay** (default 2 s,
+  0–8 s) so the pop-up is always seen before MVP accepts; **one accept per ready check**;
+  never when the player already accepted or **declined** (checked right before the POST);
+  cancelled as soon as the phase leaves the ready check; a toast confirms every accept.
+  LCU endpoints: `GET /lol-matchmaking/v1/ready-check`, `POST /lol-matchmaking/v1/ready-check/accept`
+  (declare both at product registration).
+- **Window follows the game (not gray, noted for completeness).** Bringing MVP to the front in
+  champ select and switching views only moves our own window; both can be turned off, and a view
+  the player opened themselves is never switched away from.

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["apps/backend", "apps/desktop", "crates/*"]
+members = ["apps/backend", "apps/crawler", "apps/desktop", "crates/*"]
 
 [workspace.package]
 version = "0.1.0"
@@ -11,6 +11,7 @@ publish = false
 
 [workspace.dependencies]
 # Internal crates
+aggregate = { path = "crates/aggregate" }
 companion = { path = "crates/companion" }
 domain = { path = "crates/domain" }
 lcu = { path = "crates/lcu" }
@@ -39,6 +40,7 @@ rustls-platform-verifier = "0.7"
 rcgen = "0.14"
 axum = { version = "0.8", default-features = false, features = ["http1", "json", "tokio", "ws"] }
 hyper-util = { version = "0.1", features = ["server-auto", "service", "tokio"] }
+rusqlite = { version = "0.40", features = ["bundled"] }
 tower-http = { version = "0.6", default-features = false, features = ["cors"] }
 semver = { version = "1", features = ["serde"] }
 sha2 = "0.10"

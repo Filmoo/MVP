@@ -33,6 +33,8 @@ const MUD_HUES: readonly [number, number] = [30, 95];
 const MUD_CHROMA = 0.07;
 /** Hues closer than this count as the same family. */
 const MIN_HUE_GAP = 45;
+/** A second hue must carry this share of the first to be used; else a neighbour hue keeps it harmonious. */
+const SECOND_MIN_SHARE = 0.35;
 /** How strongly the center (the subject) outweighs the edges: exp(-focus × d²). */
 const CENTER_FOCUS = 12;
 
@@ -132,7 +134,7 @@ export function extractPalette(pixels: ArrayLike<number>, width: number): Palett
   const muddy = (f: { hue: number; chroma: number }) => f.hue >= MUD_HUES[0] && f.hue <= MUD_HUES[1] && f.chroma < MUD_CHROMA;
   const first = families.find((f) => !muddy(f)) ?? families[0];
   if (!first) return null;
-  const second = families.find((f) => f !== first && hueGap(f.hue, first.hue) >= MIN_HUE_GAP && f.score >= first.score * 0.15);
+  const second = families.find((f) => f !== first && hueGap(f.hue, first.hue) >= MIN_HUE_GAP && f.score >= first.score * SECOND_MIN_SHARE);
   const clamp = (c: number, [lo, hi]: readonly [number, number]) => Math.min(Math.max(c, lo), hi);
   const hueB = second ? second.hue : first.hue + 35;
   const chromaB = second ? second.chroma : first.chroma * 0.8;
