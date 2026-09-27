@@ -50,7 +50,13 @@ async fn serve(settings: Settings) -> Result<(), Box<dyn std::error::Error>> {
         .clone()
         .map(|key| RiotClient::new(key, live_riot_config()))
         .transpose()?;
-    let router = app(AppState::new(client), &settings.allowed_origins);
+    if let Some(dir) = &settings.stats_dir {
+        tracing::info!(dir = %dir.display(), "serving published stats");
+    }
+    let router = app(
+        AppState::with_stats(client, settings.stats_dir.clone()),
+        &settings.allowed_origins,
+    );
     let listener = tokio::net::TcpListener::bind(settings.bind).await?;
     tracing::info!(addr = %settings.bind, origins = ?settings.allowed_origins, "mvp-backend listening");
     axum::serve(listener, router)
