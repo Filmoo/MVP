@@ -1,0 +1,18 @@
+[package]
+name = "domain"
+description = "UI-facing domain types shared by the Rust core and the TypeScript UI (exported via ts-rs)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+ts-rs.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[lints]
+workspace = true

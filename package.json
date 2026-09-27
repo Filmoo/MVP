@@ -1,0 +1,27 @@
+{
+  "name": "scout",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @scout/ui dev",
+    "app": "tauri dev",
+    "build:exe": "tauri build",
+    "tauri": "tauri",
+    "lint": "biome check . && cargo clippy --workspace --all-targets --locked -- -D warnings",
+    "fmt": "biome check --write . && cargo fmt --all",
+    "typecheck": "pnpm --filter @scout/ui typecheck",
+    "test:rust": "cargo test --workspace --locked",
+    "test:unit": "pnpm --filter @scout/ui test:unit",
+    "test:e2e": "pnpm --filter @scout/ui test:e2e",
+    "check:fast": "node scripts/check.mjs fast",
+    "check": "node scripts/check.mjs full"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.14",
+    "@tauri-apps/cli": "2.12.0"
+  }
+}

@@ -1,0 +1,92 @@
+.bar {
+  grid-area: titlebar;
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  height: var(--titlebar-h);
+  padding-left: var(--space-6);
+  background: var(--bg-1);
+  border-bottom: 1px solid var(--line-1);
+  min-width: 0;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  font-size: var(--text-md);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.02em;
+  pointer-events: none;
+}
+
+.mark {
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-2);
+  background: linear-gradient(135deg, var(--accent-strong), var(--accent));
+  display: grid;
+  place-items: center;
+  color: var(--bg-0);
+}
+
+.spacer {
+  flex: 1;
+  align-self: stretch;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  min-width: 0;
+  pointer-events: none;
+}
+
+.dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--text-3);
+}
+.connected {
+  background: var(--good);
+  box-shadow: 0 0 8px var(--good);
+}
+.connecting {
+  background: var(--warn);
+}
+
+.controls {
+  display: flex;
+  align-self: stretch;
+}
+
+.control {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  border: 0;
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.control:hover {
+  background: var(--bg-3);
+  color: var(--text-1);
+}
+.close:hover {
+  background: var(--loss);
+  color: var(--text-1);
+}
+
+@media (max-width: 559px) {
+  .statusText {
+    display: none;
+  }
+}

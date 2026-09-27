@@ -1,0 +1,55 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.gem {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  transform: rotate(45deg);
+  border-radius: var(--radius-1);
+  background: currentColor;
+  box-shadow: 0 0 12px currentColor;
+}
+
+.label {
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.iron {
+  color: var(--rank-iron);
+}
+.bronze {
+  color: var(--rank-bronze);
+}
+.silver {
+  color: var(--rank-silver);
+}
+.gold {
+  color: var(--rank-gold);
+}
+.platinum {
+  color: var(--rank-platinum);
+}
+.emerald {
+  color: var(--rank-emerald);
+}
+.diamond {
+  color: var(--rank-diamond);
+}
+.master {
+  color: var(--rank-master);
+}
+.grandmaster {
+  color: var(--rank-grandmaster);
+}
+.challenger {
+  color: var(--rank-challenger);
+}

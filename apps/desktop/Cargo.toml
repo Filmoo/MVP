@@ -1,0 +1,26 @@
+[package]
+name = "scout-desktop"
+description = "Desktop shell: Tauri window, tray and the bridge between the Rust core and the UI."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+name = "scout_desktop"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+domain.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-single-instance = "2"
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[lints]
+workspace = true

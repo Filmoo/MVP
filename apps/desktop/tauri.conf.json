@@ -1,0 +1,46 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Scout",
+  "mainBinaryName": "Scout",
+  "identifier": "gg.scout.desktop",
+  "build": {
+    "frontendDist": "../../ui/dist",
+    "devUrl": "http://localhost:1420",
+    "beforeDevCommand": "pnpm --filter @scout/ui dev",
+    "beforeBuildCommand": "pnpm --filter @scout/ui build"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "windows": [
+      {
+        "label": "main",
+        "title": "Scout",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 400,
+        "minHeight": 560,
+        "center": true,
+        "decorations": false,
+        "backgroundColor": "#0c0e13"
+      }
+    ],
+    "security": {
+      "csp": {
+        "default-src": "'self'",
+        "img-src": "'self' data: asset: http://asset.localhost https://ddragon.leagueoflegends.com https://raw.communitydragon.org",
+        "style-src": "'self' 'unsafe-inline'",
+        "font-src": "'self'",
+        "connect-src": "'self' ipc: http://ipc.localhost"
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
+    "windows": {
+      "webviewInstallMode": { "type": "downloadBootstrapper" },
+      "nsis": { "installMode": "currentUser" }
+    }
+  }
+}

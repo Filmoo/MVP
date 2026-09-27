@@ -1,0 +1,13 @@
+{
+  "$comment": "Performance budgets enforced by tests/perf.spec.ts. Every widget needs an entry. Raise a budget only deliberately, in its own commit.",
+  "widgets": {
+    "profile-header": { "mountMs": 60, "domNodes": 60 },
+    "recent-matches": { "mountMs": 90, "domNodes": 450 },
+    "performance-summary": { "mountMs": 60, "domNodes": 140 }
+  },
+  "bootMs": 900,
+  "viewSwitchMs": 120,
+  "idle": { "scriptMs": 5, "layouts": 0, "styleRecalcs": 0 },
+  "heapMb": 12,
+  "resizeLayoutMsAvg": 25
+}

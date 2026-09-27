@@ -1,0 +1,63 @@
+[workspace]
+resolver = "3"
+members = ["apps/desktop", "crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.94"
+license = "LicenseRef-Proprietary"
+publish = false
+
+[workspace.dependencies]
+# Internal crates
+domain = { path = "crates/domain" }
+lcu = { path = "crates/lcu" }
+stats = { path = "crates/stats" }
+
+# External
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync", "fs", "net"] }
+ts-rs = { version = "12", features = ["serde-compat", "no-serde-warnings"] }
+base64 = "0.23"
+proptest = "1"
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+missing_debug_implementations = "warn"
+unused_qualifications = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+# Pedantic lints that add noise without value for this codebase.
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+cast_precision_loss = "allow"
+# Hard rules
+dbg_macro = "deny"
+todo = "deny"
+unwrap_used = "deny"
+print_stdout = "deny"
+print_stderr = "deny"
+
+[profile.dev]
+# Keep debug builds snappy to link; dependencies optimized so dev runs feel real.
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.release]
+# Small, fast binary: the app must stay light next to League.
+opt-level = "s"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = "symbols"

@@ -1,0 +1,48 @@
+# Scout — League of Legends desktop companion (working name)
+
+Lightweight Porofessor-style companion with U.GG/Lolalytics-grade stats, a stats-only draft
+helper and a dpm.lol-inspired look. **Public, free app. Windows first. EUW first.**
+No in-game overlay for now (keep the architecture overlay-ready).
+
+## Decisions so far (see docs/decisions.md)
+- **Tauri 2 + Rust core**, UI in **SolidJS + TypeScript + CSS modules** rendered by WebView2.
+  Not Electron, not Overwolf. The UI must stay tiny and idle-silent.
+- **Own stats backend** (crawler + aggregates via Riot API, key kept server-side) — not built yet.
+- Draft helper is **statistics only** (no AI/ML picks), transparent "why" for every number.
+- Riot policy red lines are in docs/policy.md — read before adding any feature that touches
+  champ select, other players, in-game info or monetization.
+
+## Layout
+- `apps/desktop/` Tauri shell (window, tray, commands). `tauri.conf.json` lives here.
+- `crates/domain` UI-facing types → exported to `ui/src/data/generated/*.ts` by ts-rs
+  (`cargo test -p domain`; never edit generated files).
+- `crates/lcu` League client API (lockfile, auth; REST/WebSocket next).
+- `crates/stats` pure statistics (smoothing, intervals, draft scoring) — property-tested.
+- `ui/` SolidJS app. `src/data/transport.ts` is the only door to the core:
+  Tauri IPC in the app, scripted **mock scenarios** (`src/data/mock/scenarios.ts`) in a browser.
+- `ui/tests/` Playwright suites; `ui/perf-budgets.json` budgets.
+- `fixtures/` shared fixture metadata. `.cache/` git-ignored dev assets (Data Dragon).
+
+## Commands
+- `pnpm install` then `node scripts/fetch-dev-assets.mjs` (champion/item icons for dev & tests).
+- `pnpm dev` UI in the browser with mock data → http://127.0.0.1:1420/?scenario=default
+- `pnpm app` full desktop app (needs Tauri system deps). `pnpm build:exe` → NSIS installer.
+- `node scripts/check.mjs fast|ui|full` — the quality gates (also run by the Stop hook and CI).
+- `pnpm --filter @scout/ui screenshots` → `reports/screenshots/*.png` for design review.
+
+## Rules
+- Every change keeps `check.mjs full` green. Never weaken a test or raise a budget silently:
+  budget changes go in their own commit with a reason.
+- UI: only design tokens (`ui/src/design/tokens.css`); the coherence suite enforces it.
+  Wrap self-contained blocks in `<Widget name>` (error isolation + perf budget entry required).
+  New views need: layout-safe at 400→2560px, empty/error/loading states, mock scenarios.
+- After any visual change: run the screenshots, have the `ui-reviewer` agent critique them,
+  fix P0/P1, and show the user the before/after when the change is notable.
+- Idle means idle: no timers, polling or animations while nothing changes (perf suite checks).
+- Never commit Riot assets (icons, splash) — they're downloaded at runtime / into `.cache/`.
+- Never ship the Riot API key in the app. Never scrape other stat sites.
+- Rust: no `unwrap()`, no `println!`; clippy pedantic clean. Secrets redacted in Debug impls.
+
+## Working with the owner
+The owner vibe-codes but wants to stay in the loop: ask when unsure whether something looks
+or works right, and send screenshots of rendered layouts for feedback.

@@ -1,0 +1,32 @@
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  grid-template-areas:
+    "header header"
+    "matches summary";
+  gap: var(--space-6);
+  align-items: start;
+}
+
+.header {
+  grid-area: header;
+  min-width: 0;
+}
+.matches {
+  grid-area: matches;
+  min-width: 0;
+}
+.summary {
+  grid-area: summary;
+  min-width: 0;
+}
+
+@container page (max-width: 959px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "header"
+      "summary"
+      "matches";
+  }
+}

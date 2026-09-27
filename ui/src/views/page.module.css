@@ -1,0 +1,23 @@
+/* Shared page frame: every view uses it so margins and widths never drift. */
+.page {
+  container: page / inline-size;
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-8) var(--space-10);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  min-width: 0;
+}
+
+.title {
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-bold);
+  letter-spacing: -0.01em;
+}
+
+@media (max-width: 559px) {
+  .page {
+    padding: var(--space-6) var(--space-6) var(--space-9);
+  }
+}

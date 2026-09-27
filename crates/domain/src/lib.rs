@@ -1,0 +1,13 @@
+//! UI-facing domain model.
+//!
+//! These types are the contract between the Rust core and the UI. They are
+//! serialized as camelCase JSON and exported to TypeScript with `ts-rs`
+//! (run `cargo test -p domain` to regenerate `ui/src/data/generated`).
+//! Wire formats of external APIs (LCU, Riot API) live in their own crates and
+//! are mapped into these types; the UI never sees raw external payloads.
+
+mod client;
+mod player;
+
+pub use client::{AppInfo, ClientConnection, ClientStatus, GameflowPhase};
+pub use player::{Division, MatchSummary, PlayerProfile, RankedEntry, RiotId, Role, Tier};

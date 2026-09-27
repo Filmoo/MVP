@@ -1,0 +1,56 @@
+import { type JSX, Show } from "solid-js";
+import { Button } from "./Button";
+import { Icon, type IconName } from "./Icon";
+import styles from "./States.module.css";
+
+export function EmptyState(props: { icon: IconName; title: string; text?: string; action?: JSX.Element }): JSX.Element {
+  return (
+    <div class={styles.state} data-state="empty">
+      <div class={styles.icon}>
+        <Icon name={props.icon} size={24} />
+      </div>
+      <p class={styles.title}>{props.title}</p>
+      <Show when={props.text}>
+        <p class={styles.text}>{props.text}</p>
+      </Show>
+      <Show when={props.action}>
+        <div class={styles.action}>{props.action}</div>
+      </Show>
+    </div>
+  );
+}
+
+export function ErrorState(props: { title?: string; message: string; onRetry?: () => void }): JSX.Element {
+  return (
+    <div class={`${styles.state} ${styles.error}`} data-state="error" role="alert">
+      <div class={styles.icon}>
+        <Icon name="alert" size={24} />
+      </div>
+      <p class={styles.title}>{props.title ?? "Something went wrong"}</p>
+      <p class={styles.text}>{props.message}</p>
+      <Show when={props.onRetry}>
+        <div class={styles.action}>
+          <Button onClick={() => props.onRetry?.()}>
+            <Icon name="refresh" size={16} />
+            Try again
+          </Button>
+        </div>
+      </Show>
+    </div>
+  );
+}
+
+/** Placeholder block with the exact size of the content it stands for (no layout jump). */
+export function Skeleton(props: { width?: string; height: string; radius?: "full" }): JSX.Element {
+  return (
+    <div
+      class={styles.skeleton}
+      data-state="loading"
+      style={{
+        width: props.width ?? "100%",
+        height: props.height,
+        ...(props.radius === "full" ? { "border-radius": "var(--radius-full)" } : {}),
+      }}
+    />
+  );
+}

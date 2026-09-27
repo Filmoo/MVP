@@ -1,0 +1,102 @@
+/*
+ * Design tokens — the ONLY values components may use.
+ * tests/coherence.spec.ts fails if a rendered element uses a font size,
+ * spacing, radius or color outside these scales (opt out with data-free-style
+ * on purely decorative/graphic elements such as charts).
+ */
+:root {
+  /* Surfaces: each step is one elevation level. */
+  --bg-0: #0c0e13; /* app background */
+  --bg-1: #11141b; /* chrome: title bar, sidebar */
+  --bg-2: #161a23; /* cards */
+  --bg-3: #1d222d; /* raised: hover, inputs */
+  --bg-4: #252b38; /* active / selected */
+
+  --line-1: #1f2430; /* hairlines inside cards */
+  --line-2: #2a3040; /* card borders, dividers */
+
+  --text-1: #edf0f5; /* primary */
+  --text-2: #a4acbb; /* secondary */
+  --text-3: #6c7588; /* muted / captions */
+
+  --accent: #8b7bff;
+  --accent-strong: #a597ff;
+  --accent-soft: #221f3d;
+
+  /* Semantics: wins read blue, losses red (League convention). */
+  --win: #4c9aff;
+  --win-soft: #14243d;
+  --loss: #ff5d6c;
+  --loss-soft: #3a1a21;
+  --warn: #ffb547;
+  --good: #3ecf8e;
+
+  /* Tier colors (tier lists, performance grades). */
+  --tier-s: #ff9f43;
+  --tier-a: #3ecf8e;
+  --tier-b: #4c9aff;
+  --tier-c: #a4acbb;
+  --tier-d: #6c7588;
+
+  /* Spacing scale (px). */
+  --space-1: 2px;
+  --space-2: 4px;
+  --space-3: 6px;
+  --space-4: 8px;
+  --space-5: 12px;
+  --space-6: 16px;
+  --space-7: 20px;
+  --space-8: 24px;
+  --space-9: 32px;
+  --space-10: 40px;
+  --space-11: 48px;
+  --space-12: 64px;
+
+  /* Radii. */
+  --radius-1: 4px;
+  --radius-2: 6px;
+  --radius-3: 8px;
+  --radius-4: 12px;
+  --radius-full: 999px;
+
+  /* Type scale. */
+  --font-sans: "Inter Variable", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-md: 13px;
+  --text-base: 14px;
+  --text-lg: 16px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+  --text-3xl: 32px;
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /* Layout. */
+  --titlebar-h: 40px;
+  --sidebar-w: 216px;
+  --sidebar-w-collapsed: 64px;
+  --content-max: 1440px;
+
+  /* Motion: short and cheap (transform/opacity only). */
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --dur-1: 120ms;
+  --dur-2: 200ms;
+}
+
+/* Ranked tier colors (badges, emblems, LP graphs). */
+:root {
+  --rank-iron: #8a7f7a;
+  --rank-bronze: #b07d62;
+  --rank-silver: #9fb0bd;
+  --rank-gold: #e0b75c;
+  --rank-platinum: #4fb3a9;
+  --rank-emerald: #34c27f;
+  --rank-diamond: #7b95ff;
+  --rank-master: #c07bff;
+  --rank-grandmaster: #ff6b6b;
+  --rank-challenger: #f7cf6b;
+}

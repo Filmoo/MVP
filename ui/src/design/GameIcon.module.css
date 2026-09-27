@@ -1,0 +1,24 @@
+.icon {
+  flex: none;
+  border-radius: var(--radius-3);
+  background: var(--bg-3);
+  object-fit: cover;
+  overflow: hidden;
+}
+
+.round {
+  border-radius: var(--radius-full);
+}
+
+.fallback {
+  display: grid;
+  place-items: center;
+  color: var(--text-3);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+}
+
+.empty {
+  border: 1px dashed var(--line-2);
+  background: transparent;
+}

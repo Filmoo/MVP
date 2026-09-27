@@ -1,0 +1,65 @@
+import { CommandError, type CommandName, type Events, type Transport } from "../transport";
+import { type Scenario, type ScenarioName, scenarios } from "./scenarios";
+
+export {
+  type Scenario,
+  type ScenarioName,
+  scenarioNames,
+  scenarios,
+} from "./scenarios";
+
+export function scenarioFromUrl(search: string): Scenario {
+  const name = new URLSearchParams(search).get("scenario") ?? "default";
+  return scenarios[name as ScenarioName] ?? scenarios.default;
+}
+
+type Handler = (payload: never) => void;
+
+/** Test/demo hooks exposed on `window.__SCOUT_MOCK__`. */
+export interface MockControls {
+  emit<K extends keyof Events>(event: K, payload: Events[K]): void;
+  calls: CommandName[];
+}
+
+declare global {
+  interface Window {
+    __SCOUT_MOCK__?: MockControls;
+  }
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+export function createMockTransport(scenario: Scenario): Transport {
+  const handlers = new Map<string, Set<Handler>>();
+  const calls: CommandName[] = [];
+
+  const emit = (event: string, payload: unknown) => {
+    for (const handler of handlers.get(event) ?? []) (handler as (p: unknown) => void)(payload);
+  };
+  window.__SCOUT_MOCK__ = { emit, calls };
+
+  return {
+    kind: "mock",
+    assetBase: "/dd/16.19.1",
+    async call(command) {
+      calls.push(command);
+      const response = scenario.responses[command];
+      if (!response) throw new CommandError(command, `mock scenario has no response for ${command}`);
+      if (response.delayMs) await sleep(response.delayMs);
+      if ("error" in response) throw new CommandError(command, response.error);
+      return structuredClone(response.data) as never;
+    },
+    listen(event, handler) {
+      const set = handlers.get(event) ?? new Set();
+      set.add(handler as Handler);
+      handlers.set(event, set);
+      const timers = (scenario.timeline ?? [])
+        .filter((step) => step.event === event)
+        .map((step) => setTimeout(() => emit(event, step.payload), step.afterMs));
+      return () => {
+        set.delete(handler as Handler);
+        for (const t of timers) clearTimeout(t);
+      };
+    },
+  };
+}

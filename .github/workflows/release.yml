@@ -1,0 +1,31 @@
+name: Release
+
+# Push a tag like v0.2.0 to publish a GitHub release with the Windows installer.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rust toolchain (from rust-toolchain.toml)
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build:exe
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          files: |
+            target/release/bundle/nsis/*.exe

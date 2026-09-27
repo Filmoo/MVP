@@ -1,0 +1,146 @@
+.wrap {
+  container: summary / inline-size;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    "stats"
+    "champions"
+    "roles";
+  row-gap: var(--space-7);
+}
+
+.stats {
+  grid-area: stats;
+}
+.champions {
+  grid-area: champions;
+}
+.rolesSection {
+  grid-area: roles;
+}
+
+@container summary (min-width: 560px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      "stats champions"
+      "roles champions";
+    column-gap: var(--space-9);
+    align-items: start;
+  }
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-5);
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.value {
+  font-size: var(--text-xl);
+  font-weight: var(--weight-bold);
+  white-space: nowrap;
+}
+
+.label {
+  font-size: var(--text-sm);
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.good {
+  color: var(--win);
+}
+.bad {
+  color: var(--loss);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.sectionTitle {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--text-2);
+}
+
+.champ {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-5);
+}
+
+.champName {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.champTitle {
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.champMeta {
+  font-size: var(--text-sm);
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.champWr {
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  text-align: right;
+}
+
+.roles {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.role {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) 24px;
+  align-items: center;
+  gap: var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--text-2);
+}
+
+.roleBar {
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--bg-3);
+  overflow: hidden;
+}
+
+.roleFill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: var(--radius-full);
+}
+
+.roleCount {
+  text-align: right;
+  color: var(--text-1);
+}
