@@ -7,6 +7,6 @@ mod endpoints;
 pub mod limits;
 pub mod routing;
 
-pub use client::{ApiKey, Config, RiotClient, RiotError};
+pub use client::{ApiKey, CallCounts, Config, RiotClient, RiotError};
 pub use endpoints::{Account, LeagueEntry, LeagueList, MatchQuery, Summoner};
 pub use routing::{Platform, Region, Route};

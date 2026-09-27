@@ -6,10 +6,44 @@
 //! - `POST /v1/players/batch` (`ScoutRequest`) → `ScoutCard[]` for loading-screen scouting
 //!
 //! Failures answer `ApiError`. Riot-backed routes answer 503 `riotKeyMissing` without a key.
+//!
+//! Platform services (`service()`, see `ops.rs`): `GET /v1/updates/…` (Tauri updater),
+//! `GET /v1/config` (`RemoteConfig`), `POST /v1/reports` (`CrashReport`), `/metrics`, and the
+//! hardening layers (rate limit, body limits, timeout, request ids).
 
 mod cache;
 mod error;
 mod source;
+
+// ---- Platform services: updates, remote config, reports, hardening ----
+pub mod admin;
+mod config;
+mod limits;
+mod ops;
+mod reports;
+mod scrub;
+mod store;
+mod telemetry;
+mod updates;
+mod watched;
+
+pub use config::ConfigFile;
+pub use limits::INSTALL_HEADER;
+pub use ops::{Ops, OpsSettings};
+pub use reports::{StoredReport, forget as forget_reports, prune as prune_reports};
+pub use scrub::scrub;
+pub use telemetry::init_logging;
+pub use updates::{Channel, Releases, bucket as rollout_bucket};
+
+/// The whole service: `app()` plus the platform routes, behind the hardening layers.
+pub fn service(state: &AppState, allowed_origins: &[String], ops: &Ops) -> Router {
+    ops.wrap(
+        app(state.clone(), allowed_origins),
+        state,
+        cors(allowed_origins),
+    )
+}
+// ---- end platform services ----
 
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -17,7 +51,7 @@ use std::time::Duration;
 
 use axum::extract::rejection::JsonRejection;
 use axum::extract::{Path, State};
-use axum::http::{HeaderValue, Method, header};
+use axum::http::{HeaderName, HeaderValue, Method, header};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use domain::{Health, PlayerProfile, RiotId, ScoutCard, ScoutRequest};
@@ -116,17 +150,32 @@ impl AppState {
     }
 }
 
-/// The service with CORS for `allowed_origins`.
-pub fn app(state: AppState, allowed_origins: &[String]) -> Router {
+/// CORS for the app's webview origins.
+fn cors(allowed_origins: &[String]) -> CorsLayer {
     let origins: Vec<HeaderValue> = allowed_origins
         .iter()
         .filter_map(|o| HeaderValue::from_str(o).ok())
         .collect();
-    let cors = CorsLayer::new()
+    CorsLayer::new()
         .allow_origin(AllowOrigin::list(origins))
         .allow_methods([Method::GET, Method::POST])
-        .allow_headers([header::CONTENT_TYPE])
-        .max_age(Duration::from_secs(60 * 60));
+        .allow_headers([
+            header::CONTENT_TYPE,
+            header::IF_NONE_MATCH,
+            HeaderName::from_static(INSTALL_HEADER),
+        ])
+        .expose_headers([
+            header::ETAG,
+            header::RETRY_AFTER,
+            HeaderName::from_static(telemetry::REQUEST_ID_HEADER),
+        ])
+        .max_age(Duration::from_secs(60 * 60))
+}
+
+/// The Riot-backed routes with CORS for `allowed_origins` (no platform services; see
+/// `service`).
+pub fn app(state: AppState, allowed_origins: &[String]) -> Router {
+    let cors = cors(allowed_origins);
     Router::new()
         .route("/health", get(health))
         .route(

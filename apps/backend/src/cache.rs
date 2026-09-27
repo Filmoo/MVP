@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::future::Future;
 use std::hash::Hash;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
@@ -28,6 +29,16 @@ pub struct Cache<K, V> {
     ttl: Option<Duration>,
     capacity: usize,
     slots: Mutex<Slots<K, V>>,
+    hits: AtomicU64,
+    misses: AtomicU64,
+}
+
+/// Lookups served from the cache (including ones joining an in-flight fetch) vs. fetched.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct CacheStats {
+    pub hits: u64,
+    pub misses: u64,
+    pub len: usize,
 }
 
 impl<K, V> fmt::Debug for Cache<K, V> {
@@ -48,7 +59,54 @@ impl<K: Eq + Hash + Clone, V: Clone> Cache<K, V> {
                 map: HashMap::new(),
                 clock: 0,
             }),
+            hits: AtomicU64::new(0),
+            misses: AtomicU64::new(0),
         }
+    }
+
+    pub fn stats(&self) -> CacheStats {
+        CacheStats {
+            hits: self.hits.load(Ordering::Relaxed),
+            misses: self.misses.load(Ordering::Relaxed),
+            len: self.len(),
+        }
+    }
+
+    /// Fetched, unexpired values with their age (for a snapshot to disk).
+    pub fn entries(&self) -> Vec<(K, V, Duration)> {
+        let now = Instant::now();
+        self.lock()
+            .map
+            .iter()
+            .filter(|(_, slot)| !self.expired(slot, now))
+            .filter_map(|(k, slot)| {
+                let v = slot.cell.get()?.clone();
+                Some((k.clone(), v, now.duration_since(slot.created)))
+            })
+            .collect()
+    }
+
+    /// Puts back a value fetched `age` ago (restored from disk); skipped if already expired,
+    /// already present, or the cache is full.
+    pub fn insert_aged(&self, key: K, value: V, age: Duration) {
+        if self.ttl.is_some_and(|ttl| age >= ttl) {
+            return;
+        }
+        let now = Instant::now();
+        let mut slots = self.lock();
+        if slots.map.len() >= self.capacity || slots.map.contains_key(&key) {
+            return;
+        }
+        slots.clock += 1;
+        let used = slots.clock;
+        slots.map.insert(
+            key,
+            Slot {
+                cell: Arc::new(OnceCell::new_with(Some(value))),
+                created: now.checked_sub(age).unwrap_or(now),
+                used,
+            },
+        );
     }
 
     fn expired(&self, slot: &Slot<V>, now: Instant) -> bool {
@@ -89,8 +147,10 @@ impl<K: Eq + Hash + Clone, V: Clone> Cache<K, V> {
             && !self.expired(slot, now)
         {
             slot.used = tick;
+            self.hits.fetch_add(1, Ordering::Relaxed);
             return Arc::clone(&slot.cell);
         }
+        self.misses.fetch_add(1, Ordering::Relaxed);
         if slots.map.len() >= self.capacity && !slots.map.contains_key(&key) {
             slots.map.retain(|_, slot| !self.expired(slot, now));
             if slots.map.len() >= self.capacity
@@ -183,5 +243,35 @@ mod tests {
             .get_or_try_insert("k", || async { Ok::<u32, &str>(7) })
             .await;
         assert_eq!(ok, Ok(7));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn counts_hits_and_restores_aged_entries() {
+        let cache = Cache::new(Some(Duration::from_secs(100)), 10);
+        let calls = AtomicU32::new(0);
+        lookup(&cache, "a", &calls).await;
+        lookup(&cache, "a", &calls).await;
+        let stats = cache.stats();
+        assert_eq!((stats.hits, stats.misses, stats.len), (1, 1, 1));
+
+        tokio::time::advance(Duration::from_secs(30)).await;
+        let entries = cache.entries();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(
+            entries[0].2,
+            Duration::from_millis(30_050),
+            "age includes the fetch"
+        );
+
+        let restored: Cache<&str, u32> = Cache::new(Some(Duration::from_secs(100)), 10);
+        restored.insert_aged("a", 1, Duration::from_secs(30));
+        restored.insert_aged("old", 2, Duration::from_secs(100));
+        assert_eq!(restored.len(), 1, "expired entries are not restored");
+        let other = AtomicU32::new(10);
+        assert_eq!(
+            lookup(&restored, "a", &other).await,
+            1,
+            "served from the restored value"
+        );
     }
 }

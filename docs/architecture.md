@@ -11,7 +11,8 @@ flowchart LR
   end
   DD["Riot Data Dragon<br/>(names, icons)"]
   subgraph Server["Our backend (VPS, Docker behind Caddy/HTTPS)"]
-    Api["API · apps/backend (mvp-backend)<br/>player lookups + scouting, in-memory caches"]
+    Api["API · apps/backend (mvp-backend)<br/>player lookups + scouting, updates,<br/>remote config, crash reports"]
+    Data[("Data dir (volume)<br/>releases.json · config.json<br/>reports/ · cache snapshot")]
     Crawler["Crawler (planned)<br/>riot-api client, rate limited"]
     Agg["Aggregator<br/>per patch × bracket × role"]
     Files[("Stats files (planned)<br/>(Cloudflare R2 / CDN)")]
@@ -29,6 +30,10 @@ flowchart LR
   Crawler --> Agg --> Files
   Core -- "download compact stats" --> Files
   UI -- "HTTPS JSON (CORS: tauri origins)" --> Api
+  Core -- "updater, config, opt-in reports<br/>(X-MVP-Install)" --> Api
+  Api --- Data
+  GH["GitHub Releases<br/>signed NSIS installer + .sig"]
+  Core -. "download update" .-> GH
 ```
 
 ## Principles
@@ -53,11 +58,33 @@ TypeScript types); failures answer `ApiError` `{ error, message, retryAfter? }`.
 | `GET /v1/players/{platform}/{gameName}/{tagLine}` | `PlayerProfile` · 400 bad platform · 404 · 429 + `retryAfter` · 503 without key |
 | `POST /v1/players/batch` `{ platform, puuids ≤ 10 }` | `ScoutCard[]` for loading-screen scouting |
 
+| `GET /v1/updates/{target}/{arch}/{version}?channel=` | 204 or the Tauri updater manifest (staged rollout, channels, blocked releases) |
+| `GET /v1/config?version=&channel=` | `RemoteConfig` (feature flags, kill switches, min version, banners) · `ETag`/304 |
+| `POST /v1/reports` | opt-in `CrashReport`, scrubbed of personal data, kept 30 days |
+| `GET /metrics` | Prometheus text (admin address or bearer token) |
+
 Scout cards carry the Riot ID next to the PUUID and positive/neutral tags only (OTP, main role,
 hot streak, veteran). Caches in memory with request coalescing: profiles and cards 2 min,
-accounts 1 day, compacted match documents forever (LRU-bounded). Lookups share one rate
-limiter per routing value; a 429 is reported to the caller rather than waited out when Riot asks
-for more than 5 s. Run and deploy: `apps/backend/README.md`.
+accounts 1 day, compacted match documents forever (LRU-bounded); accounts and matches are
+snapshotted to the data dir on shutdown. Lookups share one rate limiter per routing value; a
+429 is reported to the caller rather than waited out when Riot asks for more than 5 s.
+
+Platform services (`apps/backend/src/ops.rs` and siblings) sit next to the Riot routes:
+- **Updates:** releases are described in `releases.json` (edited by `mvp-backend release
+  add|promote|block`), served in the Tauri v2 updater format. Staged rollouts bucket installs
+  by `SHA-256(install id, version)`, so an install's answer is stable; beta follows stable too;
+  blocked releases are never offered and never downgraded from (the fix is forced instead).
+  The release workflow signs the installer (`createUpdaterArtifacts`, key in CI secrets).
+- **Remote config:** `config.json`, validated at load and re-read when its mtime changes (no
+  watcher, no polling); the app applies kill switches immediately.
+- **Reports:** opt-in only, scrubbed (Riot IDs, PUUIDs, user names in paths, e-mails,
+  credentials, IPs), per-install rate limited, daily JSONL files pruned after 30 days,
+  erasable per install id (`mvp-backend reports forget`).
+- **Hardening:** every request gets an id, a span and metrics; `/v1/*` is rate limited per
+  `X-MVP-Install` (else IP) with 429 + `Retry-After`; body limits and a 45 s timeout; JSON logs
+  in production; graceful shutdown.
+
+Run, deploy, data dir layout and privacy: `apps/backend/README.md`.
 
 ## Crates
 | Crate | Role |
@@ -71,4 +98,4 @@ for more than 5 s. Run and deploy: `apps/backend/README.md`.
 | `riot-api` | Riot Web API client for the backend (rate limits, retries) |
 | `players` | Riot data → `PlayerProfile` / `ScoutCard` (behind a `RiotSource` trait the backend caches) |
 | `apps/desktop` | Tauri shell: window, tray, commands, event bridge |
-| `apps/backend` | `mvp-backend` HTTP service: player lookups and scouting, key server-side |
+| `apps/backend` | `mvp-backend` HTTP service: player lookups and scouting (key server-side), app updates, remote config, crash reports, admin CLI |

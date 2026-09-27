@@ -41,3 +41,17 @@ Full triage lives in the checkpoint page; the owner's calls that shape the roadm
 - Windows only; **English + French**; auto-update; opt-in crash reports.
 - Backend hosting: a VPS + Cloudflare R2 for the published aggregates.
 - Not now: recording/clips, overlay, ban suggestions, premium, social features.
+
+## 2026-09-27 — Backend platform services (Claude)
+- **Updates from our backend, installers on GitHub Releases.** `GET /v1/updates/…` speaks the
+  Tauri v2 updater format from a `releases.json` edited by an admin CLI (no web admin). Staged
+  rollouts bucket installs by `SHA-256(install id, version)` (stable answers, monotonic when
+  widened). **No downgrades:** a blocked release stops spreading and its installs are moved by
+  the next fix, which skips the rollout for them and is flagged mandatory.
+- **Remote config** (feature flags, kill switches, min version, banners) is a validated JSON file
+  re-read on change (mtime check on request, no watcher, no polling), served with an ETag.
+- **Crash reports:** opt-in, scrubbed server-side, no IP stored, 30-day retention, erasable per
+  install id.
+- A **random install id** (`X-MVP-Install`) keys rate limits, rollouts and GDPR deletion; it is
+  not linked to the Riot account.
+- Riot caches persist as a **JSON snapshot on shutdown**, not a database (bounded, tens of MB).
