@@ -18,7 +18,8 @@
       "**/tsconfig*.json",
       "**/perf-budgets.json",
       "**/tauri.conf.json",
-      "**/capabilities/*.json"
+      "**/capabilities/*.json",
+      "!!.claude/worktrees"
     ]
   },
   "formatter": {
