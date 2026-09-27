@@ -3301,6 +3301,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "riot-api"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "reqwest",
+ "rustls",
+ "rustls-platform-verifier",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "rustc-hash"
 version = "2.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"

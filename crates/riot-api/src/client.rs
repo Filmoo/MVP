@@ -1,0 +1,177 @@
+use std::fmt;
+use std::sync::Arc;
+use std::time::Duration;
+
+use reqwest::StatusCode;
+use reqwest::header::HeaderMap;
+use serde::de::DeserializeOwned;
+
+use crate::limits::{Limit, RateLimiter, parse_limits};
+use crate::routing::Route;
+
+/// The API key. Server-side only; never logged.
+#[derive(Clone)]
+pub struct ApiKey(String);
+
+impl ApiKey {
+    pub fn new(key: impl Into<String>) -> Self {
+        Self(key.into())
+    }
+
+    /// Reads `RIOT_API_KEY`.
+    pub fn from_env() -> Option<Self> {
+        std::env::var("RIOT_API_KEY")
+            .ok()
+            .filter(|k| !k.trim().is_empty())
+            .map(Self)
+    }
+}
+
+impl fmt::Debug for ApiKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("ApiKey(<redacted>)")
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum RiotError {
+    #[error("not found")]
+    NotFound,
+    /// Invalid/expired key, blocked endpoint (e.g. Brawl) or blacklisting.
+    #[error("forbidden (HTTP {0}): check the API key")]
+    Forbidden(u16),
+    #[error("Riot API unavailable after retries (HTTP {0})")]
+    Unavailable(u16),
+    #[error("transport: {0}")]
+    Transport(#[from] reqwest::Error),
+    #[error("unexpected response from {path}: {source}")]
+    Decode {
+        path: String,
+        #[source]
+        source: serde_json::Error,
+    },
+    #[error("TLS setup: {0}")]
+    Tls(#[from] rustls::Error),
+}
+
+/// Client configuration.
+#[derive(Debug, Clone)]
+pub struct Config {
+    /// `https://{route}.api.riotgames.com`; tests point this at a local server.
+    pub base_url: fn(Route) -> String,
+    /// App limits assumed until Riot's headers announce the real ones.
+    pub default_app_limits: Vec<Limit>,
+    /// Percentage of each limit we allow ourselves (live lookups and crawling share one key).
+    pub headroom_percent: u32,
+    pub max_retries: u32,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            base_url: |route| format!("https://{}.api.riotgames.com", route.id()),
+            default_app_limits: parse_limits("20:1,100:120"),
+            headroom_percent: 90,
+            max_retries: 3,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct RiotClient {
+    http: reqwest::Client,
+    key: ApiKey,
+    limiter: Arc<RateLimiter>,
+    config: Config,
+}
+
+impl RiotClient {
+    pub fn new(key: ApiKey, config: Config) -> Result<Self, RiotError> {
+        use rustls_platform_verifier::BuilderVerifierExt as _;
+        let provider = Arc::new(rustls::crypto::ring::default_provider());
+        let tls = rustls::ClientConfig::builder_with_provider(provider)
+            .with_safe_default_protocol_versions()?
+            .with_platform_verifier()?
+            .with_no_client_auth();
+        let http = reqwest::Client::builder()
+            .use_preconfigured_tls(tls)
+            .connect_timeout(Duration::from_secs(5))
+            .timeout(Duration::from_secs(20))
+            .build()?;
+        Ok(Self {
+            http,
+            key,
+            limiter: Arc::new(RateLimiter::new(
+                config.default_app_limits.clone(),
+                config.headroom_percent,
+            )),
+            config,
+        })
+    }
+
+    /// GET `path` on `route`, rate limited under `method` (the endpoint's limit scope).
+    pub async fn get<T: DeserializeOwned>(
+        &self,
+        route: Route,
+        method: &'static str,
+        path: &str,
+    ) -> Result<T, RiotError> {
+        let url = format!("{}{path}", (self.config.base_url)(route));
+        let mut attempt = 0;
+        loop {
+            self.limiter.acquire(route.id(), method).await;
+            let res = self
+                .http
+                .get(&url)
+                .header("X-Riot-Token", &self.key.0)
+                .send()
+                .await?;
+            let status = res.status();
+            let headers = res.headers().clone();
+            self.limiter.update(
+                route.id(),
+                method,
+                header(&headers, "x-app-rate-limit"),
+                header(&headers, "x-method-rate-limit"),
+            );
+            match status {
+                s if s.is_success() => {
+                    let bytes = res.bytes().await?;
+                    return serde_json::from_slice(&bytes).map_err(|source| RiotError::Decode {
+                        path: path.to_owned(),
+                        source,
+                    });
+                }
+                StatusCode::NOT_FOUND => return Err(RiotError::NotFound),
+                StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
+                    return Err(RiotError::Forbidden(status.as_u16()));
+                }
+                StatusCode::TOO_MANY_REQUESTS => {
+                    let retry_after = header(&headers, "retry-after")
+                        .and_then(|v| v.parse::<u64>().ok())
+                        .unwrap_or(1);
+                    // Typed 429s name the scope; untyped ones come from the service itself.
+                    let scope = match header(&headers, "x-rate-limit-type") {
+                        Some("method") => Some(method),
+                        _ => None,
+                    };
+                    tracing::warn!(route = %route, method, retry_after, "rate limited by Riot");
+                    self.limiter
+                        .block(route.id(), scope, Duration::from_secs(retry_after));
+                }
+                s if s.is_server_error() => {
+                    tokio::time::sleep(Duration::from_millis(500 * 2u64.pow(attempt))).await;
+                }
+                s => return Err(RiotError::Unavailable(s.as_u16())),
+            }
+            attempt += 1;
+            if attempt > self.config.max_retries {
+                return Err(RiotError::Unavailable(status.as_u16()));
+            }
+        }
+    }
+}
+
+fn header<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str> {
+    headers.get(name).and_then(|v| v.to_str().ok())
+}

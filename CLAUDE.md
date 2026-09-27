@@ -19,6 +19,10 @@ No in-game overlay for now (keep the architecture overlay-ready).
 - `crates/lcu` League client API: pinned Riot root TLS, REST, WAMP events, discovery, connector.
 - `crates/mock-lcu` fake League client (tests + `pnpm mock-lcu` for dev without League).
 - `crates/companion` app core (Tauri-free): client status/phases → domain types.
+- `crates/static-data` Data Dragon game data with per-patch disk cache and offline fallback.
+- `crates/stats` pure statistics incl. `draft`: the stats-only draft model (see research D).
+- `crates/riot-api` Riot Web API client for the **backend only** (key never in the app):
+  routing, header-driven rate limits, 429/5xx retries, typed endpoints.
 - `crates/stats` pure statistics (smoothing, intervals, draft scoring) — property-tested.
 - `ui/` SolidJS app. `src/data/transport.ts` is the only door to the core:
   Tauri IPC in the app, scripted **mock scenarios** (`src/data/mock/scenarios.ts`) in a browser.

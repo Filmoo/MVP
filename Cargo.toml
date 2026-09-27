@@ -15,6 +15,7 @@ companion = { path = "crates/companion" }
 domain = { path = "crates/domain" }
 lcu = { path = "crates/lcu" }
 mock-lcu = { path = "crates/mock-lcu" }
+riot-api = { path = "crates/riot-api" }
 static-data = { path = "crates/static-data" }
 stats = { path = "crates/stats" }
 
