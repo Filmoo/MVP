@@ -1,6 +1,6 @@
 .grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
+  grid-template-columns: minmax(0, 1fr) minmax(var(--aside-w), 30%);
   grid-template-areas:
     "header header"
     "matches summary";

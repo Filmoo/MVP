@@ -64,13 +64,6 @@ export function queueName(queueId: number): string {
 /** Games shorter than this are remakes and are excluded from stats. */
 export const REMAKE_MAX_SECONDS = 300;
 
-export function compactNumber(value: number): string {
-  return new Intl.NumberFormat("en", {
-    notation: "compact",
-    maximumFractionDigits: 1,
-  }).format(value);
-}
-
 /** `+3.1` / `−2.1` (true minus sign) for percentage-point deltas. */
 export function signedPoints(points: number, digits = 1): string {
   const rounded = Number(points.toFixed(digits));
@@ -78,8 +71,9 @@ export function signedPoints(points: number, digits = 1): string {
   return `${rounded > 0 ? "+" : "−"}${Math.abs(rounded).toFixed(digits)}`;
 }
 
-/** Game counts: `812`, `3,244`, `127k`, `1.9M`. */
+/** Game counts: `812`, `3,244`, `127K`, `1.9M` (a decimal only from a million up). */
 export function games(n: number): string {
   if (n < 10_000) return new Intl.NumberFormat("en").format(Math.round(n));
-  return compactNumber(n);
+  if (n < 999_500) return `${Math.round(n / 1_000)}K`;
+  return `${Number((n / 1_000_000).toFixed(1))}M`;
 }

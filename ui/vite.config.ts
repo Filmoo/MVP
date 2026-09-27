@@ -57,7 +57,8 @@ export default defineConfig({
     reportCompressedSize: false,
   },
   test: {
-    include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
+    // src: pure logic (browser code); tests/unit: checks that read the source tree (Node).
+    include: ["src/**/*.test.ts", "src/**/*.test.tsx", "tests/unit/**/*.test.ts"],
     environment: "node",
   },
 });

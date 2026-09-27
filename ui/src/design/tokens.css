@@ -80,6 +80,7 @@
   --sidebar-w: 216px;
   --sidebar-w-collapsed: 64px;
   --content-max: 1440px;
+  --aside-w: 340px; /* side column next to a main list (Home, Draft) */
 
   /* Motion: short and cheap (transform/opacity only). */
   --ease: cubic-bezier(0.2, 0, 0, 1);

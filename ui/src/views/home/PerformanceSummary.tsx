@@ -1,21 +1,14 @@
 import { createMemo, For, type JSX, Show } from "solid-js";
 import { useData } from "../../data/context";
 import type { MatchSummary } from "../../data/generated/MatchSummary";
-import type { Role } from "../../data/generated/Role";
 import { Card } from "../../design/Card";
 import { ChampionIcon } from "../../design/GameIcon";
 import { EmptyState } from "../../design/States";
 import { kdaRatio, percent } from "../../lib/format";
+import { ROLE_LABEL } from "../../lib/roles";
 import styles from "./PerformanceSummary.module.css";
 import { summarize } from "./summary";
 
-const ROLE_LABEL: Record<Role, string> = {
-  top: "Top",
-  jungle: "Jungle",
-  middle: "Mid",
-  bottom: "Bot",
-  support: "Support",
-};
 const MAX_CHAMPIONS = 5;
 /** Below this, a win rate is noise: shown neutral instead of green/red. */
 const MIN_GAMES_FOR_COLOR = 3;

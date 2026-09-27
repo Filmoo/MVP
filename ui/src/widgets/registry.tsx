@@ -18,9 +18,12 @@ export const widgetRegistry: Record<string, () => JSX.Element> = {
   "performance-summary": () => <PerformanceSummary matches={profile.recentMatches} />,
   "draft-teams": () => <Teams draft={champSelectDraft} />,
   "draft-suggestions": () => (
-    <Suggestions draft={champSelectDraft} selected={champSelectDraft.suggestions[0]?.championId} onSelect={() => {}} />
+    <Suggestions
+      draft={champSelectDraft}
+      selected={champSelectDraft.suggestions[0]?.championId}
+      expanded={champSelectDraft.suggestions[0]?.championId}
+      onSelect={() => {}}
+    />
   ),
-  "draft-why": () => (
-    <Why suggestion={champSelectDraft.suggestions[0]} teamPercent={champSelectDraft.team?.percent} data={champSelectDraft.data} />
-  ),
+  "draft-why": () => <Why suggestion={champSelectDraft.suggestions[0]} teamPercent={champSelectDraft.team?.percent} />,
 };

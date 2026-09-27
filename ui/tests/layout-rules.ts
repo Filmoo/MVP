@@ -129,8 +129,9 @@ export function auditLayout(): Violation[] {
     }
   }
 
-  // 8. Widgets keep a usable size.
+  // 8. Widgets keep a usable size (a `hideable` one may be hidden outright, never squeezed).
   for (const w of document.querySelectorAll<HTMLElement>("[data-widget]")) {
+    if (w.hasAttribute("data-hideable") && getComputedStyle(w).display === "none") continue;
     const r = w.getBoundingClientRect();
     if (r.width < 160 || r.height < 40) {
       violations.push({ rule: "widget-squeezed", element: describe(w), detail: `${Math.round(r.width)}×${Math.round(r.height)}px` });

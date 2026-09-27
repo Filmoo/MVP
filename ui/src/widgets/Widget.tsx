@@ -7,12 +7,15 @@ import { markWidgetMounted } from "../lib/perf";
  * Boundary for every self-contained block of a view:
  * - a crash inside renders an error card for this widget only;
  * - mount time is recorded for the perf budget tests (`widget:<name>`).
+ *
+ * `hideable`: the layout may hide this widget on some sizes because its content is shown another
+ * way there; the layout tests then accept it hidden (never squeezed).
  */
-export function Widget(props: { name: string; class?: string | undefined; children: JSX.Element }): JSX.Element {
+export function Widget(props: { name: string; class?: string | undefined; hideable?: boolean; children: JSX.Element }): JSX.Element {
   const startedAt = performance.now();
   onMount(() => markWidgetMounted(props.name, startedAt));
   return (
-    <section class={props.class} data-widget={props.name}>
+    <section class={props.class} data-widget={props.name} data-hideable={props.hideable ? "" : undefined}>
       <ErrorBoundary
         fallback={(error, reset) => {
           reportError(error, `widget:${props.name}`);

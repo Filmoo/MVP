@@ -40,7 +40,10 @@ describe("format", () => {
   it("formats game counts", () => {
     expect(games(812)).toBe("812");
     expect(games(3244)).toBe("3,244");
-    expect(games(127_400)).toBe("127.4K");
+    expect(games(11_020)).toBe("11K");
+    expect(games(127_400)).toBe("127K");
+    expect(games(999_400)).toBe("999K");
+    expect(games(999_600)).toBe("1M");
     expect(games(1_912_400)).toBe("1.9M");
   });
 

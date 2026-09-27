@@ -19,9 +19,15 @@
   white-space: nowrap;
 }
 
+/* The screen's only urgency cue. */
+.urgent {
+  background: var(--loss-soft);
+  color: var(--loss);
+}
+
 .grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 340px;
+  grid-template-columns: minmax(0, 1fr) minmax(var(--aside-w), 30%);
   grid-template-areas:
     "teams teams"
     "picks why";
@@ -46,15 +52,15 @@
   top: var(--space-8);
 }
 
+/* Narrow: picks first (the client already shows the teams), the selected pick explains itself inline. */
 @container page (max-width: 959px) {
   .grid {
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
-      "teams"
       "picks"
-      "why";
+      "teams";
   }
   .why {
-    position: static;
+    display: none;
   }
 }

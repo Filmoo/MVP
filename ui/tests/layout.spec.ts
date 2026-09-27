@@ -57,3 +57,28 @@ test("resize sweep keeps layout sound", async ({ page }) => {
   }
   expect(errors).toEqual([]);
 });
+
+// Draft interactions: the selected pick is explained beside the list on wide windows and under
+// its own row on narrow ones; both states must lay out cleanly.
+test("draft: picking a suggestion updates the explanation at every size", async ({ page }) => {
+  const errors = trackErrors(page);
+  for (const size of SIZES) {
+    await openApp(page, { view: "/draft", scenario: "champ-select", width: size.width, height: size.height });
+    const wide = await page.locator("[data-widget=draft-why]").isVisible();
+    const shen = page.getByTestId("suggestion").filter({ hasText: "Shen" });
+    await shen.click();
+    await expect(shen, size.name).toHaveAttribute("aria-pressed", "true");
+    if (wide) {
+      await expect(page.locator("[data-widget=draft-why] h2"), size.name).toHaveText("Why Shen");
+    } else {
+      const terms = page.locator("[data-widget=draft-suggestions] li:has(> button[aria-pressed=true]) ul");
+      await expect(terms, size.name).toBeVisible();
+      await settle(page);
+      expect(await page.evaluate(auditLayout), `${size.name} expanded`).toEqual([]);
+      await shen.click();
+      await expect(terms, `${size.name} folds on a second tap`).toHaveCount(0);
+      await expect(shen, `${size.name} stays selected`).toHaveAttribute("aria-pressed", "true");
+    }
+  }
+  expect(errors).toEqual([]);
+});

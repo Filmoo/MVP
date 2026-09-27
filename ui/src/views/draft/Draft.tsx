@@ -1,12 +1,14 @@
-import { createResource, createSignal, type JSX, Match, onCleanup, Switch } from "solid-js";
+import { createResource, createSignal, type JSX, Match, onCleanup, Show, Switch } from "solid-js";
 import { useData } from "../../data/context";
 import type { DraftView } from "../../data/generated/DraftView";
 import { Card } from "../../design/Card";
 import { EmptyState, ErrorState, Skeleton } from "../../design/States";
+import { duration } from "../../lib/format";
 import { Widget } from "../../widgets/Widget";
 import page from "../page.module.css";
 import styles from "./Draft.module.css";
 import { Suggestions } from "./Suggestions";
+import { selectedPick } from "./selection";
 import { Teams } from "./Teams";
 import { Why } from "./Why";
 
@@ -16,23 +18,65 @@ const PHASE_LABEL: Record<DraftView["phase"], string> = {
   picking: "Picking",
   finalizing: "Finalizing",
 };
+/** The timer turns red from here on. */
+const URGENT_SECONDS = 10;
 
 export function DraftContent(props: { draft: DraftView }): JSX.Element {
-  const [picked, setPicked] = createSignal<number>();
-  const selected = () => picked() ?? props.draft.suggestions[0]?.championId;
+  const [clicked, setClicked] = createSignal<number>();
+  // Narrow windows explain a pick under its row; a second tap folds it away again.
+  const [expanded, setExpanded] = createSignal<number>();
+  const selected = () => selectedPick(props.draft, clicked());
   const suggestion = () => props.draft.suggestions.find((s) => s.championId === selected());
+  const select = (championId: number) => {
+    setClicked(championId);
+    setExpanded((open) => (open === championId ? undefined : championId));
+  };
   return (
     <div class={styles.grid}>
       <Widget name="draft-teams" class={styles.teams}>
         <Teams draft={props.draft} />
       </Widget>
       <Widget name="draft-suggestions" class={styles.picks}>
-        <Suggestions draft={props.draft} selected={selected()} onSelect={setPicked} />
+        <Suggestions draft={props.draft} selected={selected()} expanded={expanded()} onSelect={select} />
       </Widget>
-      <Widget name="draft-why" class={styles.why}>
-        <Why suggestion={suggestion()} teamPercent={props.draft.team?.percent} data={props.draft.data} />
+      {/* Hidden on narrow windows, where a tapped pick shows its terms in the list. */}
+      <Widget name="draft-why" class={styles.why} hideable>
+        <Why suggestion={suggestion()} teamPercent={props.draft.team?.percent} />
       </Widget>
     </div>
+  );
+}
+
+/** Same boxes as the loaded screen, so nothing jumps when the draft arrives. */
+function DraftSkeleton(): JSX.Element {
+  return (
+    <div class={styles.grid} aria-busy="true">
+      <div class={styles.teams}>
+        <Card>
+          <Skeleton height="132px" />
+        </Card>
+      </div>
+      <div class={styles.picks}>
+        <Card title="Picks">
+          <Skeleton height="480px" />
+        </Card>
+      </div>
+      <div class={styles.why}>
+        <Card title="Why">
+          <Skeleton height="360px" />
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+function PhasePill(props: { draft: DraftView }): JSX.Element {
+  const urgent = () => props.draft.secondsLeft !== null && props.draft.secondsLeft <= URGENT_SECONDS;
+  return (
+    <span class={`${styles.phase} ${urgent() ? styles.urgent : ""} num`}>
+      {PHASE_LABEL[props.draft.phase]}
+      <Show when={props.draft.secondsLeft !== null}> · {duration(props.draft.secondsLeft ?? 0)}</Show>
+    </span>
   );
 }
 
@@ -45,16 +89,7 @@ export default function Draft(): JSX.Element {
     <div class={page.page}>
       <div class={styles.head}>
         <h1 class={page.title}>Draft</h1>
-        <Switch>
-          <Match when={draft.state === "ready" && draft()}>
-            {(d) => (
-              <span class={`${styles.phase} num`}>
-                {PHASE_LABEL[d().phase]}
-                {d().secondsLeft !== null ? ` · 0:${String(d().secondsLeft).padStart(2, "0")}` : ""}
-              </span>
-            )}
-          </Match>
-        </Switch>
+        <Show when={draft.state === "ready" && draft()}>{(d) => <PhasePill draft={d()} />}</Show>
       </div>
       <Switch>
         <Match when={draft.state === "errored"}>
@@ -69,9 +104,7 @@ export default function Draft(): JSX.Element {
           </div>
         </Match>
         <Match when={draft.state === "pending" || draft.state === "unresolved"}>
-          <Card>
-            <Skeleton height="220px" />
-          </Card>
+          <DraftSkeleton />
         </Match>
         <Match when={draft() === null}>
           <div class={page.centered}>

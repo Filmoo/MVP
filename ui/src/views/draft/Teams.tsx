@@ -5,72 +5,76 @@ import type { DraftView } from "../../data/generated/DraftView";
 import { Card } from "../../design/Card";
 import { ChampionIcon } from "../../design/GameIcon";
 import { percent } from "../../lib/format";
-import { ROLE_LABEL } from "./roles";
+import { ROLE_LABEL, ROLE_SHORT } from "../../lib/roles";
 import styles from "./Teams.module.css";
+
+/** Enemy role odds shown per slot: the two likeliest cover almost every draft. */
+const ODDS_SHOWN = 2;
+
+/** Two short lines under the name: role, then state (allies) or the two likeliest roles (enemies). */
+function lines(slot: DraftSlot, enemy: boolean): [string, string] {
+  if (enemy) {
+    const [first, second] = slot.roleOdds.slice(0, ODDS_SHOWN).map((o) => `${ROLE_SHORT[o.role]} ${percent(o.probability)}`);
+    return [first ?? "", second ?? ""];
+  }
+  const role = slot.role ? ROLE_LABEL[slot.role] : "";
+  if (slot.isMe) return [role, "You"];
+  return [role, slot.championId !== null && slot.hovering ? "Hovering" : ""];
+}
 
 function Slot(props: { slot: DraftSlot; enemy: boolean }): JSX.Element {
   const { gameData } = useData();
   const name = () => (props.slot.championId === null ? undefined : gameData()?.champions.get(props.slot.championId)?.name);
-  const detail = () => {
-    const s = props.slot;
-    if (props.enemy) {
-      if (s.roleOdds.length === 0) return "Role unknown";
-      return s.roleOdds.map((o) => `${ROLE_LABEL[o.role]} ${percent(o.probability)}`).join(" · ");
-    }
-    const role = s.role ? ROLE_LABEL[s.role] : "";
-    if (s.championId === null) return role;
-    return s.hovering ? `${role} · Hovering` : role;
-  };
+  const text = () => lines(props.slot, props.enemy);
   return (
-    <div
+    <li
       class={`${styles.slot} ${props.slot.picking ? styles.picking : ""} ${props.slot.hovering ? styles.hovering : ""}`}
       data-testid={props.enemy ? "enemy-slot" : "ally-slot"}
     >
       <Show when={props.slot.championId} fallback={<div class={styles.empty} aria-hidden="true" />}>
-        {(id) => <ChampionIcon championId={id()} size={36} />}
+        {(id) => <ChampionIcon championId={id()} size={40} />}
       </Show>
-      <div class={styles.text}>
-        <span class={styles.name}>
-          <span class={`${styles.nameText} ${name() ? "" : styles.muted}`}>{name() ?? (props.slot.picking ? "Picking…" : "Waiting")}</span>
-          <Show when={props.slot.isMe}>
-            <span class={styles.you}>You</span>
-          </Show>
-        </span>
-        <span class={`${styles.detail} num`}>{detail()}</span>
-      </div>
-    </div>
+      <span class={`${styles.name} ${name() ? "" : styles.muted}`} title={name()}>
+        {name() ?? (props.slot.picking ? "Picking…" : "Waiting")}
+      </span>
+      <span class={`${styles.detail} num`}>{text()[0]}</span>
+      <span class={`${styles.detail} num ${props.slot.isMe ? styles.you : ""}`}>{text()[1]}</span>
+    </li>
   );
 }
 
 function Team(props: { title: string; slots: DraftSlot[]; bans: number[]; enemy: boolean }): JSX.Element {
   return (
-    <div class={`${styles.team} ${props.enemy ? styles.enemy : styles.ally}`}>
+    <section class={styles.team} aria-label={props.title}>
       <div class={styles.teamHead}>
-        <span class={styles.teamName}>{props.title}</span>
+        <h2 class={styles.teamName}>{props.title}</h2>
+        <Show when={props.bans.length > 0}>
+          <ul class={styles.banList} aria-label={`${props.title} bans`}>
+            <For each={props.bans}>
+              {(id) => (
+                <li class={styles.ban}>
+                  <ChampionIcon championId={id} size={24} />
+                </li>
+              )}
+            </For>
+          </ul>
+        </Show>
       </div>
-      <For each={props.slots}>{(slot) => <Slot slot={slot} enemy={props.enemy} />}</For>
-      <div class={styles.bans}>
-        <span class={styles.bansLabel}>Bans</span>
-        <ul class={styles.banList} aria-label={`${props.title} bans`}>
-          <For each={props.bans}>
-            {(id) => (
-              <li class={styles.ban}>
-                <ChampionIcon championId={id} size={24} />
-              </li>
-            )}
-          </For>
-        </ul>
-      </div>
-    </div>
+      <ol class={styles.slots}>
+        <For each={props.slots}>{(slot) => <Slot slot={slot} enemy={props.enemy} />}</For>
+      </ol>
+    </section>
   );
 }
 
 export function Teams(props: { draft: DraftView }): JSX.Element {
   return (
     <Card>
-      <div class={styles.teams}>
-        <Team title="Your team" slots={props.draft.allies} bans={props.draft.allyBans} enemy={false} />
-        <Team title="Enemy team" slots={props.draft.enemies} bans={props.draft.enemyBans} enemy />
+      <div class={styles.strip}>
+        <div class={styles.teams}>
+          <Team title="Your team" slots={props.draft.allies} bans={props.draft.allyBans} enemy={false} />
+          <Team title="Enemy team" slots={props.draft.enemies} bans={props.draft.enemyBans} enemy />
+        </div>
       </div>
     </Card>
   );
