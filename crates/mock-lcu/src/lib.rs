@@ -1,0 +1,292 @@
+//! A fake League client for tests and for developing without League (or on Linux).
+//!
+//! Serves the LCU surface the app uses — HTTPS REST with basic auth and the WAMP 1.0
+//! WebSocket event stream — from an in-memory map of JSON documents. Tests (or the
+//! `mock-lcu` binary playing a scenario) change documents with [`MockLcu::set`], which also
+//! pushes the matching `OnJsonApiEvent` to subscribers, exactly like the real client.
+//!
+//! TLS uses a throwaway CA generated at start; point the connector at [`MockLcu::ca_pem`].
+
+use std::collections::{HashMap, HashSet};
+use std::net::SocketAddr;
+use std::sync::{Arc, Mutex, PoisonError};
+
+use axum::Router;
+use axum::body::Body;
+use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
+use axum::extract::{FromRequestParts, State};
+use axum::http::{HeaderMap, Method, Request, StatusCode, Uri, header};
+use axum::response::{IntoResponse, Response};
+use base64::Engine as _;
+use base64::engine::general_purpose::STANDARD;
+use futures_util::{SinkExt as _, StreamExt as _};
+use hyper_util::rt::{TokioExecutor, TokioIo};
+use hyper_util::server::conn::auto::Builder as ConnBuilder;
+use hyper_util::service::TowerToHyperService;
+use rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer};
+use serde_json::{Value, json};
+use tokio::net::TcpListener;
+use tokio::sync::{broadcast, watch};
+use tokio::task::{JoinHandle, JoinSet};
+use tokio_rustls::TlsAcceptor;
+
+#[derive(Debug, thiserror::Error)]
+pub enum MockError {
+    #[error("certificate generation failed: {0}")]
+    Cert(#[from] rcgen::Error),
+    #[error(transparent)]
+    Tls(#[from] rustls::Error),
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+}
+
+/// One event pushed on the WebSocket (`[8, "OnJsonApiEvent", {…}]`).
+#[derive(Debug, Clone)]
+struct ApiEvent {
+    uri: String,
+    event_type: &'static str,
+    data: Value,
+}
+
+#[derive(Debug)]
+struct Shared {
+    password: String,
+    docs: Mutex<HashMap<String, Value>>,
+    requests: Mutex<Vec<(Method, String)>>,
+    events: broadcast::Sender<ApiEvent>,
+    /// Flipped on drop: open web sockets close, like when the real client quits.
+    shutdown: watch::Sender<bool>,
+}
+
+impl Shared {
+    fn authorized(&self, headers: &HeaderMap) -> bool {
+        let expected = format!(
+            "Basic {}",
+            STANDARD.encode(format!("riot:{}", self.password))
+        );
+        headers
+            .get(header::AUTHORIZATION)
+            .and_then(|v| v.to_str().ok())
+            == Some(expected.as_str())
+    }
+}
+
+/// A running fake client. Dropping it stops the server.
+#[derive(Debug)]
+pub struct MockLcu {
+    addr: SocketAddr,
+    ca_pem: String,
+    shared: Arc<Shared>,
+    server: JoinHandle<()>,
+}
+
+impl Drop for MockLcu {
+    fn drop(&mut self) {
+        self.shared.shutdown.send_replace(true);
+        self.server.abort();
+    }
+}
+
+impl MockLcu {
+    /// Starts on a random loopback port with a fresh CA and password.
+    pub async fn start() -> Result<Self, MockError> {
+        let (ca_pem, server_config) = tls_material()?;
+        let listener = TcpListener::bind(("127.0.0.1", 0)).await?;
+        let addr = listener.local_addr()?;
+        let (events, _) = broadcast::channel(256);
+        let shared = Arc::new(Shared {
+            password: format!("mock-{}", addr.port()),
+            docs: Mutex::new(HashMap::new()),
+            requests: Mutex::new(Vec::new()),
+            events,
+            shutdown: watch::channel(false).0,
+        });
+        let app = Router::new()
+            .fallback(handle)
+            .with_state(Arc::clone(&shared));
+        let acceptor = TlsAcceptor::from(Arc::new(server_config));
+        let server = tokio::spawn(async move {
+            // Connections live in this set: aborting the server aborts them all.
+            let mut connections = JoinSet::new();
+            loop {
+                tokio::select! {
+                    accepted = listener.accept() => {
+                        let Ok((tcp, _)) = accepted else { break };
+                        let acceptor = acceptor.clone();
+                        let service = TowerToHyperService::new(app.clone());
+                        connections.spawn(async move {
+                            let Ok(tls) = acceptor.accept(tcp).await else { return };
+                            let _ = ConnBuilder::new(TokioExecutor::new())
+                                .serve_connection_with_upgrades(TokioIo::new(tls), service)
+                                .await;
+                        });
+                    }
+                    Some(_) = connections.join_next() => {}
+                }
+            }
+        });
+        let mock = Self {
+            addr,
+            ca_pem,
+            shared,
+            server,
+        };
+        mock.set("/lol-gameflow/v1/gameflow-phase", json!("None"));
+        Ok(mock)
+    }
+
+    pub fn port(&self) -> u16 {
+        self.addr.port()
+    }
+
+    pub fn password(&self) -> &str {
+        &self.shared.password
+    }
+
+    /// PEM of the CA that signed the server certificate.
+    pub fn ca_pem(&self) -> &str {
+        &self.ca_pem
+    }
+
+    /// Content of a lockfile pointing at this server.
+    pub fn lockfile(&self) -> String {
+        format!(
+            "LeagueClient:{}:{}:{}:https",
+            std::process::id(),
+            self.port(),
+            self.password()
+        )
+    }
+
+    /// Sets the document served at `path` and pushes an `Update`/`Create` event for it.
+    pub fn set(&self, path: &str, value: Value) {
+        let existed = lock(&self.shared.docs)
+            .insert(path.to_owned(), value.clone())
+            .is_some();
+        let _ = self.shared.events.send(ApiEvent {
+            uri: path.to_owned(),
+            event_type: if existed { "Update" } else { "Create" },
+            data: value,
+        });
+    }
+
+    /// Removes the document at `path` (404 afterwards) and pushes a `Delete` event.
+    pub fn remove(&self, path: &str) {
+        lock(&self.shared.docs).remove(path);
+        let _ = self.shared.events.send(ApiEvent {
+            uri: path.to_owned(),
+            event_type: "Delete",
+            data: Value::Null,
+        });
+    }
+
+    /// Every request received so far, as `(method, path)`.
+    pub fn requests(&self) -> Vec<(String, String)> {
+        lock(&self.shared.requests)
+            .iter()
+            .map(|(m, p)| (m.to_string(), p.clone()))
+            .collect()
+    }
+}
+
+fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    m.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+async fn handle(State(shared): State<Arc<Shared>>, req: Request<Body>) -> Response {
+    let (mut parts, body) = req.into_parts();
+    lock(&shared.requests).push((parts.method.clone(), parts.uri.path().to_owned()));
+    if !shared.authorized(&parts.headers) {
+        return lcu_error(StatusCode::UNAUTHORIZED, "Unauthorized");
+    }
+    if parts.uri.path() == "/" {
+        return match WebSocketUpgrade::from_request_parts(&mut parts, &shared).await {
+            Ok(ws) => ws.on_upgrade(move |socket| wamp(socket, shared)),
+            Err(rejection) => rejection.into_response(),
+        };
+    }
+    drop(body);
+    route(&shared, &parts.method, &parts.uri)
+}
+
+fn route(shared: &Shared, method: &Method, uri: &Uri) -> Response {
+    let docs = lock(&shared.docs);
+    match (method, docs.get(uri.path())) {
+        (&Method::GET, Some(value)) => (StatusCode::OK, axum::Json(value.clone())).into_response(),
+        (&Method::GET, None) => lcu_error(StatusCode::NOT_FOUND, "Not found"),
+        _ => StatusCode::NO_CONTENT.into_response(),
+    }
+}
+
+/// The real client's error shape.
+fn lcu_error(status: StatusCode, message: &str) -> Response {
+    let body =
+        json!({ "errorCode": "RPC_ERROR", "httpStatus": status.as_u16(), "message": message });
+    (status, axum::Json(body)).into_response()
+}
+
+/// WAMP 1.0 subset: `[5, topic]` subscribes, `[6, topic]` unsubscribes, events go out as
+/// `[8, topic, {data, eventType, uri}]`.
+async fn wamp(socket: WebSocket, shared: Arc<Shared>) {
+    let (mut tx, mut rx) = socket.split();
+    let mut events = shared.events.subscribe();
+    let mut shutdown = shared.shutdown.subscribe();
+    let mut topics: HashSet<String> = HashSet::new();
+    loop {
+        tokio::select! {
+            _ = shutdown.changed() => {
+                let _ = tx.send(Message::Close(None)).await;
+                break;
+            }
+            incoming = rx.next() => {
+                let Some(Ok(Message::Text(text))) = incoming else { break };
+                if let Ok(Value::Array(msg)) = serde_json::from_str::<Value>(text.as_str()) {
+                    match (msg.first().and_then(Value::as_u64), msg.get(1).and_then(Value::as_str)) {
+                        (Some(5), Some(topic)) => { topics.insert(topic.to_owned()); }
+                        (Some(6), Some(topic)) => { topics.remove(topic); }
+                        _ => {}
+                    }
+                }
+            }
+            event = events.recv() => {
+                let Ok(event) = event else { continue };
+                let specific = format!("OnJsonApiEvent{}", event.uri.replace('/', "_"));
+                for topic in ["OnJsonApiEvent", specific.as_str()] {
+                    if topics.contains(topic) {
+                        let frame = json!([8, topic, { "data": event.data, "eventType": event.event_type, "uri": event.uri }]);
+                        if tx.send(Message::Text(frame.to_string().into())).await.is_err() {
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// A throwaway CA and a server certificate it signs. The server certificate is issued for
+/// `localhost` only, like the real client's: connectors must not rely on hostname checks.
+fn tls_material() -> Result<(String, rustls::ServerConfig), MockError> {
+    let ca_key = rcgen::KeyPair::generate()?;
+    let mut ca_params = rcgen::CertificateParams::new(Vec::<String>::new())?;
+    ca_params.is_ca = rcgen::IsCa::Ca(rcgen::BasicConstraints::Unconstrained);
+    ca_params
+        .distinguished_name
+        .push(rcgen::DnType::CommonName, "Mock LoL CA");
+    let ca_cert = ca_params.self_signed(&ca_key)?;
+    let issuer = rcgen::Issuer::new(ca_params, ca_key);
+
+    let server_key = rcgen::KeyPair::generate()?;
+    let server_params = rcgen::CertificateParams::new(vec!["localhost".to_owned()])?;
+    let server_cert = server_params.signed_by(&server_key, &issuer)?;
+
+    let provider = Arc::new(rustls::crypto::ring::default_provider());
+    let config = rustls::ServerConfig::builder_with_provider(provider)
+        .with_safe_default_protocol_versions()?
+        .with_no_client_auth()
+        .with_single_cert(
+            vec![CertificateDer::from(server_cert.der().to_vec())],
+            PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(server_key.serialize_der())),
+        )?;
+    Ok((ca_cert.pem(), config))
+}

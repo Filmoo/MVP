@@ -13,6 +13,7 @@ publish = false
 # Internal crates
 domain = { path = "crates/domain" }
 lcu = { path = "crates/lcu" }
+mock-lcu = { path = "crates/mock-lcu" }
 stats = { path = "crates/stats" }
 
 # External
@@ -25,6 +26,14 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync"
 ts-rs = { version = "12", features = ["serde-compat", "no-serde-warnings"] }
 base64 = "0.23"
 proptest = "1"
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
+tokio-tungstenite = { version = "0.30", default-features = false, features = ["connect", "handshake", "__rustls-tls"] }
+reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider", "json"] }
+rcgen = "0.14"
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "tokio", "ws"] }
+hyper-util = { version = "0.1", features = ["server-auto", "service", "tokio"] }
 
 [workspace.lints.rust]
 unsafe_code = "deny"

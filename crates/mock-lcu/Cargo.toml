@@ -1,6 +1,6 @@
 [package]
-name = "lcu"
-description = "League Client (LCU) API: discovery, authentication, REST and event stream."
+name = "mock-lcu"
+description = "A fake League client (HTTPS + WAMP WebSocket) for tests and for developing without League."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -8,22 +8,19 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+axum.workspace = true
 base64.workspace = true
 futures-util.workspace = true
-reqwest.workspace = true
+hyper-util.workspace = true
+rcgen.workspace = true
 rustls.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
-tokio-tungstenite.workspace = true
-tracing.workspace = true
-
-[dev-dependencies]
-mock-lcu.workspace = true
-proptest.workspace = true
-rcgen.workspace = true
 tokio-rustls.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
 
 [lints]
 workspace = true
