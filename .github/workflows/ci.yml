@@ -5,9 +5,11 @@ on:
   pull_request:
   workflow_dispatch:
 
+# One run per branch at a time. A running build is never cancelled (it has to finish to save
+# its cache); a newer push waits, and replaces any older run still waiting.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 env:
   CARGO_TERM_COLOR: always
