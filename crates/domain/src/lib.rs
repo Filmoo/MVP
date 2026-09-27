@@ -10,17 +10,19 @@ mod backend;
 mod client;
 mod draft;
 mod game_data;
+mod live;
 mod player;
 mod scout;
 mod settings;
 
-pub use backend::{ApiError, ApiErrorCode, Health};
+pub use backend::{ApiError, ApiErrorCode, BackendError, Health};
 pub use client::{AppInfo, ClientConnection, ClientStatus, GameflowPhase};
 pub use draft::{
     DataInfo, DraftPhase, DraftSlot, DraftView, Estimate, PersonalRecord, Reason, ReasonKind,
     RoleOdds, Suggestion,
 };
 pub use game_data::{ChampionInfo, GameData, ItemInfo, SpellInfo};
+pub use live::{LiveGame, LivePlayer, Scouting};
 pub use player::{Division, MatchSummary, PlayerProfile, RankedEntry, RiotId, Role, Tier};
 pub use scout::{ChampionRecord, ScoutCard, ScoutRequest, ScoutTag};
 pub use settings::{AutoAcceptEvent, Settings, ViewRoute};

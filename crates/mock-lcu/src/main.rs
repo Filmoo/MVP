@@ -1,7 +1,8 @@
 //! `cargo run -p mock-lcu` — a fake League client for developing the app without League.
 //!
 //! Writes `.cache/mock-lcu/{lockfile,ca.pem}` and loops through a whole game cycle
-//! (lobby → queue → champ select → game → end of game). Point a debug build of the app at it:
+//! (lobby → queue → champ select → game → end of game), with a game session from the loading
+//! screen on (loading-screen scouting). Point a debug build of the app at it:
 //!   SCOUT_LCU_LOCKFILE=.cache/mock-lcu/lockfile SCOUT_LCU_CA=.cache/mock-lcu/ca.pem pnpm app
 
 use std::path::PathBuf;
@@ -74,6 +75,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 play_champ_select(&mock).await;
             } else if *phase == "GameStart" {
                 mock.remove(CHAMP_SELECT);
+                mock.set(GAME_SESSION, game_session());
+            } else if *phase == "None" {
+                mock.remove(GAME_SESSION);
             }
             tokio::time::sleep(Duration::from_secs(*seconds)).await;
         }
@@ -81,6 +85,51 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 const CHAMP_SELECT: &str = "/lol-champ-select/v1/session";
+const GAME_SESSION: &str = "/lol-gameflow/v1/session";
+
+/// The game the draft led to, as the client shows it from the loading screen on: both teams
+/// with champions, positions and spells. One enemy plays in streamer mode (identity hidden).
+/// PUUIDs are made up, so a real backend answers without cards for them.
+fn game_session() -> serde_json::Value {
+    let member = |puuid: &str, name: &str, champion: u32, position: &str| {
+        let (game_name, tag_line) = name.split_once('#').unwrap_or((name, ""));
+        json!({ "puuid": puuid, "gameName": game_name, "tagLine": tag_line, "championId": champion, "selectedPosition": position })
+    };
+    let spells = |puuid: &str, champion: u32, spell1: u32, spell2: u32| json!({ "puuid": puuid, "championId": champion, "spell1Id": spell1, "spell2Id": spell2 });
+    json!({
+        "phase": "GameStart",
+        "gameData": {
+            "gameId": 7_100_000_001_u64,
+            "queue": { "id": 420, "type": "RANKED_SOLO_5x5", "isRanked": true },
+            "teamOne": [
+                member("00000000-mock-0000-0000-000000000000", "Fillmo#7272", 54, "TOP"),
+                member("mock-ally-2", "Treeline Tom#EUW", 64, "JUNGLE"),
+                member("mock-ally-3", "Quiet Storm#0412", 103, "MIDDLE"),
+                member("mock-ally-4", "Lane Kingdom#EUW", 222, "BOTTOM"),
+                member("mock-ally-5", "Wardwalker#FR1", 412, "UTILITY")
+            ],
+            "teamTwo": [
+                member("mock-enemy-1", "Blade Dancer#IRE", 39, "TOP"),
+                { "puuid": "", "championId": 234, "selectedPosition": "JUNGLE", "nameVisibilityType": "HIDDEN" },
+                member("mock-enemy-3", "Zed Is Life#1v9", 910, "MIDDLE"),
+                member("mock-enemy-4", "Crit Happens#ADC", 51, "BOTTOM"),
+                member("mock-enemy-5", "Hook City#BLTZ", 53, "UTILITY")
+            ],
+            "playerChampionSelections": [
+                spells("00000000-mock-0000-0000-000000000000", 54, 4, 12),
+                spells("mock-ally-2", 64, 11, 4),
+                spells("mock-ally-3", 103, 4, 14),
+                spells("mock-ally-4", 222, 4, 7),
+                spells("mock-ally-5", 412, 4, 14),
+                spells("mock-enemy-1", 39, 12, 4),
+                spells("", 234, 11, 4),
+                spells("mock-enemy-3", 910, 4, 14),
+                spells("mock-enemy-4", 51, 4, 21),
+                spells("mock-enemy-5", 53, 4, 14)
+            ]
+        }
+    })
+}
 
 /// A short ranked draft: you (top) hover Malphite while picks come in on both sides.
 async fn play_champ_select(mock: &MockLcu) {

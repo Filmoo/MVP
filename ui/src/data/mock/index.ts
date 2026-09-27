@@ -52,7 +52,7 @@ export function createMockTransport(scenario: Scenario): Transport {
       if (!response && command === "game_data") return (await loadDevGameData()) as never;
       if (!response) throw new CommandError(command, `mock scenario has no response for ${command}`);
       if (response.delayMs) await sleep(response.delayMs);
-      if ("error" in response) throw new CommandError(command, response.error);
+      if ("error" in response) throw new CommandError(command, response.error, response.detail);
       if ("load" in response) return (await response.load()) as never;
       if ("handle" in response) return structuredClone((response.handle as (a: unknown) => unknown)(args)) as never;
       return structuredClone(response.data) as never;

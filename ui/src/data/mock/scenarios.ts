@@ -3,6 +3,7 @@ import type { PlayerProfile } from "../generated/PlayerProfile";
 import type { CommandName, Commands, EventName, Events } from "../transport";
 import { champSelectDraft } from "./draft-fixtures";
 import { corruptProfile, extremeProfile, newPlayerProfile, profile } from "./fixtures";
+import { liveExtreme, liveFailed, liveGame, liveScouting, searchPlayer } from "./live-fixtures";
 import { customSettings, defaultSettings, saveSettings } from "./settings-fixtures";
 
 /** Profile captured by `capture-profile`, served by the dev server; falls back to the fixture. */
@@ -18,7 +19,8 @@ async function loadCapturedProfile(): Promise<PlayerProfile> {
 
 export type MockResponse<T, A = undefined> =
   | { data: T; delayMs?: number }
-  | { error: string; delayMs?: number }
+  /** Fails; `detail` is the structured error the core would send (e.g. a `BackendError`). */
+  | { error: string; detail?: unknown; delayMs?: number }
   | { load: () => Promise<T>; delayMs?: number }
   /** Answers from the command's arguments (e.g. echoes saved settings). */
   | { handle: (args: A) => T; delayMs?: number };
@@ -44,7 +46,13 @@ const base: Scenario["responses"] = {
   get_settings: { data: defaultSettings },
   update_settings: { handle: (args) => saveSettings(args.settings), delayMs: 60 },
   view_changed: { data: null },
+  // A lookup takes a moment, like the real backend with a warm cache.
+  search_player: { handle: searchPlayer, delayMs: 350 },
+  live_game: { data: null },
+  retry_scouting: { data: null },
 };
+
+const inGame: ClientStatus = { connection: "connected", phase: "inGame" };
 
 export const scenarios = {
   default: {
@@ -110,6 +118,31 @@ export const scenarios = {
   "settings-save-error": {
     description: "Saving fails: the switch flips back and the card says why.",
     responses: { ...base, update_settings: { error: "settings file not writable: Access is denied. (os error 5)", delayMs: 60 } },
+  },
+  "search-slow": {
+    description: "Player lookups take 2.5 s: the search bar must not reorder or re-highlight when they land.",
+    responses: { ...base, search_player: { handle: searchPlayer, delayMs: 2_500 } },
+  },
+  live: {
+    description: "In game, every card in: rich, unranked, streamer-mode and card-less players.",
+    responses: { ...base, client_status: { data: inGame }, live_game: { data: liveGame } },
+  },
+  "live-scouting": {
+    description: "The game just loaded: names and champions first, the cards land 1.5 s later.",
+    responses: { ...base, client_status: { data: inGame }, live_game: { data: liveScouting } },
+    timeline: [{ afterMs: 1_500, event: "live", payload: liveGame }],
+  },
+  "live-failed": {
+    description: "The backend can't be reached: the game still shows, with a retry in the head.",
+    responses: { ...base, client_status: { data: inGame }, live_game: { data: liveFailed } },
+  },
+  "live-extreme": {
+    description: "Longest names, apex ranks and every tag: cards must hold.",
+    responses: { ...base, client_status: { data: inGame }, live_game: { data: liveExtreme } },
+  },
+  "live-error": {
+    description: "The core can't read the game: error state with retry.",
+    responses: { ...base, client_status: { data: inGame }, live_game: { error: "League client stopped answering (HTTP 503)" } },
   },
   "match-accepted": {
     description: "Auto-accept just accepted a match: a confirmation toast shows.",

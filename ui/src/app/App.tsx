@@ -11,6 +11,9 @@ import { TitleBar } from "./TitleBar";
 
 const Settings = lazy(() => import("../views/settings/Settings"));
 const Draft = lazy(() => import("../views/draft/Draft"));
+const Live = lazy(() => import("../views/live/Live"));
+const Player = lazy(() => import("../views/player/Player"));
+const Champions = lazy(() => import("../views/champions/Champions"));
 const Harness = lazy(() => import("../widgets/Harness"));
 
 function Toasts(): JSX.Element {
@@ -81,10 +84,13 @@ export function App(): JSX.Element {
               <Draft />
             </Match>
             <Match when={path() === "/live"}>
-              <Planned title="Live game" icon="live" description="Everyone in your game at a glance, from the loading screen on." />
+              <Live />
+            </Match>
+            <Match when={path().startsWith("/player/")}>
+              <Player />
             </Match>
             <Match when={path() === "/champions"}>
-              <Planned title="Champions" icon="champions" description="Builds, runes, matchups and win rates for every champion." />
+              <Champions />
             </Match>
             <Match when={path() === "/tier-list"}>
               <Planned title="Tier list" icon="tiers" description="Champion strength by role and rank bracket, for the current patch." />

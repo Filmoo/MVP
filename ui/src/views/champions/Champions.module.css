@@ -1,0 +1,139 @@
+/* A champion's hero: art across the card, lit by its own colors (like the profile hero). */
+.hero {
+  container: champion / inline-size;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 280px;
+  background:
+    radial-gradient(80% 150% at 100% 0%, color-mix(in oklab, var(--amb-a) 26%, transparent), transparent 62%),
+    radial-gradient(55% 120% at 0% 0%, color-mix(in oklab, var(--amb-b) 14%, transparent), transparent 60%), var(--bg-2);
+  border: 1px solid var(--line-1);
+  border-radius: var(--radius-4);
+}
+
+.art {
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  right: 0;
+  width: min(72%, 1000px);
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 20%;
+  opacity: 0.75;
+  pointer-events: none;
+  mask-image: linear-gradient(90deg, transparent, black 45%);
+}
+
+.body {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  padding: var(--space-9) var(--space-8);
+  min-width: 0;
+}
+
+.body img,
+.body [role="img"] {
+  border: 2px solid var(--accent-soft);
+  border-radius: var(--radius-4);
+}
+
+.identity {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.name {
+  font-size: var(--text-3xl);
+  font-weight: var(--weight-bold);
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tag {
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-full);
+  background: var(--bg-glass);
+  border: 1px solid var(--line-2);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--text-2);
+}
+
+/* What's coming, on a frosted strip under the art. */
+.soon {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  padding: var(--space-6) var(--space-8);
+  background: var(--bg-glass);
+  backdrop-filter: blur(8px);
+  border-top: 1px solid var(--line-1);
+}
+
+.soonIcon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--space-10);
+  height: var(--space-10);
+  border-radius: var(--radius-full);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.soonText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.soonTitle {
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+}
+
+.soonDetail {
+  font-size: var(--text-md);
+  color: var(--text-2);
+}
+
+@container champion (max-width: 559px) {
+  .art {
+    width: 100%;
+    opacity: 0.5;
+  }
+  .body {
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-end;
+    gap: var(--space-6);
+    padding: var(--space-8) var(--space-7);
+  }
+  .name {
+    font-size: var(--text-2xl);
+  }
+  .soon {
+    padding: var(--space-6) var(--space-7);
+  }
+}

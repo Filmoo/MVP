@@ -80,6 +80,20 @@ export function ItemIcon(props: { itemId: number | undefined; size: Size }): JSX
   );
 }
 
+export function SpellIcon(props: { spellId: number; size: Size }): JSX.Element {
+  const { gameData } = useData();
+  const spell = () => gameData()?.spells.get(props.spellId);
+  return (
+    <ImageWithFallback
+      src={spell() ? `${gameData()?.assetBase}/img/spell/${spell()?.key}.png` : undefined}
+      alt={spell()?.name ?? `Spell ${props.spellId}`}
+      fallback=""
+      size={props.size}
+      class={styles.spell}
+    />
+  );
+}
+
 export function ProfileIcon(props: { iconId: number; size: Size }): JSX.Element {
   const { gameData } = useData();
   return (

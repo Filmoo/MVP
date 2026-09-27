@@ -37,7 +37,31 @@ const SCENARIO_VIEWS = [
   { view: "/draft", scenario: "champ-select" },
   { view: "/settings", scenario: "settings-custom" },
   { view: "/settings", scenario: "settings-error" },
+  { view: "/live", scenario: "live" },
+  { view: "/live", scenario: "live-extreme" },
+  { view: "/live", scenario: "live-failed" },
+  { view: "/player/euw1/Blade%20Dancer/IRE", scenario: "default" },
+  { view: "/player/euw1/WWWWWWWWWWWWWWWW/WWWWW", scenario: "default" },
+  { view: "/champions?id=103", scenario: "default" },
 ] as const;
+
+// Their other states at the extreme sizes.
+const STATE_VIEWS = [
+  { view: "/live", scenario: "live-error" },
+  { view: "/live", scenario: "live-scouting" },
+  { view: "/player/euw1/Nobody/404", scenario: "default" },
+  { view: "/player/euw1/Busy/429", scenario: "default" },
+] as const;
+for (const { view, scenario } of STATE_VIEWS) {
+  for (const size of [SIZES[0], SIZES[3], SIZES[6]]) {
+    test(`${view}/${scenario} @ ${size.name}`, async ({ page }) => {
+      const errors = trackErrors(page);
+      await openApp(page, { view, scenario, width: size.width, height: size.height });
+      expect(await page.evaluate(auditLayout)).toEqual([]);
+      expect(errors).toEqual([]);
+    });
+  }
+}
 for (const { view, scenario } of SCENARIO_VIEWS) {
   for (const size of SIZES) {
     test(`${view}/${scenario} @ ${size.name} ${size.width}×${size.height}`, async ({ page }) => {

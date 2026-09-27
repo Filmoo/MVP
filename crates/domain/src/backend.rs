@@ -42,3 +42,51 @@ pub enum ApiErrorCode {
     /// Riot failed or refused (key rejected, outage, timeout).
     Upstream,
 }
+
+/// Why a backend call made by the app failed, as the UI words it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+#[ts(export)]
+pub enum BackendError {
+    /// No such player (or route).
+    NotFound,
+    /// Riot's rate limit is reached on the server: retry after `retry_after` seconds.
+    #[serde(rename_all = "camelCase")]
+    RateLimited { retry_after: Option<u32> },
+    /// The service answered but can't serve this now (no Riot key, Riot outage, bad request).
+    Unavailable { message: String },
+    /// The service couldn't be reached (offline, DNS, timeout).
+    Network { message: String },
+}
+
+impl std::fmt::Display for BackendError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::NotFound => f.write_str("not found"),
+            Self::RateLimited {
+                retry_after: Some(seconds),
+            } => write!(f, "rate limited, retry after {seconds} s"),
+            Self::RateLimited { retry_after: None } => f.write_str("rate limited"),
+            Self::Unavailable { message } => write!(f, "service unavailable: {message}"),
+            Self::Network { message } => write!(f, "backend unreachable: {message}"),
+        }
+    }
+}
+
+impl std::error::Error for BackendError {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn backend_errors_are_tagged() {
+        let json = serde_json::to_string(&BackendError::RateLimited {
+            retry_after: Some(12),
+        })
+        .expect("serializable");
+        assert_eq!(json, r#"{"kind":"rateLimited","retryAfter":12}"#);
+        let json = serde_json::to_string(&BackendError::NotFound).expect("serializable");
+        assert_eq!(json, r#"{"kind":"notFound"}"#);
+    }
+}

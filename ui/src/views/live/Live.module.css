@@ -1,0 +1,95 @@
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-5);
+  min-height: var(--space-9);
+  flex-wrap: wrap;
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+.queue {
+  flex: none;
+  padding: 0 var(--space-5);
+  border-radius: var(--radius-full);
+  background: var(--bg-3);
+  border: 1px solid var(--line-2);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--text-2);
+  line-height: 24px;
+  white-space: nowrap;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  font-size: var(--text-sm);
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.failed {
+  color: var(--warn);
+}
+
+.statusText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.retry {
+  flex: none;
+  height: 24px;
+  margin-left: var(--space-2);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-2);
+  background: var(--bg-3);
+  color: var(--text-1);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+}
+
+.retry:hover {
+  background: var(--bg-4);
+}
+
+/* Two columns, yours on the left. On a live page it fits the window and scrolls inside if short. */
+.grid {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: start;
+  align-items: start;
+  gap: var(--space-6);
+  overflow-y: auto;
+}
+
+.side {
+  min-width: 0;
+}
+
+.skeletonCards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+@container page (max-width: 959px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+    overflow: visible;
+  }
+}

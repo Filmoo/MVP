@@ -37,6 +37,13 @@ detection, composite player scores, live win probability, sending data to third-
   cancelled as soon as the phase leaves the ready check; a toast confirms every accept.
   LCU endpoints: `GET /lol-matchmaking/v1/ready-check`, `POST /lol-matchmaking/v1/ready-check/accept`
   (declare both at product registration).
+- **Loading-screen scouting (2026-09-27, shipped).** Player cards appear only once the game has
+  started (Loading/InGame), when the game itself shows every name; champion select is never read
+  for identities. Streamer-mode players (`nameVisibilityType: HIDDEN`) are shown as "Hidden
+  player": their PUUID and name are dropped in the core before any lookup. Tags are positive or
+  neutral only (one-trick, win streak, veteran, main role); no "first time", no MMR, no grades of
+  other players. LCU endpoints: `GET /lol-gameflow/v1/session`, `GET /lol-summoner/v1/current-summoner`,
+  `GET /riotclient/region-locale` (declare at product registration).
 - **Window follows the game (not gray, noted for completeness).** Bringing MVP to the front in
   champ select and switching views only moves our own window; both can be turned off, and a view
   the player opened themselves is never switched away from.

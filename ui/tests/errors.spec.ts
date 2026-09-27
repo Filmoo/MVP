@@ -76,3 +76,50 @@ test("game assets unreachable: placeholders, no crash", async ({ page }) => {
   await expect(page.getByRole("img", { name: "Champion 103" }).first()).toBeVisible();
   expect(errors.filter((e) => !e.includes("Failed to load resource"))).toEqual([]);
 });
+
+// Player pages: every way a lookup can fail has its own words; the transient ones retry.
+for (const { name, title, text, retry } of [
+  { name: "Nobody/404", title: "Player not found", text: "No player named Nobody#404 on EUW", retry: false },
+  { name: "Busy/429", title: "Too many lookups right now", text: "Try again in 12 s", retry: true },
+  { name: "Down/503", title: "Player lookups are unavailable", text: "can't reach Riot", retry: true },
+  { name: "Offline/0", title: "Can't reach MVP's servers", text: "internet connection", retry: true },
+] as const) {
+  test(`player lookup ${name}: ${title}`, async ({ page }) => {
+    const errors = trackErrors(page);
+    await openApp(page, { view: `/player/euw1/${name}` });
+    await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible();
+    await expect(page.locator("main")).toContainText(text);
+    const lookups = () => page.evaluate(() => window.__SCOUT_MOCK__?.calls.filter((c) => c === "search_player").length);
+    if (retry) {
+      await page.getByRole("button", { name: "Try again" }).click();
+      await expect.poll(lookups).toBe(2);
+    } else {
+      await page.getByRole("button", { name: "Search again" }).click();
+      await expect(page.getByTestId("search-input")).toBeFocused();
+    }
+    expect(errors).toEqual([]);
+  });
+}
+
+test("player page: skeleton first, then the profile without layout jumps", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.addInitScript(() => {
+    (window as unknown as { __cls: number }).__cls = 0;
+    new PerformanceObserver((list) => {
+      for (const entry of list.getEntries() as Array<PerformanceEntry & { value: number; hadRecentInput: boolean }>) {
+        if (!entry.hadRecentInput) (window as unknown as { __cls: number }).__cls += entry.value;
+      }
+    }).observe({ type: "layout-shift", buffered: true });
+  });
+  await page.goto("/?scenario=search-slow#/player/euw1/Blade%20Dancer/IRE");
+  await expect(page.locator("main [data-state=loading]").first()).toBeVisible();
+  await settle(page);
+  await expect(page.locator("[data-widget=profile-header]")).toContainText("Blade Dancer");
+  const cls = await page.evaluate(() => (window as unknown as { __cls: number }).__cls);
+  expect(cls, "cumulative layout shift").toBeLessThan(0.1);
+});
+
+test("champion page for an unknown id: the champions placeholder", async ({ page }) => {
+  await openApp(page, { view: "/champions?id=999999" });
+  await expect(page.getByRole("heading", { level: 1, name: "Champions" })).toBeVisible();
+});

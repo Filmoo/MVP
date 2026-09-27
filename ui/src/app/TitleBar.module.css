@@ -23,9 +23,14 @@
   pointer-events: none;
 }
 
-.spacer {
+/* The search sits in the middle; the space around it still drags the window. */
+.center {
   flex: 1;
   align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
 }
 
 .status {
@@ -83,7 +88,17 @@
   text-overflow: ellipsis;
 }
 
+/* Narrower windows keep the dot; the words are in its tooltip. */
+@media (max-width: 1023px) {
+  .statusText {
+    display: none;
+  }
+}
+
 @media (max-width: 559px) {
+  .bar {
+    gap: var(--space-4);
+  }
   .brand {
     width: auto;
     padding-left: var(--space-6);
