@@ -23,12 +23,12 @@ except where marked.
    and the Riot cache snapshot are merged in `apps/backend` (see its README). Stats downloads share
    the per-install rate limit (60 burst, 120/min): the app must cache stats files and revalidate
    with `If-None-Match`.
-2. **Glass backdrop shader** (was in progress; if a `claude/wip-glass-shader` branch exists, review
-   and merge it, else build it): one WebGL canvas behind the shell rendering the ambient light plus a
-   very subtle procedural pattern, with refraction of that backdrop under `data-refract` glass
-   rects. Render on demand only (palette change, resize, scroll, rect changes) — never a rAF loop;
-   half resolution; fall back to today's CSS gradients without WebGL; setting auto/light/off. Perf
-   tests: 0 renders at idle, median render ≤ 2 ms.
+2. *(done)* Glass backdrop shader (`ui/src/design/backdrop/`, see architecture.md "Window
+   backdrop"): render on demand, half resolution, CSS fallback. Left: a Settings row "Visual
+   effects" (auto/light/off; today only `localStorage["mvp.effects"]`), ideally backed by an
+   `effects` field in the Rust `Settings`; verify GPU cost on a real Windows/WebView2 machine; fix
+   text contrast over art in Draft's Why card ("± 2.0", "+3.1 vs team now") and the phase pill
+   (≈3.3–3.6, target ≥ 4.5).
 3. **Scouting identity fix:** LCU PUUIDs can differ from the API key's PUUIDs. Make
    `POST /v1/players/batch` accept Riot IDs (the core already reads them from the gameflow session)
    and use them; keep hidden/streamer-mode players out of any lookup.
