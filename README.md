@@ -1,4 +1,4 @@
-# Scout
+# MVP
 
 A lightweight desktop companion for League of Legends: live lookups, builds and stats,
 match history, post-game analysis and a stats-only champion select helper.
@@ -8,14 +8,14 @@ match history, post-game analysis and a stats-only champion select helper.
 ## Get the Windows app
 
 - **Every push**: GitHub Actions → *CI* → latest run → artifact **scout-windows**
-  (installer `Scout_x.y.z_x64-setup.exe` and portable `Scout.exe`).
+  (installer `MVP_x.y.z_x64-setup.exe` and portable `MVP.exe`).
 - **Releases**: push a tag `vX.Y.Z` → a draft GitHub release with the installer.
 - **Locally on Windows**: install [Rust](https://rustup.rs), [Node 22+](https://nodejs.org)
   and pnpm (`corepack enable`), then:
 
   ```sh
   pnpm install
-  pnpm build:exe      # → target/release/bundle/nsis/Scout_*_x64-setup.exe
+  pnpm build:exe      # → target/release/bundle/nsis/MVP_*_x64-setup.exe
   ```
 
 ## Develop

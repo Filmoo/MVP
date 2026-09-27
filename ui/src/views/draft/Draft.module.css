@@ -10,11 +10,11 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-2) var(--space-5);
+  padding: var(--space-3) var(--space-6);
   border-radius: var(--radius-full);
   background: var(--accent-soft);
   color: var(--accent-strong);
-  font-size: var(--text-sm);
+  font-size: var(--text-base);
   font-weight: var(--weight-semibold);
   white-space: nowrap;
 }
@@ -25,14 +25,17 @@
   color: var(--loss);
 }
 
+/* Fills the rest of the live page: the teams take their height, picks and why share the rest. */
 .grid {
+  flex: 1;
+  min-height: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(var(--aside-w), 30%);
+  grid-template-rows: auto minmax(0, 1fr);
   grid-template-areas:
     "teams teams"
     "picks why";
   gap: var(--space-6);
-  align-items: start;
 }
 
 .teams {
@@ -40,22 +43,35 @@
   min-width: 0;
 }
 
+.picks,
+.why {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Cards hug their content and only scroll when the window is too short for it. */
+.picks > *,
+.why > * {
+  flex: 0 1 auto;
+  min-height: 0;
+}
+
 .picks {
   grid-area: picks;
-  min-width: 0;
 }
 
 .why {
   grid-area: why;
-  min-width: 0;
-  position: sticky;
-  top: var(--space-8);
 }
 
 /* Narrow: picks first (the client already shows the teams), the selected pick explains itself inline. */
 @container page (max-width: 959px) {
   .grid {
+    flex: none;
     grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto;
     grid-template-areas:
       "picks"
       "teams";

@@ -10,6 +10,8 @@ export interface GameDataView {
   version: string;
   /** Base URL of this patch's assets (`…/cdn/<version>`). */
   assetBase: string;
+  /** Base URL of version-less art (`…/cdn`). */
+  artBase: string;
   champions: ReadonlyMap<number, ChampionInfo>;
   items: ReadonlyMap<number, ItemInfo>;
   spells: ReadonlyMap<number, SpellInfo>;
@@ -19,6 +21,7 @@ function index(data: GameData): GameDataView {
   return {
     version: data.version,
     assetBase: data.assetBase,
+    artBase: data.artBase,
     champions: new Map(data.champions.map((c) => [c.id, c])),
     items: new Map(data.items.map((i) => [i.id, i])),
     spells: new Map(data.summonerSpells.map((s) => [s.id, s])),

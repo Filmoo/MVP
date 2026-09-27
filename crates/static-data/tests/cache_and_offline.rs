@@ -61,6 +61,7 @@ async fn downloads_once_then_serves_from_cache() {
     assert_eq!(first.version, "16.19.1");
     assert_eq!(first.champions[0].name, "Ahri");
     assert_eq!(first.asset_base, format!("{base}/cdn/16.19.1"));
+    assert_eq!(first.art_base, format!("{base}/cdn"));
     assert_eq!(hits.files.load(Ordering::SeqCst), 3);
 
     let second = dd.load().await.unwrap();

@@ -8,6 +8,15 @@ import styles from "./RecentMatches.module.css";
 
 const ITEM_SLOTS = 6;
 
+/** DPM-style KDA coloring: great ≥ 5, good ≥ 3, poor < 1.5. */
+function kdaBand(ratio: string): string {
+  const value = Number(ratio);
+  if (value >= 5) return styles.kdaGreat ?? "";
+  if (value >= 3) return styles.kdaGood ?? "";
+  if (value < 1.5) return styles.kdaPoor ?? "";
+  return "";
+}
+
 function MatchRow(props: { match: MatchSummary }): JSX.Element {
   const m = () => props.match;
   const remake = () => m().durationSeconds <= REMAKE_MAX_SECONDS;
@@ -27,9 +36,10 @@ function MatchRow(props: { match: MatchSummary }): JSX.Element {
       </div>
       <div class={`${styles.stat} num`}>
         <span class={styles.kdaLine}>
-          {m().kills} / <span class={styles.deaths}>{m().deaths}</span> / {m().assists}
+          {m().kills} <span class={styles.slash}>/</span> <span class={styles.deaths}>{m().deaths}</span>{" "}
+          <span class={styles.slash}>/</span> {m().assists}
         </span>
-        <span class={`${styles.caption} ${ratio() === "Perfect" ? styles.perfect : ""}`}>
+        <span class={`${styles.caption} ${ratio() === "Perfect" ? styles.perfect : kdaBand(ratio())}`}>
           {ratio() === "Perfect" ? "Perfect KDA" : `${ratio()} KDA`}
         </span>
       </div>
@@ -50,7 +60,7 @@ function MatchRow(props: { match: MatchSummary }): JSX.Element {
 export function RecentMatches(props: { matches: readonly MatchSummary[] }): JSX.Element {
   const hasMatches = () => props.matches.length > 0;
   return (
-    <Card title="Recent matches" flush={hasMatches()}>
+    <Card title="Match history" flush={hasMatches()}>
       <Show
         when={hasMatches()}
         fallback={<EmptyState icon="draft" title="No recent games" text="Finish a game and it shows up here, with your stats and build." />}

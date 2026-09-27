@@ -43,17 +43,22 @@ export async function settle(page: Page): Promise<void> {
       const r = img.getBoundingClientRect();
       return r.bottom > 0 && r.top < window.innerHeight && r.right > 0 && r.left < window.innerWidth;
     };
-    const pending = [...document.images].filter((img) => !img.complete && inView(img));
-    const loaded = Promise.all(
-      pending.map(
-        (img) =>
-          new Promise<void>((resolve) => {
-            img.addEventListener("load", () => resolve(), { once: true });
-            img.addEventListener("error", () => resolve(), { once: true });
-          }),
-      ),
-    );
-    await Promise.race([loaded, new Promise((r) => setTimeout(r, 3_000))]);
+    const wait = (img: HTMLImageElement) =>
+      new Promise<void>((resolve) => {
+        img.addEventListener("load", () => resolve(), { once: true });
+        img.addEventListener("error", () => resolve(), { once: true });
+      });
+    // Images can appear late (art needs game data): wait until the set in view stops changing.
+    const deadline = performance.now() + 3_000;
+    let seen = -1;
+    while (performance.now() < deadline) {
+      const visible = [...document.images].filter(inView);
+      const pending = visible.filter((img) => !img.complete);
+      if (pending.length === 0 && visible.length === seen) break;
+      seen = visible.length;
+      await Promise.race([Promise.all(pending.map(wait)), new Promise((r) => setTimeout(r, 1_000))]);
+      await new Promise((r) => setTimeout(r, 50));
+    }
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
   });
 }

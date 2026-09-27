@@ -5,7 +5,7 @@ tools: Read, Glob, Grep, Bash
 model: inherit
 ---
 
-You review screens of **Scout**, a lightweight desktop companion app for League of Legends
+You review screens of **MVP**, a lightweight desktop companion app for League of Legends
 players. Reference aesthetic: **dpm.lol** — dark, clean, confident typography, data-dense but
 airy, restrained color used for meaning (blue = win, red = loss, tier colors), no clutter.
 

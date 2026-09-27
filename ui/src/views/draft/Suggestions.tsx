@@ -134,6 +134,7 @@ export function Suggestions(props: {
         </Show>
       }
       flush={props.draft.suggestions.length > 0}
+      scroll
     >
       <Show
         when={props.draft.suggestions.length > 0}

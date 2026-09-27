@@ -1,7 +1,9 @@
 import { createResource, type JSX, Match, onCleanup, Show, Switch } from "solid-js";
 import { useData } from "../../data/context";
 import type { ClientStatus } from "../../data/generated/ClientStatus";
+import { useAmbient } from "../../design/ambient";
 import { Card } from "../../design/Card";
+import { championIconUrl } from "../../design/GameIcon";
 import { EmptyState, ErrorState, Skeleton } from "../../design/States";
 import { Widget } from "../../widgets/Widget";
 import page from "../page.module.css";
@@ -9,6 +11,7 @@ import styles from "./Home.module.css";
 import { PerformanceSummary } from "./PerformanceSummary";
 import { ProfileHeader } from "./ProfileHeader";
 import { RecentMatches } from "./RecentMatches";
+import { summarize } from "./summary";
 
 function HomeSkeleton(): JSX.Element {
   return (
@@ -19,12 +22,12 @@ function HomeSkeleton(): JSX.Element {
         </Card>
       </div>
       <div class={styles.matches}>
-        <Card title="Recent matches">
+        <Card title="Match history">
           <Skeleton height="360px" />
         </Card>
       </div>
       <div class={styles.summary}>
-        <Card title="Recent form">
+        <Card title="Champions">
           <Skeleton height="240px" />
         </Card>
       </div>
@@ -33,8 +36,13 @@ function HomeSkeleton(): JSX.Element {
 }
 
 export function Home(): JSX.Element {
-  const { transport } = useData();
+  const { transport, gameData } = useData();
   const [profile, { refetch }] = createResource(() => transport.call("current_profile"));
+  // The page takes the colors of the player's most played recent champion.
+  useAmbient(() => {
+    const p = profile.state === "ready" ? profile() : undefined;
+    return p ? championIconUrl(gameData(), summarize(p.recentMatches).champions[0]?.championId) : undefined;
+  });
 
   // Reload when the client comes up and after every game (new match, new LP).
   let last: ClientStatus | undefined;

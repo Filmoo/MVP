@@ -209,8 +209,9 @@
 /* Wide lists: name, reasons and estimate on one line. */
 @container suggestions (min-width: 720px) {
   .row {
-    grid-template-columns: 40px minmax(0, 1fr) minmax(0, 1.25fr) auto;
+    grid-template-columns: 40px minmax(180px, max-content) minmax(0, 1fr) auto;
     grid-template-areas: "icon name chips pct";
+    column-gap: var(--space-8);
   }
   .nameLine,
   .chips {

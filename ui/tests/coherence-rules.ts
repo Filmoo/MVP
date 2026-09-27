@@ -32,7 +32,7 @@ export function auditTokens(): StyleViolation[] {
     probe.style.color = c;
     return getComputedStyle(probe).color;
   };
-  const colorNames = ["--bg-", "--line-", "--text-", "--accent", "--win", "--loss", "--warn", "--good", "--tier-", "--rank-"];
+  const colorNames = ["--bg-", "--line-", "--text-", "--accent", "--win", "--loss", "--warn", "--good", "--tier-", "--rank-", "--role-"];
   const palette = new Set(
     colorNames
       .flatMap((p) => tokens(p))

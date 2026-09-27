@@ -44,7 +44,7 @@ test("a crashing widget is contained: the rest of the page works", async ({ page
   const errors = trackErrors(page);
   await openApp(page, { scenario: "widget-crash" });
   await expect(page.locator("[data-widget=recent-matches] [role=alert]")).toContainText("This panel failed to load");
-  await expect(page.locator("[data-widget=performance-summary]")).toContainText("Recent form");
+  await expect(page.locator("[data-widget=performance-summary]")).toContainText("Champions");
   await expect(page.locator("[data-widget=profile-header]")).toContainText("Fillmo");
   await expect(page.getByTestId("toast")).toHaveCount(1);
   expect(errors.every((e) => e.includes("widget:recent-matches"))).toBe(true);

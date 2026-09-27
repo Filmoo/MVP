@@ -12,6 +12,10 @@ export type GameData = {
  */
 version: string, 
 /**
- * Base URL for assets of this version (`…/cdn/16.19.1`).
+ * Base URL for assets of this version (`…/cdn/16.19.1`): icons.
  */
-assetBase: string, champions: Array<ChampionInfo>, items: Array<ItemInfo>, summonerSpells: Array<SpellInfo>, };
+assetBase: string, 
+/**
+ * Base URL for version-less art (`…/cdn`): `img/champion/centered/<key>_0.jpg`.
+ */
+artBase: string, champions: Array<ChampionInfo>, items: Array<ItemInfo>, summonerSpells: Array<SpellInfo>, };

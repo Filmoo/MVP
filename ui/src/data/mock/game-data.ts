@@ -27,6 +27,7 @@ export async function loadDevGameData(): Promise<GameData | null> {
     return {
       version: "16.19.1",
       assetBase: DEV_ASSET_BASE,
+      artBase: DEV_ASSET_BASE,
       champions: Object.values(champions.data)
         .map((c) => ({ id: Number(c.key), key: c.id, name: c.name, tags: c.tags ?? [] }))
         .sort((a, b) => a.name.localeCompare(b.name)),

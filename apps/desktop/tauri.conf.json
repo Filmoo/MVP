@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Scout",
-  "mainBinaryName": "Scout",
-  "identifier": "gg.scout.desktop",
+  "productName": "MVP",
+  "mainBinaryName": "MVP",
+  "identifier": "gg.mvp.companion",
   "build": {
     "frontendDist": "../../ui/dist",
     "devUrl": "http://localhost:1420",
@@ -14,7 +14,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Scout",
+        "title": "MVP",
         "width": 1280,
         "height": 800,
         "minWidth": 400,

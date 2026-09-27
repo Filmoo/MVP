@@ -1,8 +1,9 @@
 import { createSignal, type JSX, Show } from "solid-js";
 import { useData } from "../data/context";
+import type { GameDataView } from "../data/static-data";
 import styles from "./GameIcon.module.css";
 
-type Size = 16 | 20 | 24 | 28 | 32 | 36 | 40 | 44 | 48 | 56 | 64 | 80;
+type Size = 16 | 20 | 24 | 28 | 32 | 36 | 40 | 44 | 48 | 56 | 64 | 72 | 80;
 
 function ImageWithFallback(props: {
   src: string | undefined;
@@ -88,5 +89,31 @@ export function ProfileIcon(props: { iconId: number; size: Size }): JSX.Element 
       fallback=""
       size={props.size}
     />
+  );
+}
+
+/** URL of a champion's square icon, for color sampling (ambient light). */
+export function championIconUrl(gameData: GameDataView | undefined, championId: number | undefined): string | undefined {
+  const key = championId === undefined ? undefined : gameData?.champions.get(championId)?.key;
+  return key && gameData ? `${gameData.assetBase}/img/champion/${key}.png` : undefined;
+}
+
+/** Decorative champion art (loading-screen crop). Nothing renders until game data is known. */
+export function ChampionArt(props: { championId: number; class?: string | undefined }): JSX.Element {
+  const { gameData } = useData();
+  const key = () => gameData()?.champions.get(props.championId)?.key;
+  const [failed, setFailed] = createSignal(false);
+  return (
+    <Show when={key() && !failed()}>
+      <img
+        class={props.class}
+        src={`${gameData()?.artBase}/img/champion/centered/${key()}_0.jpg`}
+        alt=""
+        aria-hidden="true"
+        decoding="async"
+        draggable={false}
+        onError={() => setFailed(true)}
+      />
+    </Show>
   );
 }

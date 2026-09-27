@@ -14,6 +14,9 @@ describe("summarize", () => {
       wins: 2,
     });
     expect(s.roles[0]).toEqual({ role: "middle", games: 9 });
+    const counted = profile.recentMatches.filter((m) => m.durationSeconds > 300);
+    const seconds = counted.reduce((sum, m) => sum + m.durationSeconds, 0);
+    expect(s.averageSeconds).toBeCloseTo(seconds / 11, 6);
   });
 
   it("handles no games", () => {
@@ -22,6 +25,7 @@ describe("summarize", () => {
       games: 0,
       wins: 0,
       csPerMinute: 0,
+      averageSeconds: 0,
       champions: [],
       roles: [],
     });

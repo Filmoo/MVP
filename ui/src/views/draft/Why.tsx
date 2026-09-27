@@ -3,6 +3,7 @@ import { useData } from "../../data/context";
 import type { Reason } from "../../data/generated/Reason";
 import type { Suggestion } from "../../data/generated/Suggestion";
 import { Card } from "../../design/Card";
+import { ChampionArt } from "../../design/GameIcon";
 import { games, percent, signedPoints } from "../../lib/format";
 import styles from "./Why.module.css";
 
@@ -99,10 +100,11 @@ export function Why(props: { suggestion: Suggestion | undefined; teamPercent: nu
   const { gameData } = useData();
   const name = (id: number) => gameData()?.champions.get(id)?.name ?? `Champion ${id}`;
   return (
-    <Card title={props.suggestion ? `Why ${name(props.suggestion.championId)}` : "Why"}>
+    <Card title={props.suggestion ? `Why ${name(props.suggestion.championId)}` : "Why"} class={styles.card} scroll>
       <Show when={props.suggestion} fallback={<p class={styles.meta}>Select a pick to see how its estimate is built.</p>}>
         {(s) => (
           <>
+            <ChampionArt championId={s().championId} class={styles.art} />
             <div class={`${styles.summary} num`}>
               <span class={styles.big}>{s().estimate.percent.toFixed(1)}%</span>
               <span class={styles.pm}>± {s().estimate.plusMinus.toFixed(1)}</span>

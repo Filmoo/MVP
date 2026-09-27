@@ -53,7 +53,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .cache/ddragon
-          key: ddragon-${{ hashFiles('fixtures/ddragon-version.txt') }}
+          key: ddragon-${{ hashFiles('fixtures/ddragon-version.txt', 'scripts/fetch-dev-assets.mjs') }}
       - run: node scripts/fetch-dev-assets.mjs
       - run: node scripts/check.mjs ui
       - name: Screenshots for review
@@ -88,7 +88,7 @@ jobs:
       - run: pnpm build:exe
       - name: Footprint of the real app (RAM, idle CPU)
         shell: pwsh
-        run: ./scripts/windows-footprint.ps1 -Exe target/release/Scout.exe
+        run: ./scripts/windows-footprint.ps1 -Exe target/release/MVP.exe
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -100,6 +100,6 @@ jobs:
           name: scout-windows
           path: |
             target/release/bundle/nsis/*.exe
-            target/release/Scout.exe
+            target/release/MVP.exe
           if-no-files-found: error
           retention-days: 30

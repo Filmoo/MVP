@@ -32,7 +32,7 @@ function Slot(props: { slot: DraftSlot; enemy: boolean }): JSX.Element {
       data-testid={props.enemy ? "enemy-slot" : "ally-slot"}
     >
       <Show when={props.slot.championId} fallback={<div class={styles.empty} aria-hidden="true" />}>
-        {(id) => <ChampionIcon championId={id()} size={40} />}
+        {(id) => <ChampionIcon championId={id()} size={48} />}
       </Show>
       <span class={`${styles.name} ${name() ? "" : styles.muted}`} title={name()}>
         {name() ?? (props.slot.picking ? "Picking…" : "Waiting")}
@@ -45,7 +45,7 @@ function Slot(props: { slot: DraftSlot; enemy: boolean }): JSX.Element {
 
 function Team(props: { title: string; slots: DraftSlot[]; bans: number[]; enemy: boolean }): JSX.Element {
   return (
-    <section class={styles.team} aria-label={props.title}>
+    <section class={`${styles.team} ${props.enemy ? styles.enemy : styles.ally}`} aria-label={props.title}>
       <div class={styles.teamHead}>
         <h2 class={styles.teamName}>{props.title}</h2>
         <Show when={props.bans.length > 0}>

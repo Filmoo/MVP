@@ -10,7 +10,7 @@ import styles from "./PerformanceSummary.module.css";
 import { summarize } from "./summary";
 
 const MAX_CHAMPIONS = 5;
-/** Below this, a win rate is noise: shown neutral instead of green/red. */
+/** Below this, a win rate is noise: shown neutral instead of blue/rose. */
 const MIN_GAMES_FOR_COLOR = 3;
 
 function wrClass(wins: number, games: number): string {
@@ -18,71 +18,63 @@ function wrClass(wins: number, games: number): string {
   return (wins / games >= 0.5 ? styles.good : styles.bad) ?? "";
 }
 
+/** Recent champions and the role split (the headline numbers live in the profile hero). */
 export function PerformanceSummary(props: { matches: readonly MatchSummary[] }): JSX.Element {
   const { gameData } = useData();
   const s = createMemo(() => summarize(props.matches));
-  const wr = () => (s().games ? s().wins / s().games : 0);
+  const remakes = () => props.matches.length - s().games;
 
   return (
-    <Card title={`Recent form · ${s().games} ${s().games === 1 ? "game" : "games"}`}>
+    <Card title={`Champions · last ${s().games} ${s().games === 1 ? "game" : "games"}`}>
       <Show when={s().games > 0} fallback={<EmptyState icon="tiers" title="No stats yet" text="Play a few games to see your form." />}>
         <div class={styles.wrap}>
-          <div class={styles.layout}>
-            <div class={`${styles.stats} num`}>
-              <div class={styles.stat}>
-                <span class={`${styles.value} ${wr() >= 0.5 ? styles.good : styles.bad}`}>{percent(wr())}</span>
-                <span class={styles.label}>
-                  {s().wins}W {s().games - s().wins}L
-                </span>
-              </div>
-              <div class={styles.stat}>
-                <span class={styles.value}>{kdaRatio(s().kills, s().deaths, s().assists)}</span>
-                <span class={styles.label}>KDA</span>
-              </div>
-              <div class={styles.stat}>
-                <span class={styles.value}>{s().csPerMinute.toFixed(1)}</span>
-                <span class={styles.label}>CS / min</span>
-              </div>
-            </div>
+          <ol class={styles.champions}>
+            <For each={s().champions.slice(0, MAX_CHAMPIONS)}>
+              {(c) => (
+                <li class={styles.champ}>
+                  <ChampionIcon championId={c.championId} size={36} round />
+                  <span class={styles.champName}>
+                    <span class={styles.champTitle}>{gameData()?.champions.get(c.championId)?.name ?? `Champion ${c.championId}`}</span>
+                    <span class={`${styles.champMeta} num`}>{kdaRatio(c.kills, c.deaths, c.assists)} KDA</span>
+                  </span>
+                  <span class={`${styles.champWr} num`}>
+                    <span class={wrClass(c.wins, c.games)}>{percent(c.wins / c.games)}</span>
+                    <span class={styles.champGames}>
+                      {c.wins}W {c.games - c.wins}L
+                    </span>
+                  </span>
+                </li>
+              )}
+            </For>
+          </ol>
 
-            <div class={`${styles.section} ${styles.champions}`}>
-              <h3 class={styles.sectionTitle}>Champions</h3>
-              <For each={s().champions.slice(0, MAX_CHAMPIONS)}>
-                {(c) => (
-                  <div class={styles.champ}>
-                    <ChampionIcon championId={c.championId} size={32} />
-                    <div class={styles.champName}>
-                      <span class={styles.champTitle}>{gameData()?.champions.get(c.championId)?.name ?? `Champion ${c.championId}`}</span>
-                      <span class={`${styles.champMeta} num`}>
-                        {c.games} {c.games === 1 ? "game" : "games"} · {kdaRatio(c.kills, c.deaths, c.assists)} KDA
-                      </span>
-                    </div>
-                    <span class={`${styles.champWr} num ${wrClass(c.wins, c.games)}`}>{percent(c.wins / c.games)}</span>
-                  </div>
+          <div class={styles.rolesSection}>
+            <h3 class={styles.sectionTitle}>Roles</h3>
+            <div
+              class={styles.split}
+              role="img"
+              aria-label={s()
+                .roles.map((r) => `${ROLE_LABEL[r.role]} ${r.games}`)
+                .join(", ")}
+            >
+              <For each={s().roles}>{(r) => <span class={`${styles.segment} ${styles[r.role]}`} style={{ "flex-grow": r.games }} />}</For>
+            </div>
+            <ul class={styles.legend}>
+              <For each={s().roles}>
+                {(r) => (
+                  <li class={styles.legendItem}>
+                    <span class={`${styles.swatch} ${styles[r.role]}`} aria-hidden="true" />
+                    <span class={styles.legendName}>{ROLE_LABEL[r.role]}</span>
+                    <span class={`${styles.legendValue} num`}>{percent(r.games / s().games)}</span>
+                  </li>
                 )}
               </For>
-            </div>
-
-            <div class={`${styles.section} ${styles.rolesSection}`}>
-              <h3 class={styles.sectionTitle}>Roles</h3>
-              <div class={styles.roles}>
-                <For each={s().roles}>
-                  {(r) => (
-                    <div class={styles.role}>
-                      <span>{ROLE_LABEL[r.role]}</span>
-                      <div class={styles.roleBar}>
-                        <div class={styles.roleFill} style={{ width: percent(r.games / s().games, 1) }} />
-                      </div>
-                      <span class={`${styles.roleCount} num`}>{r.games}</span>
-                    </div>
-                  )}
-                </For>
-              </div>
-            </div>
+            </ul>
           </div>
-          <Show when={props.matches.length > s().games}>
+
+          <Show when={remakes() > 0}>
             <p class={styles.note}>
-              {props.matches.length - s().games} {props.matches.length - s().games === 1 ? "remake" : "remakes"} not counted
+              {remakes()} {remakes() === 1 ? "remake" : "remakes"} not counted
             </p>
           </Show>
         </div>

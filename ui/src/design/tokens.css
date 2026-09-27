@@ -5,38 +5,47 @@
  * on purely decorative/graphic elements such as charts).
  */
 :root {
-  /* Surfaces: each step is one elevation level. */
-  --bg-0: #0c0e13; /* app background */
-  --bg-1: #11141b; /* chrome: title bar, sidebar */
-  --bg-2: #161a23; /* cards */
-  --bg-3: #1d222d; /* raised: hover, inputs */
-  --bg-4: #252b38; /* active / selected */
+  /* Surfaces: ink with a violet bias; each step is one elevation level. */
+  --bg-0: #0d0e15; /* app background */
+  --bg-1: #11121b; /* chrome: title bar, sidebar */
+  --bg-2: #161724; /* cards */
+  --bg-3: #1d1f2e; /* raised: hover, inputs */
+  --bg-4: #262839; /* active / selected */
 
-  --line-1: #1f2430; /* hairlines inside cards */
-  --line-2: #2a3040; /* card borders, dividers */
+  --line-1: #1e2030; /* hairlines inside cards */
+  --line-2: #2a2d42; /* card borders, dividers */
 
-  --text-1: #edf0f5; /* primary */
-  --text-2: #a4acbb; /* secondary */
-  --text-3: #808a9d; /* muted / captions (≥ 4.5:1 on cards and row tints) */
+  --text-1: #eef0fa; /* primary */
+  --text-2: #b3b7cf; /* secondary */
+  --text-3: #8b90ac; /* muted / captions (≥ 4.5:1 on every surface and tint) */
+  --text-on-accent: #16131f; /* text on pastel fills */
 
-  --accent: #8b7bff;
-  --accent-strong: #a597ff;
-  --accent-soft: #221f3d;
+  /* Pastel accents (≥ 7:1 on every surface). */
+  --accent: #b9a9ff; /* lavender */
+  --accent-strong: #d4caff;
+  --accent-soft: #252140;
 
-  /* Semantics: wins read blue, losses red (League convention). */
-  --win: #4c9aff;
-  --win-soft: #14243d;
-  --loss: #ff5d6c;
-  --loss-soft: #3a1a21;
-  --warn: #ffb547;
-  --good: #3ecf8e;
+  /* Semantics: wins read blue, losses rose (League convention, pastel). */
+  --win: #93bcff;
+  --win-soft: #172238;
+  --loss: #ffa0b4;
+  --loss-soft: #321a28;
+  --warn: #ffd494;
+  --good: #92e8c6;
 
   /* Tier colors (tier lists, performance grades). */
-  --tier-s: #ff9f43;
-  --tier-a: #3ecf8e;
-  --tier-b: #4c9aff;
-  --tier-c: #a4acbb;
-  --tier-d: #6c7588;
+  --tier-s: #ffb896;
+  --tier-a: #92e8c6;
+  --tier-b: #93bcff;
+  --tier-c: #b3b7cf;
+  --tier-d: #6f7491;
+
+  /* Role identity colors (charts, legends). */
+  --role-top: #ffb896;
+  --role-jungle: #92e8c6;
+  --role-middle: #b9a9ff;
+  --role-bottom: #93bcff;
+  --role-support: #f5aede;
 
   /* Spacing scale (px). */
   --space-1: 2px;
@@ -88,16 +97,43 @@
   --dur-2: 200ms;
 }
 
-/* Ranked tier colors (badges, emblems, LP graphs). */
+/* Ranked tier colors (badges, emblems, LP graphs), pastel. */
 :root {
-  --rank-iron: #8a7f7a;
-  --rank-bronze: #b07d62;
-  --rank-silver: #9fb0bd;
-  --rank-gold: #e0b75c;
-  --rank-platinum: #4fb3a9;
-  --rank-emerald: #34c27f;
-  --rank-diamond: #7b95ff;
-  --rank-master: #c07bff;
-  --rank-grandmaster: #ff6b6b;
-  --rank-challenger: #f7cf6b;
+  --rank-iron: #a79e9a;
+  --rank-bronze: #d9a78e;
+  --rank-silver: #c3cfd9;
+  --rank-gold: #f2d38a;
+  --rank-platinum: #8fd8cc;
+  --rank-emerald: #86e0b0;
+  --rank-diamond: #a9b8ff;
+  --rank-master: #d6a8ff;
+  --rank-grandmaster: #ff9d9d;
+  --rank-challenger: #fbe19a;
+}
+
+/*
+ * Ambient light (see design/ambient.ts): views set these to colors sampled from what they show.
+ * Registered so the glow can glide between colors; defaults are the brand pastels.
+ */
+@property --amb-a {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #b9a9ff;
+}
+@property --amb-b {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #93bcff;
+}
+@property --amb-c {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #ffa0b4;
+}
+
+:root[data-ambient="ready"] {
+  transition:
+    --amb-a 500ms var(--ease),
+    --amb-b 500ms var(--ease),
+    --amb-c 500ms var(--ease);
 }

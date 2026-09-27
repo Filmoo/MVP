@@ -1,5 +1,5 @@
 # Launches the real desktop app on Windows and measures its footprint:
-# private memory and idle CPU of Scout.exe plus every WebView2 child process.
+# private memory and idle CPU of MVP.exe plus every WebView2 child process.
 # Fails when a budget is exceeded. Results: reports/footprint.json
 param(
   [Parameter(Mandatory = $true)][string]$Exe,

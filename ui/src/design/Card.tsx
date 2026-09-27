@@ -6,6 +6,8 @@ export function Card(props: {
   actions?: JSX.Element;
   /** Body without side padding, for full-bleed lists. */
   flush?: boolean;
+  /** When the card is given a height (live screens), the body scrolls under a fixed header. */
+  scroll?: boolean;
   class?: string | undefined;
   children: JSX.Element;
 }): JSX.Element {
@@ -17,7 +19,7 @@ export function Card(props: {
           {props.actions}
         </header>
       </Show>
-      <div class={props.flush ? styles.flush : styles.body}>{props.children}</div>
+      <div class={`${props.flush ? styles.flush : styles.body} ${props.scroll ? styles.scroll : ""}`}>{props.children}</div>
     </div>
   );
 }

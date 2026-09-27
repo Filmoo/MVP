@@ -1,7 +1,9 @@
 import { createResource, createSignal, type JSX, Match, onCleanup, Show, Switch } from "solid-js";
 import { useData } from "../../data/context";
 import type { DraftView } from "../../data/generated/DraftView";
+import { useAmbient } from "../../design/ambient";
 import { Card } from "../../design/Card";
+import { championIconUrl } from "../../design/GameIcon";
 import { EmptyState, ErrorState, Skeleton } from "../../design/States";
 import { duration } from "../../lib/format";
 import { Widget } from "../../widgets/Widget";
@@ -27,6 +29,9 @@ export function DraftContent(props: { draft: DraftView }): JSX.Element {
   const [expanded, setExpanded] = createSignal<number>();
   const selected = () => selectedPick(props.draft, clicked());
   const suggestion = () => props.draft.suggestions.find((s) => s.championId === selected());
+  // The screen takes the colors of the pick being explained.
+  const { gameData } = useData();
+  useAmbient(() => championIconUrl(gameData(), selected()));
   const select = (championId: number) => {
     setClicked(championId);
     setExpanded((open) => (open === championId ? undefined : championId));
@@ -86,7 +91,7 @@ export default function Draft(): JSX.Element {
   onCleanup(transport.listen("draft", (next) => mutate(next)));
 
   return (
-    <div class={page.page}>
+    <div class={`${page.page} ${page.live}`}>
       <div class={styles.head}>
         <h1 class={page.title}>Draft</h1>
         <Show when={draft.state === "ready" && draft()}>{(d) => <PhasePill draft={d()} />}</Show>

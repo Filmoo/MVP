@@ -18,6 +18,8 @@ export interface Summary {
   deaths: number;
   assists: number;
   csPerMinute: number;
+  /** Average game length in seconds (0 without games). */
+  averageSeconds: number;
   champions: ChampionLine[];
   roles: Array<{ role: Role; games: number }>;
 }
@@ -59,6 +61,7 @@ export function summarize(matches: readonly MatchSummary[]): Summary {
     games: counted.length,
     ...totals,
     csPerMinute: minutes > 0 ? cs / minutes : 0,
+    averageSeconds: counted.length > 0 ? (minutes * 60) / counted.length : 0,
     champions: [...champions.values()].sort((a, b) => b.games - a.games || b.wins - a.wins || a.championId - b.championId),
     roles: [...roles.entries()].map(([role, games]) => ({ role, games })).sort((a, b) => b.games - a.games),
   };

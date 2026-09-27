@@ -8,8 +8,10 @@ use ts_rs::TS;
 pub struct GameData {
     /// Data Dragon version, e.g. `16.19.1` (public patch name `26.19`).
     pub version: String,
-    /// Base URL for assets of this version (`…/cdn/16.19.1`).
+    /// Base URL for assets of this version (`…/cdn/16.19.1`): icons.
     pub asset_base: String,
+    /// Base URL for version-less art (`…/cdn`): `img/champion/centered/<key>_0.jpg`.
+    pub art_base: String,
     pub champions: Vec<ChampionInfo>,
     pub items: Vec<ItemInfo>,
     pub summoner_spells: Vec<SpellInfo>,

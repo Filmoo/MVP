@@ -1,4 +1,4 @@
-# Scout — League of Legends desktop companion (working name)
+# MVP — League of Legends desktop companion
 
 Lightweight Porofessor-style companion with U.GG/Lolalytics-grade stats, a stats-only draft
 helper and a dpm.lol-inspired look. **Public, free app. Windows first. EUW first.**

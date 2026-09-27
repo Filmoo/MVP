@@ -24,7 +24,7 @@ const MIRROR = "https://raw.githubusercontent.com/InFinity54/LoL_DDragon/master"
 const sources = (path) => {
   const versioned =
     path.startsWith("data/") ||
-    path.startsWith("img/champion") ||
+    (path.startsWith("img/champion") && !path.startsWith("img/champion/centered")) ||
     path.startsWith("img/item") ||
     path.startsWith("img/spell") ||
     path.startsWith("img/profileicon");
@@ -90,6 +90,9 @@ for (const style of runes) {
 for (const [id, item] of Object.entries(items.data)) {
   if (allIcons || (item.gold?.purchasable && item.maps?.["11"])) icons.add(`img/item/${id}.png`);
 }
+// Champion art (version-less on the CDN) for champions the fixtures feature in heroes.
+const ART = ["Ahri", "Aurora", "Orianna", "Lux", "Hwei", "Malphite", "Shen", "Ornn", "Jax", "KSante", "Garen", "Camille"];
+for (const key of ART) icons.add(`img/champion/centered/${key}_0.jpg`);
 // Profile icons referenced by fixtures.
 for (const id of [29, 4568, 5205, 6311, 588, 1, 7]) icons.add(`img/profileicon/${id}.png`);
 

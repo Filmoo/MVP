@@ -302,6 +302,10 @@ pub fn parse(
     Ok(GameData {
         version: version.to_owned(),
         asset_base: asset_base.to_owned(),
+        art_base: asset_base
+            .strip_suffix(&format!("/{version}"))
+            .unwrap_or(asset_base)
+            .to_owned(),
         champions,
         items,
         summoner_spells,

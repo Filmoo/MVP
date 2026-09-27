@@ -2,6 +2,7 @@
   background: var(--bg-2);
   border: 1px solid var(--line-1);
   border-radius: var(--radius-4);
+  box-shadow: inset 0 1px 0 var(--line-2);
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -34,4 +35,13 @@
 
 .flush {
   padding: var(--space-4) 0 var(--space-4);
+}
+
+/* Fades out at the bottom edge so a clipped row reads as "scroll for more", not as broken. */
+.scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: var(--space-9);
+  mask-image: linear-gradient(180deg, black calc(100% - var(--space-9)), transparent);
 }
