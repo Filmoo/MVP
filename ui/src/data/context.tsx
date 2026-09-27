@@ -1,19 +1,16 @@
-import { createContext, type JSX, type Resource, useContext } from "solid-js";
-import { createStaticData, type StaticData } from "./static-data";
+import { type Accessor, createContext, type JSX, useContext } from "solid-js";
+import { createGameData, type GameDataView } from "./static-data";
 import type { Transport } from "./transport";
 
 interface AppData {
   transport: Transport;
-  staticData: Resource<StaticData>;
+  gameData: Accessor<GameDataView | undefined>;
 }
 
 const Ctx = createContext<AppData>();
 
 export function DataProvider(props: { transport: Transport; children: JSX.Element }): JSX.Element {
-  const value: AppData = {
-    transport: props.transport,
-    staticData: createStaticData(props.transport),
-  };
+  const value: AppData = { transport: props.transport, gameData: createGameData(props.transport) };
   return <Ctx.Provider value={value}>{props.children}</Ctx.Provider>;
 }
 

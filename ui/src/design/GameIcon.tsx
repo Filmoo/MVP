@@ -40,11 +40,11 @@ function ImageWithFallback(props: {
 }
 
 export function ChampionIcon(props: { championId: number; size: Size; round?: boolean }): JSX.Element {
-  const { transport, staticData } = useData();
-  const champion = () => staticData()?.champions.get(props.championId);
+  const { gameData } = useData();
+  const champion = () => gameData()?.champions.get(props.championId);
   return (
     <ImageWithFallback
-      src={champion() ? `${transport.assetBase}/img/champion/${champion()?.key}.png` : undefined}
+      src={champion() ? `${gameData()?.assetBase}/img/champion/${champion()?.key}.png` : undefined}
       alt={champion()?.name ?? `Champion ${props.championId}`}
       fallback={(champion()?.name ?? "?").slice(0, 2)}
       size={props.size}
@@ -54,7 +54,7 @@ export function ChampionIcon(props: { championId: number; size: Size; round?: bo
 }
 
 export function ItemIcon(props: { itemId: number | undefined; size: Size }): JSX.Element {
-  const { transport } = useData();
+  const { gameData } = useData();
   return (
     <Show
       when={props.itemId}
@@ -68,8 +68,8 @@ export function ItemIcon(props: { itemId: number | undefined; size: Size }): JSX
     >
       {(id) => (
         <ImageWithFallback
-          src={`${transport.assetBase}/img/item/${id()}.png`}
-          alt={`Item ${id()}`}
+          src={gameData() ? `${gameData()?.assetBase}/img/item/${id()}.png` : undefined}
+          alt={gameData()?.items.get(id())?.name ?? `Item ${id()}`}
           fallback=""
           size={props.size}
           class={styles.item}
@@ -80,10 +80,10 @@ export function ItemIcon(props: { itemId: number | undefined; size: Size }): JSX
 }
 
 export function ProfileIcon(props: { iconId: number; size: Size }): JSX.Element {
-  const { transport } = useData();
+  const { gameData } = useData();
   return (
     <ImageWithFallback
-      src={`${transport.assetBase}/img/profileicon/${props.iconId}.png`}
+      src={gameData() ? `${gameData()?.assetBase}/img/profileicon/${props.iconId}.png` : undefined}
       alt="Profile icon"
       fallback=""
       size={props.size}

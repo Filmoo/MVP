@@ -1,4 +1,5 @@
 import { CommandError, type CommandName, type Events, type Transport } from "../transport";
+import { loadDevGameData } from "./game-data";
 import { type Scenario, type ScenarioName, scenarios } from "./scenarios";
 
 export {
@@ -40,10 +41,11 @@ export function createMockTransport(scenario: Scenario): Transport {
 
   return {
     kind: "mock",
-    assetBase: "/dd/16.19.1",
     async call(command) {
       calls.push(command);
       const response = scenario.responses[command];
+      // Game data comes from the local Data Dragon cache unless a scenario overrides it.
+      if (!response && command === "game_data") return (await loadDevGameData()) as never;
       if (!response) throw new CommandError(command, `mock scenario has no response for ${command}`);
       if (response.delayMs) await sleep(response.delayMs);
       if ("error" in response) throw new CommandError(command, response.error);

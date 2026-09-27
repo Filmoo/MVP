@@ -30,7 +30,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::app_info,
             commands::client_status,
-            commands::current_profile
+            commands::current_profile,
+            commands::game_data
         ])
         .run(tauri::generate_context!())
         .expect("failed to run the Tauri application");

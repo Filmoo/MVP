@@ -7,7 +7,9 @@
 //! are mapped into these types; the UI never sees raw external payloads.
 
 mod client;
+mod game_data;
 mod player;
 
 pub use client::{AppInfo, ClientConnection, ClientStatus, GameflowPhase};
+pub use game_data::{ChampionInfo, GameData, ItemInfo, SpellInfo};
 pub use player::{Division, MatchSummary, PlayerProfile, RankedEntry, RiotId, Role, Tier};

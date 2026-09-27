@@ -1,9 +1,9 @@
 //! Commands the UI can invoke. Names and payloads mirror `ui/src/data/transport.ts`.
 
-use domain::{AppInfo, ClientStatus, PlayerProfile};
+use domain::{AppInfo, ClientStatus, GameData, PlayerProfile};
 use tauri::Manager as _;
 
-use crate::core::Core;
+use crate::core::{Core, GameDataState};
 
 #[tauri::command]
 #[allow(
@@ -34,4 +34,15 @@ pub fn client_status(app: tauri::AppHandle) -> ClientStatus {
 #[tauri::command]
 pub fn current_profile() -> Option<PlayerProfile> {
     None
+}
+
+/// Game data of the current patch; `None` until loaded (a `game-data` event follows).
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub fn game_data(app: tauri::AppHandle) -> Option<GameData> {
+    app.try_state::<GameDataState>()
+        .and_then(|state| state.0.read().ok().and_then(|data| data.clone()))
 }

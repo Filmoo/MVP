@@ -26,7 +26,7 @@ function wrClass(wins: number, games: number): string {
 }
 
 export function PerformanceSummary(props: { matches: readonly MatchSummary[] }): JSX.Element {
-  const { staticData } = useData();
+  const { gameData } = useData();
   const s = createMemo(() => summarize(props.matches));
   const wr = () => (s().games ? s().wins / s().games : 0);
 
@@ -59,7 +59,7 @@ export function PerformanceSummary(props: { matches: readonly MatchSummary[] }):
                   <div class={styles.champ}>
                     <ChampionIcon championId={c.championId} size={32} />
                     <div class={styles.champName}>
-                      <span class={styles.champTitle}>{staticData()?.champions.get(c.championId)?.name ?? `Champion ${c.championId}`}</span>
+                      <span class={styles.champTitle}>{gameData()?.champions.get(c.championId)?.name ?? `Champion ${c.championId}`}</span>
                       <span class={`${styles.champMeta} num`}>
                         {c.games} {c.games === 1 ? "game" : "games"} · {kdaRatio(c.kills, c.deaths, c.assists)} KDA
                       </span>

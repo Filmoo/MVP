@@ -7,13 +7,20 @@ import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 
 const root = resolve(import.meta.dirname, "..");
+
+const BINDINGS_CHECK = `
+const out = require("node:child_process").execSync("git status --porcelain -- ui/src/data/generated", { encoding: "utf8" }).trim();
+if (out && process.env.CI) { console.error("TypeScript bindings are stale, run cargo test -p domain and commit:\n" + out); process.exit(1); }
+if (out) console.log("note: regenerated bindings not committed yet:\n" + out);
+`;
 const mode = process.argv[2] ?? "fast";
 
 const rust = [
   ["cargo fmt", "cargo", ["fmt", "--all", "--check"]],
   ["cargo clippy", "cargo", ["clippy", "--workspace", "--all-targets", "--", "-D", "warnings"]],
   ["cargo test", "cargo", ["test", "--workspace"]],
-  ["TS bindings fresh", "git", ["diff", "--exit-code", "--stat", "--", "ui/src/data/generated"]],
+  // In CI the regenerated bindings must match what's committed (new files included).
+  ["TS bindings fresh", "node", ["-e", BINDINGS_CHECK]],
 ];
 const web = [
   ["biome", "pnpm", ["exec", "biome", "check", "."]],
