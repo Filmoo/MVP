@@ -3,7 +3,7 @@
   "widgets": {
     "profile-header": {
       "renderMs": 2,
-      "domNodes": 60
+      "domNodes": 72
     },
     "recent-matches": {
       "renderMs": 12,
