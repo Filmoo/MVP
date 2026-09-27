@@ -4,6 +4,8 @@ Lightweight Porofessor-style companion with U.GG/Lolalytics-grade stats, a stats
 helper and a dpm.lol-inspired look. **Public, free app. Windows first. EUW first.**
 No in-game overlay for now (keep the architecture overlay-ready).
 
+**Picking this up? Read `docs/HANDOFF.md` first** (state, open jobs, real-client checklist).
+
 ## Decisions so far (see docs/decisions.md)
 - **Tauri 2 + Rust core**, UI in **SolidJS + TypeScript + CSS modules** rendered by WebView2.
   Not Electron, not Overwolf. The UI must stay tiny and idle-silent.
