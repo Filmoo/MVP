@@ -1,8 +1,11 @@
+/* Glass card: translucent fill with a top sheen, lit top edge, soft shadow. */
 .card {
-  background: var(--bg-2);
-  border: 1px solid var(--line-1);
+  background: linear-gradient(180deg, var(--bg-sheen), transparent 120px), var(--bg-card);
+  border: 1px solid var(--line-glass);
   border-radius: var(--radius-4);
-  box-shadow: inset 0 1px 0 var(--line-2);
+  box-shadow:
+    inset 0 1px 0 var(--line-specular),
+    var(--shadow-glass);
   min-width: 0;
   display: flex;
   flex-direction: column;

@@ -13,6 +13,16 @@
   --bg-4: #262839; /* active / selected */
   --bg-glass: #161724c7; /* panels floating over art */
 
+  /* Glass (iOS-like): translucent fills over the ambient light, specular edges, soft depth.
+     Real blur only on surfaces that never scroll (chrome, panels over art). */
+  --bg-card: #161724b8; /* cards: 72% so the light shows through */
+  --bg-chrome: #0f1019a3; /* title bar and rail, blurred */
+  --bg-sheen: #ffffff0a; /* top-lit sheen on glass */
+  --line-glass: #ffffff14; /* glass edge */
+  --line-specular: #ffffff24; /* lit top edge */
+  --shadow-glass: 0 14px 36px -18px rgb(0 0 0 / 0.7);
+  --blur-glass: blur(22px) saturate(150%);
+
   --line-1: #1e2030; /* hairlines inside cards */
   --line-2: #2a2d42; /* card borders, dividers */
 

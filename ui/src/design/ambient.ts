@@ -123,7 +123,7 @@ function follow(el: () => HTMLElement | null, names: readonly string[], source: 
 
 /** Lights the page (backdrop, heroes) with the colors of `source` while the caller is mounted. */
 export function useAmbient(source: Accessor<string | undefined>): void {
-  follow(() => document.querySelector("main"), VARS.amb, source);
+  follow(() => document.querySelector<HTMLElement>("[data-ambient-host]"), VARS.amb, source);
 }
 
 /** Tints one element (`--tone-a/b/c`) with the colors of `source`. Use from a ref callback. */

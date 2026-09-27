@@ -6,8 +6,9 @@
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-4) 0;
-  background: var(--bg-1);
-  border-right: 1px solid var(--line-1);
+  background: var(--bg-chrome);
+  backdrop-filter: var(--blur-glass);
+  border-right: 1px solid var(--line-glass);
   min-height: 0;
   overflow: hidden;
 }

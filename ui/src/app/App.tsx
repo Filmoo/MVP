@@ -59,7 +59,7 @@ export function App(): JSX.Element {
   );
 
   return (
-    <div class={styles.shell}>
+    <div class={styles.shell} data-ambient-host>
       <TitleBar status={status()} native={transport.kind === "tauri"} />
       <Sidebar />
       <main class={styles.main} data-view={path()}>
