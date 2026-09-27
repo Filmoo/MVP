@@ -101,6 +101,31 @@ impl DataDragon {
             .ok_or(StaticDataError::NothingCached)
     }
 
+    /// Every published version, newest first.
+    pub async fn versions(&self) -> Result<Vec<String>, StaticDataError> {
+        let url = format!("{}/api/versions.json", self.base);
+        serde_json::from_slice(&self.get(&url).await?).map_err(|source| StaticDataError::Parse {
+            file: "versions.json".into(),
+            source,
+        })
+    }
+
+    /// Newest version of a game-version patch (`16.19` → `16.19.1`), if published.
+    pub async fn version_of_patch(&self, patch: &str) -> Result<Option<String>, StaticDataError> {
+        let prefix = format!("{patch}.");
+        Ok(self
+            .versions()
+            .await?
+            .into_iter()
+            .find(|v| v.starts_with(&prefix)))
+    }
+
+    /// A raw Data Dragon file of a version (e.g. `item.json`, for the stats pipeline's item
+    /// classes), from cache or downloaded (and then cached).
+    pub async fn raw_file(&self, version: &str, name: &str) -> Result<Vec<u8>, StaticDataError> {
+        self.file(version, name).await
+    }
+
     /// One version's data, from cache or downloaded (and then cached).
     pub async fn load_version(&self, version: &str) -> Result<GameData, StaticDataError> {
         let mut files = BTreeMap::new();

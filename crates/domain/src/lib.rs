@@ -13,6 +13,7 @@ mod game_data;
 mod player;
 mod scout;
 mod settings;
+mod stats;
 
 pub use backend::{ApiError, ApiErrorCode, Health};
 pub use client::{AppInfo, ClientConnection, ClientStatus, GameflowPhase};
@@ -24,3 +25,8 @@ pub use game_data::{ChampionInfo, GameData, ItemInfo, SpellInfo};
 pub use player::{Division, MatchSummary, PlayerProfile, RankedEntry, RiotId, Role, Tier};
 pub use scout::{ChampionRecord, ScoutCard, ScoutRequest, ScoutTag};
 pub use settings::{AutoAcceptEvent, Settings, ViewRoute};
+pub use stats::{
+    Bracket, BuildOption, BuildSection, BuildStats, BuildsFile, ChampionRoleStats, ChampionStats,
+    ChampionsFile, DataSetIndex, DataSetInfo, GamesWins, MatchupEntry, MatchupsFile, PairKind,
+    PairPrior, PatchIndex, RoleMatchups, STATS_SCHEMA, StatsIndex, TierEntry, TierGrade, TierList,
+};

@@ -8,7 +8,7 @@ No in-game overlay for now (keep the architecture overlay-ready).
 - **Tauri 2 + Rust core**, UI in **SolidJS + TypeScript + CSS modules** rendered by WebView2.
   Not Electron, not Overwolf. The UI must stay tiny and idle-silent.
 - **Own stats backend** (key kept server-side): live lookup API in `apps/backend`; crawler +
-  aggregates not built yet.
+  aggregates in `apps/crawler` / `crates/aggregate` publish per-patch JSON (Emerald+, 420 + ARAM).
 - Draft helper is **statistics only** (no AI/ML picks), transparent "why" for every number.
 - Riot policy red lines are in docs/policy.md — read before adding any feature that touches
   champ select, other players, in-game info or monetization.
@@ -16,7 +16,10 @@ No in-game overlay for now (keep the architecture overlay-ready).
 ## Layout
 - `apps/desktop/` Tauri shell (window, tray, commands). `tauri.conf.json` lives here.
 - `apps/backend/` `mvp-backend` axum service (the only holder of the Riot key): `/health`, player
-  profiles, scouting batch, in-memory caches; Dockerfile + deploy notes in its README.
+  profiles, scouting batch, in-memory caches, published stats files (`STATS_DIR`); Dockerfile +
+  deploy notes in its README.
+- `apps/crawler/` `mvp-crawler`: `crawl` (Emerald+ ladders → ranked/ARAM matches + timelines →
+  facts in SQLite, resumable, idempotent) and `publish` (→ `stats/v1/{patch}/{queue}/{bracket}/…`).
 - `crates/domain` UI-facing types → exported to `ui/src/data/generated/*.ts` by ts-rs
   (`cargo test -p domain`; never edit generated files).
 - `crates/lcu` League client API: pinned Riot root TLS, REST, WAMP events, discovery, connector.
@@ -24,6 +27,8 @@ No in-game overlay for now (keep the architecture overlay-ready).
 - `crates/companion` app core (Tauri-free): client status/phases → domain types.
 - `crates/static-data` Data Dragon game data with per-patch disk cache and offline fallback.
 - `crates/stats` pure statistics incl. `draft`: the stats-only draft model (see research D).
+- `crates/aggregate` pure stats pipeline: Match-V5 → `GameFacts` → mergeable `Dataset` (champion ×
+  role, bans, matchups, duos, builds) → published JSON (types in `crates/domain/src/stats.rs`).
 - `crates/riot-api` Riot Web API client for the **backend only** (key never in the app):
   routing, header-driven rate limits, 429/5xx retries, typed endpoints.
 - `crates/stats` pure statistics (smoothing, intervals, draft scoring) — property-tested.
@@ -36,6 +41,8 @@ No in-game overlay for now (keep the architecture overlay-ready).
 - `pnpm install` then `node scripts/fetch-dev-assets.mjs` (champion/item icons for dev & tests).
 - `pnpm dev` UI in the browser with mock data → http://127.0.0.1:1420/?scenario=default
 - `RIOT_API_KEY=… pnpm backend` backend on http://127.0.0.1:8787 (`/health`; 503s without a key).
+- Stats: `RIOT_API_KEY=… cargo run -p mvp-crawler -- crawl --max-matches 500`, then
+  `cargo run -p mvp-crawler -- publish`; serve with `STATS_DIR=.cache/crawler/stats pnpm backend`.
 - `pnpm app` full desktop app (needs Tauri system deps). `pnpm build:exe` → NSIS installer.
 - Without League: `pnpm mock-lcu`, then run a debug app with
   `SCOUT_LCU_LOCKFILE=.cache/mock-lcu/lockfile SCOUT_LCU_CA=.cache/mock-lcu/ca.pem` (debug builds only).
