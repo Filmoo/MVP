@@ -129,3 +129,26 @@ test("resizing the window re-lays out cheaply", async ({ page }) => {
   results.resizeLayoutMsAvg = avg;
   expect(avg).toBeLessThanOrEqual(budgets.resizeLayoutMsAvg);
 });
+
+test("colors from content: each palette samples in a few ms, then comes from the cache", async ({ page }) => {
+  await openApp(page, { view: "/draft", scenario: "champ-select", freezeClock: false });
+  const sample = () =>
+    page.evaluate(() =>
+      performance
+        .getEntriesByType("measure")
+        .filter((e) => e.name === "palette")
+        .map((e) => e.duration),
+    );
+  await expect.poll(async () => (await sample()).length).toBeGreaterThan(3);
+  const first = (await sample()).sort((a, b) => a - b);
+  const median = first[Math.floor(first.length / 2)] ?? 0;
+  const max = first.at(-1) ?? 0;
+  results.palette = { count: first.length, medianMs: median, maxMs: max };
+  expect(median, "median sample").toBeLessThanOrEqual(budgets.palette.medianMs);
+  expect(max, "slowest sample (first one warms up)").toBeLessThanOrEqual(budgets.palette.maxMs);
+
+  // A second launch reads every palette from storage: no sampling at all.
+  await page.reload();
+  await settle(page);
+  expect(await sample()).toEqual([]);
+});

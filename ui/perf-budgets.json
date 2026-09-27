@@ -34,5 +34,9 @@
     "styleRecalcs": 0
   },
   "heapMb": 12,
-  "resizeLayoutMsAvg": 25
+  "resizeLayoutMsAvg": 25,
+  "palette": {
+    "medianMs": 3,
+    "maxMs": 16
+  }
 }
