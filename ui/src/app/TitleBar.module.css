@@ -7,6 +7,9 @@
   background: var(--bg-chrome);
   backdrop-filter: var(--blur-glass);
   border-bottom: 1px solid var(--line-glass);
+  /* The blur makes the bar its own stacking context: lift it so its search panel stays above the page. */
+  position: relative;
+  z-index: 20;
   min-width: 0;
 }
 
