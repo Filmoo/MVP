@@ -39,6 +39,8 @@ export async function settle(page: Page): Promise<void> {
   await expect(page.locator("[data-state=loading]")).toHaveCount(0, { timeout: 10_000 });
   await page.evaluate(async () => {
     await document.fonts.ready;
+    // Screenshots and audits need every image now, not when it scrolls into view.
+    for (const img of document.images) img.loading = "eager";
     const inView = (img: HTMLImageElement) => {
       const r = img.getBoundingClientRect();
       return r.bottom > 0 && r.top < window.innerHeight && r.right > 0 && r.left < window.innerWidth;
@@ -60,7 +62,10 @@ export async function settle(page: Page): Promise<void> {
       await new Promise((r) => setTimeout(r, 50));
     }
     // "complete" comes before an async-decoded image is painted: wait for decoding too.
-    await Promise.all([...document.images].filter(inView).map((img) => img.decode().catch(() => undefined)));
+    await Promise.race([
+      Promise.all([...document.images].filter(inView).map((img) => img.decode().catch(() => undefined))),
+      new Promise((r) => setTimeout(r, 2_000)),
+    ]);
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
   });
 }

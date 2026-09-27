@@ -4,13 +4,16 @@
   align-items: center;
   gap: var(--space-5);
   height: var(--titlebar-h);
-  padding-left: var(--space-7);
   background: var(--bg-1);
   border-bottom: 1px solid var(--line-1);
   min-width: 0;
 }
 
+/* Centered over the rail. */
 .brand {
+  flex: none;
+  width: var(--sidebar-w);
+  justify-content: center;
   display: flex;
   align-items: center;
   gap: var(--space-4);
@@ -30,7 +33,7 @@
   align-items: center;
   gap: var(--space-3);
   font-size: var(--text-sm);
-  color: var(--text-2);
+  color: var(--text-3);
   white-space: nowrap;
   overflow: hidden;
   min-width: 0;
@@ -81,7 +84,8 @@
 }
 
 @media (max-width: 559px) {
-  .bar {
+  .brand {
+    width: auto;
     padding-left: var(--space-6);
   }
 }

@@ -38,10 +38,24 @@ export function PerformanceSummary(props: { matches: readonly MatchSummary[] }):
                     <span class={`${styles.champMeta} num`}>{kdaRatio(c.kills, c.deaths, c.assists)} KDA</span>
                   </span>
                   <span class={`${styles.champWr} num`}>
-                    <span class={wrClass(c.wins, c.games)}>{percent(c.wins / c.games)}</span>
-                    <span class={styles.champGames}>
-                      {c.wins}W {c.games - c.wins}L
-                    </span>
+                    <Show
+                      when={c.games >= MIN_GAMES_FOR_COLOR}
+                      fallback={
+                        <>
+                          <span class={styles.neutral}>
+                            {c.wins}W {c.games - c.wins}L
+                          </span>
+                          <span class={styles.champGames}>
+                            {c.games} {c.games === 1 ? "game" : "games"}
+                          </span>
+                        </>
+                      }
+                    >
+                      <span class={wrClass(c.wins, c.games)}>{percent(c.wins / c.games)}</span>
+                      <span class={styles.champGames}>
+                        {c.wins}W {c.games - c.wins}L
+                      </span>
+                    </Show>
                   </span>
                 </li>
               )}

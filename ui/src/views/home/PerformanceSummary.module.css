@@ -146,6 +146,15 @@
   color: var(--text-3);
 }
 
+/* Full-width card (medium windows): champions in columns instead of one long list. */
+@container summary (min-width: 560px) {
+  .champions {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    column-gap: var(--space-9);
+  }
+}
+
 /* Narrow pages: keep the match list reachable. */
 @container page (max-width: 559px) {
   .champ:nth-of-type(n + 4) {

@@ -137,6 +137,39 @@
   white-space: nowrap;
 }
 
+/* Change vs team now, as a small diverging bar (wide lists only). */
+.delta {
+  display: none;
+  grid-area: delta;
+  position: relative;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--bg-3);
+}
+
+.delta::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -2px;
+  bottom: -2px;
+  width: 1px;
+  background: var(--line-2);
+}
+
+.deltaFill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: var(--radius-full);
+}
+.deltaUp {
+  background: var(--win);
+}
+.deltaDown {
+  background: var(--loss);
+}
+
 .estimate {
   grid-area: pct;
   display: flex;
@@ -209,12 +242,15 @@
 /* Wide lists: name, reasons and estimate on one line. */
 @container suggestions (min-width: 720px) {
   .row {
-    grid-template-columns: 40px minmax(0, 240px) minmax(0, 1fr) auto;
-    grid-template-areas: "icon name chips pct";
+    grid-template-columns: 40px minmax(0, 220px) minmax(0, 1fr) 112px auto;
+    grid-template-areas: "icon name chips delta pct";
     column-gap: var(--space-8);
   }
   .nameLine,
   .chips {
     align-self: center;
+  }
+  .delta {
+    display: block;
   }
 }

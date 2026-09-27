@@ -5,23 +5,14 @@ import { useAmbient } from "../../design/ambient";
 import { Card } from "../../design/Card";
 import { championArtUrl } from "../../design/GameIcon";
 import { EmptyState, ErrorState, Skeleton } from "../../design/States";
-import { duration } from "../../lib/format";
 import { Widget } from "../../widgets/Widget";
 import page from "../page.module.css";
 import styles from "./Draft.module.css";
+import { PhasePill } from "./PhasePill";
 import { Suggestions } from "./Suggestions";
 import { selectedPick } from "./selection";
 import { Teams } from "./Teams";
 import { Why } from "./Why";
-
-const PHASE_LABEL: Record<DraftView["phase"], string> = {
-  planning: "Planning",
-  banning: "Banning",
-  picking: "Picking",
-  finalizing: "Finalizing",
-};
-/** The timer turns red from here on. */
-const URGENT_SECONDS = 10;
 
 export function DraftContent(props: { draft: DraftView }): JSX.Element {
   const [clicked, setClicked] = createSignal<number>();
@@ -72,16 +63,6 @@ function DraftSkeleton(): JSX.Element {
         </Card>
       </div>
     </div>
-  );
-}
-
-function PhasePill(props: { draft: DraftView }): JSX.Element {
-  const urgent = () => props.draft.secondsLeft !== null && props.draft.secondsLeft <= URGENT_SECONDS;
-  return (
-    <span class={`${styles.phase} ${urgent() ? styles.urgent : ""} num`}>
-      {PHASE_LABEL[props.draft.phase]}
-      <Show when={props.draft.secondsLeft !== null}> · {duration(props.draft.secondsLeft ?? 0)}</Show>
-    </span>
   );
 }
 

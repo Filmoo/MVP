@@ -54,7 +54,7 @@ function MatchRow(props: { match: MatchSummary }): JSX.Element {
         <span class={styles.caption}>{perMinute(m().creepScore, m().durationSeconds)} / min</span>
       </div>
       <div class={styles.items}>
-        <For each={slots()}>{(id) => <ItemIcon itemId={id} size={20} />}</For>
+        <For each={slots()}>{(id) => <ItemIcon itemId={id} size={24} />}</For>
       </div>
       <span class={`${styles.when} num`}>
         <span class={styles.duration}>{duration(m().durationSeconds)}</span>
@@ -82,7 +82,9 @@ export function RecentMatches(props: { matches: readonly MatchSummary[] }): JSX.
     <Card title="Match history" flush={hasMatches()}>
       <Show
         when={hasMatches()}
-        fallback={<EmptyState icon="draft" title="No recent games" text="Finish a game and it shows up here, with your stats and build." />}
+        fallback={
+          <EmptyState icon="history" title="No recent games" text="Finish a game and it shows up here, with your stats and build." />
+        }
       >
         <ol class={styles.list}>
           <For each={groupByDay(props.matches, (m) => m.endedAt)}>

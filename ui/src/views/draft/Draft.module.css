@@ -6,32 +6,15 @@
   flex-wrap: wrap;
 }
 
-.phase {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-6);
-  border-radius: var(--radius-full);
-  background: var(--accent-soft);
-  color: var(--accent-strong);
-  font-size: var(--text-base);
-  font-weight: var(--weight-semibold);
-  white-space: nowrap;
-}
-
-/* The screen's only urgency cue. */
-.urgent {
-  background: var(--loss-soft);
-  color: var(--loss);
-}
-
 /* Fills the rest of the live page: the teams take their height, picks and why share the rest. */
 .grid {
   flex: 1;
   min-height: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(var(--aside-w), 30%);
-  grid-template-rows: auto minmax(0, 1fr);
+  /* The lists' row is as tall as its content, yet shrinks (and scrolls inside) on short windows. */
+  grid-template-rows: auto minmax(0, max-content);
+  align-content: start;
   grid-template-areas:
     "teams teams"
     "picks why";
@@ -51,10 +34,10 @@
   flex-direction: column;
 }
 
-/* Cards hug their content and only scroll when the window is too short for it. */
+/* Both cards fill the row, so their bottoms line up; they scroll when the window is too short. */
 .picks > *,
 .why > * {
-  flex: 0 1 auto;
+  flex: 1 1 auto;
   min-height: 0;
 }
 
@@ -78,5 +61,15 @@
   }
   .why {
     display: none;
+  }
+}
+
+/* Wide: the page head collapses (its h1 stays for screen readers) and the timer sits in the teams
+   card, next to the draft; the freed height goes to the lists. */
+@container page (min-width: 960px) {
+  .head {
+    height: 0;
+    overflow: hidden;
+    margin-bottom: calc(-1 * var(--space-6));
   }
 }

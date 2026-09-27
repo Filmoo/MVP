@@ -15,6 +15,10 @@ export interface Palette {
   secondary: Rgb;
   /** A quiet tint of the primary, for large areas. */
   quiet: Rgb;
+  /** Light versions of primary/secondary: deeper and more saturated, because pastels mixed thin
+   *  over near-black turn grey or brown. For glows only, never for text. */
+  glowA: Rgb;
+  glowB: Rgb;
 }
 
 const BINS = 24; // 15° hue bins
@@ -22,6 +26,11 @@ const BINS = 24; // 15° hue bins
 const PASTEL_L = 0.8;
 const PASTEL_C: readonly [number, number] = [0.07, 0.13];
 const QUIET_C = 0.05;
+const GLOW_L = 0.72;
+const GLOW_C: readonly [number, number] = [0.11, 0.16];
+/** Warm hues (browns, skin, rock) with little chroma read as mud once dimmed: skip them as lead. */
+const MUD_HUES: readonly [number, number] = [30, 95];
+const MUD_CHROMA = 0.07;
 /** Hues closer than this count as the same family. */
 const MIN_HUE_GAP = 45;
 /** How strongly the center (the subject) outweighs the edges: exp(-focus × d²). */
@@ -92,7 +101,8 @@ export function extractPalette(pixels: ArrayLike<number>, width: number): Palett
     const px = i / 4;
     const dx = ((px % width) + 0.5) / width - 0.5;
     const dy = (Math.floor(px / width) + 0.5) / height - 0.5;
-    const weight = chroma * Math.exp(-(dx * dx + dy * dy) * CENTER_FOCUS);
+    // chroma²: a small vivid accent beats a large dull area.
+    const weight = chroma * chroma * Math.exp(-(dx * dx + dy * dy) * CENTER_FOCUS);
     const hue = ((Math.atan2(b, a) * 180) / Math.PI + 360) % 360;
     const bin = bins[Math.floor(hue / (360 / BINS)) % BINS];
     if (!bin) continue;
@@ -119,15 +129,20 @@ export function extractPalette(pixels: ArrayLike<number>, width: number): Palett
     .filter((f) => f.weight > 0)
     .sort((x, y) => y.score - x.score);
 
-  const [first] = families;
+  const muddy = (f: { hue: number; chroma: number }) => f.hue >= MUD_HUES[0] && f.hue <= MUD_HUES[1] && f.chroma < MUD_CHROMA;
+  const first = families.find((f) => !muddy(f)) ?? families[0];
   if (!first) return null;
-  const second = families.find((f) => hueGap(f.hue, first.hue) >= MIN_HUE_GAP && f.score >= first.score * 0.15);
-  const pastel = (hue: number, chroma: number) => fromOklch(PASTEL_L, Math.min(Math.max(chroma, PASTEL_C[0]), PASTEL_C[1]), hue);
+  const second = families.find((f) => f !== first && hueGap(f.hue, first.hue) >= MIN_HUE_GAP && f.score >= first.score * 0.15);
+  const clamp = (c: number, [lo, hi]: readonly [number, number]) => Math.min(Math.max(c, lo), hi);
+  const hueB = second ? second.hue : first.hue + 35;
+  const chromaB = second ? second.chroma : first.chroma * 0.8;
 
   return {
-    primary: pastel(first.hue, first.chroma),
-    secondary: second ? pastel(second.hue, second.chroma) : pastel(first.hue + 35, first.chroma * 0.8),
+    primary: fromOklch(PASTEL_L, clamp(first.chroma, PASTEL_C), first.hue),
+    secondary: fromOklch(PASTEL_L, clamp(chromaB, PASTEL_C), hueB),
     quiet: fromOklch(PASTEL_L, QUIET_C, first.hue),
+    glowA: fromOklch(GLOW_L, clamp(first.chroma, GLOW_C), first.hue),
+    glowB: fromOklch(GLOW_L, clamp(chromaB, GLOW_C), hueB),
   };
 }
 

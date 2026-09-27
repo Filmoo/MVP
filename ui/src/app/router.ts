@@ -6,15 +6,17 @@ export interface Route {
   label: string;
   /** Under the icon in the rail. */
   short: string;
+  /** Not built yet: the rail marks it. */
+  planned?: boolean;
   icon: IconName;
 }
 
 export const mainRoutes: readonly Route[] = [
   { path: "/", label: "Home", short: "Home", icon: "home" },
   { path: "/draft", label: "Draft", short: "Draft", icon: "draft" },
-  { path: "/live", label: "Live game", short: "Live", icon: "live" },
-  { path: "/champions", label: "Champions", short: "Champs", icon: "champions" },
-  { path: "/tier-list", label: "Tier list", short: "Tiers", icon: "tiers" },
+  { path: "/live", label: "Live game", short: "Live", icon: "live", planned: true },
+  { path: "/champions", label: "Champions", short: "Champs", icon: "champions", planned: true },
+  { path: "/tier-list", label: "Tier list", short: "Tiers", icon: "tiers", planned: true },
 ];
 
 export const settingsRoute: Route = {

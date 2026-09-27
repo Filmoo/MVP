@@ -1,4 +1,5 @@
 import { createMemo, For, type JSX, Show } from "solid-js";
+import { useData } from "../../data/context";
 import type { PlayerProfile } from "../../data/generated/PlayerProfile";
 import { ChampionArt, ProfileIcon } from "../../design/GameIcon";
 import { TierBadge, TierCrest } from "../../design/TierBadge";
@@ -7,13 +8,16 @@ import { ROLE_LABEL } from "../../lib/roles";
 import styles from "./ProfileHeader.module.css";
 import { summarize } from "./summary";
 
-const FORM_GAMES = 10;
-
-function Stat(props: { value: string; label: string; tone?: "good" | "bad" | undefined }): JSX.Element {
+function Stat(props: { value: string; label: string; detail?: string | undefined; tone?: "good" | "bad" | undefined }): JSX.Element {
   return (
     <div class={styles.stat}>
       <span class={`${styles.statValue} ${props.tone ? styles[props.tone] : ""}`}>{props.value}</span>
-      <span class={styles.statLabel}>{props.label}</span>
+      <span class={styles.statLabel}>
+        {props.label}
+        <Show when={props.detail}>
+          <span class={styles.statDetail}>{props.detail}</span>
+        </Show>
+      </span>
     </div>
   );
 }
@@ -22,12 +26,17 @@ function Stat(props: { value: string; label: string; tone?: "good" | "bad" | und
 export function ProfileHeader(props: { profile: PlayerProfile }): JSX.Element {
   const s = createMemo(() => summarize(props.profile.recentMatches));
   const main = () => s().champions[0]?.championId;
+  const { gameData } = useData();
+  const mainName = () => {
+    const id = main();
+    return id === undefined ? undefined : gameData()?.champions.get(id)?.name;
+  };
   const per = (total: number) => (s().games ? (total / s().games).toFixed(1) : "0");
   /** Most recent first, remakes left out. */
   const form = () =>
     props.profile.recentMatches
       .filter((m) => m.durationSeconds > REMAKE_MAX_SECONDS)
-      .slice(0, FORM_GAMES)
+      .slice(0, s().games)
       .map((m) => m.win);
   return (
     <div class={styles.wrap}>
@@ -47,7 +56,9 @@ export function ProfileHeader(props: { profile: PlayerProfile }): JSX.Element {
             </h1>
             <p class={`${styles.meta} num`}>
               <span class={styles.chip}>{props.profile.region}</span>
-              Level {props.profile.level}
+              <Show when={mainName()} fallback={`Level ${props.profile.level}`}>
+                {(name) => `${name()} main`}
+              </Show>
             </p>
             <Show when={form().length > 0}>
               <div class={styles.form}>
@@ -67,10 +78,13 @@ export function ProfileHeader(props: { profile: PlayerProfile }): JSX.Element {
             <Show
               when={props.profile.soloQueue}
               fallback={
-                <div class={styles.rankText}>
-                  <span class={styles.queue}>Ranked Solo/Duo</span>
-                  <span class={styles.unranked}>Unranked</span>
-                </div>
+                <>
+                  <TierCrest tier="iron" size={56} class={styles.unrankedCrest} />
+                  <div class={styles.rankText}>
+                    <span class={styles.queue}>Ranked Solo/Duo</span>
+                    <span class={styles.unranked}>Unranked</span>
+                  </div>
+                </>
               }
             >
               {(q) => {
@@ -104,16 +118,18 @@ export function ProfileHeader(props: { profile: PlayerProfile }): JSX.Element {
           <section class={`${styles.strip} num`} aria-label={`Last ${s().games} games`}>
             <Stat
               value={percent(s().wins / s().games)}
-              label={`Win rate · ${s().wins}W\u00a0${s().games - s().wins}L`}
+              label="Win rate"
+              detail={`${s().wins}W ${s().games - s().wins}L`}
               tone={s().wins / s().games >= 0.5 ? "good" : "bad"}
             />
             <Stat
               value={kdaRatio(s().kills, s().deaths, s().assists)}
-              label={`KDA · ${[per(s().kills), per(s().deaths), per(s().assists)].join("\u00a0/\u00a0")}`}
+              label="KDA"
+              detail={`${per(s().kills)} / ${per(s().deaths)} / ${per(s().assists)}`}
             />
             <Stat value={s().csPerMinute.toFixed(1)} label="CS per minute" />
             <Show when={s().roles[0]}>
-              {(r) => <Stat value={ROLE_LABEL[r().role]} label={`Main role · ${r().games}\u00a0of\u00a0${s().games}`} />}
+              {(r) => <Stat value={ROLE_LABEL[r().role]} label="Main role" detail={`${r().games} of ${s().games}`} />}
             </Show>
             <Stat value={duration(s().averageSeconds)} label="Average game" />
           </section>

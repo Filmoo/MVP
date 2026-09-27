@@ -8,7 +8,7 @@ function NavItem(props: { route: Route }): JSX.Element {
   return (
     <a
       href={`#${props.route.path}`}
-      class={`${styles.item} ${active() ? styles.active : ""}`}
+      class={`${styles.item} ${active() ? styles.active : ""} ${props.route.planned ? styles.planned : ""}`}
       aria-current={active() ? "page" : undefined}
       title={props.route.label}
       aria-label={props.route.label}

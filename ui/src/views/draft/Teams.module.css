@@ -10,18 +10,27 @@
 }
 
 .withOdds {
-  grid-template-columns: minmax(0, 1fr) 128px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) 152px minmax(0, 1fr);
   gap: var(--space-5);
 }
 
-/* Center column: win chance of each side. */
+/* Center column: the clock, then each side's win chance. */
 .odds {
-  align-self: center;
+  align-self: stretch;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-3);
+  justify-content: center;
+  gap: var(--space-6);
   text-align: center;
+}
+
+.oddsFigures {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-3);
+  width: 100%;
 }
 
 .oddsLabel {
@@ -35,27 +44,24 @@
 .oddsLine {
   display: flex;
   align-items: baseline;
+  justify-content: space-between;
   gap: var(--space-3);
   font-weight: var(--weight-bold);
 }
 
 .us {
-  font-size: var(--text-xl);
-  color: var(--accent);
+  font-size: var(--text-2xl);
+  color: var(--win);
+  letter-spacing: -0.01em;
 }
 .them {
   font-size: var(--text-lg);
   color: var(--loss);
 }
-.vs {
-  font-size: var(--text-xs);
-  font-weight: var(--weight-medium);
-  color: var(--text-3);
-}
 
 .split {
-  width: 100%;
-  height: 6px;
+  display: flex;
+  height: 8px;
   border-radius: var(--radius-full);
   background: var(--loss);
   overflow: hidden;
@@ -63,13 +69,20 @@
 
 .splitUs {
   height: 100%;
-  background: var(--accent);
+  background: var(--win);
   border-right: 2px solid var(--bg-2);
 }
 
 .oddsPm {
   font-size: var(--text-xs);
   color: var(--text-3);
+}
+
+/* The page head carries the clock on narrow windows. */
+@container page (max-width: 959px) {
+  .oddsPill {
+    display: none;
+  }
 }
 
 /* Each side is its own tinted panel, like a scoreboard: lavender for you, rose for the enemy. */
@@ -82,8 +95,9 @@
   border-radius: var(--radius-4);
 }
 
+/* Blue for your side, rose for theirs (League convention); lavender only means "you". */
 .ally {
-  background: linear-gradient(180deg, var(--accent-soft), transparent 80%);
+  background: linear-gradient(180deg, var(--win-soft), transparent 80%);
 }
 .enemy {
   background: linear-gradient(180deg, var(--loss-soft), transparent 80%);
@@ -107,7 +121,7 @@
 }
 
 .ally .teamName {
-  color: var(--accent);
+  color: var(--win);
 }
 .enemy .teamName {
   color: var(--loss);
@@ -149,15 +163,11 @@
   text-align: center;
 }
 
-/* A soft glow in the champion's own colors behind the portrait. */
-.filled::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  border-radius: var(--radius-3);
-  background: radial-gradient(60% 45% at 50% 30%, color-mix(in oklab, var(--tone-a) 30%, transparent), transparent 75%);
-  pointer-events: none;
+/* A thin ring and shadow in the champion's own colors. */
+.filled img {
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--tone-a) 55%, transparent),
+    0 6px 16px -6px color-mix(in oklab, var(--tone-a) 60%, transparent);
 }
 
 .slot > :first-child {
@@ -177,12 +187,20 @@
   background: var(--accent);
 }
 
+.enemy .picking {
+  background: transparent;
+}
 .enemy .picking::after {
   background: var(--loss);
 }
 
-.hovering img {
+.hovering:not(.me) img {
   opacity: 0.55;
+}
+
+.me.hovering img {
+  outline: 1px dashed var(--accent);
+  outline-offset: var(--space-1);
 }
 
 .empty {
@@ -229,11 +247,13 @@
   }
   /* Stacked: the odds sit between the teams as one line. */
   .odds {
+    padding: 0 var(--space-4);
+  }
+  .oddsFigures {
     display: grid;
     grid-template-columns: auto auto minmax(0, 1fr) auto;
     align-items: center;
     column-gap: var(--space-5);
-    padding: 0 var(--space-4);
   }
 }
 

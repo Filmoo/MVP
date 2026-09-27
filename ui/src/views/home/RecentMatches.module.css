@@ -151,11 +151,12 @@
 .kdaGreat {
   color: var(--tier-s);
 }
+/* Not the win/loss colors: those already mark the row. */
 .kdaGood {
-  color: var(--win);
+  color: var(--text-1);
 }
 .kdaPoor {
-  color: var(--loss);
+  color: var(--text-3);
 }
 
 .perfect {
@@ -166,7 +167,7 @@
 /* Build as a 3×2 block, like the in-game scoreboard. */
 .items {
   display: grid;
-  grid-template-columns: repeat(3, 20px);
+  grid-template-columns: repeat(3, 24px);
   gap: var(--space-1);
 }
 
@@ -200,8 +201,8 @@
 /* Wide: keep the stats grouped (no huge gaps), the outcome column takes the slack. */
 @container matches (min-width: 760px) {
   .row {
-    grid-template-columns: 40px minmax(150px, 1.3fr) minmax(104px, 1fr) minmax(88px, 1fr) auto 64px;
-    column-gap: var(--space-7);
+    grid-template-columns: 40px minmax(150px, 1fr) 104px 88px auto 64px;
+    column-gap: var(--space-8);
   }
 }
 

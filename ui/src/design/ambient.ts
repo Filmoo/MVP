@@ -10,7 +10,7 @@ import { css, extractPalette, type Palette } from "./palette";
  * - Widget tone (`useTone`): `--tone-a/b/c` on one element, e.g. a champion slot.
  */
 
-const STORE = "mvp.palettes.v2";
+const STORE = "mvp.palettes.v3";
 const memory = new Map<string, Promise<Palette | null>>();
 let stored: Record<string, Palette | null> | undefined;
 
@@ -92,7 +92,7 @@ export function samplePalette(url: string): Promise<Palette | null> {
 const VARS = { amb: ["--amb-a", "--amb-b", "--amb-c"], tone: ["--tone-a", "--tone-b", "--tone-c"] } as const;
 
 function apply(el: HTMLElement, names: readonly string[], palette: Palette | null): void {
-  const values = palette ? [palette.primary, palette.secondary, palette.quiet] : [];
+  const values = palette ? [palette.glowA, palette.glowB, palette.quiet] : [];
   names.forEach((name, i) => {
     const color = values[i];
     if (color) el.style.setProperty(name, css(color));

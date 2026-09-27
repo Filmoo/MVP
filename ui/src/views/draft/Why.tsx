@@ -100,11 +100,15 @@ export function Why(props: { suggestion: Suggestion | undefined; teamPercent: nu
   const { gameData } = useData();
   const name = (id: number) => gameData()?.champions.get(id)?.name ?? `Champion ${id}`;
   return (
-    <Card title={props.suggestion ? `Why ${name(props.suggestion.championId)}` : "Why"} class={styles.card} scroll>
+    <Card
+      title={props.suggestion ? `Why ${name(props.suggestion.championId)}` : "Why"}
+      class={styles.card}
+      scroll
+      backdrop={<Show when={props.suggestion}>{(s) => <ChampionArt championId={s().championId} class={styles.art} />}</Show>}
+    >
       <Show when={props.suggestion} fallback={<p class={styles.meta}>Select a pick to see how its estimate is built.</p>}>
         {(s) => (
           <>
-            <ChampionArt championId={s().championId} class={styles.art} />
             <div class={`${styles.summary} num`}>
               <span class={styles.big}>{s().estimate.percent.toFixed(1)}%</span>
               <span class={styles.pm}>± {s().estimate.plusMinus.toFixed(1)}</span>

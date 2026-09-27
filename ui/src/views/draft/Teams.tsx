@@ -7,6 +7,7 @@ import { Card } from "../../design/Card";
 import { ChampionIcon, championIconUrl } from "../../design/GameIcon";
 import { percent } from "../../lib/format";
 import { ROLE_LABEL, ROLE_SHORT } from "../../lib/roles";
+import { PhasePill } from "./PhasePill";
 import styles from "./Teams.module.css";
 
 /** Enemy role odds shown per slot: the two likeliest cover almost every draft. */
@@ -19,6 +20,7 @@ function lines(slot: DraftSlot, enemy: boolean): [string, string] {
     return [first ?? "", second ?? ""];
   }
   const role = slot.role ? ROLE_LABEL[slot.role] : "";
+  // Your hover shows as a dashed ring on the portrait (the slot is too narrow for more words).
   if (slot.isMe) return [role, "You"];
   return [role, slot.championId !== null && slot.hovering ? "Hovering" : ""];
 }
@@ -32,8 +34,9 @@ function Slot(props: { slot: DraftSlot; enemy: boolean }): JSX.Element {
       ref={(el) => useTone(el, () => (props.slot.championId === null ? undefined : championIconUrl(gameData(), props.slot.championId)))}
       class={`${styles.slot} ${props.slot.picking ? styles.picking : ""} ${props.slot.hovering ? styles.hovering : ""} ${
         props.slot.championId === null ? "" : styles.filled
-      }`}
+      } ${props.slot.isMe ? styles.me : ""}`}
       data-testid={props.enemy ? "enemy-slot" : "ally-slot"}
+      title={props.slot.isMe && props.slot.hovering ? "You are hovering this champion" : undefined}
     >
       <Show when={props.slot.championId} fallback={<div class={styles.empty} aria-hidden="true" />}>
         {(id) => <ChampionIcon championId={id()} size={48} />}
@@ -72,23 +75,27 @@ function Team(props: { title: string; slots: DraftSlot[]; bans: number[]; enemy:
 }
 
 /** Both teams' win chances, like the "vs" of a scoreboard. */
-function Odds(props: { percent: number; plusMinus: number }): JSX.Element {
+function Odds(props: { draft: DraftView; percent: number; plusMinus: number }): JSX.Element {
   return (
-    <div
-      class={`${styles.odds} num`}
-      role="img"
-      aria-label={`Win chance: your team ${props.percent.toFixed(1)}%, ± ${props.plusMinus.toFixed(1)}`}
-    >
-      <span class={styles.oddsLabel}>Win chance</span>
-      <div class={styles.oddsLine}>
-        <span class={styles.us}>{props.percent.toFixed(1)}</span>
-        <span class={styles.vs}>vs</span>
-        <span class={styles.them}>{(100 - props.percent).toFixed(1)}</span>
+    <div class={`${styles.odds} num`}>
+      <span class={styles.oddsPill}>
+        <PhasePill draft={props.draft} />
+      </span>
+      <div
+        class={styles.oddsFigures}
+        role="img"
+        aria-label={`Win chance: your team ${props.percent.toFixed(1)}%, ± ${props.plusMinus.toFixed(1)}`}
+      >
+        <span class={styles.oddsLabel}>Win chance</span>
+        <div class={styles.oddsLine}>
+          <span class={styles.us}>{props.percent.toFixed(1)}%</span>
+          <span class={styles.them}>{(100 - props.percent).toFixed(1)}%</span>
+        </div>
+        <div class={styles.split}>
+          <div class={styles.splitUs} style={{ width: `${props.percent}%` }} />
+        </div>
+        <span class={styles.oddsPm}>± {props.plusMinus.toFixed(1)}</span>
       </div>
-      <div class={styles.split}>
-        <div class={styles.splitUs} style={{ width: `${props.percent}%` }} />
-      </div>
-      <span class={styles.oddsPm}>± {props.plusMinus.toFixed(1)} pts</span>
     </div>
   );
 }
@@ -99,7 +106,9 @@ export function Teams(props: { draft: DraftView }): JSX.Element {
       <div class={styles.strip}>
         <div class={`${styles.teams} ${props.draft.team ? styles.withOdds : ""}`}>
           <Team title="Your team" slots={props.draft.allies} bans={props.draft.allyBans} enemy={false} />
-          <Show when={props.draft.team}>{(team) => <Odds percent={team().percent} plusMinus={team().plusMinus} />}</Show>
+          <Show when={props.draft.team}>
+            {(team) => <Odds draft={props.draft} percent={team().percent} plusMinus={team().plusMinus} />}
+          </Show>
           <Team title="Enemy team" slots={props.draft.enemies} bans={props.draft.enemyBans} enemy />
         </div>
       </div>

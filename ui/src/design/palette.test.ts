@@ -61,3 +61,22 @@ describe("palette", () => {
     expect(extractPalette([0, 0, 0, 0], 1)).toBeNull();
   });
 });
+
+describe("palette glows", () => {
+  it("are deeper than the pastels and keep chroma, so they stay colored over near-black", () => {
+    const p = extractPalette(image(12, [200, 30, 40]), 12);
+    expect(p).toBeTruthy();
+    if (!p) return;
+    expect(lightness(p.glowA)).toBeLessThan(lightness(p.primary));
+    const [, a, b] = oklab(p.glowA);
+    expect(Math.hypot(a, b)).toBeGreaterThan(0.1);
+  });
+
+  it("don't lead with mud: a dull brown mass loses to a small vivid accent", () => {
+    // Rock-brown everywhere, a teal glow in the middle quarter.
+    const p = extractPalette(image(12, [120, 95, 70], [40, 210, 200]), 12);
+    const h = hue(p?.primary ?? [0, 0, 0]);
+    expect(h).toBeGreaterThan(150);
+    expect(h).toBeLessThan(230);
+  });
+});

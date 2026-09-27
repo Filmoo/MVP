@@ -20,14 +20,15 @@
   position: absolute;
   z-index: -1;
   top: 0;
-  right: 0;
-  width: min(68%, 760px);
+  left: 28%;
+  width: min(60%, 860px);
   height: 100%;
   object-fit: cover;
-  object-position: 50% 20%;
-  opacity: 0.55;
+  object-position: 50% 15%;
+  opacity: 0.7;
   pointer-events: none;
-  mask-image: linear-gradient(90deg, transparent 0%, black 55%);
+  /* Fills the middle between identity and rank, fading out on both sides. */
+  mask-image: linear-gradient(90deg, transparent, black 30%, black 70%, transparent);
 }
 
 .top {
@@ -225,6 +226,11 @@
   background: var(--loss);
 }
 
+.unrankedCrest {
+  color: var(--text-3);
+  filter: none;
+}
+
 .unranked {
   font-size: var(--text-lg);
   font-weight: var(--weight-semibold);
@@ -261,6 +267,14 @@
   white-space: nowrap;
 }
 
+/* "Label · detail" on one line when wide, detail on its own line when narrow (no dangling dot). */
+.statDetail {
+  white-space: nowrap;
+}
+.statDetail::before {
+  content: " · ";
+}
+
 .statLabel {
   font-size: var(--text-sm);
   color: var(--text-3);
@@ -286,17 +300,32 @@
   .statLabel {
     white-space: normal;
   }
+  .statDetail {
+    display: block;
+  }
+  .statDetail::before {
+    content: none;
+  }
 }
 
 /* Narrow: 3 + 2 cells, never an orphan. */
 @container profile (max-width: 639px) {
+  /* Narrow: the art moves to the right edge, away from the name. */
+  .art {
+    left: auto;
+    right: 0;
+    width: 75%;
+    opacity: 0.45;
+    mask-image: linear-gradient(90deg, transparent, black 60%);
+  }
   .strip {
     grid-template-columns: repeat(6, minmax(0, 1fr));
   }
+  /* Win rate and KDA get the wide cells, the short values the narrow ones. */
   .stat {
     grid-column: span 2;
   }
-  .stat:nth-child(n + 4) {
+  .stat:nth-child(-n + 2) {
     grid-column: span 3;
   }
   .top {

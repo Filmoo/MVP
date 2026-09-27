@@ -29,11 +29,13 @@
 }
 
 /* Whole-page states (not running, errors, coming soon): centered, readable width. */
+/* Same spot for every state card, whatever its height. */
 .centered {
   flex: 1;
   display: grid;
-  place-items: center;
-  padding-bottom: var(--space-12);
+  justify-items: center;
+  align-content: start;
+  padding-top: var(--space-12);
 }
 
 .centered > * {

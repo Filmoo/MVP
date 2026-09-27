@@ -14,6 +14,8 @@ import { bySize, Segments, WEAK, WhyTerms } from "./Why";
 
 const REASON_PREFIX: Record<Reason["kind"], string> = { base: "", lane: "vs", jungle: "vs", matchup: "vs", duo: "with" };
 const CHIPS = 2;
+/** The row's delta bar spans ±5 points around "team now". */
+const DELTA_SCALE = 5;
 
 function reasonLabel(reason: Reason, championName: (id: number) => string): string {
   if (reason.kind === "base" || reason.championId === null) return "Strength";
@@ -71,6 +73,16 @@ function Row(props: { s: Suggestion; selected: boolean; expanded: boolean; onSel
               </>
             )}
           </For>
+        </span>
+        <span class={styles.delta} aria-hidden="true" data-free-style>
+          <span
+            class={`${styles.deltaFill} ${props.s.gain >= 0 ? styles.deltaUp : styles.deltaDown}`}
+            style={
+              props.s.gain >= 0
+                ? { left: "50%", width: `${(Math.min(Math.abs(props.s.gain), DELTA_SCALE) / DELTA_SCALE) * 50}%` }
+                : { right: "50%", width: `${(Math.min(Math.abs(props.s.gain), DELTA_SCALE) / DELTA_SCALE) * 50}%` }
+            }
+          />
         </span>
         <span class={`${styles.estimate} num`}>
           <span class={styles.pct}>{props.s.estimate.percent.toFixed(1)}%</span>
