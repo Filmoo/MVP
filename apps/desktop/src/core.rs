@@ -2,10 +2,11 @@
 
 use std::sync::RwLock;
 
-use companion::ViewReporter;
 use companion::automation::CoreEvent;
+use companion::backend::{BackendClient, BackendConfig};
 use companion::settings::SettingsStore;
-use domain::{ClientStatus, DraftView, GameData};
+use companion::{ScoutingHandle, ViewReporter};
+use domain::{ClientStatus, DraftView, GameData, LiveGame};
 use tauri::{AppHandle, Emitter as _, Manager as _, Runtime};
 use tokio::sync::watch;
 
@@ -14,6 +15,8 @@ use tokio::sync::watch;
 pub struct Core {
     pub status: watch::Receiver<ClientStatus>,
     pub draft: watch::Receiver<Option<DraftView>>,
+    pub live: watch::Receiver<Option<LiveGame>>,
+    pub scouting: ScoutingHandle,
     pub client: watch::Receiver<Option<lcu::LcuClient>>,
     pub views: ViewReporter,
 }
@@ -22,10 +25,42 @@ pub struct Core {
 #[derive(Debug, Default)]
 pub struct GameDataState(pub RwLock<Option<GameData>>);
 
+/// Our backend (player lookups, scouting), `None` when the client couldn't be built.
+#[derive(Debug)]
+pub struct Backend(pub Option<BackendClient>);
+
+/// Builds the backend client: base URL from the build (see `companion::backend`), install id
+/// from the config directory, next to the settings.
+fn backend<R: Runtime>(app: &AppHandle<R>) -> Option<BackendClient> {
+    let dir = match app.path().app_config_dir() {
+        Ok(dir) => dir,
+        Err(error) => {
+            tracing::error!(%error, "no config directory for the install id");
+            return None;
+        }
+    };
+    let config = BackendConfig::new(
+        companion::backend::base_url(),
+        companion::backend::install_id(&dir),
+    );
+    match BackendClient::new(&config) {
+        Ok(client) => {
+            tracing::info!(url = client.base_url(), "backend");
+            Some(client)
+        }
+        Err(error) => {
+            tracing::error!(%error, "cannot build the backend client");
+            None
+        }
+    }
+}
+
 /// Starts following the League client and pushes every status change to the UI.
 pub fn start<R: Runtime>(app: &AppHandle<R>, settings: &SettingsStore) {
     app.manage(GameDataState::default());
     load_game_data(app);
+    let backend = backend(app);
+    app.manage(Backend(backend.clone()));
 
     let config = match lcu::ConnectorConfig::for_league_client(Vec::new()) {
         Ok(config) => config,
@@ -37,14 +72,17 @@ pub fn start<R: Runtime>(app: &AppHandle<R>, settings: &SettingsStore) {
     let settings = settings.subscribe();
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
-        let companion = companion::start(config, settings);
+        let companion = companion::start_with(config, settings, backend);
         app.manage(Core {
             status: companion.status.clone(),
             draft: companion.draft.clone(),
+            live: companion.live.clone(),
+            scouting: companion.scouting.clone(),
             client: companion.client.clone(),
             views: companion.views.clone(),
         });
         forward(&app, companion.draft.clone(), "draft");
+        forward(&app, companion.live.clone(), "live");
         let events_app = app.clone();
         let mut events = companion.events;
         tauri::async_runtime::spawn(async move {

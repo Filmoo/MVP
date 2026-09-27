@@ -1,5 +1,6 @@
 import { resolve } from "node:path";
 import { type Page, test } from "@playwright/test";
+import { FIXTURE_NOW } from "../src/data/mock/fixtures";
 import { openApp, settle, VIEWS } from "./app";
 
 // Screenshots for human/UI-agent review. Not asserted: layout, coherence and
@@ -109,6 +110,91 @@ test("settings save error 1280x800", async ({ page }) => {
   await page.mouse.move(0, 0);
   await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)));
   await capture(page, `${OUT}/settings-save-error-1280x800.png`, false);
+});
+
+const WIDE_TO_NARROW = [
+  [1280, 720],
+  [1920, 1080],
+  [820, 760],
+  [420, 800],
+] as const;
+
+for (const [width, height] of WIDE_TO_NARROW) {
+  test(`search open ${width}x${height}`, async ({ page }) => {
+    await openApp(page, { width, height });
+    await page.getByTestId("search-input").click();
+    await page.keyboard.type("Ahri#EUW");
+    await page.getByTestId("search-option").filter({ hasText: "Level" }).waitFor();
+    await settle(page);
+    await capture(page, `${OUT}/search-open-${width}x${height}.png`, false);
+  });
+
+  test(`player ${width}x${height}`, async ({ page }) => {
+    await openApp(page, { view: "/player/euw1/Blade%20Dancer/IRE", width, height });
+    await capture(page, `${OUT}/player-default-${width}x${height}.png`, width < 900);
+  });
+
+  test(`live ${width}x${height}`, async ({ page }) => {
+    await openApp(page, { view: "/live", scenario: "live", width, height });
+    await capture(page, `${OUT}/live-ingame-${width}x${height}.png`, width < 900);
+  });
+}
+
+test("search recent 1280x720", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "mvp.recent-searches.v1",
+      JSON.stringify([
+        { kind: "player", platform: "euw1", riotId: { gameName: "Blade Dancer", tagLine: "IRE" } },
+        { kind: "champion", championId: 103 },
+        { kind: "player", platform: "kr", riotId: { gameName: "Hide on bush", tagLine: "KR1" } },
+      ]),
+    );
+  });
+  await openApp(page, { width: 1280, height: 720 });
+  await page.keyboard.press("Control+k");
+  await page.getByTestId("search-panel").waitFor();
+  await settle(page);
+  await capture(page, `${OUT}/search-recent-1280x720.png`, false);
+});
+
+test("search slow lookup 1280x720", async ({ page }) => {
+  await openApp(page, { scenario: "search-slow", width: 1280, height: 720 });
+  await page.getByTestId("search-input").click();
+  await page.keyboard.type("Fillmo#7272");
+  await page.getByTestId("search-option").filter({ hasText: "Searching" }).waitFor();
+  await page.screenshot({ path: `${OUT}/search-loading-1280x720.png` });
+});
+
+for (const scenario of ["live-scouting", "live-failed", "live-extreme"] as const) {
+  test(`live ${scenario} 1280x720`, async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.clock.setFixedTime(new Date(FIXTURE_NOW));
+    await page.goto(`/?scenario=${scenario}#/live`);
+    await page.getByTestId("live-card").first().waitFor();
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: `${OUT}/live-${scenario}-1280x720.png` });
+  });
+}
+
+for (const name of ["Nobody/404", "Busy/429", "Offline/0"] as const) {
+  test(`player ${name} 1280x720`, async ({ page }) => {
+    await openApp(page, { view: `/player/euw1/${name}`, width: 1280, height: 720 });
+    await capture(page, `${OUT}/player-${name.replace("/", "-")}-1280x720.png`, false);
+  });
+}
+
+test("player loading 1280x720", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto("/?scenario=search-slow#/player/euw1/Blade%20Dancer/IRE");
+  await page.locator("main [data-state=loading]").first().waitFor();
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: `${OUT}/player-loading-1280x720.png` });
+});
+
+test("champion soon 1280x720", async ({ page }) => {
+  await openApp(page, { view: "/champions?id=103", width: 1280, height: 720 });
+  await capture(page, `${OUT}/champion-soon-1280x720.png`, false);
 });
 
 test("home match accepted toast 1280x800", async ({ page }) => {

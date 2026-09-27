@@ -2,6 +2,7 @@ import { type JSX, Show } from "solid-js";
 import type { ClientStatus } from "../data/generated/ClientStatus";
 import { Icon } from "../design/Icon";
 import { Wordmark } from "../design/Logo";
+import { Search } from "./search/Search";
 import styles from "./TitleBar.module.css";
 
 const statusText: Record<ClientStatus["connection"], string> = {
@@ -22,8 +23,10 @@ export function TitleBar(props: { status: ClientStatus | undefined; native: bool
       <div class={styles.brand}>
         <Wordmark height={24} />
       </div>
-      <div class={styles.spacer} data-tauri-drag-region />
-      <div class={styles.status} data-testid="client-status">
+      <div class={styles.center} data-tauri-drag-region>
+        <Search />
+      </div>
+      <div class={styles.status} data-testid="client-status" title={statusText[connection()]}>
         <span class={`${styles.dot} ${styles[connection()] ?? ""}`} />
         <span class={styles.statusText}>{statusText[connection()]}</span>
       </div>

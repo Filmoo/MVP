@@ -44,9 +44,12 @@ No in-game overlay for now (keep the architecture overlay-ready).
 - Stats: `RIOT_API_KEY=… cargo run -p mvp-crawler -- crawl --max-matches 500`, then
   `cargo run -p mvp-crawler -- publish`; serve with `STATS_DIR=.cache/crawler/stats pnpm backend`.
 - `pnpm app` full desktop app (needs Tauri system deps). `pnpm build:exe` → NSIS installer.
+  Backend URL: `MVP_BACKEND_URL` at build time (default `http://127.0.0.1:8787`); debug builds also
+  read it at run time (docs/architecture.md, Backend client).
 - Without League: `pnpm mock-lcu`, then run a debug app with
   `SCOUT_LCU_LOCKFILE=.cache/mock-lcu/lockfile SCOUT_LCU_CA=.cache/mock-lcu/ca.pem` (debug builds only).
 - `node scripts/check.mjs fast|ui|full` — the quality gates (also run by the Stop hook and CI).
+  `MVP_UI_PORT=4183` moves the Playwright preview off 4173 (several checkouts side by side).
 - `pnpm --filter @scout/ui screenshots` → `reports/screenshots/*.png` for design review.
 - Real data for the owner's account (Fillmo#7272, EUW): with `RIOT_API_KEY` set,
   `cargo run -p players --bin capture-profile -- "Fillmo#7272"` → `.cache/fixtures/profile.json`

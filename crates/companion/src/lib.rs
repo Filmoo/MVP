@@ -1,15 +1,19 @@
-//! App core: follows the League client and publishes the UI-facing [`ClientStatus`] and
-//! champion-select [`DraftView`], runs the client automations and owns the settings.
+//! App core: follows the League client and publishes the UI-facing [`ClientStatus`],
+//! champion-select [`DraftView`] and loading-screen [`LiveGame`], runs the client automations,
+//! owns the settings and talks to our backend.
 //!
 //! Independent of Tauri so it runs in tests and could back other front ends (CLI, web).
 
 pub mod automation;
+pub mod backend;
 pub mod champ_select;
+pub mod live;
 pub mod profile;
 pub mod settings;
 
 use automation::{Autopilot, CoreEvent};
-use domain::{ClientConnection, ClientStatus, DraftView, GameflowPhase, Settings};
+use backend::BackendClient;
+use domain::{ClientConnection, ClientStatus, DraftView, GameflowPhase, LiveGame, Settings};
 use lcu::{ConnectionState, ConnectorConfig, ConnectorUpdate, EventKind, LcuClient};
 use tokio::sync::{mpsc, watch};
 use tokio::task::JoinHandle;
@@ -44,6 +48,10 @@ pub struct Companion {
     pub status: watch::Receiver<ClientStatus>,
     /// Champion select while it lasts.
     pub draft: watch::Receiver<Option<DraftView>>,
+    /// The game being loaded or played, with its scouting cards.
+    pub live: watch::Receiver<Option<LiveGame>>,
+    /// Asks for the scouting cards again (after a failure).
+    pub scouting: ScoutingHandle,
     /// REST access to the client while connected.
     pub client: watch::Receiver<Option<LcuClient>>,
     /// Window intents and automation outcomes, for the shell.
@@ -63,8 +71,77 @@ impl ViewReporter {
     }
 }
 
-/// Starts following the client with the player's `settings`. Must run inside a Tokio runtime.
-pub fn start(mut config: ConnectorConfig, mut settings: watch::Receiver<Settings>) -> Companion {
+/// Asks the core to scout the current game again.
+#[derive(Debug, Clone)]
+pub struct ScoutingHandle(mpsc::UnboundedSender<()>);
+
+impl ScoutingHandle {
+    pub fn retry(&self) {
+        let _ = self.0.send(());
+    }
+}
+
+/// Follows the game from the loading screen to the end: one scouting task per game.
+struct LiveFollower {
+    tx: watch::Sender<Option<LiveGame>>,
+    backend: Option<BackendClient>,
+    task: Option<JoinHandle<()>>,
+}
+
+impl LiveFollower {
+    const fn in_game(phase: GameflowPhase) -> bool {
+        matches!(phase, GameflowPhase::Loading | GameflowPhase::InGame)
+    }
+
+    fn on_phase(&mut self, phase: GameflowPhase, client: &watch::Receiver<Option<LcuClient>>) {
+        if !Self::in_game(phase) {
+            if let Some(task) = self.task.take() {
+                task.abort();
+            }
+            self.tx.send_if_modified(|live| live.take().is_some());
+            return;
+        }
+        // Loading → in game: same game. Read again only if the first read found nothing.
+        let running = self.task.as_ref().is_some_and(|t| !t.is_finished());
+        if !running && self.tx.borrow().is_none() {
+            self.spawn(client);
+        }
+    }
+
+    fn retry(&mut self, phase: GameflowPhase, client: &watch::Receiver<Option<LcuClient>>) {
+        if Self::in_game(phase) {
+            self.spawn(client);
+        }
+    }
+
+    fn spawn(&mut self, client: &watch::Receiver<Option<LcuClient>>) {
+        if let Some(task) = self.task.take() {
+            task.abort();
+        }
+        let Some(lcu) = client.borrow().clone() else {
+            return;
+        };
+        self.task = Some(tokio::spawn(live::scout_game(
+            lcu,
+            self.backend.clone(),
+            self.tx.clone(),
+        )));
+    }
+}
+
+/// Starts following the client with the player's `settings`, without a backend (no scouting
+/// cards). Must run inside a Tokio runtime.
+pub fn start(config: ConnectorConfig, settings: watch::Receiver<Settings>) -> Companion {
+    start_with(config, settings, None)
+}
+
+/// Starts following the client with the player's `settings`; `backend` answers the scouting
+/// batches. Must run inside a Tokio runtime.
+pub fn start_with(
+    mut config: ConnectorConfig,
+    mut settings: watch::Receiver<Settings>,
+    backend: Option<BackendClient>,
+) -> Companion {
     if !config.paths.iter().any(|p| p == champ_select::SESSION) {
         config.paths.push(champ_select::SESSION.to_owned());
     }
@@ -74,9 +151,16 @@ pub fn start(mut config: ConnectorConfig, mut settings: watch::Receiver<Settings
     let (draft_tx, draft) = watch::channel(None);
     let (events_tx, events) = mpsc::channel(32);
     let (views_tx, mut views_rx) = mpsc::unbounded_channel::<String>();
+    let (live_tx, live) = watch::channel(None);
+    let (retry_tx, mut retry_rx) = mpsc::unbounded_channel::<()>();
     let lcu_client = client.clone();
     let task = tokio::spawn(async move {
         let mut autopilot = Autopilot::default();
+        let mut game = LiveFollower {
+            tx: live_tx,
+            backend,
+            task: None,
+        };
         // The auto-accept of the current ready check: at most one per ready check.
         let mut ready_check: Option<JoinHandle<()>> = None;
         loop {
@@ -90,6 +174,7 @@ pub fn start(mut config: ConnectorConfig, mut settings: watch::Receiver<Settings
                     if phase == before {
                         continue;
                     }
+                    game.on_phase(phase, &lcu_client);
                     let current = settings.borrow().clone();
                     if phase == GameflowPhase::ReadyCheck {
                         if current.auto_accept {
@@ -104,6 +189,7 @@ pub fn start(mut config: ConnectorConfig, mut settings: watch::Receiver<Settings
                     }
                 }
                 Some(path) = views_rx.recv() => autopilot.on_view(&path),
+                Some(()) = retry_rx.recv() => game.retry(tx.borrow().phase, &lcu_client),
                 Ok(()) = settings.changed() => {
                     // Switched on while the pop-up is already up.
                     let enabled = settings.borrow_and_update().auto_accept;
@@ -119,10 +205,15 @@ pub fn start(mut config: ConnectorConfig, mut settings: watch::Receiver<Settings
         if let Some(pending) = ready_check {
             pending.abort();
         }
+        if let Some(scouting) = game.task {
+            scouting.abort();
+        }
     });
     Companion {
         status,
         draft,
+        live,
+        scouting: ScoutingHandle(retry_tx),
         client,
         events,
         views: ViewReporter(views_tx),

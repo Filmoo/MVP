@@ -3,7 +3,9 @@ import type { AutoAcceptEvent } from "./generated/AutoAcceptEvent";
 import type { ClientStatus } from "./generated/ClientStatus";
 import type { DraftView } from "./generated/DraftView";
 import type { GameData } from "./generated/GameData";
+import type { LiveGame } from "./generated/LiveGame";
 import type { PlayerProfile } from "./generated/PlayerProfile";
+import type { RiotId } from "./generated/RiotId";
 import type { Settings } from "./generated/Settings";
 import type { ViewRoute } from "./generated/ViewRoute";
 
@@ -21,6 +23,15 @@ export interface Commands {
   update_settings: { args: { settings: Settings }; result: Settings };
   /** The UI shows this route: the core's automatic view switches never fight the user. */
   view_changed: { args: { path: string }; result: null };
+  /**
+   * Another player's profile from our backend (`platform`: `euw1`…). Rejects with a
+   * `BackendError` as the error's `detail` (not found, rate limited, unavailable, unreachable).
+   */
+  search_player: { args: { riotId: RiotId; platform: string }; result: PlayerProfile };
+  /** The game being loaded or played with its scouting cards, `null` outside of a game (`live` events follow). */
+  live_game: { args: undefined; result: LiveGame | null };
+  /** Asks the core for the scouting cards again (after a failure). */
+  retry_scouting: { args: undefined; result: null };
 }
 
 /** Events pushed by the core. */
@@ -33,6 +44,8 @@ export interface Events {
   /** The core moves the UI along with the game (champ select → draft, in game → live…). */
   navigate: ViewRoute;
   "auto-accept": AutoAcceptEvent;
+  /** `null` when the game ends. */
+  live: LiveGame | null;
 }
 
 export type CommandName = keyof Commands;
@@ -50,7 +63,20 @@ export class CommandError extends Error {
   constructor(
     readonly command: CommandName,
     message: string,
+    /** The structured error the core answered, when it sent one (e.g. a `BackendError`). */
+    readonly detail?: unknown,
   ) {
     super(message);
   }
+}
+
+/** Words for an error the core answered as an object (`{ kind, message? }`) or a string. */
+export function errorMessage(error: unknown): string {
+  if (typeof error === "string") return error;
+  if (error && typeof error === "object") {
+    const { message, kind } = error as { message?: unknown; kind?: unknown };
+    if (typeof message === "string") return message;
+    if (typeof kind === "string") return kind;
+  }
+  return String(error);
 }

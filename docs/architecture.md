@@ -30,6 +30,8 @@ flowchart LR
   Core -- "download compact stats" --> Files
   Api -- "GET /v1/stats/…" --> Files
   UI -- "HTTPS JSON (CORS: tauri origins)" --> Api
+
+  Core -- "HTTPS JSON + X-MVP-Install" --> Api
 ```
 
 ## Principles
@@ -61,6 +63,36 @@ hot streak, veteran). Caches in memory with request coalescing: profiles and car
 accounts 1 day, compacted match documents forever (LRU-bounded). Lookups share one rate
 limiter per routing value; a 429 is reported to the caller rather than waited out when Riot asks
 for more than 5 s. Run and deploy: `apps/backend/README.md`.
+
+## Backend client (`companion::backend`)
+The app reaches the backend **from the core**, never from the webview: the UI calls Tauri commands
+(`search_player`, `live_game`, `retry_scouting`) and the core makes the HTTPS request.
+- **Base URL**: `MVP_BACKEND_URL` at **build time** (`MVP_BACKEND_URL=https://api… pnpm build:exe`);
+  without it, `http://127.0.0.1:8787` (a local `pnpm backend`). **Debug builds** also read
+  `MVP_BACKEND_URL` at run time, to point a dev app anywhere without rebuilding:
+  `MVP_BACKEND_URL=http://127.0.0.1:8787 pnpm app`. The CSP's `connect-src` lists the local origin;
+  add the production origin there once it exists (only needed if the webview ever calls it directly).
+- **Install id**: a random 128-bit hex id in `install-id` next to `settings.json`, sent as
+  `X-MVP-Install` on every request (anonymous; lets the server rate-limit per install).
+- **Timeouts**: connect 5 s, lookups 20 s, scouting batches 35 s (the server gives up at 30 s).
+- **Errors** map to `domain::BackendError` (`notFound`, `rateLimited { retryAfter }`,
+  `unavailable { message }`, `network { message }`); commands reject with it and the UI words it.
+
+## Loading-screen scouting (`companion::live`)
+When the phase reaches Loading or InGame the core reads `GET /lol-gameflow/v1/session` once per
+game (both teams: PUUID, Riot ID, champion, position; spells from `playerChampionSelections`),
+publishes a `LiveGame` (our team first), then asks `POST /v1/players/batch` for the visible
+players and fills the cards in place (`live` event). Streamer-mode players
+(`nameVisibilityType: HIDDEN`) are dropped before anything else: no Riot ID, no PUUID, no lookup.
+Champion select is never read for identities. The game ending clears the view; a failed batch is
+shown in the page head with a retry (`retry_scouting`).
+
+## Search (title bar)
+Champions match locally and instantly (fuzzy: prefix, word, initials, subsequence); a Riot ID
+(`Name#TAG`) adds a player row that is looked up in the background (debounced 300 ms) and fills in
+place. The rows are a pure function of the typed text, so Enter always opens what is highlighted
+when it is pressed. Lookups are shared with the player page (2 min in memory, failures not cached).
+Recent searches (max 8) and the region live in `localStorage`.
 
 ## Settings and automations
 - **Settings** (`domain::Settings`) are owned by the core: `companion::settings::SettingsStore` loads
@@ -133,7 +165,7 @@ systemd timer) for crawl + publish; per-platform crawls merged for more volume.
 | `domain` | UI-facing types (serde + ts-rs) |
 | `lcu` | League client: discovery, pinned TLS, REST, WAMP events, connector lifecycle |
 | `mock-lcu` | fake League client for tests and development |
-| `companion` | Tauri-free core: client status, champ select → `DraftView`, settings, automations |
+| `companion` | Tauri-free core: client status, champ select → `DraftView`, loading screen → `LiveGame`, settings, automations, backend client |
 | `static-data` | Data Dragon download + per-patch cache + offline fallback |
 | `stats` | statistics and the draft model |
 | `aggregate` | stats pipeline core: Match-V5 → facts → mergeable aggregates → published JSON |

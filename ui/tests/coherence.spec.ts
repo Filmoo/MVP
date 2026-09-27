@@ -22,6 +22,52 @@ test("/draft in champion select only uses design tokens", async ({ page }) => {
   expect(await page.evaluate(auditTokens)).toEqual([]);
 });
 
+for (const { view, scenario } of [
+  { view: "/live", scenario: "live" },
+  { view: "/live", scenario: "live-extreme" },
+  { view: "/live", scenario: "live-failed" },
+  { view: "/player/euw1/Blade%20Dancer/IRE", scenario: "default" },
+  { view: "/player/euw1/Busy/429", scenario: "default" },
+  { view: "/player/euw1/Nobody/404", scenario: "default" },
+  { view: "/champions?id=103", scenario: "default" },
+] as const) {
+  test(`${view}/${scenario} only uses design tokens`, async ({ page }) => {
+    await openApp(page, { view, scenario });
+    expect(await page.evaluate(auditTokens)).toEqual([]);
+  });
+}
+
+test("live cards while scouting only use design tokens", async ({ page }) => {
+  await page.goto("/?scenario=live-scouting#/live");
+  await page.getByTestId("live-card").first().waitFor();
+  expect(await page.evaluate(auditTokens)).toEqual([]);
+});
+
+test("the search panel only uses design tokens (recent, champions, players)", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "mvp.recent-searches.v1",
+      JSON.stringify([
+        { kind: "champion", championId: 103 },
+        { kind: "player", platform: "euw1", riotId: { gameName: "Blade Dancer", tagLine: "IRE" } },
+      ]),
+    );
+  });
+  await openApp(page);
+  const input = page.getByTestId("search-input");
+  await input.click();
+  await page.getByTestId("search-panel").waitFor();
+  // The field's border glides to the focus color: audit the settled colors.
+  await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)));
+  expect(await page.evaluate(auditTokens), "recent").toEqual([]);
+  await page.keyboard.type("Ahri#EUW");
+  await page.getByTestId("search-option").filter({ hasText: "Level" }).waitFor();
+  expect(await page.evaluate(auditTokens), "resolved").toEqual([]);
+  await input.fill("Nobody#404");
+  await page.getByTestId("search-option").filter({ hasText: "No player" }).waitFor();
+  expect(await page.evaluate(auditTokens), "not found").toEqual([]);
+});
+
 for (const scenario of ["settings-custom", "settings-error", "settings-save-error"] as const) {
   test(`/settings/${scenario} only uses design tokens`, async ({ page }) => {
     await openApp(page, { view: "/settings", scenario });

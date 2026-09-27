@@ -25,3 +25,7 @@
 .empty {
   background: var(--bg-3);
 }
+
+.spell {
+  border-radius: var(--radius-2);
+}

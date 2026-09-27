@@ -53,7 +53,10 @@ pub fn run() {
             commands::draft_state,
             commands::get_settings,
             commands::update_settings,
-            commands::view_changed
+            commands::view_changed,
+            commands::search_player,
+            commands::live_game,
+            commands::retry_scouting
         ])
         .build(tauri::generate_context!())
         .expect("failed to build the Tauri application");

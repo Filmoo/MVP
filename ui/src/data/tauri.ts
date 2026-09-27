@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { CommandError, type Transport } from "./transport";
+import { CommandError, errorMessage, type Transport } from "./transport";
 
 export function createTauriTransport(): Transport {
   return {
@@ -9,7 +9,7 @@ export function createTauriTransport(): Transport {
       try {
         return await invoke(command, args ?? {});
       } catch (error) {
-        throw new CommandError(command, String(error));
+        throw new CommandError(command, errorMessage(error), typeof error === "object" ? error : undefined);
       }
     },
     listen(event, handler) {
