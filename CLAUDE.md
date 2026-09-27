@@ -7,13 +7,16 @@ No in-game overlay for now (keep the architecture overlay-ready).
 ## Decisions so far (see docs/decisions.md)
 - **Tauri 2 + Rust core**, UI in **SolidJS + TypeScript + CSS modules** rendered by WebView2.
   Not Electron, not Overwolf. The UI must stay tiny and idle-silent.
-- **Own stats backend** (crawler + aggregates via Riot API, key kept server-side) — not built yet.
+- **Own stats backend** (key kept server-side): live lookup API in `apps/backend`; crawler +
+  aggregates not built yet.
 - Draft helper is **statistics only** (no AI/ML picks), transparent "why" for every number.
 - Riot policy red lines are in docs/policy.md — read before adding any feature that touches
   champ select, other players, in-game info or monetization.
 
 ## Layout
 - `apps/desktop/` Tauri shell (window, tray, commands). `tauri.conf.json` lives here.
+- `apps/backend/` `mvp-backend` axum service (the only holder of the Riot key): `/health`, player
+  profiles, scouting batch, in-memory caches; Dockerfile + deploy notes in its README.
 - `crates/domain` UI-facing types → exported to `ui/src/data/generated/*.ts` by ts-rs
   (`cargo test -p domain`; never edit generated files).
 - `crates/lcu` League client API: pinned Riot root TLS, REST, WAMP events, discovery, connector.
@@ -32,6 +35,7 @@ No in-game overlay for now (keep the architecture overlay-ready).
 ## Commands
 - `pnpm install` then `node scripts/fetch-dev-assets.mjs` (champion/item icons for dev & tests).
 - `pnpm dev` UI in the browser with mock data → http://127.0.0.1:1420/?scenario=default
+- `RIOT_API_KEY=… pnpm backend` backend on http://127.0.0.1:8787 (`/health`; 503s without a key).
 - `pnpm app` full desktop app (needs Tauri system deps). `pnpm build:exe` → NSIS installer.
 - Without League: `pnpm mock-lcu`, then run a debug app with
   `SCOUT_LCU_LOCKFILE=.cache/mock-lcu/lockfile SCOUT_LCU_CA=.cache/mock-lcu/ca.pem` (debug builds only).

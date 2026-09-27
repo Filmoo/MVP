@@ -106,6 +106,21 @@ impl RiotClient {
         .await
     }
 
+    /// Current Riot ID of a PUUID (PUUIDs are stable, Riot IDs can change).
+    pub async fn account_by_puuid(
+        &self,
+        platform: Platform,
+        puuid: &str,
+    ) -> Result<Account, RiotError> {
+        let path = format!("/riot/account/v1/accounts/by-puuid/{}", segment(puuid));
+        self.get(
+            Route::Region(platform.account_region()),
+            "account-v1.by-puuid",
+            &path,
+        )
+        .await
+    }
+
     pub async fn summoner_by_puuid(
         &self,
         platform: Platform,

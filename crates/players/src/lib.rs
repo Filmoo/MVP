@@ -1,9 +1,16 @@
 //! Player profiles from Riot API data, mapped to the UI's domain types.
 //! Used by the stats backend (live lookups) and by the `capture-profile` dev tool.
 
+mod scout;
+mod source;
+
 use domain::{Division, MatchSummary, PlayerProfile, RankedEntry, RiotId, Role, Tier};
-use riot_api::{LeagueEntry, MatchQuery, Platform, RiotClient, RiotError};
+use futures_util::future::join_all;
+use riot_api::{LeagueEntry, MatchQuery, Platform, RiotError};
 use serde_json::Value;
+
+pub use scout::{SCOUT_GAMES, fetch_scout_card, scout_card};
+pub use source::RiotSource;
 
 /// Ranked solo/duo standing from League-V4 entries.
 pub fn solo_queue(entries: &[LeagueEntry]) -> Option<RankedEntry> {
@@ -112,8 +119,8 @@ pub fn parse_riot_id(input: &str) -> Result<RiotId, ProfileError> {
 }
 
 /// Fetches a full profile: account, level/icon, solo queue, last `games` games (all queues).
-pub async fn fetch_profile(
-    client: &RiotClient,
+pub async fn fetch_profile<S: RiotSource>(
+    client: &S,
     platform: Platform,
     riot_id: &RiotId,
     games: u32,
@@ -135,14 +142,7 @@ pub async fn fetch_profile(
             },
         )
         .await?;
-    let mut recent = Vec::with_capacity(ids.len());
-    for id in &ids {
-        match client.match_by_id(platform, id).await {
-            Ok(game) => recent.extend(match_summary(&game, &account.puuid)),
-            Err(RiotError::NotFound | RiotError::Forbidden(_)) => {} // e.g. modes the API withholds
-            Err(e) => return Err(e.into()),
-        }
-    }
+    let recent = match_summaries(client, platform, &ids, &account.puuid).await?;
     Ok(PlayerProfile {
         riot_id: RiotId {
             game_name: account
@@ -159,6 +159,27 @@ pub async fn fetch_profile(
         solo_queue: solo_queue(&entries),
         recent_matches: recent,
     })
+}
+
+/// Fetches games concurrently (the rate limiter paces them) and maps them, newest first.
+/// Games the API withholds (404/403, e.g. some modes) are skipped.
+pub(crate) async fn match_summaries<S: RiotSource>(
+    client: &S,
+    platform: Platform,
+    ids: &[String],
+    puuid: &str,
+) -> Result<Vec<MatchSummary>, RiotError> {
+    let games = join_all(ids.iter().map(|id| client.match_by_id(platform, id))).await;
+    let mut out = Vec::with_capacity(games.len());
+    for game in games {
+        match game {
+            Ok(game) => out.extend(match_summary(&game, puuid)),
+            Err(RiotError::NotFound | RiotError::Forbidden(_)) => {}
+            Err(e) => return Err(e),
+        }
+    }
+    out.sort_by_key(|m| std::cmp::Reverse(m.ended_at));
+    Ok(out)
 }
 
 #[cfg(test)]

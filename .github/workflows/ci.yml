@@ -69,6 +69,20 @@ jobs:
             reports/screenshots
           retention-days: 14
 
+  backend-image:
+    name: Backend Docker image
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build (no push)
+        run: docker build -f apps/backend/Dockerfile -t mvp-backend:ci .
+      - name: Starts and answers /health without a key
+        run: |
+          docker run -d --name mvp-backend -p 127.0.0.1:8787:8787 mvp-backend:ci
+          for i in $(seq 1 20); do curl -fsS http://127.0.0.1:8787/health && exit 0; sleep 1; done
+          docker logs mvp-backend
+          exit 1
+
   windows:
     name: Windows build (.exe)
     runs-on: windows-latest
@@ -84,7 +98,9 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @scout/ui build
-      - run: cargo test --workspace --locked
+      # The backend runs on Linux (tested in `checks`, image built in `backend-image`).
+      - run: cargo test --workspace --locked --exclude mvp-backend
+      # Builds only the desktop crate (tauri runs cargo in apps/desktop), never the backend.
       - run: pnpm build:exe
       - name: Footprint of the real app (RAM, idle CPU)
         shell: pwsh

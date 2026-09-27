@@ -31,6 +31,31 @@ pub enum Region {
 }
 
 impl Platform {
+    pub const ALL: [Self; 15] = [
+        Self::Br1,
+        Self::Eun1,
+        Self::Euw1,
+        Self::Jp1,
+        Self::Kr,
+        Self::La1,
+        Self::La2,
+        Self::Me1,
+        Self::Na1,
+        Self::Oc1,
+        Self::Ru,
+        Self::Sg2,
+        Self::Tr1,
+        Self::Tw2,
+        Self::Vn2,
+    ];
+
+    /// Parses a platform id (`euw1`, `KR`…), case-insensitively.
+    pub fn from_id(id: &str) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .find(|p| p.id().eq_ignore_ascii_case(id.trim()))
+    }
+
     pub const fn id(self) -> &'static str {
         match self {
             Self::Br1 => "br1",
@@ -115,5 +140,16 @@ mod tests {
         assert_eq!(Platform::Vn2.region(), Region::Sea);
         assert_eq!(Platform::Vn2.account_region(), Region::Asia);
         assert_eq!(Route::Platform(Platform::Euw1).id(), "euw1");
+    }
+
+    #[test]
+    fn parses_platform_ids() {
+        assert_eq!(Platform::from_id("euw1"), Some(Platform::Euw1));
+        assert_eq!(Platform::from_id("KR"), Some(Platform::Kr));
+        assert_eq!(Platform::from_id("euw"), None);
+        assert_eq!(Platform::from_id(""), None);
+        for p in Platform::ALL {
+            assert_eq!(Platform::from_id(p.id()), Some(p));
+        }
     }
 }

@@ -40,6 +40,9 @@ pub enum RiotError {
     /// Invalid/expired key, blocked endpoint (e.g. Brawl) or blacklisting.
     #[error("forbidden (HTTP {0}): check the API key")]
     Forbidden(u16),
+    /// Riot keeps answering 429, or asks us to wait longer than `Config::max_retry_wait`.
+    #[error("rate limited by Riot, retry after {retry_after_secs} s")]
+    RateLimited { retry_after_secs: u64 },
     #[error("Riot API unavailable after retries (HTTP {0})")]
     Unavailable(u16),
     #[error("transport: {0}")]
@@ -59,11 +62,16 @@ pub enum RiotError {
 pub struct Config {
     /// `https://{route}.api.riotgames.com`; tests point this at a local server.
     pub base_url: fn(Route) -> String,
+    /// Sends every route to this base instead (a local fake in tests, or a proxy).
+    pub fixed_base_url: Option<String>,
     /// App limits assumed until Riot's headers announce the real ones.
     pub default_app_limits: Vec<Limit>,
     /// Percentage of each limit we allow ourselves (live lookups and crawling share one key).
     pub headroom_percent: u32,
     pub max_retries: u32,
+    /// Longest `Retry-After` we sleep through; beyond it the call fails with `RateLimited`.
+    /// Crawlers can wait; live lookups (a player waiting on a screen) should not.
+    pub max_retry_wait: Duration,
 }
 
 impl Default for Config {
@@ -73,6 +81,8 @@ impl Default for Config {
             default_app_limits: parse_limits("20:1,100:120"),
             headroom_percent: 90,
             max_retries: 3,
+            fixed_base_url: None,
+            max_retry_wait: Duration::from_secs(120),
         }
     }
 }
@@ -116,7 +126,12 @@ impl RiotClient {
         method: &'static str,
         path: &str,
     ) -> Result<T, RiotError> {
-        let url = format!("{}{path}", (self.config.base_url)(route));
+        let base = self
+            .config
+            .fixed_base_url
+            .clone()
+            .unwrap_or_else(|| (self.config.base_url)(route));
+        let url = format!("{base}{path}");
         let mut attempt = 0;
         loop {
             self.limiter.acquire(route.id(), method).await;
@@ -158,6 +173,13 @@ impl RiotClient {
                     tracing::warn!(route = %route, method, retry_after, "rate limited by Riot");
                     self.limiter
                         .block(route.id(), scope, Duration::from_secs(retry_after));
+                    if attempt >= self.config.max_retries
+                        || Duration::from_secs(retry_after) > self.config.max_retry_wait
+                    {
+                        return Err(RiotError::RateLimited {
+                            retry_after_secs: retry_after,
+                        });
+                    }
                 }
                 s if s.is_server_error() => {
                     tokio::time::sleep(Duration::from_millis(500 * 2u64.pow(attempt))).await;

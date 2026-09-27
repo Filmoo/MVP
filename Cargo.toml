@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["apps/desktop", "crates/*"]
+members = ["apps/backend", "apps/desktop", "crates/*"]
 
 [workspace.package]
 version = "0.1.0"
@@ -39,6 +39,7 @@ rustls-platform-verifier = "0.7"
 rcgen = "0.14"
 axum = { version = "0.8", default-features = false, features = ["http1", "json", "tokio", "ws"] }
 hyper-util = { version = "0.1", features = ["server-auto", "service", "tokio"] }
+tower-http = { version = "0.6", default-features = false, features = ["cors"] }
 
 [workspace.lints.rust]
 unsafe_code = "deny"

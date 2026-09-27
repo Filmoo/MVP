@@ -1,0 +1,11 @@
+# Docker build context = repository root (apps/backend/Dockerfile). Keep it to Rust sources.
+.git
+target
+node_modules
+**/node_modules
+ui
+reports
+.cache
+.claude
+.env
+.env.*
