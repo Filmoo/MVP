@@ -2,6 +2,8 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { type CDPSession, expect, type Page, test } from "@playwright/test";
 import budgets from "../perf-budgets.json" with { type: "json" };
+// Brings the window.__SCOUT_HARNESS__ declaration into scope.
+import type {} from "../src/widgets/harness-types";
 import { openApp, settle, VIEWS } from "./app";
 
 test.describe.configure({ mode: "serial" });
@@ -25,22 +27,36 @@ async function cdpFor(page: Page): Promise<CDPSession> {
   return cdp;
 }
 
-test("each widget mounts within its time and DOM budget", async ({ page }) => {
+const RUNS = 15;
+
+const median = (values: number[]) => {
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted[Math.floor(sorted.length / 2)] ?? Number.NaN;
+};
+
+test("every widget renders within its budget, measured in isolation", async ({ page }) => {
+  // Widgets actually on screen must all be registered for isolated measurement.
   await openApp(page, { freezeClock: false });
-  const widgets = await page.evaluate(() =>
-    [...document.querySelectorAll<HTMLElement>("[data-widget]")].map((el) => {
-      const name = el.dataset.widget ?? "";
-      const entry = performance.getEntriesByName(`widget:${name}`).at(-1);
-      return { name, mountMs: entry?.duration ?? Number.NaN, domNodes: el.querySelectorAll("*").length };
-    }),
+  const onScreen = await page.evaluate(() =>
+    [...document.querySelectorAll<HTMLElement>("[data-widget]")].map((el) => el.dataset.widget ?? ""),
   );
-  expect(widgets.length).toBeGreaterThan(0);
-  results.widgets = widgets;
-  const table = budgets.widgets as Record<string, { mountMs: number; domNodes: number }>;
-  for (const w of widgets) {
+
+  await openApp(page, { view: "/__harness", freezeClock: false });
+  const names = await page.evaluate(() => window.__SCOUT_HARNESS__?.names ?? []);
+  for (const name of onScreen) expect(names, `widget "${name}" missing from src/widgets/registry.tsx`).toContain(name);
+
+  const table = budgets.widgets as Record<string, { renderMs: number; domNodes: number }>;
+  const report = [];
+  for (const name of names) {
+    const m = await page.evaluate(([n, runs]) => window.__SCOUT_HARNESS__?.measure(n, runs), [name, RUNS] as const);
+    expect(m, name).toBeDefined();
+    report.push({ name, renderMs: median(m?.renderMs ?? []), domNodes: m?.domNodes ?? 0 });
+  }
+  results.widgets = report;
+  for (const w of report) {
     const budget = table[w.name];
     expect(budget, `widget "${w.name}" has no entry in perf-budgets.json`).toBeDefined();
-    expect(w.mountMs, `${w.name} mount time`).toBeLessThanOrEqual(budget?.mountMs ?? 0);
+    expect(w.renderMs, `${w.name} render time (median of ${RUNS})`).toBeLessThanOrEqual(budget?.renderMs ?? 0);
     expect(w.domNodes, `${w.name} DOM nodes`).toBeLessThanOrEqual(budget?.domNodes ?? 0);
   }
 });

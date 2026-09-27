@@ -17,6 +17,13 @@ const ROLE_LABEL: Record<Role, string> = {
   support: "Support",
 };
 const MAX_CHAMPIONS = 5;
+/** Below this, a win rate is noise: shown neutral instead of green/red. */
+const MIN_GAMES_FOR_COLOR = 3;
+
+function wrClass(wins: number, games: number): string {
+  if (games < MIN_GAMES_FOR_COLOR) return styles.neutral ?? "";
+  return (wins / games >= 0.5 ? styles.good : styles.bad) ?? "";
+}
 
 export function PerformanceSummary(props: { matches: readonly MatchSummary[] }): JSX.Element {
   const { staticData } = useData();
@@ -24,8 +31,8 @@ export function PerformanceSummary(props: { matches: readonly MatchSummary[] }):
   const wr = () => (s().games ? s().wins / s().games : 0);
 
   return (
-    <Card title={`Recent form · ${s().games} games`}>
-      <Show when={s().games > 0} fallback={<EmptyState icon="sparkles" title="No stats yet" text="Play a few games to see your form." />}>
+    <Card title={`Recent form · ${s().games} ${s().games === 1 ? "game" : "games"}`}>
+      <Show when={s().games > 0} fallback={<EmptyState icon="tiers" title="No stats yet" text="Play a few games to see your form." />}>
         <div class={styles.wrap}>
           <div class={styles.layout}>
             <div class={`${styles.stats} num`}>
@@ -57,9 +64,7 @@ export function PerformanceSummary(props: { matches: readonly MatchSummary[] }):
                         {c.games} {c.games === 1 ? "game" : "games"} · {kdaRatio(c.kills, c.deaths, c.assists)} KDA
                       </span>
                     </div>
-                    <span class={`${styles.champWr} num ${c.wins / c.games >= 0.5 ? styles.good : styles.bad}`}>
-                      {percent(c.wins / c.games)}
-                    </span>
+                    <span class={`${styles.champWr} num ${wrClass(c.wins, c.games)}`}>{percent(c.wins / c.games)}</span>
                   </div>
                 )}
               </For>
@@ -82,6 +87,11 @@ export function PerformanceSummary(props: { matches: readonly MatchSummary[] }):
               </div>
             </div>
           </div>
+          <Show when={props.matches.length > s().games}>
+            <p class={styles.note}>
+              {props.matches.length - s().games} {props.matches.length - s().games === 1 ? "remake" : "remakes"} not counted
+            </p>
+          </Show>
         </div>
       </Show>
     </Card>

@@ -25,17 +25,19 @@ function MatchRow(props: { match: MatchSummary }): JSX.Element {
           {queueName(m().queueId)} · {timeAgo(m().endedAt)}
         </span>
       </div>
-      <div class={`${styles.kda} num`}>
+      <div class={`${styles.stat} num`}>
         <span class={styles.kdaLine}>
           {m().kills} / <span class={styles.deaths}>{m().deaths}</span> / {m().assists}
         </span>
-        <span class={`${styles.ratio} ${ratio() === "Perfect" ? styles.perfect : ""}`}>
+        <span class={`${styles.caption} ${ratio() === "Perfect" ? styles.perfect : ""}`}>
           {ratio() === "Perfect" ? "Perfect KDA" : `${ratio()} KDA`}
         </span>
       </div>
-      <div class={`${styles.cs} num`}>
-        <span>{m().creepScore} CS</span>
-        <span class={styles.sub}>{perMinute(m().creepScore, m().durationSeconds)}/min</span>
+      <div class={`${styles.stat} ${styles.cs} num`}>
+        <span class={styles.value}>
+          {m().creepScore} <span class={styles.unit}>CS</span>
+        </span>
+        <span class={styles.caption}>{perMinute(m().creepScore, m().durationSeconds)} / min</span>
       </div>
       <div class={styles.items}>
         <For each={slots()}>{(id) => <ItemIcon itemId={id} size={24} />}</For>
@@ -46,11 +48,12 @@ function MatchRow(props: { match: MatchSummary }): JSX.Element {
 }
 
 export function RecentMatches(props: { matches: readonly MatchSummary[] }): JSX.Element {
+  const hasMatches = () => props.matches.length > 0;
   return (
-    <Card title={`Recent matches · ${props.matches.length}`} flush>
+    <Card title="Recent matches" flush={hasMatches()}>
       <Show
-        when={props.matches.length > 0}
-        fallback={<EmptyState icon="sparkles" title="No recent games" text="Your games will show up here as soon as you finish one." />}
+        when={hasMatches()}
+        fallback={<EmptyState icon="draft" title="No recent games" text="Finish a game and it shows up here, with your stats and build." />}
       >
         <ol class={styles.list}>
           <For each={props.matches}>{(match) => <MatchRow match={match} />}</For>

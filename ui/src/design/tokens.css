@@ -17,7 +17,7 @@
 
   --text-1: #edf0f5; /* primary */
   --text-2: #a4acbb; /* secondary */
-  --text-3: #6c7588; /* muted / captions */
+  --text-3: #808a9d; /* muted / captions (≥ 4.5:1 on cards and row tints) */
 
   --accent: #8b7bff;
   --accent-strong: #a597ff;

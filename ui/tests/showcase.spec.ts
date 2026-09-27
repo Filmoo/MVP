@@ -32,7 +32,8 @@ for (const { scenario, sizes } of SHOTS) {
   for (const [width, height] of sizes) {
     test(`home ${scenario} ${width}x${height}`, async ({ page }) => {
       await openApp(page, { scenario, width, height });
-      await page.screenshot({ path: `${OUT}/home-${scenario}-${width}x${height}.png` });
+      // Narrow layouts scroll: capture the whole page so everything can be reviewed.
+      await page.screenshot({ path: `${OUT}/home-${scenario}-${width}x${height}.png`, fullPage: width < 900 });
     });
   }
 }

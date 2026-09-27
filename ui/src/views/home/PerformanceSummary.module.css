@@ -25,6 +25,7 @@
 @container summary (min-width: 560px) {
   .layout {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
     grid-template-areas:
       "stats champions"
       "roles champions";
@@ -143,4 +144,21 @@
 .roleCount {
   text-align: right;
   color: var(--text-1);
+}
+
+.neutral {
+  color: var(--text-2);
+}
+
+.note {
+  margin-top: var(--space-6);
+  font-size: var(--text-xs);
+  color: var(--text-3);
+}
+
+/* Narrow pages: keep the match list reachable. */
+@container page (max-width: 559px) {
+  .champ:nth-of-type(n + 4) {
+    display: none;
+  }
 }

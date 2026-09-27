@@ -20,9 +20,10 @@ export function ProfileHeader(props: { profile: PlayerProfile }): JSX.Element {
             </span>
             <span class={styles.tag}>#{props.profile.riotId.tagLine}</span>
           </h1>
-          <p class={styles.meta}>{props.profile.region} · Ranked Solo/Duo</p>
+          <p class={styles.meta}>{props.profile.region}</p>
         </div>
         <div class={styles.ranked}>
+          <span class={styles.queue}>Ranked Solo/Duo</span>
           <Show when={props.profile.soloQueue} fallback={<span class={styles.unranked}>Unranked</span>}>
             {(q) => {
               const wr = () => winRate(q().wins, q().losses) ?? 0;

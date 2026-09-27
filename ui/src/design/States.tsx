@@ -3,13 +3,22 @@ import { Button } from "./Button";
 import { Icon, type IconName } from "./Icon";
 import styles from "./States.module.css";
 
-export function EmptyState(props: { icon: IconName; title: string; text?: string; action?: JSX.Element }): JSX.Element {
+/** `heading`: the state is the whole page, so its title is the page's h1. */
+function Title(props: { heading?: boolean | undefined; children: string }): JSX.Element {
+  return (
+    <Show when={props.heading} fallback={<p class={styles.title}>{props.children}</p>}>
+      <h1 class={styles.title}>{props.children}</h1>
+    </Show>
+  );
+}
+
+export function EmptyState(props: { icon: IconName; title: string; text?: string; action?: JSX.Element; heading?: boolean }): JSX.Element {
   return (
     <div class={styles.state} data-state="empty">
       <div class={styles.icon}>
         <Icon name={props.icon} size={24} />
       </div>
-      <p class={styles.title}>{props.title}</p>
+      <Title heading={props.heading}>{props.title}</Title>
       <Show when={props.text}>
         <p class={styles.text}>{props.text}</p>
       </Show>
@@ -20,13 +29,13 @@ export function EmptyState(props: { icon: IconName; title: string; text?: string
   );
 }
 
-export function ErrorState(props: { title?: string; message: string; onRetry?: () => void }): JSX.Element {
+export function ErrorState(props: { title?: string; message: string; onRetry?: () => void; heading?: boolean }): JSX.Element {
   return (
     <div class={`${styles.state} ${styles.error}`} data-state="error" role="alert">
       <div class={styles.icon}>
         <Icon name="alert" size={24} />
       </div>
-      <p class={styles.title}>{props.title ?? "Something went wrong"}</p>
+      <Title heading={props.heading}>{props.title ?? "Something went wrong"}</Title>
       <p class={styles.text}>{props.message}</p>
       <Show when={props.onRetry}>
         <div class={styles.action}>

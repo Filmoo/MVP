@@ -1,4 +1,4 @@
-import { createResource, type JSX, Match, Switch } from "solid-js";
+import { createResource, type JSX, Match, Show, Switch } from "solid-js";
 import { useData } from "../../data/context";
 import { Card } from "../../design/Card";
 import { EmptyState, ErrorState, Skeleton } from "../../design/States";
@@ -39,40 +39,51 @@ export function Home(): JSX.Element {
     <div class={page.page}>
       <Switch>
         <Match when={profile.state === "errored"}>
-          <Card>
-            <ErrorState
-              title="Couldn't load your profile"
-              message={String(profile.error?.message ?? profile.error)}
-              onRetry={() => void refetch()}
-            />
-          </Card>
+          <div class={page.centered}>
+            <Card>
+              <ErrorState
+                heading
+                title="Couldn't load your profile"
+                message={String(profile.error?.message ?? profile.error)}
+                onRetry={() => void refetch()}
+              />
+            </Card>
+          </div>
         </Match>
         <Match when={profile.state === "pending" || profile.state === "unresolved"}>
           <HomeSkeleton />
         </Match>
         <Match when={profile() === null}>
-          <Card>
-            <EmptyState
-              icon="plug"
-              title="League client not detected"
-              text="Start League of Legends: your profile, live games and champion select help will appear here automatically."
-            />
-          </Card>
+          <div class={page.centered}>
+            <Card>
+              <EmptyState
+                heading
+                icon="plug"
+                title="Waiting for the League client"
+                text="Start League of Legends: your profile, live games and champion select help appear here automatically."
+              />
+            </Card>
+          </div>
         </Match>
         <Match when={profile()}>
-          {(p) => (
-            <div class={styles.grid}>
-              <Widget name="profile-header" class={styles.header}>
-                <ProfileHeader profile={p()} />
-              </Widget>
-              <Widget name="recent-matches" class={styles.matches}>
-                <RecentMatches matches={p().recentMatches} />
-              </Widget>
-              <Widget name="performance-summary" class={styles.summary}>
-                <PerformanceSummary matches={p().recentMatches} />
-              </Widget>
-            </div>
-          )}
+          {(p) => {
+            const hasGames = () => p().recentMatches.length > 0;
+            return (
+              <div class={`${styles.grid} ${hasGames() ? "" : styles.solo}`}>
+                <Widget name="profile-header" class={styles.header}>
+                  <ProfileHeader profile={p()} />
+                </Widget>
+                <Widget name="recent-matches" class={styles.matches}>
+                  <RecentMatches matches={p().recentMatches} />
+                </Widget>
+                <Show when={hasGames()}>
+                  <Widget name="performance-summary" class={styles.summary}>
+                    <PerformanceSummary matches={p().recentMatches} />
+                  </Widget>
+                </Show>
+              </div>
+            );
+          }}
         </Match>
       </Switch>
     </div>

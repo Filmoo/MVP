@@ -4,9 +4,16 @@ import styles from "./GameIcon.module.css";
 
 type Size = 16 | 20 | 24 | 28 | 32 | 40 | 44 | 48 | 56 | 64 | 80;
 
-function ImageWithFallback(props: { src: string | undefined; alt: string; size: Size; round?: boolean; fallback: string }): JSX.Element {
+function ImageWithFallback(props: {
+  src: string | undefined;
+  alt: string;
+  size: Size;
+  round?: boolean;
+  fallback: string;
+  class?: string | undefined;
+}): JSX.Element {
   const [failed, setFailed] = createSignal(false);
-  const cls = () => `${styles.icon} ${props.round ? styles.round : ""}`;
+  const cls = () => `${styles.icon} ${props.round ? styles.round : ""} ${props.class ?? ""}`;
   const style = () => ({ width: `${props.size}px`, height: `${props.size}px` });
   return (
     <Show
@@ -52,10 +59,22 @@ export function ItemIcon(props: { itemId: number | undefined; size: Size }): JSX
     <Show
       when={props.itemId}
       fallback={
-        <div class={`${styles.icon} ${styles.empty}`} style={{ width: `${props.size}px`, height: `${props.size}px` }} aria-hidden="true" />
+        <div
+          class={`${styles.icon} ${styles.item} ${styles.empty}`}
+          style={{ width: `${props.size}px`, height: `${props.size}px` }}
+          aria-hidden="true"
+        />
       }
     >
-      {(id) => <ImageWithFallback src={`${transport.assetBase}/img/item/${id()}.png`} alt={`Item ${id()}`} fallback="" size={props.size} />}
+      {(id) => (
+        <ImageWithFallback
+          src={`${transport.assetBase}/img/item/${id()}.png`}
+          alt={`Item ${id()}`}
+          fallback=""
+          size={props.size}
+          class={styles.item}
+        />
+      )}
     </Show>
   );
 }

@@ -76,18 +76,18 @@
   }
 }
 
-/* Narrow windows: bottom tab bar. */
+/* Narrow windows: bottom tab bar, all tabs evenly spaced. */
 @media (max-width: 559px) {
   .sidebar {
     flex-direction: row;
+    justify-content: space-around;
     padding: var(--space-2) var(--space-4);
     border-right: 0;
     border-top: 1px solid var(--line-1);
   }
-  .nav {
-    flex-direction: row;
-    flex: 1;
-    justify-content: space-around;
+  .nav,
+  .bottom {
+    display: contents;
   }
   .item {
     width: 44px;

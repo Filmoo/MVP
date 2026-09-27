@@ -10,6 +10,7 @@ import { Sidebar } from "./Sidebar";
 import { TitleBar } from "./TitleBar";
 
 const Settings = lazy(() => import("../views/settings/Settings"));
+const Harness = lazy(() => import("../widgets/Harness"));
 
 function Toasts(): JSX.Element {
   return (
@@ -44,24 +45,40 @@ export function App(): JSX.Element {
       <Sidebar />
       <main class={styles.main} data-view={path()}>
         <Suspense>
-          <Switch fallback={<Planned title="Page not found" />}>
+          <Switch
+            fallback={
+              <Planned
+                title="Page not found"
+                icon="alert"
+                stateTitle="Nothing here"
+                description="This page doesn't exist. Pick a section in the menu."
+              />
+            }
+          >
             <Match when={path() === "/"}>
               <Home />
             </Match>
             <Match when={path() === "/draft"}>
-              <Planned title="Draft helper" />
+              <Planned
+                title="Draft helper"
+                icon="draft"
+                description="Stats-only pick and ban help that updates with every hover, pick and ban."
+              />
             </Match>
             <Match when={path() === "/live"}>
-              <Planned title="Live game" />
+              <Planned title="Live game" icon="live" description="Everyone in your game at a glance, from the loading screen on." />
             </Match>
             <Match when={path() === "/champions"}>
-              <Planned title="Champions" />
+              <Planned title="Champions" icon="champions" description="Builds, runes, matchups and win rates for every champion." />
             </Match>
             <Match when={path() === "/tier-list"}>
-              <Planned title="Tier list" />
+              <Planned title="Tier list" icon="tiers" description="Champion strength by role and rank bracket, for the current patch." />
             </Match>
             <Match when={path() === "/settings"}>
               <Settings />
+            </Match>
+            <Match when={path() === "/__harness" && transport.kind === "mock"}>
+              <Harness />
             </Match>
           </Switch>
         </Suspense>

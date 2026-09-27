@@ -1,6 +1,7 @@
 /* Shared page frame: every view uses it so margins and widths never drift. */
 .page {
   container: page / inline-size;
+  min-height: 100%;
   max-width: var(--content-max);
   margin: 0 auto;
   padding: var(--space-8) var(--space-8) var(--space-10);
@@ -14,6 +15,18 @@
   font-size: var(--text-2xl);
   font-weight: var(--weight-bold);
   letter-spacing: -0.01em;
+}
+
+/* Whole-page states (not running, errors, coming soon): centered, readable width. */
+.centered {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  padding-bottom: var(--space-12);
+}
+
+.centered > * {
+  width: min(100%, 560px);
 }
 
 @media (max-width: 559px) {

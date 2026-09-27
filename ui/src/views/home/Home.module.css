@@ -8,17 +8,30 @@
   align-items: start;
 }
 
+/* No games yet: one empty state instead of two. */
+.solo {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    "header"
+    "matches";
+}
+
 .header {
   grid-area: header;
   min-width: 0;
 }
+
 .matches {
   grid-area: matches;
   min-width: 0;
 }
+
+/* Stays in view next to a long match list. */
 .summary {
   grid-area: summary;
   min-width: 0;
+  position: sticky;
+  top: var(--space-8);
 }
 
 @container page (max-width: 959px) {
@@ -28,5 +41,13 @@
       "header"
       "summary"
       "matches";
+  }
+  .solo {
+    grid-template-areas:
+      "header"
+      "matches";
+  }
+  .summary {
+    position: static;
   }
 }

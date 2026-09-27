@@ -4,7 +4,7 @@
   align-items: center;
   gap: var(--space-5);
   height: var(--titlebar-h);
-  padding-left: var(--space-6);
+  padding-left: var(--space-7);
   background: var(--bg-1);
   border-bottom: 1px solid var(--line-1);
   min-width: 0;
@@ -85,8 +85,13 @@
   color: var(--text-1);
 }
 
+.statusText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 @media (max-width: 559px) {
-  .statusText {
-    display: none;
+  .bar {
+    padding-left: var(--space-6);
   }
 }

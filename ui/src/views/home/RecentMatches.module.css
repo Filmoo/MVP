@@ -13,7 +13,7 @@
   grid-template-columns: 44px minmax(96px, 1fr) minmax(84px, 104px) minmax(60px, 76px) auto 40px;
   align-items: center;
   gap: var(--space-5);
-  padding: var(--space-4) var(--space-5) var(--space-4) var(--space-6);
+  padding: var(--space-4) var(--space-5);
   border-radius: var(--radius-3);
   position: relative;
   overflow: hidden;
@@ -41,9 +41,6 @@
   background: var(--loss);
 }
 
-.remake {
-  opacity: 0.6;
-}
 .remake::before {
   background: var(--text-3);
 }
@@ -77,24 +74,31 @@
   text-overflow: ellipsis;
 }
 
-.kda {
+/* KDA and CS share one stat pattern: value line + caption line. */
+.stat {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
   min-width: 0;
 }
 
-.kdaLine {
+.kdaLine,
+.value {
   font-size: var(--text-base);
   font-weight: var(--weight-semibold);
   white-space: nowrap;
+}
+
+.unit {
+  color: var(--text-3);
+  font-weight: var(--weight-regular);
 }
 
 .deaths {
   color: var(--loss);
 }
 
-.ratio {
+.caption {
   font-size: var(--text-sm);
   color: var(--text-2);
   white-space: nowrap;
@@ -103,14 +107,6 @@
 .perfect {
   color: var(--tier-s);
   font-weight: var(--weight-semibold);
-}
-
-.cs {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  font-size: var(--text-md);
-  white-space: nowrap;
 }
 
 .items {
@@ -122,6 +118,24 @@
   font-size: var(--text-md);
   color: var(--text-2);
   text-align: right;
+}
+
+/* Remakes don't count: drawn muted. */
+.remake img {
+  opacity: 0.5;
+}
+.remake .kdaLine,
+.remake .deaths,
+.remake .value {
+  color: var(--text-2);
+}
+
+/* Wide: spread the columns evenly instead of one huge gap after the outcome. */
+@container matches (min-width: 800px) {
+  .row {
+    grid-template-columns: 44px minmax(140px, 1.4fr) minmax(104px, 1fr) minmax(76px, 1fr) auto 48px;
+    column-gap: var(--space-8);
+  }
 }
 
 @container matches (max-width: 599px) {

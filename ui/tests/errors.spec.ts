@@ -6,7 +6,7 @@ import { openApp, settle, trackErrors } from "./app";
 test("client not running: guidance instead of data", async ({ page }) => {
   const errors = trackErrors(page);
   await openApp(page, { scenario: "not-running" });
-  await expect(page.getByText("League client not detected")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Waiting for the League client" })).toBeVisible();
   await expect(page.getByTestId("client-status")).toContainText("Waiting for League client");
   expect(errors).toEqual([]);
 });

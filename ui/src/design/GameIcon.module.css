@@ -18,7 +18,10 @@
   font-weight: var(--weight-semibold);
 }
 
+.item {
+  border-radius: var(--radius-1);
+}
+
 .empty {
-  border: 1px dashed var(--line-2);
-  background: transparent;
+  background: var(--bg-3);
 }
