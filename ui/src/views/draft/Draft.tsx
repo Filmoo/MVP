@@ -30,7 +30,7 @@ export function DraftContent(props: { draft: DraftView }): JSX.Element {
         <Suggestions draft={props.draft} selected={selected()} onSelect={setPicked} />
       </Widget>
       <Widget name="draft-why" class={styles.why}>
-        <Why suggestion={suggestion()} teamPercent={props.draft.team.percent} data={props.draft.data} />
+        <Why suggestion={suggestion()} teamPercent={props.draft.team?.percent} data={props.draft.data} />
       </Widget>
     </div>
   );

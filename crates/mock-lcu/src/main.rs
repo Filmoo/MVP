@@ -40,9 +40,41 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         for (phase, seconds) in CYCLE {
             tracing::info!(phase, "gameflow");
             mock.set(lcu_phase_path(), json!(phase));
+            if *phase == "ChampSelect" {
+                play_champ_select(&mock).await;
+            } else if *phase == "GameStart" {
+                mock.remove(CHAMP_SELECT);
+            }
             tokio::time::sleep(Duration::from_secs(*seconds)).await;
         }
     }
+}
+
+const CHAMP_SELECT: &str = "/lol-champ-select/v1/session";
+
+/// A short ranked draft: you (top) hover Malphite while picks come in on both sides.
+async fn play_champ_select(mock: &MockLcu) {
+    let session = |intent: u32, enemies: [u32; 5], phase: &str| {
+        json!({
+            "localPlayerCellId": 0,
+            "myTeam": [
+                { "cellId": 0, "assignedPosition": "top", "championId": 0, "championPickIntent": intent },
+                { "cellId": 1, "assignedPosition": "jungle", "championId": 64 },
+                { "cellId": 2, "assignedPosition": "middle", "championId": 103 },
+                { "cellId": 3, "assignedPosition": "bottom", "championId": 0 },
+                { "cellId": 4, "assignedPosition": "utility", "championId": 0, "championPickIntent": 412 }
+            ],
+            "theirTeam": enemies.iter().enumerate().map(|(i, c)| json!({ "cellId": 5 + i, "championId": c })).collect::<Vec<_>>(),
+            "actions": [[{ "actorCellId": 0, "isInProgress": true, "type": "pick" }]],
+            "bans": { "myTeamBans": [777, 238, 145, 799, 901], "theirTeamBans": [517, 266, 800, 111, 887] },
+            "timer": { "phase": phase, "adjustedTimeLeftInPhase": 27_000 }
+        })
+    };
+    mock.set(CHAMP_SELECT, session(0, [0; 5], "PLANNING"));
+    tokio::time::sleep(Duration::from_secs(4)).await;
+    mock.set(CHAMP_SELECT, session(54, [39, 0, 0, 0, 0], "BAN_PICK"));
+    tokio::time::sleep(Duration::from_secs(4)).await;
+    mock.set(CHAMP_SELECT, session(54, [39, 234, 910, 0, 0], "BAN_PICK"));
 }
 
 const fn lcu_phase_path() -> &'static str {

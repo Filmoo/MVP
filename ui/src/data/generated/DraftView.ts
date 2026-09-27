@@ -20,10 +20,14 @@ secondsLeft: number | null,
  */
 myRole: Role | null, allies: Array<DraftSlot>, enemies: Array<DraftSlot>, allyBans: Array<number>, enemyBans: Array<number>, 
 /**
- * Our team's estimated win chance with the current picks.
+ * Our team's estimated win chance with the current picks (`None` without stats data).
  */
-team: Estimate, 
+team: Estimate | null, 
 /**
- * Ranked picks for `my_role`, best first.
+ * Ranked picks for `my_role`, best first (empty without stats data).
  */
-suggestions: Array<Suggestion>, data: DataInfo, };
+suggestions: Array<Suggestion>, 
+/**
+ * Where the stats come from (`None` until stats data is available).
+ */
+data: DataInfo | null, };

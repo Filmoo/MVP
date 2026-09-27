@@ -25,7 +25,7 @@ function Bar(props: { points: number }): JSX.Element {
   );
 }
 
-export function Why(props: { suggestion: Suggestion | undefined; teamPercent: number; data: DataInfo }): JSX.Element {
+export function Why(props: { suggestion: Suggestion | undefined; teamPercent: number | undefined; data: DataInfo | null }): JSX.Element {
   const { gameData } = useData();
   const name = (id: number) => gameData()?.champions.get(id)?.name ?? `Champion ${id}`;
   const label = (r: Reason, self: number) => {
@@ -41,9 +41,11 @@ export function Why(props: { suggestion: Suggestion | undefined; teamPercent: nu
             <div class={`${styles.summary} num`}>
               <span class={styles.big}>{s().estimate.percent.toFixed(1)}%</span>
               <span class={styles.pm}>± {s().estimate.plusMinus.toFixed(1)}</span>
-              <span class={`${styles.delta} ${s().gain >= 0 ? styles.up : styles.down}`}>
-                {signedPoints(s().gain)} vs team now ({props.teamPercent.toFixed(1)}%)
-              </span>
+              <Show when={props.teamPercent !== undefined}>
+                <span class={`${styles.delta} ${s().gain >= 0 ? styles.up : styles.down}`}>
+                  {signedPoints(s().gain)} vs team now ({props.teamPercent?.toFixed(1)}%)
+                </span>
+              </Show>
             </div>
             <ul class={styles.rows}>
               <For each={s().reasons}>
@@ -76,9 +78,13 @@ export function Why(props: { suggestion: Suggestion | undefined; teamPercent: nu
                 </p>
               )}
             </Show>
-            <p class={`${styles.footer} num`}>
-              {props.data.bracket} · Patch {props.data.patch} · {games(props.data.games)} games · updated {timeAgo(props.data.updatedAt)}
-            </p>
+            <Show when={props.data}>
+              {(d) => (
+                <p class={`${styles.footer} num`}>
+                  {d().bracket} · Patch {d().patch} · {games(d().games)} games · updated {timeAgo(d().updatedAt)}
+                </p>
+              )}
+            </Show>
           </>
         )}
       </Show>

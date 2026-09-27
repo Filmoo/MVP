@@ -2,7 +2,7 @@
 
 use std::sync::RwLock;
 
-use domain::{ClientStatus, GameData};
+use domain::{ClientStatus, DraftView, GameData};
 use tauri::{AppHandle, Emitter as _, Manager as _, Runtime};
 use tokio::sync::watch;
 
@@ -10,6 +10,7 @@ use tokio::sync::watch;
 #[derive(Debug)]
 pub struct Core {
     pub status: watch::Receiver<ClientStatus>,
+    pub draft: watch::Receiver<Option<DraftView>>,
 }
 
 /// Game data of the current patch, once loaded.
@@ -31,15 +32,34 @@ pub fn start<R: Runtime>(app: &AppHandle<R>) {
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         let companion = companion::start(config);
-        let mut status = companion.status.clone();
         app.manage(Core {
             status: companion.status.clone(),
+            draft: companion.draft.clone(),
         });
+        forward(&app, companion.draft.clone(), "draft");
+        let mut status = companion.status.clone();
         while status.changed().await.is_ok() {
             let current = status.borrow_and_update().clone();
             tracing::debug!(?current, "client status");
             if let Err(error) = app.emit("client-status", current) {
                 tracing::warn!(%error, "cannot emit client status");
+            }
+        }
+    });
+}
+
+/// Pushes every change of `rx` to the UI as `event`.
+fn forward<R: Runtime, T: Clone + serde::Serialize + Send + Sync + 'static>(
+    app: &AppHandle<R>,
+    mut rx: watch::Receiver<T>,
+    event: &'static str,
+) {
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        while rx.changed().await.is_ok() {
+            let current = rx.borrow_and_update().clone();
+            if let Err(error) = app.emit(event, current) {
+                tracing::warn!(%error, event, "cannot emit");
             }
         }
     });

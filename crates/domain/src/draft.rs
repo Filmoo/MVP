@@ -18,11 +18,12 @@ pub struct DraftView {
     pub enemies: Vec<DraftSlot>,
     pub ally_bans: Vec<u32>,
     pub enemy_bans: Vec<u32>,
-    /// Our team's estimated win chance with the current picks.
-    pub team: Estimate,
-    /// Ranked picks for `my_role`, best first.
+    /// Our team's estimated win chance with the current picks (`None` without stats data).
+    pub team: Option<Estimate>,
+    /// Ranked picks for `my_role`, best first (empty without stats data).
     pub suggestions: Vec<Suggestion>,
-    pub data: DataInfo,
+    /// Where the stats come from (`None` until stats data is available).
+    pub data: Option<DataInfo>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]

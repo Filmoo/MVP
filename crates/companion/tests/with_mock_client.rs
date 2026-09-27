@@ -44,3 +44,66 @@ async fn publishes_status_from_the_client() {
     mock.set(lcu::GAMEFLOW_PHASE, json!("InProgress"));
     wait_for(&mut status, connected(GameflowPhase::InGame)).await;
 }
+
+#[tokio::test]
+async fn follows_champion_select() {
+    let mock = Arc::new(MockLcu::start().await.unwrap());
+    let lockfile = mock.lockfile();
+    let companion = companion::start(ConnectorConfig {
+        discover: Box::new(move || {
+            lcu::Lockfile::parse(&lockfile)
+                .ok()
+                .map(|l| l.credentials())
+        }),
+        tls: pinned_client_config(mock.ca_pem().as_bytes()).unwrap(),
+        paths: vec![],
+        poll_interval: Duration::from_millis(50),
+        startup_grace: Duration::from_secs(1),
+    });
+    let mut draft = companion.draft.clone();
+    let mut status = companion.status.clone();
+    tokio::time::timeout(
+        Duration::from_secs(5),
+        status.wait_for(|s| s.connection == ClientConnection::Connected),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+
+    // Session exists before the phase flips: read on entry.
+    mock.set(
+        companion::champ_select::SESSION,
+        json!({ "localPlayerCellId": 2, "myTeam": [{ "cellId": 2, "assignedPosition": "middle", "championPickIntent": 103 }], "theirTeam": [], "timer": { "phase": "PLANNING" } }),
+    );
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    mock.set(lcu::GAMEFLOW_PHASE, json!("ChampSelect"));
+    let view = tokio::time::timeout(Duration::from_secs(5), draft.wait_for(Option::is_some))
+        .await
+        .unwrap()
+        .unwrap()
+        .clone()
+        .unwrap();
+    assert_eq!(view.my_role, Some(domain::Role::Middle));
+    assert_eq!(view.allies[0].champion_id, Some(103));
+
+    // Updates stream in; leaving champ select clears it.
+    mock.set(
+        companion::champ_select::SESSION,
+        json!({ "localPlayerCellId": 2, "myTeam": [{ "cellId": 2, "assignedPosition": "middle", "championId": 103 }], "theirTeam": [], "timer": { "phase": "FINALIZATION" } }),
+    );
+    tokio::time::timeout(
+        Duration::from_secs(5),
+        draft.wait_for(|d| {
+            d.as_ref()
+                .is_some_and(|v| v.phase == domain::DraftPhase::Finalizing)
+        }),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    mock.set(lcu::GAMEFLOW_PHASE, json!("InProgress"));
+    tokio::time::timeout(Duration::from_secs(5), draft.wait_for(Option::is_none))
+        .await
+        .unwrap()
+        .unwrap();
+}

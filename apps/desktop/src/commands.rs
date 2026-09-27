@@ -36,10 +36,15 @@ pub fn current_profile() -> Option<PlayerProfile> {
     None
 }
 
-/// Current champion select; wired to the client's champ-select session next.
+/// Current champion select, `None` outside of it (`draft` events follow changes).
 #[tauri::command]
-pub fn draft_state() -> Option<DraftView> {
-    None
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub fn draft_state(app: tauri::AppHandle) -> Option<DraftView> {
+    app.try_state::<Core>()
+        .and_then(|core| core.draft.borrow().clone())
 }
 
 /// Game data of the current patch; `None` until loaded (a `game-data` event follows).

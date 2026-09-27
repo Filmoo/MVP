@@ -87,15 +87,29 @@ export function Suggestions(props: {
     <Card
       title={`Picks for ${role()}`}
       actions={
-        <span class={`${styles.teamNow} num`}>
-          Team now <b>{props.draft.team.percent.toFixed(1)}%</b> ± {props.draft.team.plusMinus.toFixed(1)}
-        </span>
+        <Show when={props.draft.team}>
+          {(team) => (
+            <span class={`${styles.teamNow} num`}>
+              Team now <b>{team().percent.toFixed(1)}%</b> ± {team().plusMinus.toFixed(1)}
+            </span>
+          )}
+        </Show>
       }
       flush={props.draft.suggestions.length > 0}
     >
       <Show
         when={props.draft.suggestions.length > 0}
-        fallback={<EmptyState icon="draft" title="No suggestions yet" text="Suggestions appear once your role is known." />}
+        fallback={
+          <EmptyState
+            icon="draft"
+            title={props.draft.data ? "No suggestions yet" : "Stats not available yet"}
+            text={
+              props.draft.data
+                ? "Suggestions appear once your role is known."
+                : "Pick suggestions need champion stats, which download once our stats service is live."
+            }
+          />
+        }
       >
         <ol class={styles.list}>
           <For each={tiers()}>

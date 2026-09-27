@@ -1,9 +1,12 @@
-//! App core: follows the League client and publishes the UI-facing [`ClientStatus`].
+//! App core: follows the League client and publishes the UI-facing [`ClientStatus`] and
+//! champion-select [`DraftView`].
 //!
 //! Independent of Tauri so it runs in tests and could back other front ends (CLI, web).
 
-use domain::{ClientConnection, ClientStatus, GameflowPhase};
-use lcu::{ConnectionState, ConnectorConfig, ConnectorUpdate, LcuClient};
+pub mod champ_select;
+
+use domain::{ClientConnection, ClientStatus, DraftView, GameflowPhase};
+use lcu::{ConnectionState, ConnectorConfig, ConnectorUpdate, EventKind, LcuClient};
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
 
@@ -35,23 +38,58 @@ const fn map_connection(state: ConnectionState) -> ClientConnection {
 pub struct Companion {
     /// Latest client status; `changed()` fires on every transition.
     pub status: watch::Receiver<ClientStatus>,
+    /// Champion select while it lasts.
+    pub draft: watch::Receiver<Option<DraftView>>,
     /// REST access to the client while connected.
     pub client: watch::Receiver<Option<LcuClient>>,
     pub task: JoinHandle<()>,
 }
 
 /// Starts following the client. Must run inside a Tokio runtime.
-pub fn start(config: ConnectorConfig) -> Companion {
+pub fn start(mut config: ConnectorConfig) -> Companion {
+    if !config.paths.iter().any(|p| p == champ_select::SESSION) {
+        config.paths.push(champ_select::SESSION.to_owned());
+    }
     let mut connector = lcu::spawn(config);
     let client = connector.client.clone();
     let (tx, status) = watch::channel(ClientStatus::not_running());
+    let (draft_tx, draft) = watch::channel(None);
+    let lcu_client = client.clone();
     let task = tokio::spawn(async move {
         while let Some(update) = connector.updates.recv().await {
             tx.send_if_modified(|status| apply(status, &update));
+            match &update {
+                ConnectorUpdate::Event(event) if event.uri == champ_select::SESSION => {
+                    let next = match event.kind {
+                        EventKind::Delete => None,
+                        EventKind::Create | EventKind::Update => {
+                            champ_select::map_session(&event.data)
+                        }
+                    };
+                    draft_tx.send_replace(next);
+                }
+                ConnectorUpdate::Phase(raw) if map_phase(raw) == GameflowPhase::ChampSelect => {
+                    // Entering champ select: read the session now instead of waiting for a change.
+                    let current = lcu_client.borrow().clone();
+                    if let Some(lcu) = current
+                        && let Ok(session) =
+                            lcu.get::<serde_json::Value>(champ_select::SESSION).await
+                    {
+                        draft_tx.send_replace(champ_select::map_session(&session));
+                    }
+                }
+                ConnectorUpdate::Phase(_) | ConnectorUpdate::State(_) => {
+                    if tx.borrow().phase != GameflowPhase::ChampSelect {
+                        draft_tx.send_if_modified(|d| d.take().is_some());
+                    }
+                }
+                ConnectorUpdate::Event(_) => {}
+            }
         }
     });
     Companion {
         status,
+        draft,
         client,
         task,
     }
