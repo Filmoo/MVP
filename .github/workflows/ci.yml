@@ -84,6 +84,15 @@ jobs:
       - run: pnpm --filter @scout/ui build
       - run: cargo test --workspace --locked
       - run: pnpm build:exe
+      - name: Footprint of the real app (RAM, idle CPU)
+        shell: pwsh
+        run: ./scripts/windows-footprint.ps1 -Exe target/release/Scout.exe
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: footprint-windows
+          path: reports/footprint.json
+          if-no-files-found: ignore
       - uses: actions/upload-artifact@v4
         with:
           name: scout-windows
