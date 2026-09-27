@@ -1,0 +1,239 @@
+//! Backend HTTP service called by the desktop app. The Riot API key lives only here.
+//!
+//! Routes (JSON, camelCase, types from `crates/domain`):
+//! - `GET /health` → `Health`
+//! - `GET /v1/players/{platform}/{gameName}/{tagLine}` → `PlayerProfile`
+//! - `POST /v1/players/batch` (`ScoutRequest`) → `ScoutCard[]` for loading-screen scouting
+//!
+//! Failures answer `ApiError`. Riot-backed routes answer 503 `riotKeyMissing` without a key.
+
+mod cache;
+mod error;
+mod source;
+
+use std::net::SocketAddr;
+use std::sync::Arc;
+use std::time::Duration;
+
+use axum::extract::rejection::JsonRejection;
+use axum::extract::{Path, State};
+use axum::http::{HeaderValue, Method, header};
+use axum::routing::{get, post};
+use axum::{Json, Router};
+use domain::{Health, PlayerProfile, RiotId, ScoutCard, ScoutRequest};
+use futures_util::future::join_all;
+use riot_api::{ApiKey, Config, Platform, RiotClient, RiotError};
+use tower_http::cors::{AllowOrigin, CorsLayer};
+
+pub use cache::Cache;
+pub use error::Failure;
+pub use source::{CachedRiot, compact_match};
+
+/// Origins of the desktop app's webview (Windows/WebView2 and other platforms) and the dev UI.
+pub const DEFAULT_ALLOWED_ORIGINS: [&str; 4] = [
+    "tauri://localhost",
+    "http://tauri.localhost",
+    "https://tauri.localhost",
+    "http://127.0.0.1:1420",
+];
+pub const DEFAULT_BIND: &str = "127.0.0.1:8787";
+/// Most players a scouting batch may ask for (one lobby side or a whole lobby of 10).
+pub const MAX_BATCH: usize = 10;
+/// Games in a profile's recent history.
+pub const PROFILE_GAMES: u32 = 20;
+
+const PROFILE_TTL: Duration = Duration::from_secs(2 * 60);
+const CARD_TTL: Duration = Duration::from_secs(2 * 60);
+const PROFILES_MAX: usize = 2_000;
+const CARDS_MAX: usize = 10_000;
+/// A player waits on a screen: past this, answer 504 rather than hang.
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Configuration from the environment.
+#[derive(Debug, Clone)]
+pub struct Settings {
+    pub bind: SocketAddr,
+    pub allowed_origins: Vec<String>,
+    pub riot_key: Option<ApiKey>,
+}
+
+impl Settings {
+    /// `RIOT_API_KEY` (optional: without it Riot-backed routes answer 503),
+    /// `BIND` (default `127.0.0.1:8787`), `ALLOWED_ORIGINS` (comma-separated).
+    pub fn from_env() -> Result<Self, String> {
+        let bind = std::env::var("BIND").unwrap_or_else(|_| DEFAULT_BIND.to_owned());
+        let bind = bind
+            .parse()
+            .map_err(|e| format!("BIND={bind:?} is not an address: {e}"))?;
+        let allowed_origins = match std::env::var("ALLOWED_ORIGINS") {
+            Ok(list) if !list.trim().is_empty() => list
+                .split(',')
+                .map(|o| o.trim().to_owned())
+                .filter(|o| !o.is_empty())
+                .collect(),
+            _ => DEFAULT_ALLOWED_ORIGINS.map(str::to_owned).to_vec(),
+        };
+        Ok(Self {
+            bind,
+            allowed_origins,
+            riot_key: ApiKey::from_env(),
+        })
+    }
+}
+
+/// Riot client settings for live lookups: never sleep long on a 429, report it instead.
+pub fn live_riot_config() -> Config {
+    Config {
+        max_retry_wait: Duration::from_secs(5),
+        ..Config::default()
+    }
+}
+
+#[derive(Debug)]
+struct Inner {
+    riot: Option<CachedRiot>,
+    /// Keyed by platform and lower-cased Riot ID.
+    profiles: Cache<(Platform, String, String), PlayerProfile>,
+    cards: Cache<(Platform, String), ScoutCard>,
+}
+
+/// Shared state of the service.
+#[derive(Debug, Clone)]
+pub struct AppState(Arc<Inner>);
+
+impl AppState {
+    /// `riot`: `None` when no API key is configured.
+    pub fn new(riot: Option<RiotClient>) -> Self {
+        Self(Arc::new(Inner {
+            riot: riot.map(CachedRiot::new),
+            profiles: Cache::new(Some(PROFILE_TTL), PROFILES_MAX),
+            cards: Cache::new(Some(CARD_TTL), CARDS_MAX),
+        }))
+    }
+
+    fn riot(&self) -> Result<&CachedRiot, Failure> {
+        self.0.riot.as_ref().ok_or_else(Failure::key_missing)
+    }
+}
+
+/// The service with CORS for `allowed_origins`.
+pub fn app(state: AppState, allowed_origins: &[String]) -> Router {
+    let origins: Vec<HeaderValue> = allowed_origins
+        .iter()
+        .filter_map(|o| HeaderValue::from_str(o).ok())
+        .collect();
+    let cors = CorsLayer::new()
+        .allow_origin(AllowOrigin::list(origins))
+        .allow_methods([Method::GET, Method::POST])
+        .allow_headers([header::CONTENT_TYPE])
+        .max_age(Duration::from_secs(60 * 60));
+    Router::new()
+        .route("/health", get(health))
+        .route(
+            "/v1/players/{platform}/{game_name}/{tag_line}",
+            get(player_profile),
+        )
+        .route("/v1/players/batch", post(scout_batch))
+        .fallback(|| async { Failure::not_found() })
+        .layer(cors)
+        .with_state(state)
+}
+
+async fn health(State(state): State<AppState>) -> Json<Health> {
+    Json(Health {
+        ok: true,
+        version: env!("CARGO_PKG_VERSION").to_owned(),
+        riot_key: state.0.riot.is_some(),
+    })
+}
+
+fn platform(id: &str) -> Result<Platform, Failure> {
+    Platform::from_id(id).ok_or_else(|| Failure::bad_platform(id))
+}
+
+async fn with_timeout<T>(fut: impl Future<Output = Result<T, RiotError>>) -> Result<T, Failure> {
+    match tokio::time::timeout(REQUEST_TIMEOUT, fut).await {
+        Ok(result) => result.map_err(Failure::from),
+        Err(_) => Err(Failure::timeout()),
+    }
+}
+
+async fn player_profile(
+    State(state): State<AppState>,
+    Path((platform_id, game_name, tag_line)): Path<(String, String, String)>,
+) -> Result<Json<PlayerProfile>, Failure> {
+    let platform = platform(&platform_id)?;
+    let (game_name, tag_line) = (game_name.trim(), tag_line.trim());
+    if game_name.is_empty() || tag_line.is_empty() || game_name.len() > 64 || tag_line.len() > 16 {
+        return Err(Failure::bad_request("expected a Riot ID: gameName/tagLine"));
+    }
+    let riot = state.riot()?;
+    let riot_id = RiotId {
+        game_name: game_name.to_owned(),
+        tag_line: tag_line.to_owned(),
+    };
+    let key = (platform, game_name.to_lowercase(), tag_line.to_lowercase());
+    let profile = with_timeout(state.0.profiles.get_or_try_insert(key, || async {
+        players::fetch_profile(riot, platform, &riot_id, PROFILE_GAMES)
+            .await
+            .map_err(|e| match e {
+                players::ProfileError::Riot(e) => e,
+                // Unreachable: the Riot ID was built from path segments, not parsed.
+                players::ProfileError::BadRiotId => RiotError::NotFound,
+            })
+    }))
+    .await?;
+    Ok(Json(profile))
+}
+
+fn valid_puuid(p: &str) -> bool {
+    (1..=128).contains(&p.len())
+        && p.bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+}
+
+async fn scout_batch(
+    State(state): State<AppState>,
+    body: Result<Json<ScoutRequest>, JsonRejection>,
+) -> Result<Json<Vec<ScoutCard>>, Failure> {
+    let Json(request) = body.map_err(|e| Failure::bad_request(e.body_text()))?;
+    let platform = platform(&request.platform)?;
+    let mut puuids: Vec<String> = Vec::with_capacity(request.puuids.len());
+    for p in request.puuids {
+        if !valid_puuid(&p) {
+            return Err(Failure::bad_request("malformed PUUID"));
+        }
+        if !puuids.contains(&p) {
+            puuids.push(p);
+        }
+    }
+    if puuids.is_empty() || puuids.len() > MAX_BATCH {
+        return Err(Failure::bad_request(format!(
+            "send 1 to {MAX_BATCH} PUUIDs"
+        )));
+    }
+    let riot = state.riot()?;
+    let cards = with_timeout(async {
+        let results = join_all(puuids.iter().map(|puuid| {
+            state
+                .0
+                .cards
+                .get_or_try_insert((platform, puuid.clone()), || {
+                    players::fetch_scout_card(riot, platform, puuid)
+                })
+        }))
+        .await;
+        let mut cards = Vec::with_capacity(results.len());
+        for result in results {
+            match result {
+                Ok(card) => cards.push(card),
+                // Unknown to our key (e.g. a PUUID from another key): no card for it.
+                Err(RiotError::NotFound) => {}
+                Err(e) => return Err(e),
+            }
+        }
+        Ok(cards)
+    })
+    .await?;
+    Ok(Json(cards))
+}

@@ -6,11 +6,14 @@
 //! Wire formats of external APIs (LCU, Riot API) live in their own crates and
 //! are mapped into these types; the UI never sees raw external payloads.
 
+mod backend;
 mod client;
 mod draft;
 mod game_data;
 mod player;
+mod scout;
 
+pub use backend::{ApiError, ApiErrorCode, Health};
 pub use client::{AppInfo, ClientConnection, ClientStatus, GameflowPhase};
 pub use draft::{
     DataInfo, DraftPhase, DraftSlot, DraftView, Estimate, PersonalRecord, Reason, ReasonKind,
@@ -18,3 +21,4 @@ pub use draft::{
 };
 pub use game_data::{ChampionInfo, GameData, ItemInfo, SpellInfo};
 pub use player::{Division, MatchSummary, PlayerProfile, RankedEntry, RiotId, Role, Tier};
+pub use scout::{ChampionRecord, ScoutCard, ScoutRequest, ScoutTag};

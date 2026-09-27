@@ -19,7 +19,8 @@
     "test:e2e": "pnpm --filter @scout/ui test:e2e",
     "check:fast": "node scripts/check.mjs fast",
     "check": "node scripts/check.mjs full",
-    "mock-lcu": "cargo run -p mock-lcu"
+    "mock-lcu": "cargo run -p mock-lcu",
+    "backend": "cargo run -p mvp-backend"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.14",

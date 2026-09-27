@@ -10,10 +10,11 @@ flowchart LR
     Cache[("Disk cache<br/>game data per patch")]
   end
   DD["Riot Data Dragon<br/>(names, icons)"]
-  subgraph Server["Our backend (planned)"]
-    Crawler["Crawler<br/>riot-api client, rate limited"]
+  subgraph Server["Our backend (VPS, Docker behind Caddy/HTTPS)"]
+    Api["API · apps/backend (mvp-backend)<br/>player lookups + scouting, in-memory caches"]
+    Crawler["Crawler (planned)<br/>riot-api client, rate limited"]
     Agg["Aggregator<br/>per patch × bracket × role"]
-    Files[("Stats files<br/>(object storage / CDN)")]
+    Files[("Stats files (planned)<br/>(Cloudflare R2 / CDN)")]
   end
   Riot["Riot Web API<br/>(production key, server-side only)"]
 
@@ -23,9 +24,11 @@ flowchart LR
   Core --> Cache
   Core -- "versions + JSON" --> DD
   UI -- "icons (img)" --> DD
+  Api <-- "RIOT_API_KEY" --> Riot
   Crawler --> Riot --> Crawler
   Crawler --> Agg --> Files
   Core -- "download compact stats" --> Files
+  UI -- "HTTPS JSON (CORS: tauri origins)" --> Api
 ```
 
 ## Principles
@@ -40,6 +43,22 @@ flowchart LR
 - **Stats are transparent.** The draft model (`crates/stats/src/draft`) is additive log-odds with
   empirical-Bayes shrinkage: every number comes with its games, weight and uncertainty.
 
+## Backend API (`apps/backend`)
+The only holder of the Riot API key. JSON, camelCase, types from `crates/domain` (so the UI gets
+TypeScript types); failures answer `ApiError` `{ error, message, retryAfter? }`.
+
+| Route | Answer |
+| --- | --- |
+| `GET /health` | `Health` `{ ok, version, riotKey }` |
+| `GET /v1/players/{platform}/{gameName}/{tagLine}` | `PlayerProfile` · 400 bad platform · 404 · 429 + `retryAfter` · 503 without key |
+| `POST /v1/players/batch` `{ platform, puuids ≤ 10 }` | `ScoutCard[]` for loading-screen scouting |
+
+Scout cards carry the Riot ID next to the PUUID and positive/neutral tags only (OTP, main role,
+hot streak, veteran). Caches in memory with request coalescing: profiles and cards 2 min,
+accounts 1 day, compacted match documents forever (LRU-bounded). Lookups share one rate
+limiter per routing value; a 429 is reported to the caller rather than waited out when Riot asks
+for more than 5 s. Run and deploy: `apps/backend/README.md`.
+
 ## Crates
 | Crate | Role |
 | --- | --- |
@@ -50,4 +69,6 @@ flowchart LR
 | `static-data` | Data Dragon download + per-patch cache + offline fallback |
 | `stats` | statistics and the draft model |
 | `riot-api` | Riot Web API client for the backend (rate limits, retries) |
+| `players` | Riot data → `PlayerProfile` / `ScoutCard` (behind a `RiotSource` trait the backend caches) |
 | `apps/desktop` | Tauri shell: window, tray, commands, event bridge |
+| `apps/backend` | `mvp-backend` HTTP service: player lookups and scouting, key server-side |

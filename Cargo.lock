@@ -2401,6 +2401,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "mvp-backend"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "domain",
+ "futures-util",
+ "players",
+ "reqwest",
+ "riot-api",
+ "rustls",
+ "serde_json",
+ "tokio",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "ndk"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2895,6 +2913,7 @@ name = "players"
 version = "0.1.0"
 dependencies = [
  "domain",
+ "futures-util",
  "riot-api",
  "serde_json",
  "thiserror 2.0.21",
@@ -4502,6 +4521,7 @@ dependencies = [
  "libc",
  "mio",
  "pin-project-lite",
+ "signal-hook-registry",
  "socket2",
  "tokio-macros",
  "windows-sys 0.61.2",
