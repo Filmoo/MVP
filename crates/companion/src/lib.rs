@@ -1,14 +1,17 @@
 //! App core: follows the League client and publishes the UI-facing [`ClientStatus`] and
-//! champion-select [`DraftView`].
+//! champion-select [`DraftView`], runs the client automations and owns the settings.
 //!
 //! Independent of Tauri so it runs in tests and could back other front ends (CLI, web).
 
+pub mod automation;
 pub mod champ_select;
 pub mod profile;
+pub mod settings;
 
-use domain::{ClientConnection, ClientStatus, DraftView, GameflowPhase};
+use automation::{Autopilot, CoreEvent};
+use domain::{ClientConnection, ClientStatus, DraftView, GameflowPhase, Settings};
 use lcu::{ConnectionState, ConnectorConfig, ConnectorUpdate, EventKind, LcuClient};
-use tokio::sync::watch;
+use tokio::sync::{mpsc, watch};
 use tokio::task::JoinHandle;
 
 /// Maps the client's gameflow phases onto the phases the UI distinguishes.
@@ -43,11 +46,25 @@ pub struct Companion {
     pub draft: watch::Receiver<Option<DraftView>>,
     /// REST access to the client while connected.
     pub client: watch::Receiver<Option<LcuClient>>,
+    /// Window intents and automation outcomes, for the shell.
+    pub events: mpsc::Receiver<CoreEvent>,
+    /// Where the UI reports the views it shows.
+    pub views: ViewReporter,
     pub task: JoinHandle<()>,
 }
 
-/// Starts following the client. Must run inside a Tokio runtime.
-pub fn start(mut config: ConnectorConfig) -> Companion {
+/// Tells the core which view the UI shows, so automatic view switches never fight the user.
+#[derive(Debug, Clone)]
+pub struct ViewReporter(mpsc::UnboundedSender<String>);
+
+impl ViewReporter {
+    pub fn report(&self, path: &str) {
+        let _ = self.0.send(path.to_owned());
+    }
+}
+
+/// Starts following the client with the player's `settings`. Must run inside a Tokio runtime.
+pub fn start(mut config: ConnectorConfig, mut settings: watch::Receiver<Settings>) -> Companion {
     if !config.paths.iter().any(|p| p == champ_select::SESSION) {
         config.paths.push(champ_select::SESSION.to_owned());
     }
@@ -55,44 +72,113 @@ pub fn start(mut config: ConnectorConfig) -> Companion {
     let client = connector.client.clone();
     let (tx, status) = watch::channel(ClientStatus::not_running());
     let (draft_tx, draft) = watch::channel(None);
+    let (events_tx, events) = mpsc::channel(32);
+    let (views_tx, mut views_rx) = mpsc::unbounded_channel::<String>();
     let lcu_client = client.clone();
     let task = tokio::spawn(async move {
-        while let Some(update) = connector.updates.recv().await {
-            tx.send_if_modified(|status| apply(status, &update));
-            match &update {
-                ConnectorUpdate::Event(event) if event.uri == champ_select::SESSION => {
-                    let next = match event.kind {
-                        EventKind::Delete => None,
-                        EventKind::Create | EventKind::Update => {
-                            champ_select::map_session(&event.data)
+        let mut autopilot = Autopilot::default();
+        // The auto-accept of the current ready check: at most one per ready check.
+        let mut ready_check: Option<JoinHandle<()>> = None;
+        loop {
+            tokio::select! {
+                update = connector.updates.recv() => {
+                    let Some(update) = update else { break };
+                    let before = tx.borrow().phase;
+                    tx.send_if_modified(|status| apply(status, &update));
+                    follow_draft(&update, &tx, &draft_tx, &lcu_client).await;
+                    let phase = tx.borrow().phase;
+                    if phase == before {
+                        continue;
+                    }
+                    let current = settings.borrow().clone();
+                    if phase == GameflowPhase::ReadyCheck {
+                        if current.auto_accept {
+                            ready_check = Some(spawn_accept(&lcu_client, &settings, &events_tx));
                         }
-                    };
-                    draft_tx.send_replace(next);
+                    } else if let Some(pending) = ready_check.take() {
+                        // Left the ready check (answered or timed out): never accept late.
+                        pending.abort();
+                    }
+                    if let Some(intent) = autopilot.on_phase(phase, &current) {
+                        send(&events_tx, CoreEvent::Window(intent));
+                    }
                 }
-                ConnectorUpdate::Phase(raw) if map_phase(raw) == GameflowPhase::ChampSelect => {
-                    // Entering champ select: read the session now instead of waiting for a change.
-                    let current = lcu_client.borrow().clone();
-                    if let Some(lcu) = current
-                        && let Ok(session) =
-                            lcu.get::<serde_json::Value>(champ_select::SESSION).await
+                Some(path) = views_rx.recv() => autopilot.on_view(&path),
+                Ok(()) = settings.changed() => {
+                    // Switched on while the pop-up is already up.
+                    let enabled = settings.borrow_and_update().auto_accept;
+                    if enabled
+                        && ready_check.is_none()
+                        && tx.borrow().phase == GameflowPhase::ReadyCheck
                     {
-                        draft_tx.send_replace(champ_select::map_session(&session));
+                        ready_check = Some(spawn_accept(&lcu_client, &settings, &events_tx));
                     }
                 }
-                ConnectorUpdate::Phase(_) | ConnectorUpdate::State(_) => {
-                    if tx.borrow().phase != GameflowPhase::ChampSelect {
-                        draft_tx.send_if_modified(|d| d.take().is_some());
-                    }
-                }
-                ConnectorUpdate::Event(_) => {}
             }
+        }
+        if let Some(pending) = ready_check {
+            pending.abort();
         }
     });
     Companion {
         status,
         draft,
         client,
+        events,
+        views: ViewReporter(views_tx),
         task,
+    }
+}
+
+fn spawn_accept(
+    client: &watch::Receiver<Option<LcuClient>>,
+    settings: &watch::Receiver<Settings>,
+    events: &mpsc::Sender<CoreEvent>,
+) -> JoinHandle<()> {
+    tokio::spawn(automation::accept_after_delay(
+        client.clone(),
+        settings.clone(),
+        events.clone(),
+    ))
+}
+
+/// Never blocks the core on a slow consumer: intents only matter right away.
+fn send(events: &mpsc::Sender<CoreEvent>, event: CoreEvent) {
+    if let Err(error) = events.try_send(event) {
+        tracing::warn!(%error, "core event dropped");
+    }
+}
+
+/// Keeps the champion-select view in step with the client.
+async fn follow_draft(
+    update: &ConnectorUpdate,
+    status: &watch::Sender<ClientStatus>,
+    draft_tx: &watch::Sender<Option<DraftView>>,
+    lcu_client: &watch::Receiver<Option<LcuClient>>,
+) {
+    match update {
+        ConnectorUpdate::Event(event) if event.uri == champ_select::SESSION => {
+            let next = match event.kind {
+                EventKind::Delete => None,
+                EventKind::Create | EventKind::Update => champ_select::map_session(&event.data),
+            };
+            draft_tx.send_replace(next);
+        }
+        ConnectorUpdate::Phase(raw) if map_phase(raw) == GameflowPhase::ChampSelect => {
+            // Entering champ select: read the session now instead of waiting for a change.
+            let current = lcu_client.borrow().clone();
+            if let Some(lcu) = current
+                && let Ok(session) = lcu.get::<serde_json::Value>(champ_select::SESSION).await
+            {
+                draft_tx.send_replace(champ_select::map_session(&session));
+            }
+        }
+        ConnectorUpdate::Phase(_) | ConnectorUpdate::State(_) => {
+            if status.borrow().phase != GameflowPhase::ChampSelect {
+                draft_tx.send_if_modified(|d| d.take().is_some());
+            }
+        }
+        ConnectorUpdate::Event(_) => {}
     }
 }
 

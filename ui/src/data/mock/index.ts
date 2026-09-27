@@ -20,6 +20,8 @@ type Handler = (payload: never) => void;
 export interface MockControls {
   emit<K extends keyof Events>(event: K, payload: Events[K]): void;
   calls: CommandName[];
+  /** Every call with its arguments, in order. */
+  log: Array<{ command: CommandName; args: unknown }>;
 }
 
 declare global {
@@ -33,16 +35,18 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 export function createMockTransport(scenario: Scenario): Transport {
   const handlers = new Map<string, Set<Handler>>();
   const calls: CommandName[] = [];
+  const log: MockControls["log"] = [];
 
   const emit = (event: string, payload: unknown) => {
     for (const handler of handlers.get(event) ?? []) (handler as (p: unknown) => void)(payload);
   };
-  window.__SCOUT_MOCK__ = { emit, calls };
+  window.__SCOUT_MOCK__ = { emit, calls, log };
 
   return {
     kind: "mock",
-    async call(command) {
+    async call(command, args) {
       calls.push(command);
+      log.push({ command, args: structuredClone(args) });
       const response = scenario.responses[command];
       // Game data comes from the local Data Dragon cache unless a scenario overrides it.
       if (!response && command === "game_data") return (await loadDevGameData()) as never;
@@ -50,6 +54,7 @@ export function createMockTransport(scenario: Scenario): Transport {
       if (response.delayMs) await sleep(response.delayMs);
       if ("error" in response) throw new CommandError(command, response.error);
       if ("load" in response) return (await response.load()) as never;
+      if ("handle" in response) return structuredClone((response.handle as (a: unknown) => unknown)(args)) as never;
       return structuredClone(response.data) as never;
     },
     listen(event, handler) {

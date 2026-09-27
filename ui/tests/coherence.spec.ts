@@ -22,6 +22,21 @@ test("/draft in champion select only uses design tokens", async ({ page }) => {
   expect(await page.evaluate(auditTokens)).toEqual([]);
 });
 
+for (const scenario of ["settings-custom", "settings-error", "settings-save-error"] as const) {
+  test(`/settings/${scenario} only uses design tokens`, async ({ page }) => {
+    await openApp(page, { view: "/settings", scenario });
+    if (scenario === "settings-save-error") {
+      // Show the inline save error too.
+      await page.getByTestId("setting-auto-accept").click();
+      await page.getByRole("alert").waitFor();
+      // The switch glides back as the alert shows: audit the settled colors.
+      await page.mouse.move(0, 0);
+      await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)));
+    }
+    expect(await page.evaluate(auditTokens)).toEqual([]);
+  });
+}
+
 test("every view has exactly one page heading", async ({ page }) => {
   for (const view of VIEWS) {
     await openApp(page, { view });

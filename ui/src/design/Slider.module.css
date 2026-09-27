@@ -1,0 +1,81 @@
+.slider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+.input {
+  --track: 4px;
+  --knob: 16px;
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  height: var(--space-8);
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  font-size: var(--text-md);
+  color: var(--text-1);
+  cursor: pointer;
+  appearance: none;
+}
+
+/* Filled up to the value in the accent, the rest a quiet groove. */
+.input::-webkit-slider-runnable-track {
+  height: var(--track);
+  border-radius: var(--radius-full);
+  background: linear-gradient(90deg, var(--accent) var(--fill), var(--bg-4) var(--fill));
+}
+
+.input::-webkit-slider-thumb {
+  appearance: none;
+  width: var(--knob);
+  height: var(--knob);
+  margin-top: calc((var(--track) - var(--knob)) / 2);
+  border: 3px solid var(--bg-2);
+  border-radius: var(--radius-full);
+  background: var(--accent-strong);
+  box-shadow: 0 0 0 1px var(--accent);
+  transition: transform var(--dur-1) var(--ease);
+}
+
+.input:hover::-webkit-slider-thumb,
+.input:active::-webkit-slider-thumb {
+  transform: scale(1.15);
+}
+
+.input:focus-visible {
+  outline: none;
+}
+
+.input:focus-visible::-webkit-slider-thumb {
+  box-shadow:
+    0 0 0 1px var(--accent),
+    0 0 0 4px var(--accent-soft);
+}
+
+.input:disabled {
+  cursor: default;
+}
+
+.value {
+  flex: none;
+  min-width: var(--space-10);
+  padding: var(--space-1) var(--space-4);
+  border-radius: var(--radius-full);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  text-align: center;
+}
+
+.slider[data-disabled] {
+  opacity: 0.4;
+}
+
+.slider[data-disabled] .value {
+  background: var(--bg-3);
+  color: var(--text-2);
+}

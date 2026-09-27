@@ -78,3 +78,41 @@ test("draft champ-select 420x800 tapped", async ({ page }) => {
   await page.getByTestId("suggestion").filter({ hasText: "Shen" }).click();
   await capture(page, `${OUT}/draft-champ-select-420x800-tapped.png`, true);
 });
+
+const SETTINGS_SHOTS = [
+  {
+    scenario: "default",
+    sizes: [
+      [1920, 1080],
+      [820, 760],
+      [420, 800],
+      [2560, 1440],
+    ],
+  },
+  { scenario: "settings-custom", sizes: [[1280, 800]] },
+  { scenario: "settings-error", sizes: [[1280, 800]] },
+] as const;
+
+for (const { scenario, sizes } of SETTINGS_SHOTS) {
+  for (const [width, height] of sizes) {
+    test(`settings ${scenario} ${width}x${height}`, async ({ page }) => {
+      await openApp(page, { view: "/settings", scenario, width, height });
+      await capture(page, `${OUT}/settings-${scenario}-${width}x${height}.png`, width < 900);
+    });
+  }
+}
+
+test("settings save error 1280x800", async ({ page }) => {
+  await openApp(page, { view: "/settings", scenario: "settings-save-error" });
+  await page.getByRole("switch", { name: "Close to tray" }).click();
+  await page.getByRole("alert").waitFor();
+  await page.mouse.move(0, 0);
+  await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)));
+  await capture(page, `${OUT}/settings-save-error-1280x800.png`, false);
+});
+
+test("home match accepted toast 1280x800", async ({ page }) => {
+  await openApp(page, { scenario: "match-accepted" });
+  await page.getByTestId("toast").waitFor();
+  await capture(page, `${OUT}/home-match-accepted-1280x800.png`, false);
+});

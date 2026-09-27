@@ -10,6 +10,7 @@ mod client;
 mod draft;
 mod game_data;
 mod player;
+mod settings;
 
 pub use client::{AppInfo, ClientConnection, ClientStatus, GameflowPhase};
 pub use draft::{
@@ -18,3 +19,4 @@ pub use draft::{
 };
 pub use game_data::{ChampionInfo, GameData, ItemInfo, SpellInfo};
 pub use player::{Division, MatchSummary, PlayerProfile, RankedEntry, RiotId, Role, Tier};
+pub use settings::{AutoAcceptEvent, Settings, ViewRoute};
