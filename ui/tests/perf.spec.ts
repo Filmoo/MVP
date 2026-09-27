@@ -152,3 +152,68 @@ test("colors from content: each palette samples in a few ms, then comes from the
   await settle(page);
   expect(await sample()).toEqual([]);
 });
+
+test("backdrop: renders only on demand, each in a fraction of a frame", async ({ page }) => {
+  await openApp(page, { freezeClock: false });
+  const durations = () => page.evaluate(() => performance.getEntriesByName("backdrop").map((e) => e.duration));
+  const clear = () => page.evaluate(() => performance.clearMeasures("backdrop"));
+  expect(await page.evaluate(() => document.documentElement.dataset.effects)).toBe("shader");
+
+  // At rest: not a single frame.
+  await page.waitForTimeout(500);
+  await clear();
+  await page.waitForTimeout(3_000);
+  const idleRenders = (await durations()).length;
+
+  // Scrolling (the glass moves), with the frame rate meanwhile.
+  await clear();
+  await page.mouse.move(640, 500);
+  const fps = page.evaluate(
+    () =>
+      new Promise<number>((resolve) => {
+        let n = 0;
+        const t0 = performance.now();
+        const tick = () => {
+          if (performance.now() - t0 < 1_500) {
+            n++;
+            requestAnimationFrame(tick);
+          } else resolve((n * 1_000) / (performance.now() - t0));
+        };
+        requestAnimationFrame(tick);
+      }),
+  );
+  for (let i = 0; i < 24; i++) {
+    await page.mouse.wheel(0, i < 12 ? 80 : -80);
+    await page.waitForTimeout(40);
+  }
+  const scrollFps = await fps;
+  const scroll = await durations();
+
+  // Resizing, then a view switch (new panes; the light glides to the new view's colors).
+  await clear();
+  for (const width of [1200, 1100, 1280]) {
+    await page.setViewportSize({ width, height: 800 });
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+  }
+  await page.evaluate(() => {
+    window.location.hash = "/draft";
+  });
+  await settle(page);
+  await page.waitForTimeout(800);
+  const other = await durations();
+
+  const all = [...scroll, ...other];
+  results.backdrop = {
+    idleRenders,
+    scrollRenders: scroll.length,
+    scrollFps,
+    otherRenders: other.length,
+    renderMedianMs: median(all),
+    renderMaxMs: Math.max(...all),
+    probeMs: await page.evaluate(() => performance.getEntriesByName("backdrop:probe")[0]?.duration ?? -1),
+  };
+  expect(idleRenders, "renders over 3 s at rest").toBeLessThanOrEqual(budgets.backdrop.idleRenders);
+  expect(scroll.length, "scrolling re-renders").toBeGreaterThan(0);
+  expect(other.length, "resizing and switching views re-render").toBeGreaterThan(0);
+  expect(median(all), `median render of ${all.length}`).toBeLessThanOrEqual(budgets.backdrop.renderMedianMs);
+});

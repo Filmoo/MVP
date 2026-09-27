@@ -14,7 +14,7 @@ export function Card(props: {
   children: JSX.Element;
 }): JSX.Element {
   return (
-    <div class={`${styles.card} ${props.class ?? ""}`}>
+    <div class={`${styles.card} ${props.class ?? ""}`} data-refract>
       {props.backdrop}
       <Show when={props.title || props.actions}>
         <header class={styles.header}>

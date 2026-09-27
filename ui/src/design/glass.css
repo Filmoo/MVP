@@ -25,3 +25,11 @@
     inset 0 1px 0 var(--line-glass),
     inset 0 0 0 1px var(--bg-sheen);
 }
+
+/*
+ * Visual effects levels (design/backdrop), on <html data-effects>: "shader" (WebGL backdrop with
+ * refraction under glass), "css" (static gradients), "flat" (no light, no blur).
+ */
+:root[data-effects="flat"] {
+  --blur-glass: none;
+}

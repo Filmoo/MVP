@@ -77,6 +77,34 @@ for more than 5 s. Run and deploy: `apps/backend/README.md`.
   window created for an intent opens directly on its view. *Launch at startup* uses
   tauri-plugin-autostart and starts in the tray (`--autostart`).
 
+## Window backdrop (`ui/src/design/backdrop`)
+The ambient light behind the shell is one WebGL 1 canvas (first child of `[data-ambient-host]`,
+fixed, `z-index: -1`, `aria-hidden`, `data-free-style`), drawn **on demand only**. Nothing runs at
+rest: no rAF loop, no timers (the perf suite asserts 0 renders over 3 s, and a median render
+≤ 2 ms of CPU).
+- **What wakes it**: the page light changing (a MutationObserver on the host's inline `--amb-*`,
+  written by `ambient.ts`; the 450/600 ms glide is mirrored in JS, a frame each only while it
+  runs), a ResizeObserver on the host and on the glass panes, a DOM change under the host (panes
+  come and go), and scrolling of a container that holds panes (rAF-coalesced).
+- **Two cheap passes**: (1) the light, glows bent by 2 octaves of value noise with a faint satin
+  sheen, into a texture at 1/8 of CSS px, redrawn only when the light or the window size changes;
+  (2) per render, into a canvas at ½ CSS px (device pixel ratio capped at 1, scaled up by CSS): the
+  texture plus a soft hex mosaic (a 128² tile drawn once) and a dither, then one quad per glass
+  pane in a single draw call. Panes are elements marked `data-refract` (`="chrome"` for the title
+  bar and rail; at most 16). Inside a pane's rounded-rect SDF the backdrop is sampled through a
+  slight lens and a 22 px bevel that pulls the light in from beyond the edge, gathers it, and adds a
+  faint top-lit rim. Pattern and gathering scale the light's difference from `--bg-0`, so dark
+  areas and text backgrounds stay as they were (text contrast is unchanged vs the CSS light).
+- **Levels** (`effects`, saved in localStorage `mvp.effects`; shown on `<html data-effects>`):
+  `auto` (default) → `shader`, falling back to `css` when WebGL is missing, the first frame takes
+  more than 8 ms GPU included (software rendering, weak GPU), or the context is lost (back to
+  `shader` when restored); `prefers-reduced-transparency` → `css`; `prefers-reduced-motion` keeps the
+  shader but skips glides. `light` → `css`, the static gradients. `off` → `flat`: `--bg-0` only and
+  no backdrop blur. `data-effects-fallback` says why a fallback happened.
+- **Tests**: headless Chromium renders with SwiftShader, which the speed probe rightly rejects, so
+  `tests/app.ts` sets `window.__MVP_TRUST_WEBGL__` to keep the shader in every suite
+  (`webgl: "probe" | "missing"` exercises the fallbacks, `tests/backdrop.spec.ts`).
+
 ## Stats pipeline (`apps/crawler` + `crates/aggregate`)
 Server-side only (the Riot key never leaves it). Checkpoint 2 scope: **Emerald+**, ranked solo
 (420) and **ARAM** (450), current patch with fallback to the previous one.

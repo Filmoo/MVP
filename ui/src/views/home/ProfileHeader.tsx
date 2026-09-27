@@ -40,7 +40,7 @@ export function ProfileHeader(props: { profile: PlayerProfile }): JSX.Element {
       .map((m) => m.win);
   return (
     <div class={styles.wrap}>
-      <div class={styles.hero}>
+      <div class={styles.hero} data-refract>
         <Show when={main()}>{(id) => <ChampionArt championId={id()} class={styles.art} light />}</Show>
         <div class={styles.top}>
           <div class={styles.avatar}>

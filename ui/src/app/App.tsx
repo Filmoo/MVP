@@ -1,5 +1,6 @@
 import { createEffect, createResource, For, type JSX, lazy, Match, on, onCleanup, Suspense, Switch } from "solid-js";
 import { useData } from "../data/context";
+import { Backdrop } from "../design/backdrop";
 import { Icon } from "../design/Icon";
 import { dismissIssue, issues, notify, reportError } from "../lib/errors";
 import { Home } from "../views/home/Home";
@@ -62,6 +63,7 @@ export function App(): JSX.Element {
 
   return (
     <div class={styles.shell} data-ambient-host>
+      <Backdrop />
       <TitleBar status={status()} native={transport.kind === "tauri"} />
       <Sidebar />
       <main class={styles.main} data-view={path()}>

@@ -24,12 +24,37 @@ export interface OpenOptions {
   height?: number;
   /** Freeze Date at FIXTURE_NOW (default). Perf tests opt out: the fake clock also stubs `performance`. */
   freezeClock?: boolean;
+  /** Visual effects preference (default: none saved, i.e. the app's `auto`). */
+  effects?: "auto" | "light" | "off";
+  /**
+   * WebGL as the app sees it. `trusted` (default): the WebGL backdrop is kept even on this
+   * software rasterizer, which its speed probe would reject, so every suite covers it the same
+   * way. `probe`: the app decides by itself. `missing`: no WebGL at all.
+   */
+  webgl?: "trusted" | "probe" | "missing";
+}
+
+/** Runs before the app's scripts: effects preference and WebGL availability (see OpenOptions). */
+function setUpEffects({ effects, webgl }: { effects: string | undefined; webgl: string }): void {
+  if (effects) localStorage.setItem("mvp.effects", effects);
+  else localStorage.removeItem("mvp.effects");
+  (window as { __MVP_TRUST_WEBGL__?: boolean }).__MVP_TRUST_WEBGL__ = webgl === "trusted";
+  if (webgl === "missing") {
+    const original = HTMLCanvasElement.prototype.getContext as (this: HTMLCanvasElement, ...args: unknown[]) => unknown;
+    Object.defineProperty(HTMLCanvasElement.prototype, "getContext", {
+      configurable: true,
+      value(this: HTMLCanvasElement, type: string, ...rest: unknown[]) {
+        return type.includes("webgl") ? null : original.call(this, type, ...rest);
+      },
+    });
+  }
 }
 
 /** Opens the app on a view with a frozen clock and waits until it is settled. */
 export async function openApp(page: Page, opts: OpenOptions = {}): Promise<void> {
   await page.setViewportSize({ width: opts.width ?? 1280, height: opts.height ?? 800 });
   if (opts.freezeClock ?? true) await page.clock.setFixedTime(new Date(FIXTURE_NOW));
+  await page.addInitScript(setUpEffects, { effects: opts.effects, webgl: opts.webgl ?? "trusted" });
   await page.goto(`/?scenario=${opts.scenario ?? "default"}#${opts.view ?? "/"}`);
   await settle(page);
 }

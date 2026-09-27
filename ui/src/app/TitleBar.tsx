@@ -18,7 +18,7 @@ async function windowAction(action: "minimize" | "toggleMaximize" | "close") {
 export function TitleBar(props: { status: ClientStatus | undefined; native: boolean }): JSX.Element {
   const connection = () => props.status?.connection ?? "notRunning";
   return (
-    <header class={styles.bar} data-tauri-drag-region>
+    <header class={styles.bar} data-tauri-drag-region data-refract="chrome">
       <div class={styles.brand}>
         <Wordmark height={24} />
       </div>
