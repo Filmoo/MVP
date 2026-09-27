@@ -4,6 +4,7 @@
 //! Independent of Tauri so it runs in tests and could back other front ends (CLI, web).
 
 pub mod champ_select;
+pub mod profile;
 
 use domain::{ClientConnection, ClientStatus, DraftView, GameflowPhase};
 use lcu::{ConnectionState, ConnectorConfig, ConnectorUpdate, EventKind, LcuClient};

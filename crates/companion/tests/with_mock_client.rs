@@ -107,3 +107,35 @@ async fn follows_champion_select() {
         .unwrap()
         .unwrap();
 }
+
+#[tokio::test]
+async fn reads_the_local_profile() {
+    let mock = MockLcu::start().await.unwrap();
+    mock.set(
+        companion::profile::CURRENT_SUMMONER,
+        json!({ "gameName": "Fillmo", "tagLine": "7272", "summonerLevel": 312, "profileIconId": 29 }),
+    );
+    mock.set(
+        companion::profile::REGION,
+        json!({ "region": "EUW", "locale": "en_GB" }),
+    );
+    mock.set(
+        companion::profile::RANKED,
+        json!({ "queueMap": { "RANKED_SOLO_5x5": { "tier": "GOLD", "division": "I", "leaguePoints": 40, "wins": 30, "losses": 25 } } }),
+    );
+    // Match history left out on purpose: the profile still loads, with no games.
+    let creds = lcu::Lockfile::parse(&mock.lockfile())
+        .unwrap()
+        .credentials();
+    let client = lcu::LcuClient::new(
+        &creds,
+        pinned_client_config(mock.ca_pem().as_bytes()).unwrap(),
+    )
+    .unwrap();
+    let profile = companion::profile::local_profile(&client).await.unwrap();
+    assert_eq!(profile.riot_id.game_name, "Fillmo");
+    assert_eq!(profile.riot_id.tag_line, "7272");
+    assert_eq!(profile.region, "EUW");
+    assert_eq!(profile.solo_queue.unwrap().tier, domain::Tier::Gold);
+    assert!(profile.recent_matches.is_empty());
+}

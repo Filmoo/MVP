@@ -50,6 +50,17 @@ test("a crashing widget is contained: the rest of the page works", async ({ page
   expect(errors.every((e) => e.includes("widget:recent-matches"))).toBe(true);
 });
 
+test("client connecting later: the profile loads without a restart", async ({ page }) => {
+  const errors = trackErrors(page);
+  await openApp(page, { scenario: "not-running" });
+  await expect(page.getByRole("heading", { name: "Waiting for the League client" })).toBeVisible();
+  const calls = () => page.evaluate(() => window.__SCOUT_MOCK__?.calls.filter((c) => c === "current_profile").length);
+  const before = await calls();
+  await page.evaluate(() => window.__SCOUT_MOCK__?.emit("client-status", { connection: "connected", phase: "idle" }));
+  await expect.poll(calls).toBe((before ?? 0) + 1);
+  expect(errors).toEqual([]);
+});
+
 test("unknown route: not-found state, navigation still works", async ({ page }) => {
   await openApp(page, { view: "/does-not-exist" });
   await expect(page.getByText("Page not found")).toBeVisible();

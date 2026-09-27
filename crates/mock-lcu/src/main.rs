@@ -36,6 +36,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "/lol-summoner/v1/current-summoner",
         json!({ "gameName": "Fillmo", "tagLine": "7272", "summonerLevel": 347, "profileIconId": 6311, "puuid": "00000000-mock-0000-0000-000000000000" }),
     );
+    mock.set(
+        "/riotclient/region-locale",
+        json!({ "region": "EUW", "locale": "en_GB" }),
+    );
+    mock.set(
+        "/lol-ranked/v1/current-ranked-stats",
+        json!({ "queueMap": { "RANKED_SOLO_5x5": { "tier": "EMERALD", "division": "II", "leaguePoints": 67, "wins": 142, "losses": 128 } } }),
+    );
+    mock.set(
+        "/lol-match-history/v1/products/lol/current-summoner/matches",
+        json!({ "games": { "games": [
+            { "gameId": 7_000_000_003_u64, "queueId": 420, "gameCreation": 1_790_500_000_000_i64, "gameDuration": 1742,
+              "participants": [{ "championId": 103, "timeline": { "lane": "MIDDLE", "role": "SOLO" },
+                "stats": { "win": true, "kills": 9, "deaths": 2, "assists": 11, "totalMinionsKilled": 211, "neutralMinionsKilled": 20,
+                           "item0": 6655, "item1": 3020, "item2": 4645, "item3": 3157, "item4": 3089 } }] },
+            { "gameId": 7_000_000_002_u64, "queueId": 420, "gameCreation": 1_790_490_000_000_i64, "gameDuration": 1935,
+              "participants": [{ "championId": 134, "timeline": { "lane": "MIDDLE", "role": "SOLO" },
+                "stats": { "win": false, "kills": 3, "deaths": 6, "assists": 5, "totalMinionsKilled": 190, "neutralMinionsKilled": 8,
+                           "item0": 6655, "item1": 3020, "item2": 3157 } }] }
+        ] } }),
+    );
     loop {
         for (phase, seconds) in CYCLE {
             tracing::info!(phase, "gameflow");

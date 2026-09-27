@@ -1,5 +1,6 @@
-import { createResource, type JSX, Match, Show, Switch } from "solid-js";
+import { createResource, type JSX, Match, onCleanup, Show, Switch } from "solid-js";
 import { useData } from "../../data/context";
+import type { ClientStatus } from "../../data/generated/ClientStatus";
 import { Card } from "../../design/Card";
 import { EmptyState, ErrorState, Skeleton } from "../../design/States";
 import { Widget } from "../../widgets/Widget";
@@ -34,6 +35,17 @@ function HomeSkeleton(): JSX.Element {
 export function Home(): JSX.Element {
   const { transport } = useData();
   const [profile, { refetch }] = createResource(() => transport.call("current_profile"));
+
+  // Reload when the client comes up and after every game (new match, new LP).
+  let last: ClientStatus | undefined;
+  onCleanup(
+    transport.listen("client-status", (next) => {
+      const connected = next.connection === "connected" && last?.connection !== "connected";
+      const gameOver = last?.phase === "postGame" && next.phase !== "postGame";
+      last = next;
+      if (connected || gameOver) void refetch();
+    }),
+  );
 
   return (
     <div class={page.page}>

@@ -31,9 +31,23 @@ pub fn client_status(app: tauri::AppHandle) -> ClientStatus {
         })
 }
 
+/// The logged-in player's own profile from the League client; `None` while it isn't running.
 #[tauri::command]
-pub fn current_profile() -> Option<PlayerProfile> {
-    None
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub async fn current_profile(app: tauri::AppHandle) -> Result<Option<PlayerProfile>, String> {
+    let client = app
+        .try_state::<Core>()
+        .and_then(|core| core.client.borrow().clone());
+    let Some(client) = client else {
+        return Ok(None);
+    };
+    companion::profile::local_profile(&client)
+        .await
+        .map(Some)
+        .map_err(|error| error.to_string())
 }
 
 /// Current champion select, `None` outside of it (`draft` events follow changes).

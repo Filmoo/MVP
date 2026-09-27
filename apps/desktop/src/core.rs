@@ -11,6 +11,7 @@ use tokio::sync::watch;
 pub struct Core {
     pub status: watch::Receiver<ClientStatus>,
     pub draft: watch::Receiver<Option<DraftView>>,
+    pub client: watch::Receiver<Option<lcu::LcuClient>>,
 }
 
 /// Game data of the current patch, once loaded.
@@ -35,6 +36,7 @@ pub fn start<R: Runtime>(app: &AppHandle<R>) {
         app.manage(Core {
             status: companion.status.clone(),
             draft: companion.draft.clone(),
+            client: companion.client.clone(),
         });
         forward(&app, companion.draft.clone(), "draft");
         let mut status = companion.status.clone();
