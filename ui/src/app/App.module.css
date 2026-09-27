@@ -12,6 +12,8 @@
     ),
     radial-gradient(70% 45% at calc(100% - var(--amb-x)) 110%, color-mix(in oklab, var(--amb-c) 12%, transparent), transparent 70%),
     var(--bg-0);
+  /* The WebGL backdrop (design/backdrop) paints at z-index -1 inside, above this background. */
+  isolation: isolate;
   display: grid;
   grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
   grid-template-rows: var(--titlebar-h) minmax(0, 1fr);
@@ -19,6 +21,12 @@
     "titlebar titlebar"
     "sidebar main";
   height: 100%;
+}
+
+/* The shader draws the light (or effects are off): no gradients under it. */
+:global(:root[data-effects="shader"]) .shell,
+:global(:root[data-effects="flat"]) .shell {
+  background: var(--bg-0);
 }
 
 .main {

@@ -21,7 +21,7 @@ function NavItem(props: { route: Route }): JSX.Element {
 
 export function Sidebar(): JSX.Element {
   return (
-    <nav class={styles.sidebar} aria-label="Main">
+    <nav class={styles.sidebar} aria-label="Main" data-refract="chrome">
       <div class={styles.nav}>
         <For each={mainRoutes}>{(route) => <NavItem route={route} />}</For>
       </div>

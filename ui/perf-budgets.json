@@ -58,5 +58,10 @@
   "palette": {
     "medianMs": 3,
     "maxMs": 16
+  },
+  "backdrop": {
+    "$comment": "WebGL backdrop (src/design/backdrop): CPU per render (median over scrolls, resizes and a view switch with its light glide), and renders over 3 s at rest.",
+    "renderMedianMs": 2,
+    "idleRenders": 0
   }
 }

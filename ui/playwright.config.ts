@@ -35,7 +35,7 @@ export default defineConfig({
     { name: "layout", testMatch: /layout\.spec\.ts/ },
     { name: "coherence", testMatch: /coherence\.spec\.ts/ },
     { name: "errors", testMatch: /errors\.spec\.ts/ },
-    { name: "interactions", testMatch: /(interactions|search|live)\.spec\.ts/ },
+    { name: "interactions", testMatch: /(interactions|search|live|backdrop)\.spec\.ts/ },
     { name: "perf", testMatch: /perf\.spec\.ts/ },
     { name: "showcase", testMatch: /showcase\.spec\.ts/ },
   ],
