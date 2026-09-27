@@ -1,9 +1,24 @@
 import type { ClientStatus } from "../generated/ClientStatus";
+import type { PlayerProfile } from "../generated/PlayerProfile";
 import type { CommandName, Commands, EventName, Events } from "../transport";
 import { champSelectDraft } from "./draft-fixtures";
 import { corruptProfile, extremeProfile, newPlayerProfile, profile } from "./fixtures";
 
-export type MockResponse<T> = { data: T; delayMs?: number } | { error: string; delayMs?: number };
+/** Profile captured by `capture-profile`, served by the dev server; falls back to the fixture. */
+async function loadCapturedProfile(): Promise<PlayerProfile> {
+  try {
+    const res = await fetch("/fixtures/profile.json");
+    if (res.ok) return (await res.json()) as PlayerProfile;
+  } catch {
+    // no capture: fall through
+  }
+  return profile;
+}
+
+export type MockResponse<T> =
+  | { data: T; delayMs?: number }
+  | { error: string; delayMs?: number }
+  | { load: () => Promise<T>; delayMs?: number };
 
 export interface Scenario {
   description: string;
@@ -29,6 +44,10 @@ export const scenarios = {
   default: {
     description: "Client connected, rich profile.",
     responses: base,
+  },
+  me: {
+    description: "Your own profile captured from the Riot API (.cache/fixtures/profile.json), else the default one.",
+    responses: { ...base, current_profile: { load: loadCapturedProfile } },
   },
   "champ-select": {
     description: "Mid-draft: you're picking top against a locked Irelia.",

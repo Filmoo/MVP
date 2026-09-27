@@ -49,6 +49,7 @@ export function createMockTransport(scenario: Scenario): Transport {
       if (!response) throw new CommandError(command, `mock scenario has no response for ${command}`);
       if (response.delayMs) await sleep(response.delayMs);
       if ("error" in response) throw new CommandError(command, response.error);
+      if ("load" in response) return (await response.load()) as never;
       return structuredClone(response.data) as never;
     },
     listen(event, handler) {

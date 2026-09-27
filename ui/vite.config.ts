@@ -7,34 +7,40 @@ import solid from "vite-plugin-solid";
 // Dev/test only: serve Data Dragon assets downloaded by `scripts/fetch-dev-assets.mjs`
 // under /dd/. Riot assets are never committed or bundled; the shipped app loads them at runtime.
 const DEV_ASSETS = resolve(import.meta.dirname, "../.cache/ddragon");
+// Profiles captured with `cargo run -p players --bin capture-profile` (never committed).
+const DEV_FIXTURES = resolve(import.meta.dirname, "../.cache/fixtures");
 
 function devAssets(): Plugin {
   return {
     name: "scout-dev-assets",
     configureServer(server) {
-      server.middlewares.use("/dd", serveDir);
+      server.middlewares.use("/dd", serveFrom(DEV_ASSETS));
+      server.middlewares.use("/fixtures", serveFrom(DEV_FIXTURES));
     },
     configurePreviewServer(server) {
-      server.middlewares.use("/dd", serveDir);
+      server.middlewares.use("/dd", serveFrom(DEV_ASSETS));
+      server.middlewares.use("/fixtures", serveFrom(DEV_FIXTURES));
     },
   };
 }
 
-async function serveDir(req: import("node:http").IncomingMessage, res: import("node:http").ServerResponse, next: () => void) {
-  const path = resolve(DEV_ASSETS, `.${decodeURIComponent((req.url ?? "/").split("?")[0] ?? "/")}`);
-  if (!path.startsWith(DEV_ASSETS) || !existsSync(path)) return next();
-  const { readFile } = await import("node:fs/promises");
-  const ext = path.slice(path.lastIndexOf(".") + 1);
-  const types: Record<string, string> = {
-    png: "image/png",
-    jpg: "image/jpeg",
-    json: "application/json",
-    svg: "image/svg+xml",
-    webp: "image/webp",
+function serveFrom(dir: string) {
+  return async (req: import("node:http").IncomingMessage, res: import("node:http").ServerResponse, next: () => void) => {
+    const path = resolve(dir, `.${decodeURIComponent((req.url ?? "/").split("?")[0] ?? "/")}`);
+    if (!path.startsWith(dir) || !existsSync(path)) return next();
+    const { readFile } = await import("node:fs/promises");
+    const ext = path.slice(path.lastIndexOf(".") + 1);
+    const types: Record<string, string> = {
+      png: "image/png",
+      jpg: "image/jpeg",
+      json: "application/json",
+      svg: "image/svg+xml",
+      webp: "image/webp",
+    };
+    res.setHeader("Content-Type", types[ext] ?? "application/octet-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.end(await readFile(path));
   };
-  res.setHeader("Content-Type", types[ext] ?? "application/octet-stream");
-  res.setHeader("Cache-Control", "max-age=31536000, immutable");
-  res.end(await readFile(path));
 }
 
 export default defineConfig({

@@ -34,7 +34,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     mock.set(
         "/lol-summoner/v1/current-summoner",
-        json!({ "gameName": "Nightfall", "tagLine": "EUW", "summonerLevel": 347, "profileIconId": 6311, "puuid": "00000000-mock-0000-0000-000000000000" }),
+        json!({ "gameName": "Fillmo", "tagLine": "7272", "summonerLevel": 347, "profileIconId": 6311, "puuid": "00000000-mock-0000-0000-000000000000" }),
     );
     loop {
         for (phase, seconds) in CYCLE {

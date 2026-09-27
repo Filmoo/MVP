@@ -171,7 +171,7 @@ export function matchesFromSeeds(list: MatchSeed[], idPrefix = "EUW1_75102"): Ma
 }
 
 export const profile: PlayerProfile = {
-  riotId: { gameName: "Nightfall", tagLine: "EUW" },
+  riotId: { gameName: "Fillmo", tagLine: "7272" },
   region: "EUW",
   level: 347,
   profileIconId: 6311,

@@ -37,6 +37,9 @@ No in-game overlay for now (keep the architecture overlay-ready).
   `SCOUT_LCU_LOCKFILE=.cache/mock-lcu/lockfile SCOUT_LCU_CA=.cache/mock-lcu/ca.pem` (debug builds only).
 - `node scripts/check.mjs fast|ui|full` — the quality gates (also run by the Stop hook and CI).
 - `pnpm --filter @scout/ui screenshots` → `reports/screenshots/*.png` for design review.
+- Real data for the owner's account (Fillmo#7272, EUW): with `RIOT_API_KEY` set,
+  `cargo run -p players --bin capture-profile -- "Fillmo#7272"` → `.cache/fixtures/profile.json`
+  (git-ignored), shown by `?scenario=me`. Personal data is never committed.
 
 ## Rules
 - Every change keeps `check.mjs full` green. Never weaken a test or raise a budget silently:
