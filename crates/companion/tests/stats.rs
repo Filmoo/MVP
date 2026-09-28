@@ -896,3 +896,139 @@ async fn without_stats_the_draft_still_shows_the_teams() {
     assert!(view.suggestions.is_empty() && view.data.is_none() && view.team.is_none());
     assert_eq!(view.allies[0].champion_id, Some(MALPHITE));
 }
+
+// ── Against the real publisher ─────────────────────────────────────────────────────────────
+
+/// Deterministic pseudo-random numbers (no extra dependency).
+struct Lcg(u64);
+
+impl Lcg {
+    fn below(&mut self, n: usize) -> usize {
+        self.0 = self
+            .0
+            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_add(1_442_695_040_888_963_407);
+        usize::try_from((self.0 >> 33) % u64::try_from(n).unwrap()).unwrap()
+    }
+}
+
+/// Publishes `games` synthetic ranked games of 16.19 with the crawler's pipeline
+/// (`aggregate::publish`) into the fake backend: champion 1 beats champion 2 in the top lane.
+fn publish_synthetic(server: &Server, games: usize, updated_at: i64) {
+    let pools: [&[u16]; 5] = [&[1, 2, 3], &[11, 12], &[21, 22], &[31, 32], &[41, 42]];
+    let mut rng = Lcg(7);
+    let mut ds = aggregate::Dataset::default();
+    for i in 0..games {
+        let mut champions = [0u16; 10];
+        for (role, pool) in pools.iter().enumerate() {
+            let blue = pool[rng.below(pool.len())];
+            let red = loop {
+                let c = pool[rng.below(pool.len())];
+                if c != blue {
+                    break c;
+                }
+            };
+            champions[role] = blue;
+            champions[5 + role] = red;
+        }
+        let blue_wins_in_100 = match (champions[0], champions[5]) {
+            (1, 2) => 70,
+            (2, 1) => 30,
+            _ => 50,
+        };
+        let blue_wins = rng.below(100) < blue_wins_in_100;
+        let game = aggregate::synthetic::Game::ranked(&format!("EUW1_{i}"), champions, blue_wins);
+        let facts = aggregate::extract(&game.match_json(), None).unwrap();
+        ds.add(
+            &facts,
+            aggregate::SeedBracket::Emerald,
+            &aggregate::ItemCatalog::default(),
+        );
+    }
+    let opts = aggregate::publish::Options {
+        min_role_games: 1,
+        min_pair_games: 1,
+        tier_min_pick_rate: 0.0,
+        min_current_games: 1,
+        ..aggregate::publish::Options::default()
+    };
+    let patch = "16.19".parse().unwrap();
+    let (files, entry) = aggregate::publish::publish_patch(&ds, patch, &opts, updated_at).unwrap();
+    let index =
+        aggregate::publish::build_index(None, entry.into_iter().collect(), &opts, updated_at);
+    let mut s = server.lock().unwrap();
+    for file in files {
+        s.files
+            .insert(file.path.trim_start_matches("v1/").to_owned(), file.body);
+    }
+    s.files.insert("index".to_owned(), to_json(&index));
+}
+
+#[tokio::test]
+async fn reads_what_the_publisher_writes() {
+    let (base, server) = fake_backend().await;
+    publish_synthetic(&server, 600, 5_000);
+    let dir = tempfile::tempdir().unwrap();
+    let stats = stats_client(&base, dir.path());
+    let page = stats.champion_page(1, RANKED, EMERALD).await.unwrap();
+    assert_eq!(page.info.patch, "16.19");
+    assert!(page.builds.is_some() && !page.tiers.is_empty());
+    let top = page
+        .matchups
+        .as_ref()
+        .and_then(|m| m.roles.iter().find(|r| r.role == Role::Top))
+        .unwrap();
+    let against_2 = top.lane.iter().find(|e| e.id == 2).unwrap();
+    assert!(
+        against_2.g > 100 && against_2.w * 10 > against_2.g * 6,
+        "1 beats 2: {against_2:?}"
+    );
+
+    // Every published file carries its publication: after a restart only the index is asked.
+    forget_requests(&server);
+    let restarted = stats_client(&base, dir.path());
+    restarted.refresh_index().await.unwrap();
+    assert_eq!(
+        restarted.champion_page(1, RANKED, EMERALD).await.unwrap(),
+        page
+    );
+    assert_eq!(paths(&server), ["index"]);
+
+    // The draft model over the published files: against 2, 1 is the pick, and says why.
+    let set = restarted.data_set(RANKED, EMERALD).await.unwrap();
+    let champions = restarted.champions(&set).await.unwrap().unwrap();
+    let mut model = companion::stats::DraftStats::new(&champions);
+    for id in [1, 2, 3] {
+        if let Some(file) = restarted.matchups(&set, id).await.unwrap() {
+            model.add_matchups(&file);
+        }
+    }
+    let data = companion::draft::SessionData {
+        info: domain::DataInfo {
+            bracket: EMERALD.label().to_owned(),
+            patch: set.name.clone(),
+            games: set.games,
+            updated_at: set.generation,
+        },
+        tiers: restarted.tier_list(&set).await.unwrap(),
+        set,
+    };
+    let view = companion::champ_select::map_session(&json!({
+        "localPlayerCellId": 0,
+        "myTeam": [{ "cellId": 0, "assignedPosition": "top", "championId": 0 }],
+        "theirTeam": [{ "cellId": 5, "championId": 2 }],
+        "timer": { "phase": "BAN_PICK" }
+    }))
+    .unwrap();
+    let e = companion::draft::enrich(&view, &model, &data, None);
+    assert_eq!(e.enemies[0].0, Some(Role::Top));
+    let first = &e.suggestions[0];
+    assert_eq!(first.champion_id, 1, "{:?}", e.suggestions);
+    let lane = first
+        .reasons
+        .iter()
+        .find(|r| r.kind == ReasonKind::Lane)
+        .unwrap();
+    assert_eq!(lane.champion_id, Some(2));
+    assert!(lane.games > 100, "{lane:?}");
+}
