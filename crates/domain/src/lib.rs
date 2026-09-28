@@ -33,7 +33,8 @@ pub use remote::{
 pub use scout::{ChampionRecord, ScoutCard, ScoutRequest, ScoutTag};
 pub use settings::{AutoAcceptEvent, Settings, ViewRoute};
 pub use stats::{
-    Bracket, BuildOption, BuildSection, BuildStats, BuildsFile, ChampionRoleStats, ChampionStats,
-    ChampionsFile, DataSetIndex, DataSetInfo, GamesWins, MatchupEntry, MatchupsFile, PairKind,
-    PairPrior, PatchIndex, RoleMatchups, STATS_SCHEMA, StatsIndex, TierEntry, TierGrade, TierList,
+    Bracket, BuildOption, BuildSection, BuildStats, BuildsFile, ChampionPage, ChampionRoleStats,
+    ChampionStats, ChampionsFile, DataSetIndex, DataSetInfo, GamesWins, MatchupEntry, MatchupsFile,
+    PairKind, PairPrior, PatchIndex, RoleMatchups, STATS_SCHEMA, StatsIndex, TierEntry, TierGrade,
+    TierList,
 };

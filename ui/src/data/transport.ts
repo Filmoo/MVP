@@ -1,5 +1,7 @@
 import type { AppInfo } from "./generated/AppInfo";
 import type { AutoAcceptEvent } from "./generated/AutoAcceptEvent";
+import type { Bracket } from "./generated/Bracket";
+import type { ChampionPage } from "./generated/ChampionPage";
 import type { ClientStatus } from "./generated/ClientStatus";
 import type { DraftView } from "./generated/DraftView";
 import type { GameData } from "./generated/GameData";
@@ -7,6 +9,8 @@ import type { LiveGame } from "./generated/LiveGame";
 import type { PlayerProfile } from "./generated/PlayerProfile";
 import type { RiotId } from "./generated/RiotId";
 import type { Settings } from "./generated/Settings";
+import type { StatsIndex } from "./generated/StatsIndex";
+import type { TierList } from "./generated/TierList";
 import type { ViewRoute } from "./generated/ViewRoute";
 
 /** Commands answered by the core. Keep in sync with `apps/desktop/src/commands.rs`. */
@@ -32,6 +36,24 @@ export interface Commands {
   live_game: { args: undefined; result: LiveGame | null };
   /** Asks the core for the scouting cards again (after a failure). */
   retry_scouting: { args: undefined; result: null };
+  /**
+   * What our backend has published (patches, data sets, `current` patch), as the core last
+   * fetched it; `null` when nothing is published yet, or offline without a cached copy.
+   */
+  stats_index: { args: undefined; result: StatsIndex | null };
+  /**
+   * The current patch's tier list for `queue` (420 = ranked solo/duo, 450 = ARAM) and `bracket`.
+   * The core caches every stats file on disk per patch (revalidated with ETags), so this
+   * answers offline too. Rejects with a `BackendError` as the error's `detail` when the file
+   * is neither published nor cached (`notFound`), or can't be fetched.
+   */
+  tier_list: { args: { queue: number; bracket: Bracket }; result: TierList };
+  /**
+   * One champion's page (record, tiers, builds, matchups) for `queue` × `bracket`, current
+   * patch. Missing files leave their part empty; rejects like `tier_list` when there is no
+   * data set at all.
+   */
+  champion_stats: { args: { championId: number; queue: number; bracket: Bracket }; result: ChampionPage };
 }
 
 /** Events pushed by the core. */
@@ -46,6 +68,8 @@ export interface Events {
   "auto-accept": AutoAcceptEvent;
   /** `null` when the game ends. */
   live: LiveGame | null;
+  /** The core fetched a newer stats index (new patch or republication): stats views refetch. */
+  "stats-index": StatsIndex;
 }
 
 export type CommandName = keyof Commands;

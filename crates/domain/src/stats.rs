@@ -345,6 +345,26 @@ pub struct BuildOption {
     pub w: u32,
 }
 
+/// Everything the Champions page shows for one champion in one queue × bracket, read by the
+/// core from the current patch's published files (`champions.json`, `tierlist.json`,
+/// `builds/{id}.json`, `matchups/{id}.json`). A file that isn't published for this data set
+/// (no games yet, or matchups in ARAM) leaves its part empty instead of failing the page.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ChampionPage {
+    /// The data set the numbers come from (patch, queue, bracket, games).
+    pub info: DataSetInfo,
+    /// The champion's record per role, most played first (`None` without games).
+    pub stats: Option<ChampionStats>,
+    /// Its tier list rows, one per role it is ranked in (best role first).
+    pub tiers: Vec<TierEntry>,
+    /// Builds per role (`None` when not published).
+    pub builds: Option<BuildsFile>,
+    /// Matchups and duos per role (ranked only; `None` in ARAM or when not published).
+    pub matchups: Option<MatchupsFile>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
