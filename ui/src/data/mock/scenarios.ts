@@ -1,3 +1,4 @@
+import { loadEffects } from "../../design/backdrop/quality";
 import type { ClientStatus } from "../generated/ClientStatus";
 import type { PlayerProfile } from "../generated/PlayerProfile";
 import type { CommandName, Commands, EventName, Events } from "../transport";
@@ -43,7 +44,8 @@ const base: Scenario["responses"] = {
   client_status: { data: connectedIdle },
   current_profile: { data: profile },
   draft_state: { data: null },
-  get_settings: { data: defaultSettings },
+  // The browser preview has no core to persist settings: the effects choice lives in localStorage.
+  get_settings: { handle: () => ({ ...defaultSettings, effects: loadEffects() }) },
   update_settings: { handle: (args) => saveSettings(args.settings), delayMs: 60 },
   view_changed: { data: null },
   // A lookup takes a moment, like the real backend with a warm cache.

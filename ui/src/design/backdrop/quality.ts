@@ -1,11 +1,15 @@
+import type { Effects } from "../../data/generated/Effects";
+
 /**
- * Visual effects level, chosen once at startup (pure parts are unit-tested).
+ * Visual effects level (pure parts are unit-tested). The core keeps the lasting choice in its
+ * settings (`Settings.effects`); a copy in localStorage lets the first frame already match.
  *
- * - `auto` (default): the WebGL backdrop when the machine can draw it cheaply, else `light`.
- * - `light`: today's static CSS gradients, no refraction.
+ * - `auto` (default): the WebGL backdrop and liquid glass when the machine can draw them
+ *   cheaply, else `light`.
+ * - `light`: static CSS gradients and plain blur, nothing bends.
  * - `off`: flat background, no blur at all (the lightest possible).
  */
-export type Effects = "auto" | "light" | "off";
+export type { Effects };
 
 /** What is actually drawn. `shader` = WebGL backdrop; `css` = static gradients; `flat` = bg-0 only. */
 export type Rendering = "shader" | "css" | "flat";

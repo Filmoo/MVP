@@ -1,6 +1,8 @@
-import { type JSX, Show } from "solid-js";
+import { createEffect, type JSX, on, Show } from "solid-js";
 import type { AppInfo } from "../../data/generated/AppInfo";
+import type { Effects } from "../../data/generated/Effects";
 import type { Settings } from "../../data/generated/Settings";
+import { rendered, setEffects } from "../../design/backdrop";
 import { Card } from "../../design/Card";
 import { Icon } from "../../design/Icon";
 import { Mark } from "../../design/Logo";
@@ -8,6 +10,7 @@ import { SettingList, SettingRow } from "../../design/SettingRow";
 import { Slider } from "../../design/Slider";
 import { Toggle } from "../../design/Toggle";
 import { MAX_AUTO_ACCEPT_DELAY } from "../../lib/settings";
+import { Choice } from "./Choice";
 import styles from "./Settings.module.css";
 
 export interface SectionProps {
@@ -103,10 +106,54 @@ export function AutomationSettings(props: SectionProps): JSX.Element {
   );
 }
 
+const EFFECTS: ReadonlyArray<{ value: Effects; label: string }> = [
+  { value: "auto", label: "Full" },
+  { value: "light", label: "Light" },
+  { value: "off", label: "Off" },
+];
+
+/** Why "Full" isn't drawn right now (design/backdrop fallbacks). */
+const FALLBACK: Record<string, string> = {
+  "no-webgl": "this PC has no graphics acceleration for the window",
+  slow: "your graphics card can't draw it cheaply",
+  "context-lost": "the graphics driver restarted; it comes back on its own",
+};
+
 export function AppSettings(props: SectionProps): JSX.Element {
+  // The window follows what's saved, including a change that couldn't be saved and flipped back.
+  createEffect(
+    on(
+      () => props.settings.effects,
+      (effects) => setEffects(effects),
+      { defer: true },
+    ),
+  );
+  const fallback = () => (props.settings.effects === "auto" && rendered().rendering !== "shader" ? rendered().reason : undefined);
   return (
     <Card title="App">
       <SettingList>
+        <SettingRow
+          title="Visual effects"
+          description="Full: glass that bends the light, when your graphics card draws it easily. Light: a soft blur. Off: flat, the lightest."
+        >
+          {(ids) => (
+            <Choice
+              options={EFFECTS}
+              value={props.settings.effects}
+              onChange={(effects) => props.onChange({ effects })}
+              labelledBy={ids.label}
+              describedBy={ids.description}
+              testId="setting-effects"
+            />
+          )}
+        </SettingRow>
+        <Show when={fallback()}>
+          {(reason) => (
+            <p class={styles.effectsNote} data-testid="effects-fallback">
+              Showing Light for now: {FALLBACK[reason()] ?? reason()}.
+            </p>
+          )}
+        </Show>
         <SettingRow
           title="Close to tray"
           description="Closing the window keeps MVP running in the tray, so automations keep working. Quit from the tray icon."

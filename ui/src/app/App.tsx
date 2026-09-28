@@ -1,7 +1,8 @@
 import { createEffect, createResource, For, type JSX, lazy, Match, on, onCleanup, Suspense, Switch } from "solid-js";
 import { useData } from "../data/context";
-import { Backdrop } from "../design/backdrop";
+import { Backdrop, setEffects } from "../design/backdrop";
 import { Icon } from "../design/Icon";
+import { liquid } from "../design/liquid/liquid";
 import { dismissIssue, issues, notify, reportError } from "../lib/errors";
 import { Home } from "../views/home/Home";
 import { Planned } from "../views/Planned";
@@ -23,7 +24,13 @@ function Toasts(): JSX.Element {
     <div class={styles.toasts} aria-live="polite">
       <For each={issues()}>
         {(issue) => (
-          <div class={`${styles.toast} ${styles[issue.tone]}`} role="status" data-testid="toast" data-tone={issue.tone}>
+          <div
+            class={`${styles.toast} ${styles[issue.tone]} glass-rim`}
+            role="status"
+            data-testid="toast"
+            data-tone={issue.tone}
+            ref={(el) => liquid(el, "panel")}
+          >
             <Icon name={issue.tone === "success" ? "check" : "alert"} size={16} class={styles.toastIcon} />
             <span>{issue.message}</span>
             <button type="button" aria-label="Dismiss" onClick={() => dismissIssue(issue.id)}>
@@ -46,6 +53,14 @@ export function App(): JSX.Element {
   );
   onCleanup(transport.listen("client-status", (next) => mutate(next)));
   onCleanup(followPointerOnGlass());
+  // The core keeps the lasting visual effects choice; the first frame used the local copy.
+  transport
+    .call("get_settings")
+    .then((settings) => setEffects(settings.effects))
+    .catch(() => {
+      // Settings unreadable: the Settings page says so; keep the local choice meanwhile.
+    });
+  onCleanup(transport.listen("settings", (settings) => setEffects(settings.effects)));
 
   // The core moves the UI along with the game. It hears about every view shown, so it never
   // switches away from a page the player opened themselves.

@@ -9,6 +9,7 @@ export const defaultSettings: Settings = {
   autoSwitchView: true,
   launchAtStartup: false,
   closeToTray: true,
+  effects: "auto",
 };
 
 /** A player who turned automations on and changed the app's defaults. */
@@ -19,6 +20,7 @@ export const customSettings: Settings = {
   autoSwitchView: true,
   launchAtStartup: true,
   closeToTray: false,
+  effects: "light",
 };
 
 /** What the core does with an update: clamps the delay, then answers what it saved. */

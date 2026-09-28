@@ -25,6 +25,24 @@ pub struct Settings {
     pub launch_at_startup: bool,
     /// Closing the window keeps the app running in the tray.
     pub close_to_tray: bool,
+    /// How much the window draws: glass, light and motion.
+    pub effects: Effects,
+}
+
+/// Visual effects level. The UI keeps a copy in `localStorage` so the first frame already
+/// matches; this is the lasting choice.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum Effects {
+    /// Liquid glass that bends light, and the light shader, when the GPU draws them cheaply
+    /// (else the same as `Light`).
+    #[default]
+    Auto,
+    /// Soft blur and static light only.
+    Light,
+    /// Flat background, no blur: the lightest.
+    Off,
 }
 
 impl Settings {
@@ -49,6 +67,7 @@ impl Default for Settings {
             auto_switch_view: true,
             launch_at_startup: false,
             close_to_tray: true,
+            effects: Effects::Auto,
         }
     }
 }
@@ -102,6 +121,18 @@ mod tests {
                 ..Settings::default()
             }
         );
+    }
+
+    #[test]
+    fn effects_serialize_as_the_ui_names_them() {
+        let json = serde_json::to_string(&Settings {
+            effects: Effects::Light,
+            ..Settings::default()
+        })
+        .expect("serializable");
+        assert!(json.contains(r#""effects":"light""#), "{json}");
+        let old: Settings = serde_json::from_str(r#"{"closeToTray":false}"#).expect("loads");
+        assert_eq!(old.effects, Effects::Auto);
     }
 
     #[test]
