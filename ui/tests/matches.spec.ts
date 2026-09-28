@@ -89,6 +89,9 @@ test("matches: a grade's why shows on hover and on keyboard focus", async ({ pag
   const errors = trackErrors(page);
   await openApp(page);
   const why = page.getByTestId("grade-why");
+  // Your grades come after the list: hovered while they land, the chip is drawn anew and the
+  // pointer's retry scrolls the page, so wait for them.
+  await expect(page.locator("[data-grade] [data-chip]").first()).toBeVisible();
 
   // Hovered: the grade, its place in the game, and the facts that moved it most, over the list
   // (which doesn't move).
