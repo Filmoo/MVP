@@ -18,7 +18,7 @@ import {
   champSelectPlanning,
 } from "./draft-fixtures";
 import { rankEmblemsFixture } from "./emblem-fixtures";
-import { corruptProfile, extremeProfile, newPlayerProfile, profile } from "./fixtures";
+import { aramProfile, corruptProfile, extremeProfile, newPlayerProfile, profile } from "./fixtures";
 import { flashKept, importAnswer, importFailures } from "./import-fixtures";
 import { liveExtreme, liveFailed, liveGame, liveScouting, otherProfile, searchPlayer } from "./live-fixtures";
 import { detailsFrom, gradesFrom, withGrades } from "./match-fixtures";
@@ -258,6 +258,15 @@ export const scenarios = {
       current_profile: { data: extremeProfile },
       match_grades: { handle: gradesFrom([extremeProfile], true), delayMs: 300 },
       match_details: { handle: detailsFrom([extremeProfile], true), delayMs: 250 },
+    },
+  },
+  "howling-abyss": {
+    description: "Your latest games are ARAM: Mayhem and ARAM: opened, they have no roles and no vision column (0 for everyone there).",
+    responses: {
+      ...base,
+      current_profile: { data: aramProfile },
+      match_grades: { handle: gradesFrom([aramProfile]), delayMs: 300 },
+      match_details: { handle: detailsFrom([aramProfile]), delayMs: 250 },
     },
   },
   "roles-guessed": {

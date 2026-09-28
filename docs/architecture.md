@@ -223,8 +223,9 @@ Every finished game in a match history gets a grade, and a match row opens on th
   `current_profile` carries it, so the rows, "Main role" and the roles bar agree with the grades.
 - **Match details**: `match_details { matchId }` → `MatchDetails`: both teams (blue first, lanes
   in order), each player's Riot ID (none when hidden: `nameVisibilityType: HIDDEN` in the client,
-  no name in Match-V5), champion and level, role, K/D/A, CS, gold, damage to champions, vision,
-  items and trinket, spells, keystone and secondary tree, grade, `isMe`. Your listed games come
+  no name in Match-V5), champion and level, role, K/D/A, CS, gold, damage to champions, vision
+  (no column on Howling Abyss — ARAM, ARAM: Mayhem… `lib/queues.ts` — or whenever everyone's is
+  0), items and trinket, spells, keystone and secondary tree, grade, `isMe`. Your listed games come
   from the client (the same read as their grades, cached); any other game from
   `GET /v1/matches/{platform}/{matchId}` (the backend's match cache); failures aren't cached.
 - **UI**: a match row is a button (`aria-expanded`) with the grade chip (`GradeChip`, the tier

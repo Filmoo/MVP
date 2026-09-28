@@ -19,6 +19,7 @@ import { ChampionIcon, ItemIcon, SpellIcon } from "../../design/GameIcon";
 import { ErrorState } from "../../design/States";
 import { t } from "../../i18n";
 import { decimal, integer, kdaRatio, percent, signedPoints } from "../../lib/format";
+import { onHowlingAbyss } from "../../lib/queues";
 import { formatRiotId, riotIdKey } from "../../lib/riot-id";
 import { roleLabel } from "../../lib/roles";
 import { Widget } from "../../widgets/Widget";
@@ -167,13 +168,17 @@ function TeamLines(props: { team: MatchTeam; marked: MatchPlayer | undefined; to
   );
 }
 
-/** Both teams, damage bars scaled on the game's top damage; `focus`'s line (else yours) is marked. */
+/**
+ * Both teams, damage bars scaled on the game's top damage; `focus`'s line (else yours) is marked.
+ * Games without vision (Howling Abyss: everyone's score is 0) have no vision column.
+ */
 export function MatchTable(props: { game: Game; focus: RiotId | undefined }): JSX.Element {
   const players = () => props.game.teams.flatMap((team) => team.players);
   const top = () => Math.max(1, ...players().map((p) => p.damageToChampions));
   const marked = () => players().find((p) => sameRiotId(p.riotId, props.focus)) ?? players().find((p) => p.isMe);
+  const noVision = () => onHowlingAbyss(props.game.queueId) || players().every((p) => p.visionScore === 0);
   return (
-    <div class={table.table}>
+    <div class={`${table.table} ${noVision() ? table.noVision : ""}`} data-vision={noVision() ? "none" : undefined}>
       <For each={props.game.teams}>{(team) => <TeamLines team={team} marked={marked()} top={top()} />}</For>
     </div>
   );

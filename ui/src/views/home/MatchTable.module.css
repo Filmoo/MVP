@@ -81,6 +81,19 @@
   justify-self: end;
 }
 
+/* No vision in the game (Howling Abyss: 0 for everyone): no vision column. Narrower games drop
+   it anyway (below). */
+.noVision .vision {
+  display: none;
+}
+
+@container game (width > 739px) {
+  .noVision .head,
+  .noVision .player {
+    grid-template-columns: 68px minmax(0, 1fr) 96px 76px 52px 40px 152px 56px;
+  }
+}
+
 @container game (max-width: 739px) {
   .head,
   .player {

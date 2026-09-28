@@ -134,6 +134,26 @@ test("matches: a grade's why shows on hover and on keyboard focus", async ({ pag
   expect(errors).toEqual([]);
 });
 
+test("matches: a game on Howling Abyss has no vision column", async ({ page, t }) => {
+  const errors = trackErrors(page);
+  // Wide enough for every column of a Summoner's Rift game.
+  await openApp(page, { scenario: "howling-abyss", width: 1920, height: 1080 });
+  const game = page.getByTestId("game");
+  const vision = game.getByText(t.matchDetails.columns.vision, { exact: true });
+  // ARAM: Mayhem, then ARAM: nobody has a vision score there.
+  for (const at of [0, 1]) {
+    await rows(page).nth(at).click();
+    await expect(game.getByTestId("game-player")).toHaveCount(10);
+    await expect(vision.first()).toBeHidden();
+    await expect(vision.last()).toBeHidden();
+  }
+  // A ranked game keeps it.
+  await rows(page).nth(2).click();
+  await expect(game.getByTestId("game-player")).toHaveCount(10);
+  await expect(vision.first()).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
 test("matches: on a player's page, their line is marked in an opened game", async ({ page }) => {
   const errors = trackErrors(page);
   await openApp(page, { view: "/player/euw1/Blade%20Dancer/IRE" });
