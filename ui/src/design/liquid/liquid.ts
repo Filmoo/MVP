@@ -16,29 +16,11 @@
  * what's behind it from its descendants' glass).
  */
 import { onCleanup } from "solid-js";
-import { type Rims, type Slice, scaleFor, slicePixels, slices } from "./maps";
+import { glassFor, type LiquidSpec, lensPrimitives, opticalRadius, type Primitive } from "./filter";
+import { type Slice, slicePixels, slices } from "./maps";
 import { type Glass, type OpticsTable, opticsTable } from "./optics";
 
-export interface LiquidSpec {
-  /** The glass; a dome's bezel and thickness come from its size instead (see `dome`). */
-  glass: Glass;
-  /**
-   * A dome lens: the bezel spans half the element's smaller side and the top rises this share
-   * of it, so the whole pane magnifies (0.6 ≈ ×1.15 in the middle).
-   */
-  dome?: number;
-  rims?: Rims;
-  /** Frost before the light bends, CSS px of blur (0 = clear glass). */
-  frost?: number;
-  /** Colour split at the rim: blue bends this share more than green, red this share less. */
-  dispersion?: number;
-  /**
-   * Vibrancy after the lens: colour saturation and brightness (1 = unchanged). Done inside the
-   * SVG filter: Chromium mishandles CSS filter functions chained after a `url()` backdrop filter.
-   */
-  saturate?: number;
-  brightness?: number;
-}
+export type { LiquidSpec };
 
 /** The kinds of glass the app uses (see docs/architecture.md, "Glass and light"). */
 export const LIQUID = {
@@ -138,13 +120,6 @@ function observer(): ResizeObserver {
   return resizes;
 }
 
-/** Glass geometry in effect for an element: domes take their bezel and height from its size. */
-function glassFor(spec: LiquidSpec, width: number, height: number): Glass {
-  if (!spec.dome) return spec.glass;
-  const half = Math.min(width, height) / 2;
-  return { ...spec.glass, bezel: half, thickness: half * spec.dome };
-}
-
 const tables = new Map<string, OpticsTable>();
 function table(glass: Glass): OpticsTable {
   const key = `${glass.profile}:${glass.bezel.toFixed(2)}:${glass.thickness.toFixed(2)}:${glass.ior ?? ""}`;
@@ -175,85 +150,29 @@ function image(slice: Slice, radius: number, glass: Glass, optics: OpticsTable):
   return url;
 }
 
-function node<K extends keyof SVGElementTagNameMap>(name: K, attributes: Record<string, string | number>): SVGElementTagNameMap[K] {
-  const el = document.createElementNS(SVG_NS, name);
-  for (const [k, v] of Object.entries(attributes)) el.setAttribute(k, String(v));
+function toSvg(p: Primitive): SVGElement {
+  const el = document.createElementNS(SVG_NS, p.tag);
+  for (const [k, v] of Object.entries(p.attrs)) el.setAttribute(k, String(v));
+  if (p.children) el.append(...p.children.map(toSvg));
   return el;
 }
 
-/** Keeps one colour channel of a displaced copy (alpha kept). */
-const CHANNEL = {
-  r: "1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0",
-  g: "0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0",
-  b: "0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0",
-};
-
-/** (Re)builds an element's filter for its current size. */
+/** (Re)builds an element's filter for its current size (only when the size or radius changed). */
 function build(entry: Entry): void {
   const { spec, width: w, height: h } = entry;
   const glass = glassFor(spec, w, h);
-  // The optical outline: a dome is a stadium (smooth normals everywhere its surface slopes);
-  // a slab's corners are rounded at least as much as its bezel is wide, so the rim's normals
-  // turn smoothly instead of creasing along the corner's diagonal.
-  const half = Math.min(w, h) / 2;
-  const radius = spec.dome ? half : Math.min(half, Math.max(entry.radius, glass.bezel));
+  const radius = opticalRadius(spec, glass, w, h, entry.radius);
   const key = `${w.toFixed(1)}x${h.toFixed(1)}:${radius.toFixed(1)}`;
   if (entry.built === key) return;
   entry.built = key;
   const optics = table(glass);
-  const parts = slices({ width: w, height: h, radius }, glass.bezel, spec.rims);
+  const parts = slices({ width: w, height: h, radius }, glass.bezel, spec.rims).map((slice) => ({
+    slice,
+    href: image(slice, radius, glass, optics),
+  }));
   const f = entry.filter;
   for (const [k, v] of Object.entries({ x: 0, y: 0, width: w, height: h })) f.setAttribute(k, String(v));
-  const children: SVGElement[] = [node("feFlood", { "flood-color": "#808080", result: "neutral" })];
-  parts.forEach((slice, i) => {
-    const href = image(slice, radius, glass, optics);
-    children.push(
-      node("feImage", {
-        href,
-        x: slice.x,
-        y: slice.y,
-        width: slice.width,
-        height: slice.height,
-        preserveAspectRatio: "none",
-        result: `s${i}`,
-      }),
-    );
-  });
-  const merge = node("feMerge", { result: "map" });
-  merge.append(node("feMergeNode", { in: "neutral" }), ...parts.map((_, i) => node("feMergeNode", { in: `s${i}` })));
-  children.push(merge);
-  let source = "SourceGraphic";
-  if (spec.frost) {
-    children.push(node("feGaussianBlur", { in: "SourceGraphic", stdDeviation: spec.frost, edgeMode: "duplicate", result: "frost" }));
-    source = "frost";
-  }
-  const scale = scaleFor(optics.max);
-  const displace = (s: number, result: string) =>
-    node("feDisplacementMap", { in: source, in2: "map", scale: s, xChannelSelector: "R", yChannelSelector: "G", result });
-  const split = spec.dispersion ?? 0;
-  if (split > 0) {
-    children.push(
-      displace(scale * (1 - split), "dr"),
-      node("feColorMatrix", { in: "dr", type: "matrix", values: CHANNEL.r, result: "r" }),
-      displace(scale, "dg"),
-      node("feColorMatrix", { in: "dg", type: "matrix", values: CHANNEL.g, result: "g" }),
-      displace(scale * (1 + split), "db"),
-      node("feColorMatrix", { in: "db", type: "matrix", values: CHANNEL.b, result: "b" }),
-      node("feComposite", { in: "r", in2: "g", operator: "arithmetic", k1: 0, k2: 1, k3: 1, k4: 0, result: "rg" }),
-      node("feComposite", { in: "rg", in2: "b", operator: "arithmetic", k1: 0, k2: 1, k3: 1, k4: 0, result: "lens" }),
-    );
-  } else {
-    children.push(displace(scale, "lens"));
-  }
-  if (spec.saturate && spec.saturate !== 1) {
-    children.push(node("feColorMatrix", { in: "lens", type: "saturate", values: spec.saturate, result: "lens" }));
-  }
-  if (spec.brightness && spec.brightness !== 1) {
-    const transfer = node("feComponentTransfer", { in: "lens", result: "lens" });
-    transfer.append(...(["feFuncR", "feFuncG", "feFuncB"] as const).map((fn) => node(fn, { type: "linear", slope: spec.brightness ?? 1 })));
-    children.push(transfer);
-  }
-  f.replaceChildren(...children);
+  f.replaceChildren(...lensPrimitives(spec, parts, optics.max).map(toSvg));
 }
 
 function apply(entry: Entry): void {
@@ -272,12 +191,15 @@ function apply(entry: Entry): void {
  */
 export function liquid(el: HTMLElement, kind: LiquidKind | LiquidSpec): void {
   const spec: LiquidSpec = typeof kind === "string" ? LIQUID[kind] : kind;
-  const filter = node("filter", {
-    id: `lg-${++nextId}`,
-    filterUnits: "userSpaceOnUse",
-    primitiveUnits: "userSpaceOnUse",
-    "color-interpolation-filters": "sRGB",
-  });
+  const filter = toSvg({
+    tag: "filter",
+    attrs: {
+      id: `lg-${++nextId}`,
+      filterUnits: "userSpaceOnUse",
+      primitiveUnits: "userSpaceOnUse",
+      "color-interpolation-filters": "sRGB",
+    },
+  }) as SVGFilterElement;
   container().appendChild(filter);
   const entry: Entry = { el, spec, filter, width: 0, height: 0, radius: 0, built: "" };
   entries.set(el, entry);
