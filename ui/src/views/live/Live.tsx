@@ -1,10 +1,12 @@
-import { createResource, For, type JSX, Match, onCleanup, Show, Switch } from "solid-js";
+import { createEffect, createResource, createSignal, For, type JSX, Match, on, onCleanup, Show, Switch } from "solid-js";
+import { queryParam } from "../../app/router";
 import { useData } from "../../data/context";
 import type { LiveGame } from "../../data/generated/LiveGame";
 import { useAmbient } from "../../design/ambient";
 import { Card } from "../../design/Card";
 import { championArtUrl } from "../../design/GameIcon";
 import { Icon } from "../../design/Icon";
+import { Segmented, type SegmentedOption } from "../../design/Segmented";
 import { EmptyState, ErrorState, Skeleton } from "../../design/States";
 import { queueName } from "../../lib/format";
 import { platformLabel } from "../../lib/riot-id";
@@ -12,7 +14,17 @@ import { Widget } from "../../widgets/Widget";
 import page from "../page.module.css";
 import styles from "./Live.module.css";
 import { LiveTeam } from "./LiveTeam";
+import { MyBuild } from "./MyBuild";
 import { scoutingFailure } from "./words";
+
+type LiveTab = "players" | "build";
+
+const TABS: SegmentedOption<LiveTab>[] = [
+  { value: "players", label: "Players" },
+  { value: "build", label: "My build" },
+];
+
+const parseTab = (value: string | null): LiveTab => (value === "build" ? "build" : "players");
 
 /** Where the cards are, in the page head: a fixed-height line, so the teams never move. */
 function ScoutingStatus(props: { game: LiveGame }): JSX.Element {
@@ -89,14 +101,33 @@ export default function Live(): JSX.Element {
     return championArtUrl(gameData(), me?.championId ?? undefined);
   });
 
+  // Everyone in the game, or the build of your champion (`#/live?tab=build` links to it).
+  const [tab, setTab] = createSignal<LiveTab>(parseTab(queryParam("tab")));
+  createEffect(
+    on(
+      () => queryParam("tab"),
+      (value) => setTab(parseTab(value)),
+      { defer: true },
+    ),
+  );
+  const ready = () => (game.state === "ready" ? game() : undefined);
+
   return (
-    <div class={`${page.page} ${page.live}`}>
+    // The players fit the window; a build is as long as a champion page and scrolls like one.
+    <div class={`${page.page} ${tab() === "build" && ready() ? "" : page.live}`}>
       <div class={styles.head}>
-        <h1 class={page.title}>Live game</h1>
-        <Show when={game.state === "ready" && game()}>
+        <div class={styles.titleRow}>
+          <h1 class={page.title}>Live game</h1>
+          <Show when={ready()}>
+            <Segmented label="Show" options={TABS} value={tab()} onChange={setTab} size="sm" testId="live-tabs" />
+          </Show>
+        </div>
+        <Show when={ready()}>
           {(g) => (
             <div class={styles.meta}>
-              <ScoutingStatus game={g()} />
+              <Show when={tab() === "players"}>
+                <ScoutingStatus game={g()} />
+              </Show>
               <span class={`${styles.queue} num`}>
                 {queueName(g().queueId)} · {platformLabel(g().platform)}
               </span>
@@ -130,6 +161,7 @@ export default function Live(): JSX.Element {
             </Card>
           </div>
         </Match>
+        <Match when={tab() === "build" && game()}>{(g) => <MyBuild game={g()} />}</Match>
         <Match when={game()}>{(g) => <LiveContent game={g()} />}</Match>
       </Switch>
     </div>

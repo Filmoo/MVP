@@ -62,6 +62,7 @@ const STATE_VIEWS = [
   { view: "/settings", scenario: "update-available" },
   { view: "/settings", scenario: "auto-accept-paused" },
   { view: "/live", scenario: "banners" },
+  { view: "/live?tab=build", scenario: "live" },
   { view: "/tier-list", scenario: "stats-empty" },
   { view: "/tier-list", scenario: "stats-offline" },
   { view: "/tier-list", scenario: "stats-aram-only" },

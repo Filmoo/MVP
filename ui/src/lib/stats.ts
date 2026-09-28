@@ -11,7 +11,7 @@ import type { StatsIndex } from "../data/generated/StatsIndex";
 import type { TierEntry } from "../data/generated/TierEntry";
 import type { SegmentedOption } from "../design/Segmented";
 import { ROLE_ICON, ROLE_LABEL, ROLES } from "./roles";
-import type { Queue, RoleFilter } from "./stats-filters";
+import { ARAM, type Queue, RANKED, type RoleFilter } from "./stats-filters";
 
 export const QUEUE_LABEL: Record<Queue, string> = { 420: "Ranked Solo", 450: "ARAM" };
 export const BRACKET_LABEL: Record<Bracket, string> = { emeraldPlus: "Emerald+", diamondPlus: "Diamond+", masterPlus: "Master+" };
@@ -30,6 +30,18 @@ export const ROLE_FILTER_OPTIONS: SegmentedOption<RoleFilter>[] = [
   { value: "all", label: "All", icon: "champions" },
   ...ROLES.map((role) => ({ value: role, label: ROLE_LABEL[role], icon: ROLE_ICON[role] })),
 ];
+
+/** Summoner's Rift queues (normal, ranked, Clash, co-op vs AI): their builds are ranked data's. */
+const RIFT_QUEUES = new Set([0, 400, 420, 430, 440, 480, 490, 700, 720, 830, 840, 850, 870, 880, 890]);
+
+/**
+ * Stats queue for a game's queue: ARAM's own, ranked data on the Rift (as the core does for
+ * imports), none for other modes (Arena, URF…).
+ */
+export function statsQueueOf(queueId: number): Queue | undefined {
+  if (queueId === 450 || queueId === 100) return ARAM;
+  return RIFT_QUEUES.has(queueId) ? RANKED : undefined;
+}
 
 /** Public name of a game-version patch (`16.19` → `26.19`), from the index; the patch itself without one. */
 export function patchName(index: StatsIndex | null | undefined, patch: string): string {

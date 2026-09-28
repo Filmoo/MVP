@@ -93,6 +93,33 @@ test("scouting failure: the game still shows, Try again asks the core", async ({
   await expect.poll(() => page.evaluate(() => window.__SCOUT_MOCK__?.calls.filter((c) => c === "retry_scouting").length)).toBe(1);
 });
 
+test("my build: the build of my champion and role, for this game's mode", async ({ page }) => {
+  const errors = trackErrors(page);
+  await openApp(page, { view: "/live", scenario: "live" });
+  await expect(cards(page)).toHaveCount(10);
+  await page.getByTestId("live-tabs").getByRole("radio", { name: "My build" }).click();
+  const build = page.getByTestId("my-build");
+  const me = liveGame.allies.find((p) => p.isMe);
+  await expect(build).toContainText("most played in Ranked Solo · Emerald+");
+  await expect(page.locator("[data-widget=champion-runes]")).toBeVisible();
+  await expect(page.locator("[data-widget=champion-matchups]")).toBeVisible();
+  const asked = await page.evaluate(() => window.__SCOUT_MOCK__?.log.filter((c) => c.command === "champion_stats").map((c) => c.args));
+  expect(asked).toEqual([{ championId: me?.championId, queue: 420, bracket: "emeraldPlus" }]);
+  await settle(page);
+  expect(await page.evaluate(auditLayout)).toEqual([]);
+  // Back to the players, as they were.
+  await page.getByTestId("live-tabs").getByRole("radio", { name: "Players" }).click();
+  await expect(cards(page)).toHaveCount(10);
+  expect(errors).toEqual([]);
+});
+
+test("my build: a link opens it; modes without builds say so", async ({ page }) => {
+  await openApp(page, { view: "/live?tab=build", scenario: "live" });
+  await expect(page.locator("[data-widget=champion-runes]")).toBeVisible();
+  await page.evaluate((game) => window.__SCOUT_MOCK__?.emit("live", { ...game, queueId: 1700 }), liveGame);
+  await expect(page.getByTestId("my-build")).toContainText("No builds for this mode");
+});
+
 test("the core pushes the game in and out", async ({ page }) => {
   const errors = trackErrors(page);
   await openApp(page, { view: "/live" });
