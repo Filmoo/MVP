@@ -41,9 +41,41 @@
       "renderMs": 6,
       "domNodes": 240
     },
-    "champion-soon": {
+    "tier-list": {
+      "renderMs": 8,
+      "domNodes": 900
+    },
+    "champion-grid": {
+      "renderMs": 16,
+      "domNodes": 760
+    },
+    "champion-hero": {
+      "renderMs": 3,
+      "domNodes": 64
+    },
+    "champion-runes": {
+      "renderMs": 4,
+      "domNodes": 130
+    },
+    "champion-spells": {
       "renderMs": 2,
-      "domNodes": 24
+      "domNodes": 56
+    },
+    "champion-skills": {
+      "renderMs": 2,
+      "domNodes": 72
+    },
+    "champion-items": {
+      "renderMs": 5,
+      "domNodes": 260
+    },
+    "champion-matchups": {
+      "renderMs": 4,
+      "domNodes": 150
+    },
+    "build-summary": {
+      "renderMs": 2,
+      "domNodes": 48
     }
   },
   "bootMs": 900,
