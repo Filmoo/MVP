@@ -31,7 +31,7 @@
     },
     "settings-app": {
       "renderMs": 2,
-      "domNodes": 26
+      "domNodes": 40
     },
     "settings-about": {
       "renderMs": 2,
