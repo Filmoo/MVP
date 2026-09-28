@@ -1,6 +1,7 @@
-import { createEffect, createResource, createSignal, For, type JSX, Match, on, onCleanup, Show, Switch } from "solid-js";
+import { createEffect, createSignal, For, type JSX, Match, on, Show, Switch } from "solid-js";
 import { queryParam } from "../../app/router";
 import { useData } from "../../data/context";
+import { createFollowed } from "../../data/follow";
 import type { LiveGame } from "../../data/generated/LiveGame";
 import { useAmbient } from "../../design/ambient";
 import { Card } from "../../design/Card";
@@ -93,8 +94,10 @@ function LiveSkeleton(): JSX.Element {
 /** Loading-screen scouting: everyone in the game, from the moment it loads. */
 export default function Live(): JSX.Element {
   const { transport, gameData } = useData();
-  const [game, { mutate, refetch }] = createResource(() => transport.call("live_game"));
-  onCleanup(transport.listen("live", (next) => mutate(next)));
+  const [game, { refetch }] = createFollowed(
+    () => transport.call("live_game"),
+    (set) => transport.listen("live", set),
+  );
   // The screen takes the colors of your champion.
   useAmbient(() => {
     const g = game.state === "ready" ? game() : undefined;

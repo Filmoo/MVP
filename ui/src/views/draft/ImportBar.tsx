@@ -1,5 +1,6 @@
-import { type Accessor, createEffect, createResource, createSignal, Index, type JSX, on, onCleanup, Show } from "solid-js";
+import { type Accessor, createEffect, createSignal, Index, type JSX, on, Show } from "solid-js";
 import { useData } from "../../data/context";
+import { createFollowed } from "../../data/follow";
 import type { Bracket } from "../../data/generated/Bracket";
 import type { ImportMode } from "../../data/generated/ImportMode";
 import type { ImportOutcome } from "../../data/generated/ImportOutcome";
@@ -29,8 +30,10 @@ function modesOf(settings: Settings | undefined): ImportModes {
 /** The player's import modes, following changes (one click until settings are read). */
 export function useImportModes(): Accessor<ImportModes> {
   const { transport } = useData();
-  const [settings, { mutate }] = createResource(() => transport.call("get_settings").catch(() => undefined));
-  onCleanup(transport.listen("settings", (next) => mutate(next)));
+  const [settings] = createFollowed(
+    () => transport.call("get_settings").catch(() => undefined),
+    (set) => transport.listen("settings", set),
+  );
   return () => modesOf(settings.state === "ready" ? settings() : undefined);
 }
 

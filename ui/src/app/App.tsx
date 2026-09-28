@@ -1,5 +1,6 @@
-import { createEffect, createResource, For, type JSX, lazy, Match, on, onCleanup, onMount, Suspense, Switch } from "solid-js";
+import { createEffect, For, type JSX, lazy, Match, on, onCleanup, onMount, Suspense, Switch } from "solid-js";
 import { useData } from "../data/context";
+import { createFollowed } from "../data/follow";
 import type { Settings as SettingsData } from "../data/generated/Settings";
 import { Backdrop, setEffects } from "../design/backdrop";
 import { Icon } from "../design/Icon";
@@ -52,13 +53,14 @@ function Toasts(): JSX.Element {
 
 export function App(): JSX.Element {
   const { transport, gameData } = useData();
-  const [status, { mutate }] = createResource(() =>
-    transport.call("client_status").catch((error: unknown) => {
-      reportError(error, "client_status");
-      return undefined;
-    }),
+  const [status] = createFollowed(
+    () =>
+      transport.call("client_status").catch((error: unknown) => {
+        reportError(error, "client_status");
+        return undefined;
+      }),
+    (set) => transport.listen("client-status", set),
   );
-  onCleanup(transport.listen("client-status", (next) => mutate(next)));
   onCleanup(followPointerOnGlass());
   // The core keeps the lasting visual effects and language choices; the first frame used the
   // local copies.

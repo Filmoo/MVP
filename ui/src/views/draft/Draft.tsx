@@ -1,5 +1,6 @@
-import { createResource, createSignal, type JSX, Match, onCleanup, Show, Switch } from "solid-js";
+import { createSignal, type JSX, Match, Show, Switch } from "solid-js";
 import { useData } from "../../data/context";
+import { createFollowed } from "../../data/follow";
 import type { DraftView } from "../../data/generated/DraftView";
 import { useAmbient } from "../../design/ambient";
 import { Card } from "../../design/Card";
@@ -91,8 +92,11 @@ function DraftSkeleton(): JSX.Element {
 
 export default function Draft(): JSX.Element {
   const { transport } = useData();
-  const [draft, { mutate, refetch }] = createResource(() => transport.call("draft_state"));
-  onCleanup(transport.listen("draft", (next) => mutate(next)));
+  // An update pushed while the first answer is on its way wins over it (it is newer).
+  const [draft, { refetch }] = createFollowed(
+    () => transport.call("draft_state"),
+    (set) => transport.listen("draft", set),
+  );
 
   return (
     <div class={`${page.page} ${page.live}`}>
