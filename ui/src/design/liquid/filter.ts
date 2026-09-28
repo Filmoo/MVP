@@ -96,6 +96,9 @@ export const THICKNESS_EASE = 2.2;
 /** Alpha = the map's blue (the glass' thickness: 0 at the rim, 1 past the bezel). */
 const THICKNESS = "0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 1 0 0";
 
+/** Alpha = 1 − the map's blue: the rim zone, 1 at the rim, 0 where the glass turns flat. */
+const RIM_ZONE = "0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 -1 0 1";
+
 /** Keeps one colour channel of a displaced copy (alpha kept). */
 const CHANNEL = {
   r: "1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0",
@@ -218,6 +221,11 @@ export function lensPrimitives(
         attrs: { in: "shine", result: "shine" },
         children: [{ tag: "feFuncA", attrs: { type: "gamma", amplitude: 1, exponent: spec.sharpness ?? 1.6, offset: 0 } }],
       },
+      // Only on the rim: none where the glass is full thickness. The surface's slope there is
+      // nearly flat but not quite, and a few percent of light against the unlit middle drew the
+      // map's slice edges as thin lines (seen on the tier pane over bright art).
+      { tag: "feColorMatrix", attrs: { in: "map", type: "matrix", values: RIM_ZONE, result: "rim" } },
+      { tag: "feComposite", attrs: { in: "shine", in2: "rim", operator: "in", result: "shine" } },
       add("lens", "shine", "lens"),
     );
   }
