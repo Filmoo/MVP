@@ -102,6 +102,7 @@ export const champSelectDraft: DraftView = {
       gain: 3.1,
       tier: 0,
       mine: { games: 41, wins: 23 },
+      mastery: { level: 9, points: 245_800 },
       reasons: [
         r("lane", 4.3, 3244, 0.85, C.irelia, 0.94),
         r("base", 0.9, 127_400, 1),
@@ -116,6 +117,7 @@ export const champSelectDraft: DraftView = {
       gain: 2.5,
       tier: 0,
       mine: null,
+      mastery: { level: 5, points: 41_200 },
       reasons: [
         r("lane", 2.2, 2911, 0.83, C.irelia, 0.94),
         r("base", 0.4, 88_200, 1),
@@ -129,6 +131,7 @@ export const champSelectDraft: DraftView = {
       gain: 2.2,
       tier: 0,
       mine: { games: 6, wins: 4 },
+      mastery: { level: 7, points: 98_400 },
       reasons: [r("lane", 1.9, 1802, 0.76, C.irelia, 0.94), r("base", 0.6, 61_000, 1), r("matchup", -0.2, 2104, 0.21, C.hwei, 0.71)],
     },
     {

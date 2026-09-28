@@ -1,4 +1,5 @@
-//! Client of our backend (`apps/backend`): player lookups and loading-screen scouting.
+//! Client of our backend (`apps/backend`): player lookups, loading-screen scouting and the
+//! published stats files (conditional GETs, cached by [`crate::stats`]).
 //!
 //! The Riot API key lives on the server only; the app sends an anonymous install id
 //! (`X-MVP-Install`, random, persisted next to the settings) so the server can rate-limit per
@@ -18,7 +19,7 @@ use std::time::Duration;
 use domain::{
     ApiError, ApiErrorCode, BackendError, PlayerProfile, RiotId, ScoutCard, ScoutRequest,
 };
-use reqwest::header::{HeaderMap, HeaderValue, RETRY_AFTER};
+use reqwest::header::{CACHE_CONTROL, ETAG, HeaderMap, HeaderValue, IF_NONE_MATCH, RETRY_AFTER};
 use reqwest::{StatusCode, Url};
 use serde::de::DeserializeOwned;
 
@@ -228,6 +229,71 @@ impl BackendClient {
             .timeout(self.0.scout_timeout);
         receive(request.send().await).await
     }
+
+    /// `GET base/segments…` of a cacheable file, revalidating the copy tagged `etag` when one
+    /// is given (`If-None-Match`: the server answers 304 while it is current).
+    pub async fn get_file(
+        &self,
+        segments: &[&str],
+        etag: Option<&str>,
+    ) -> Result<FileAnswer, BackendError> {
+        let mut request = self.0.http.get(self.url(segments)).timeout(self.0.timeout);
+        if let Some(etag) = etag {
+            request = request.header(IF_NONE_MATCH, etag);
+        }
+        let response = request.send().await.map_err(|e| network(&e))?;
+        let status = response.status();
+        let header = |name| {
+            response
+                .headers()
+                .get(name)
+                .and_then(|v| v.to_str().ok())
+                .map(str::trim)
+                .filter(|v| !v.is_empty())
+                .map(str::to_owned)
+        };
+        let max_age = header(CACHE_CONTROL).as_deref().and_then(max_age);
+        if status == StatusCode::NOT_MODIFIED {
+            return Ok(FileAnswer::NotModified { max_age });
+        }
+        let etag = header(ETAG);
+        let retry_header = header(RETRY_AFTER).and_then(|v| v.parse::<u32>().ok());
+        let bytes = response.bytes().await.map_err(|e| network(&e))?;
+        if status.is_success() {
+            return Ok(FileAnswer::Body {
+                bytes: bytes.to_vec(),
+                etag,
+                max_age,
+            });
+        }
+        let body: Option<ApiError> = serde_json::from_slice(&bytes).ok();
+        Err(map_failure(status, body, retry_header))
+    }
+}
+
+/// The answer to [`BackendClient::get_file`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FileAnswer {
+    /// 200: the file, its validator and how long it stays fresh.
+    Body {
+        bytes: Vec<u8>,
+        etag: Option<String>,
+        max_age: Option<Duration>,
+    },
+    /// 304: the copy named in `If-None-Match` is current.
+    NotModified { max_age: Option<Duration> },
+}
+
+/// `max-age` of a `Cache-Control` header (`public, max-age=300`).
+fn max_age(cache_control: &str) -> Option<Duration> {
+    cache_control.split(',').find_map(|directive| {
+        let (name, value) = directive.split_once('=')?;
+        name.trim()
+            .eq_ignore_ascii_case("max-age")
+            .then(|| value.trim().trim_matches('"').parse::<u64>().ok())
+            .flatten()
+            .map(Duration::from_secs)
+    })
 }
 
 fn network(error: &reqwest::Error) -> BackendError {
@@ -319,6 +385,17 @@ mod tests {
             url.as_str(),
             "https://api.example.com/base/v1/players/euw1/Hide%20on%20bush/KR%2F1"
         );
+    }
+
+    #[test]
+    fn reads_max_age() {
+        assert_eq!(
+            max_age("public, max-age=300"),
+            Some(Duration::from_secs(300))
+        );
+        assert_eq!(max_age("MAX-AGE=5"), Some(Duration::from_secs(5)));
+        assert_eq!(max_age("no-store"), None);
+        assert_eq!(max_age("max-age=soon"), None);
     }
 
     #[test]

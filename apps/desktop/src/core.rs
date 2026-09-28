@@ -1,12 +1,13 @@
 //! Runs the app core next to the window and bridges it to the UI.
 
-use std::sync::RwLock;
+use std::sync::{Arc, RwLock};
 
 use companion::automation::CoreEvent;
 use companion::backend::{BackendClient, BackendConfig};
 use companion::settings::SettingsStore;
-use companion::{ScoutingHandle, ViewReporter};
-use domain::{ClientStatus, DraftView, GameData, LiveGame};
+use companion::stats::StatsClient;
+use companion::{ScoutingHandle, Services, ViewReporter};
+use domain::{ClientStatus, DraftView, GameData, LiveGame, StatsIndex};
 use tauri::{AppHandle, Emitter as _, Manager as _, Runtime};
 use tokio::sync::watch;
 
@@ -28,6 +29,25 @@ pub struct GameDataState(pub RwLock<Option<GameData>>);
 /// Our backend (player lookups, scouting), `None` when the client couldn't be built.
 #[derive(Debug)]
 pub struct Backend(pub Option<BackendClient>);
+
+/// Published champion stats (disk-cached), `None` without a backend or a cache directory.
+#[derive(Debug)]
+pub struct Stats(pub Option<StatsClient>);
+
+/// The stats client: our backend, cached under `{app cache}/stats`.
+fn stats_client<R: Runtime>(
+    app: &AppHandle<R>,
+    backend: Option<&BackendClient>,
+) -> Option<StatsClient> {
+    let backend = backend?.clone();
+    match app.path().app_cache_dir() {
+        Ok(dir) => Some(StatsClient::new(backend, dir.join("stats"))),
+        Err(error) => {
+            tracing::error!(%error, "no cache directory for stats");
+            None
+        }
+    }
+}
 
 /// Builds the backend client: base URL from the build (see `companion::backend`), install id
 /// from the config directory, next to the settings.
@@ -61,6 +81,11 @@ pub fn start<R: Runtime>(app: &AppHandle<R>, settings: &SettingsStore) {
     load_game_data(app);
     let backend = backend(app);
     app.manage(Backend(backend.clone()));
+    let published = stats_client(app, backend.as_ref());
+    app.manage(Stats(published.clone()));
+    if let Some(stats) = &published {
+        follow_stats(app, stats);
+    }
 
     let config = match lcu::ConnectorConfig::for_league_client(Vec::new()) {
         Ok(config) => config,
@@ -72,7 +97,11 @@ pub fn start<R: Runtime>(app: &AppHandle<R>, settings: &SettingsStore) {
     let settings = settings.subscribe();
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
-        let companion = companion::start_with(config, settings, backend);
+        let services = Services {
+            backend,
+            stats: published,
+        };
+        let companion = companion::start_services(config, settings, services);
         app.manage(Core {
             status: companion.status.clone(),
             draft: companion.draft.clone(),
@@ -111,6 +140,29 @@ fn handle<R: Runtime>(app: &AppHandle<R>, event: CoreEvent) {
             }
         }
     }
+}
+
+/// Revalidates the stats index once at startup, then tells the UI whenever a different one
+/// arrives (`stats-index`: the stats views fetch again). Nothing else runs until asked.
+fn follow_stats<R: Runtime>(app: &AppHandle<R>, stats: &StatsClient) {
+    let mut index: watch::Receiver<Option<Arc<StatsIndex>>> = stats.subscribe();
+    let startup = stats.clone();
+    tauri::async_runtime::spawn(async move {
+        if let Err(error) = startup.refresh_index().await {
+            tracing::info!(%error, "stats index unavailable");
+        }
+    });
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        while index.changed().await.is_ok() {
+            let Some(current) = index.borrow_and_update().clone() else {
+                continue;
+            };
+            if let Err(error) = app.emit("stats-index", &*current) {
+                tracing::warn!(%error, "cannot emit the stats index");
+            }
+        }
+    });
 }
 
 /// Pushes every change of `rx` to the UI as `event`.

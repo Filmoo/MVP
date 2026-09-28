@@ -1,21 +1,25 @@
 //! App core: follows the League client and publishes the UI-facing [`ClientStatus`],
-//! champion-select [`DraftView`] and loading-screen [`LiveGame`], runs the client automations,
-//! owns the settings and talks to our backend.
+//! champion-select [`DraftView`] (with the draft helper's numbers) and loading-screen
+//! [`LiveGame`], runs the client automations, owns the settings and talks to our backend.
 //!
 //! Independent of Tauri so it runs in tests and could back other front ends (CLI, web).
 
 pub mod automation;
 pub mod backend;
 pub mod champ_select;
+pub mod draft;
 pub mod live;
 pub mod profile;
 pub mod settings;
+pub mod stats;
 
 use automation::{Autopilot, CoreEvent};
 use backend::BackendClient;
 use domain::{ClientConnection, ClientStatus, DraftView, GameflowPhase, LiveGame, Settings};
 use lcu::{ConnectionState, ConnectorConfig, ConnectorUpdate, EventKind, LcuClient};
 use tokio::sync::{mpsc, watch};
+
+use crate::stats::StatsClient;
 use tokio::task::JoinHandle;
 
 /// Maps the client's gameflow phases onto the phases the UI distinguishes.
@@ -138,17 +142,48 @@ pub fn start(config: ConnectorConfig, settings: watch::Receiver<Settings>) -> Co
 /// Starts following the client with the player's `settings`; `backend` answers the scouting
 /// batches. Must run inside a Tokio runtime.
 pub fn start_with(
+    config: ConnectorConfig,
+    settings: watch::Receiver<Settings>,
+    backend: Option<BackendClient>,
+) -> Companion {
+    start_services(
+        config,
+        settings,
+        Services {
+            backend,
+            stats: None,
+        },
+    )
+}
+
+/// What the core talks to besides the League client.
+#[derive(Debug, Clone, Default)]
+pub struct Services {
+    /// Our backend: loading-screen scouting.
+    pub backend: Option<BackendClient>,
+    /// Published champion stats: the draft helper's numbers (without them the draft shows the
+    /// teams only).
+    pub stats: Option<StatsClient>,
+}
+
+/// Starts following the client with the player's `settings` and our `services`. Must run
+/// inside a Tokio runtime.
+pub fn start_services(
     mut config: ConnectorConfig,
     mut settings: watch::Receiver<Settings>,
-    backend: Option<BackendClient>,
+    services: Services,
 ) -> Companion {
     if !config.paths.iter().any(|p| p == champ_select::SESSION) {
         config.paths.push(champ_select::SESSION.to_owned());
     }
+    let Services { backend, stats } = services;
     let mut connector = lcu::spawn(config);
     let client = connector.client.clone();
     let (tx, status) = watch::channel(ClientStatus::not_running());
+    // Sessions as mapped (teams only) → the draft helper → the UI.
+    let (session_tx, session_rx) = watch::channel(None);
     let (draft_tx, draft) = watch::channel(None);
+    let helper = draft::spawn(session_rx, draft_tx, client.clone(), stats);
     let (events_tx, events) = mpsc::channel(32);
     let (views_tx, mut views_rx) = mpsc::unbounded_channel::<String>();
     let (live_tx, live) = watch::channel(None);
@@ -169,7 +204,7 @@ pub fn start_with(
                     let Some(update) = update else { break };
                     let before = tx.borrow().phase;
                     tx.send_if_modified(|status| apply(status, &update));
-                    follow_draft(&update, &tx, &draft_tx, &lcu_client).await;
+                    follow_draft(&update, &tx, &session_tx, &lcu_client).await;
                     let phase = tx.borrow().phase;
                     if phase == before {
                         continue;
@@ -208,6 +243,7 @@ pub fn start_with(
         if let Some(scouting) = game.task {
             scouting.abort();
         }
+        helper.abort();
     });
     Companion {
         status,

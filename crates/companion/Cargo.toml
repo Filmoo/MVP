@@ -15,11 +15,13 @@ rustls.workspace = true
 rustls-platform-verifier.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+stats.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
+aggregate.workspace = true
 axum.workspace = true
 mock-lcu.workspace = true
 tempfile = "3"

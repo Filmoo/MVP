@@ -83,6 +83,10 @@ pub struct Suggestion {
     pub tier: u32,
     /// Your own games on this champion in this role, when any.
     pub mine: Option<PersonalRecord>,
+    /// Your mastery of this champion, when you have any (the pool the list starts from).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub mastery: Option<Mastery>,
     /// Why: largest contributions first.
     pub reasons: Vec<Reason>,
 }
@@ -93,6 +97,15 @@ pub struct Suggestion {
 pub struct PersonalRecord {
     pub games: u32,
     pub wins: u32,
+}
+
+/// The local player's champion mastery, as the League client reports it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Mastery {
+    pub level: u32,
+    pub points: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]

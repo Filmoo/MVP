@@ -3,6 +3,9 @@
 //! `S = Σ β(ally) − Σ β(enemy) + Σ δ_vs(ally, enemy) + Σ δ_duo(ally pairs) − Σ δ_duo(enemy pairs)`,
 //! `P(win) = σ(S)`, taken in expectation over the possible role assignments.
 
+use std::collections::HashMap;
+use std::collections::hash_map::Entry;
+
 use super::model::{Base, ChampRole, Delta, Evidence, PairPrior, PairType, Role, shrunk_delta};
 use super::roles::{Pick, assignments};
 use crate::{logit, sigmoid};
@@ -215,21 +218,24 @@ fn term(
     }
 }
 
-/// Same term from several role assignments → one row with summed weight.
+/// Same term from several role assignments → one row with summed weight, in first-seen order.
+/// Hashed: five enemies with unknown roles give thousands of terms per evaluation.
 fn merge(terms: Vec<Term>) -> Vec<Term> {
-    let mut out: Vec<Term> = Vec::with_capacity(terms.len());
+    let mut out: Vec<Term> = Vec::with_capacity(terms.len() / 8);
+    let mut at: HashMap<(TermKind, ChampRole, Option<ChampRole>, bool), usize> = HashMap::new();
     for t in terms {
-        if let Some(existing) = out.iter_mut().find(|o| {
-            o.kind == t.kind
-                && o.subject == t.subject
-                && o.other == t.other
-                && o.enemy_side == t.enemy_side
-        }) {
-            existing.value += t.value;
-            existing.variance += t.variance;
-            existing.probability += t.probability;
-        } else {
-            out.push(t);
+        match at.entry((t.kind, t.subject, t.other, t.enemy_side)) {
+            Entry::Occupied(slot) => {
+                if let Some(existing) = out.get_mut(*slot.get()) {
+                    existing.value += t.value;
+                    existing.variance += t.variance;
+                    existing.probability += t.probability;
+                }
+            }
+            Entry::Vacant(slot) => {
+                slot.insert(out.len());
+                out.push(t);
+            }
         }
     }
     out
