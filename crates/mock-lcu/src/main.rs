@@ -2,7 +2,9 @@
 //!
 //! Writes `.cache/mock-lcu/{lockfile,ca.pem}` and loops through a whole game cycle
 //! (lobby → queue → champ select → game → end of game), with a game session from the loading
-//! screen on (loading-screen scouting). The local player has champion mastery, recent games and
+//! screen on (loading-screen scouting). At the end of each game it lands in the match history
+//! and the ranked standing counts it a moment later, won and lost in turn (Home's post-game
+//! summary and the LP of each game). The local player has champion mastery, recent games and
 //! a pickable-champion list, which the draft helper builds its pool-first picks from. Point a
 //! debug build of the app at it:
 //!   SCOUT_LCU_LOCKFILE=.cache/mock-lcu/lockfile SCOUT_LCU_CA=.cache/mock-lcu/ca.pem pnpm app
@@ -53,12 +55,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "/riotclient/region-locale",
         json!({ "region": "EUW", "locale": "en_GB" }),
     );
-    mock.set(
-        "/lol-ranked/v1/current-ranked-stats",
-        json!({ "queueMap": { "RANKED_SOLO_5x5": { "tier": "EMERALD", "division": "II", "leaguePoints": 67, "wins": 142, "losses": 128 } } }),
-    );
+    let mut standing = Standing {
+        lp: 67,
+        wins: 142,
+        losses: 128,
+    };
+    mock.set(RANKED, standing.stats());
     // Recent games: the list and each whole game (grades and match details on Home).
-    history::serve(&mock, &local(), &recent_games());
+    let mut games = recent_games();
+    history::serve(&mock, &local(), &games);
     // The local player's own mastery and what they can pick (the draft helper's pool).
     mock.set(
         "/lol-champion-mastery/v1/local-player/champion-mastery",
@@ -79,7 +84,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ]),
     );
     let aram = std::env::args().any(|arg| arg == "--aram");
+    let mut game_id = 7_100_000_000;
     loop {
+        // Each cycle is a new game, won and lost in turn.
+        game_id += 1;
+        let win = game_id % 2 == 1;
         for (phase, seconds) in CYCLE {
             tracing::info!(phase, "gameflow");
             if *phase == "ReadyCheck" {
@@ -101,7 +110,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 log_writes(&mock);
             } else if *phase == "GameStart" {
                 mock.remove(CHAMP_SELECT);
-                mock.set(GAME_SESSION, game_session());
+                mock.set(GAME_SESSION, game_session(game_id));
+            } else if *phase == "EndOfGame" {
+                // The history has the game at once; ranked counts it a moment later (its event
+                // brings the LP to the post-game summary).
+                games.insert(0, finished(game_id, win));
+                history::serve(&mock, &local(), &games);
+                tokio::time::sleep(Duration::from_secs(2)).await;
+                standing = standing.after(win);
+                mock.set(RANKED, standing.stats());
+                tracing::info!(game_id, win, lp = standing.lp, "game over");
             } else if *phase == "None" {
                 mock.remove(GAME_SESSION);
             }
@@ -112,11 +130,59 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 const CHAMP_SELECT: &str = "/lol-champ-select/v1/session";
 const GAME_SESSION: &str = "/lol-gameflow/v1/session";
+const RANKED: &str = "/lol-ranked/v1/current-ranked-stats";
+
+/// The player's solo/duo standing: Emerald II, the LP moving with each game (kept inside the
+/// division, a mock needs no promotions).
+#[derive(Debug, Clone, Copy)]
+struct Standing {
+    lp: u32,
+    wins: u32,
+    losses: u32,
+}
+
+impl Standing {
+    fn after(self, win: bool) -> Self {
+        if win {
+            Self {
+                lp: (self.lp + 21).min(99),
+                wins: self.wins + 1,
+                ..self
+            }
+        } else {
+            Self {
+                lp: self.lp.saturating_sub(17),
+                losses: self.losses + 1,
+                ..self
+            }
+        }
+    }
+
+    fn stats(self) -> serde_json::Value {
+        json!({ "queueMap": { "RANKED_SOLO_5x5": { "tier": "EMERALD", "division": "II",
+            "leaguePoints": self.lp, "wins": self.wins, "losses": self.losses } } })
+    }
+}
+
+/// The game the cycle played (Malphite top, as in its champion select), just over.
+fn finished(game_id: u64, win: bool) -> Game {
+    Game {
+        game_id,
+        queue_id: 420,
+        map_id: 11,
+        created: epoch_ms() - 1_800_000,
+        duration: 1_790,
+        champion: 54,
+        lane: "TOP",
+        spells: [4, 12],
+        win,
+    }
+}
 
 /// The game the draft led to, as the client shows it from the loading screen on: both teams
 /// with champions, positions and spells. One enemy plays in streamer mode (identity hidden).
 /// PUUIDs are made up, so a real backend answers without cards for them.
-fn game_session() -> serde_json::Value {
+fn game_session(game_id: u64) -> serde_json::Value {
     let member = |puuid: &str, name: &str, champion: u32, position: &str| {
         let (game_name, tag_line) = name.split_once('#').unwrap_or((name, ""));
         json!({ "puuid": puuid, "gameName": game_name, "tagLine": tag_line, "championId": champion, "selectedPosition": position })
@@ -125,7 +191,7 @@ fn game_session() -> serde_json::Value {
     json!({
         "phase": "GameStart",
         "gameData": {
-            "gameId": 7_100_000_001_u64,
+            "gameId": game_id,
             "queue": { "id": 420, "type": "RANKED_SOLO_5x5", "isRanked": true },
             "teamOne": [
                 member("00000000-mock-0000-0000-000000000000", "Fillmo#7272", 54, "TOP"),

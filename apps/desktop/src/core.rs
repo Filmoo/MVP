@@ -28,6 +28,8 @@ pub struct Core {
     pub views: ViewReporter,
     pub imports: Importer,
     pub matches: companion::matches::MatchInsights,
+    /// The last game's summary and the LP of your ranked games.
+    pub post_game: companion::post_game::PostGameHandle,
 }
 
 /// Game data of the current patch in the UI's language (Data Dragon locale), once loaded.
@@ -278,6 +280,14 @@ pub fn start<R: Runtime>(app: &AppHandle<R>, settings: &SettingsStore) {
     };
     let settings = settings.subscribe();
     let names = champion_names(app);
+    // The LP of your ranked games, kept with MVP's data.
+    let lp_file = match app.path().app_data_dir() {
+        Ok(dir) => Some(dir.join(companion::lp::FILE_NAME)),
+        Err(error) => {
+            tracing::error!(%error, "no data directory: LP kept for this run only");
+            None
+        }
+    };
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         // The published stats feed both the draft helper and the build imports.
@@ -292,6 +302,7 @@ pub fn start<R: Runtime>(app: &AppHandle<R>, settings: &SettingsStore) {
             builds,
             names,
             language,
+            lp_file,
         };
         let companion = companion::start_with_services(config, settings, services);
         app.manage(Core {
@@ -303,9 +314,11 @@ pub fn start<R: Runtime>(app: &AppHandle<R>, settings: &SettingsStore) {
             views: companion.views.clone(),
             imports: companion.imports.clone(),
             matches: companion.matches.clone(),
+            post_game: companion.post_game.clone(),
         });
         forward(&app, companion.draft.clone(), "draft");
         forward(&app, companion.live.clone(), "live");
+        forward(&app, companion.post_game.subscribe(), "post-game");
         let events_app = app.clone();
         let mut events = companion.events;
         tauri::async_runtime::spawn(async move {

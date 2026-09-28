@@ -1,6 +1,7 @@
 import type { AppInfo } from "./generated/AppInfo";
 import type { AutoAcceptEvent } from "./generated/AutoAcceptEvent";
 import type { Bracket } from "./generated/Bracket";
+import type { ChampionMastery } from "./generated/ChampionMastery";
 import type { ChampionPage } from "./generated/ChampionPage";
 import type { ClientStatus } from "./generated/ClientStatus";
 import type { DraftView } from "./generated/DraftView";
@@ -10,8 +11,11 @@ import type { ImportRequest } from "./generated/ImportRequest";
 import type { ImportResult } from "./generated/ImportResult";
 import type { Language } from "./generated/Language";
 import type { LiveGame } from "./generated/LiveGame";
+import type { LpGame } from "./generated/LpGame";
 import type { MatchDetails } from "./generated/MatchDetails";
+import type { MatchSummary } from "./generated/MatchSummary";
 import type { PlayerProfile } from "./generated/PlayerProfile";
+import type { PostGame } from "./generated/PostGame";
 import type { RankEmblems } from "./generated/RankEmblems";
 import type { RemoteConfig } from "./generated/RemoteConfig";
 import type { RiotId } from "./generated/RiotId";
@@ -38,6 +42,20 @@ export interface Commands {
    * anyone else's from our backend. Rejects with a `BackendError` as the error's `detail`.
    */
   match_details: { args: { matchId: string }; result: MatchDetails };
+  /**
+   * Your games further back than `current_profile`'s: `begIndex` and the 19 after it (fewer, or
+   * none, at the end of the history), graded and opened like the first page's. Rejects when the
+   * League client doesn't answer.
+   */
+  older_matches: { args: { begIndex: number }; result: MatchSummary[] };
+  /** The game that just ended, summed up; `null` once dismissed or when the next game starts (`post-game` events follow). */
+  post_game: { args: undefined; result: PostGame | null };
+  /** The player closed the summary of `matchId`: it doesn't come back. */
+  dismiss_post_game: { args: { matchId: string }; result: null };
+  /** The LP of each ranked game MVP followed (solo/duo and flex), newest first. */
+  lp_history: { args: undefined; result: LpGame[] };
+  /** Your champions by mastery points, most first (the League client's; empty without it). */
+  champion_mastery: { args: undefined; result: ChampionMastery[] };
   /**
    * Names and asset ids of the current patch in `language` (the UI's, `auto` resolved: English
    * or French); `null` until the core has loaded them in it (a `game-data` event follows). Asking
@@ -131,6 +149,8 @@ export interface Events {
   import: ImportResult;
   /** A new remote config arrived: banners, flags and `updateRequired` apply at once. */
   "remote-config": RemoteConfig;
+  /** The last game's summary changed (it arrived, its LP followed); `null` when it goes. */
+  "post-game": PostGame | null;
   "app-update": UpdateStatus;
 }
 

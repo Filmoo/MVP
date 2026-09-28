@@ -12,7 +12,9 @@ pub mod crash;
 pub mod draft;
 pub mod imports;
 pub mod live;
+pub mod lp;
 pub mod matches;
+pub mod post_game;
 pub mod profile;
 pub mod remote;
 pub mod settings;
@@ -78,6 +80,9 @@ pub struct Companion {
     pub imports: Importer,
     /// Your profile, and every game's grades and details, read once and kept.
     pub matches: matches::MatchInsights,
+    /// The summary of the game that just ended (until dismissed or the next game) and the LP of
+    /// your tracked ranked games.
+    pub post_game: post_game::PostGameHandle,
     pub task: JoinHandle<()>,
 }
 
@@ -98,6 +103,9 @@ pub struct Services {
     /// The UI's language (`auto` resolved by the UI), for the words MVP writes into the League
     /// client (its item set's block titles). English until the UI says.
     pub language: watch::Receiver<Language>,
+    /// Where the LP of your ranked games is kept (`lp::FILE_NAME` in the app's data folder;
+    /// `None`: in memory only).
+    pub lp_file: Option<std::path::PathBuf>,
 }
 
 impl Default for Services {
@@ -109,6 +117,7 @@ impl Default for Services {
             builds: Arc::new(NoBuilds),
             names: Arc::new(|_| None),
             language: watch::channel(Language::En).1,
+            lp_file: None,
         }
     }
 }
@@ -207,6 +216,21 @@ struct AutoAccept {
 }
 
 impl AutoAccept {
+    fn new(
+        client: &watch::Receiver<Option<LcuClient>>,
+        settings: &watch::Receiver<Settings>,
+        remote: &watch::Receiver<RemoteConfig>,
+        events: &mpsc::Sender<CoreEvent>,
+    ) -> Self {
+        Self {
+            client: client.clone(),
+            settings: settings.clone(),
+            remote: remote.clone(),
+            events: events.clone(),
+            pending: None,
+        }
+    }
+
     fn allowed(&self) -> bool {
         self.settings.borrow().auto_accept && remote::auto_accept_allowed(&self.remote.borrow())
     }
@@ -284,10 +308,9 @@ pub fn start_with_services(
         builds,
         names,
         language,
+        lp_file,
     } = services;
-    if !config.paths.iter().any(|p| p == champ_select::SESSION) {
-        config.paths.push(champ_select::SESSION.to_owned());
-    }
+    follow_paths(&mut config, &[champ_select::SESSION, post_game::RANKED]);
     let mut connector = lcu::spawn(config);
     let client = connector.client.clone();
     let (tx, status) = watch::channel(ClientStatus::not_running());
@@ -309,6 +332,9 @@ pub fn start_with_services(
         language,
     );
     let mut lock_in = LockIn::new(importer.clone(), events_tx.clone());
+    let insights = matches::MatchInsights::default();
+    let mut post_games = post_game::PostGames::new(client.clone(), insights.clone(), lp_file);
+    let post_game = post_games.handle();
     let task = tokio::spawn(async move {
         let mut autopilot = Autopilot::default();
         let mut game = LiveFollower {
@@ -317,19 +343,14 @@ pub fn start_with_services(
             remote: remote.clone(),
             task: None,
         };
-        let mut accept = AutoAccept {
-            client: lcu_client.clone(),
-            settings: settings.clone(),
-            remote: remote.clone(),
-            events: events_tx.clone(),
-            pending: None,
-        };
+        let mut accept = AutoAccept::new(&lcu_client, &settings, &remote, &events_tx);
         loop {
             tokio::select! {
                 update = connector.updates.recv() => {
                     let Some(update) = update else { break };
                     let before = tx.borrow().phase;
                     tx.send_if_modified(|status| apply(status, &update));
+                    post_games.on_update(&update);
                     if let Some(session) = follow_draft(&update, &tx, &helper.sessions, &lcu_client).await {
                         lock_in.on_session(&session);
                     }
@@ -340,6 +361,7 @@ pub fn start_with_services(
                     if phase != GameflowPhase::ChampSelect {
                         lock_in.reset();
                     }
+                    post_games.on_phase(phase);
                     game.on_phase(phase, &lcu_client);
                     accept.on_phase(phase);
                     let current = settings.borrow().clone();
@@ -374,8 +396,18 @@ pub fn start_with_services(
         events,
         views: ViewReporter(views_tx),
         imports: importer,
-        matches: matches::MatchInsights::default(),
+        matches: insights,
+        post_game,
         task,
+    }
+}
+
+/// Subscribes the connector to `paths` too (the gameflow phase is always followed).
+fn follow_paths(config: &mut ConnectorConfig, paths: &[&str]) {
+    for &path in paths {
+        if !config.paths.iter().any(|p| p == path) {
+            config.paths.push(path.to_owned());
+        }
     }
 }
 
