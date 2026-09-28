@@ -53,8 +53,9 @@ export function Choice<T extends string>(props: {
     ),
   );
   onMount(() => {
-    place();
-    // Options wrap on narrow cards and move with the layout: follow them, without gliding.
+    // The first placement comes with the observer's first report, after layout (measuring
+    // during mount would force a layout per control). Options wrap on narrow cards and move
+    // with the layout: follow them, without gliding.
     const resizes = new ResizeObserver(() => {
       placed = false;
       place();
