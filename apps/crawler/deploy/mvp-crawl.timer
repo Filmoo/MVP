@@ -1,0 +1,13 @@
+# Runs mvp-crawl.service every 3 hours (and soon after boot if a run was missed).
+# systemctl enable --now mvp-crawl.timer
+[Unit]
+Description=MVP stats: crawl and publish every 3 hours
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=3h
+RandomizedDelaySec=10min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

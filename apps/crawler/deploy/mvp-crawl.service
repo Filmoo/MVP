@@ -1,0 +1,25 @@
+# One crawl-and-publish cycle (apps/crawler/README.md, "Scheduled on the VPS").
+# /etc/systemd/system/mvp-crawl.service, with /etc/mvp/crawler.env holding RIOT_API_KEY=… (and,
+# for the optional R2 upload, the rclone remote in /etc/mvp/rclone.conf).
+[Unit]
+Description=MVP stats: crawl new Emerald+ games, then publish the aggregates
+Wants=network-online.target
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/mvp/crawler.env
+# Resumable and idempotent: a cycle that stops early (timeout, reboot) loses nothing.
+TimeoutStartSec=3h
+ExecStart=/usr/bin/docker run --rm --name mvp-crawl \
+  -v mvp-crawl:/crawl -e RIOT_API_KEY \
+  mvp-crawler crawl --platform euw1 --max-matches ${CRAWL_MAX_MATCHES}
+# Publishes into the backend's data volume: mvp-backend serves /data/stats (STATS_DIR).
+ExecStart=/usr/bin/docker run --rm --name mvp-publish \
+  -v mvp-crawl:/crawl -v mvp-data:/data \
+  mvp-crawler publish --out /data/stats
+# Optional: mirror the published files to Cloudflare R2 (see the README). Remove if unused.
+ExecStart=-/usr/bin/docker run --rm --name mvp-upload \
+  -v mvp-data:/data:ro -v /etc/mvp/rclone.conf:/config/rclone/rclone.conf:ro \
+  rclone/rclone:1 sync /data/stats r2:${R2_BUCKET}/stats --checksum --fast-list

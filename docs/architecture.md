@@ -249,9 +249,10 @@ serve:   mvp-backend GET /v1/stats/… (ETag, Cache-Control) → the app downloa
 `{bracket}` is `emeraldPlus`, `diamondPlus` or `masterPlus`. Each patch directory is replaced
 atomically on publication; the index is written last.
 
-**Next (not built):** upload `STATS_DIR` to Cloudflare R2 behind a CDN after each publish
-(credentials only on the VPS, never in the repo) and point the app at it; a schedule (cron /
-systemd timer) for crawl + publish; per-platform crawls merged for more volume.
+**Deployment:** a systemd timer on the VPS runs crawl → publish every 3 hours in the crawler's
+Docker image, writing into the backend's data volume (`STATS_DIR=/data/stats`), with an optional
+`rclone sync` to Cloudflare R2 (credentials only on the VPS): `apps/crawler/README.md`.
+**Next (not built):** point the app at the CDN copy; per-platform crawls merged for more volume.
 
 ## Stats in the app (`companion::stats`, `companion::draft`)
 The core downloads the published files through the backend client (same base URL, install id,
