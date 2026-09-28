@@ -64,6 +64,8 @@ No in-game overlay for now (keep the architecture overlay-ready).
 - UI: only design tokens (`ui/src/design/tokens.css`); the coherence suite enforces it.
   Wrap self-contained blocks in `<Widget name>` (error isolation + perf budget entry required).
   New views need: layout-safe at 400→2560px, empty/error/loading states, mock scenarios.
+- Every word the player reads is in `ui/src/i18n` (English source, French with the same shape:
+  the typecheck and `catalogue.test.ts` enforce it); no literals in components.
 - After any visual change: run the screenshots, have the `ui-reviewer` agent critique them,
   fix P0/P1, and show the user the before/after when the change is notable.
 - Idle means idle: no timers, polling or animations while nothing changes (perf suite checks).
