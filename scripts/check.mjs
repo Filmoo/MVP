@@ -54,11 +54,17 @@ if (!steps) {
   process.exit(2);
 }
 
+// Windows has no pnpm.exe, only pnpm.cmd/.ps1 shims, which Node starts only through a shell.
+const shell = process.platform === "win32";
+
 const results = [];
 for (const [name, cmd, args] of steps) {
   const started = Date.now();
   process.stdout.write(`\n▶ ${name}\n`);
-  const { status } = spawnSync(cmd, args, { cwd: root, stdio: "inherit", env: { ...process.env, FORCE_COLOR: "1" } });
+  const options = { cwd: root, stdio: "inherit", env: { ...process.env, FORCE_COLOR: "1" } };
+  // Every argument is a plain word, so the shell's command line needs no quoting.
+  const { status, error } = shell ? spawnSync([cmd, ...args].join(" "), { ...options, shell }) : spawnSync(cmd, args, options);
+  if (error) console.error(`could not start ${cmd}: ${error.message}`);
   results.push({ name, ok: status === 0, seconds: ((Date.now() - started) / 1000).toFixed(1) });
   if (status !== 0) break;
 }
