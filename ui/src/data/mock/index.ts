@@ -55,7 +55,12 @@ export function createMockTransport(scenario: Scenario): Transport {
       if (response.delayMs) await sleep(response.delayMs);
       if ("error" in response) throw new CommandError(command, response.error, response.detail);
       if ("load" in response) return (await response.load()) as never;
-      if ("handle" in response) return structuredClone((response.handle as (a: unknown) => unknown)(args)) as never;
+      if ("handle" in response) {
+        const answer = structuredClone((response.handle as (a: unknown) => unknown)(args));
+        // Like the core: every saved change is announced to the whole UI (the shell, other views).
+        if (command === "update_settings") emit("settings", structuredClone(answer));
+        return answer as never;
+      }
       return structuredClone(response.data) as never;
     },
     listen(event, handler) {

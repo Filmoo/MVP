@@ -9,9 +9,9 @@ import { reportError } from "../../lib/errors";
 import { Widget } from "../../widgets/Widget";
 import page from "../page.module.css";
 import styles from "./Settings.module.css";
-import { About, AppSettings, AutomationSettings, ImportSettings } from "./sections";
+import { About, AppSettings, AutomationSettings, ImportSettings, StatsSettings } from "./sections";
 
-type Section = "automation" | "imports" | "app";
+type Section = "automation" | "imports" | "stats" | "app";
 
 /** Same boxes as the loaded page, so nothing jumps when settings arrive. */
 function SettingsSkeleton(): JSX.Element {
@@ -23,6 +23,9 @@ function SettingsSkeleton(): JSX.Element {
         </Card>
         <Card title={t().settings.imports.title}>
           <Skeleton height="360px" />
+        </Card>
+        <Card title={t().settings.stats.title}>
+          <Skeleton height="96px" />
         </Card>
         <Card title={t().settings.app.title}>
           <Skeleton height="413px" />
@@ -87,6 +90,9 @@ function SettingsContent(props: { initial: SettingsData }): JSX.Element {
         </Widget>
         <Widget name="settings-imports">
           <ImportSettings settings={settings()} onChange={save("imports")} error={errors().imports} />
+        </Widget>
+        <Widget name="settings-stats">
+          <StatsSettings settings={settings()} onChange={save("stats")} error={errors().stats} />
         </Widget>
         <Widget name="settings-app">
           <AppSettings settings={settings()} onChange={save("app")} error={errors().app} installId={info()?.installId} />

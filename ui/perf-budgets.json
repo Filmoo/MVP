@@ -37,6 +37,10 @@
       "renderMs": 3,
       "domNodes": 84
     },
+    "settings-stats": {
+      "renderMs": 2,
+      "domNodes": 28
+    },
     "settings-app": {
       "renderMs": 3,
       "domNodes": 60

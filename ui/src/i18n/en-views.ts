@@ -343,6 +343,11 @@ export const enViews = {
       paused:
         "Auto-accept is paused for everyone while we fix an issue with the League client. Your choice is kept and works again as soon as it's fixed.",
     },
+    stats: {
+      title: "Stats",
+      bracket: "Rank",
+      bracketText: "Games from this rank up count for Draft, imported builds, and the stats pages at first.",
+    },
     imports: {
       title: "Imports",
       modes: { off: "Off", oneClick: "One click", onLockIn: "On lock-in" },

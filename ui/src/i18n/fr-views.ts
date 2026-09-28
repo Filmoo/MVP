@@ -374,6 +374,11 @@ export const frViews = {
       paused:
         "L’acceptation automatique est en pause pour tout le monde, le temps de corriger un problème avec le client League. Votre choix est conservé et refonctionnera dès que ce sera corrigé.",
     },
+    stats: {
+      title: "Statistiques",
+      bracket: "Rang",
+      bracketText: "Les parties à partir de ce rang comptent pour le draft, les builds importés et, au départ, les pages de stats.",
+    },
     imports: {
       title: "Importations",
       modes: { off: "Désactivé", oneClick: "En un clic", onLockIn: "Au verrouillage" },
