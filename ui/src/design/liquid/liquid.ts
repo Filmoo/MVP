@@ -69,7 +69,9 @@ export const LIQUID = {
     frost: 0,
     saturate: 1.2,
     brightness: 1.06,
-    specular: 0.9,
+    // A glint on the rim, not a glossy half: a dome slopes everywhere.
+    specular: 0.55,
+    sharpness: 4,
   },
 } as const satisfies Record<string, LiquidSpec>;
 

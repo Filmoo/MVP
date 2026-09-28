@@ -83,6 +83,11 @@ describe("lens filter", () => {
     const neutral = 128 / 255;
     expect((lr ?? 0) * neutral + (lg ?? 0) * neutral + (lo ?? 0)).toBeLessThan(0.01);
     expect(primitives.at(-1)?.attrs).toMatchObject({ in: "lens", in2: "shine", result: "lens" });
+    // Gathered toward the steepest rim: 1.6 by default, tighter on request.
+    const gamma = (p: ReturnType<typeof lensPrimitives>) =>
+      p.find((x) => x.attrs.result === "shine" && x.tag === "feComponentTransfer")?.children?.[0]?.attrs.exponent;
+    expect(gamma(primitives)).toBe(1.6);
+    expect(gamma(lensPrimitives({ ...slab, specular: 0.5, sharpness: 4 }, parts, 10))).toBe(4);
   });
 
   it("places every slice where the map says", () => {

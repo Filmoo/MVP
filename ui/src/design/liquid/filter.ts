@@ -33,6 +33,11 @@ export interface LiquidSpec {
    * catches this much at its steepest, the far rim a third of it.
    */
   specular?: number;
+  /**
+   * How tightly the light gathers toward the steepest part (a gamma on it; default 1.6). Domes
+   * slope everywhere, so they need a tight one to show a glint rather than a glossy half.
+   */
+  sharpness?: number;
 }
 
 /**
@@ -177,7 +182,7 @@ export function lensPrimitives(
       {
         tag: "feComponentTransfer",
         attrs: { in: "shine", result: "shine" },
-        children: [{ tag: "feFuncA", attrs: { type: "gamma", amplitude: 1, exponent: 1.6, offset: 0 } }],
+        children: [{ tag: "feFuncA", attrs: { type: "gamma", amplitude: 1, exponent: spec.sharpness ?? 1.6, offset: 0 } }],
       },
       add("lens", "shine", "lens"),
     );
