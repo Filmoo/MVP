@@ -197,3 +197,37 @@ fn impossible_enemy_roles_produce_no_suggestions() {
     b.locked = Some(Role::Top);
     assert!(suggest(&w, Role::Top, &[], &[a, b], &[MALPHITE]).is_empty());
 }
+
+#[test]
+fn five_unknown_enemies_merge_into_one_row_per_term() {
+    let w = world();
+    let enemies: Vec<Pick> = [IRELIA, VAYNE, SHEN, LUCIAN, YUUMI]
+        .iter()
+        .map(|&champion| Pick {
+            champion,
+            role_shares: [0.2; 5],
+            locked: None,
+        })
+        .collect();
+    let e = evaluate(&w, &[cr(MALPHITE, Role::Top)], &enemies).expect("valid");
+    let mut keys: Vec<_> = e
+        .terms
+        .iter()
+        .map(|t| (t.kind, t.subject, t.other, t.enemy_side))
+        .collect();
+    let rows = keys.len();
+    keys.sort();
+    keys.dedup();
+    assert_eq!(keys.len(), rows, "one row per term");
+    // Every enemy sits in exactly one role per assignment: its base rows sum to probability 1.
+    for pick in &enemies {
+        let p: f64 = e
+            .terms
+            .iter()
+            .filter(|t| t.kind == TermKind::Base && t.enemy_side)
+            .filter(|t| t.subject.champion == pick.champion)
+            .map(|t| t.probability)
+            .sum();
+        assert!((p - 1.0).abs() < 1e-9, "{}: {p}", pick.champion);
+    }
+}
