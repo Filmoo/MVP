@@ -1,16 +1,29 @@
 import { createRoot, getOwner, type JSX, onCleanup } from "solid-js";
+import { queryParam } from "../app/router";
 import page from "../views/page.module.css";
 import type {} from "./harness-types";
 import { widgetRegistry } from "./registry";
+import { Widget } from "./Widget";
 
 /**
  * Test-only page (mock builds, `#/__harness`): mounts one widget at a time, synchronously,
  * inside the app's context (static data loaded), and reports its render cost.
+ * `#/__harness?show=<widget>` shows that widget on its own instead (screenshots and layout
+ * checks of widgets no page shows yet, such as `build-summary`).
  */
 export default function Harness(): JSX.Element {
+  const shown = queryParam("show");
+  const show = shown ? widgetRegistry[shown] : undefined;
+  if (shown && show) {
+    return (
+      <div class={page.page} data-harness>
+        <Widget name={shown}>{show()}</Widget>
+      </div>
+    );
+  }
+
   const owner = getOwner();
   const host = (<div class={page.page} data-harness />) as HTMLDivElement;
-
   window.__SCOUT_HARNESS__ = {
     names: Object.keys(widgetRegistry),
     measure(name, runs) {

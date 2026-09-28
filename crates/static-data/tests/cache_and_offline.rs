@@ -33,6 +33,7 @@ async fn fake_ddragon(latest: &'static str) -> (String, Arc<Hits>, tokio::task::
                     "champion.json" => Ok(r#"{"data":{"Ahri":{"id":"Ahri","key":"103","name":"Ahri","tags":["Mage"]}}}"#),
                     "item.json" => Ok(r#"{"data":{"3031":{"name":"Infinity Edge","gold":{"total":3500}}}}"#),
                     "summoner.json" => Ok(r#"{"data":{"SummonerFlash":{"id":"SummonerFlash","key":"4","name":"Flash"}}}"#),
+                    "runesReforged.json" => Ok(r#"[{"id":8000,"key":"Precision","icon":"perk-images/Styles/7201_Precision.png","name":"Precision","slots":[{"runes":[{"id":8010,"key":"Conqueror","icon":"perk-images/Styles/Precision/Conqueror/Conqueror.png","name":"Conqueror","shortDesc":"Gain <b>stacks</b>."}]}]}]"#),
                     _ => Err(StatusCode::NOT_FOUND),
                 }
             }),
@@ -62,13 +63,15 @@ async fn downloads_once_then_serves_from_cache() {
     assert_eq!(first.champions[0].name, "Ahri");
     assert_eq!(first.asset_base, format!("{base}/cdn/16.19.1"));
     assert_eq!(first.art_base, format!("{base}/cdn"));
-    assert_eq!(hits.files.load(Ordering::SeqCst), 3);
+    assert_eq!(first.runes[0].slots[0][0].name, "Conqueror");
+    assert_eq!(first.runes[0].slots[0][0].short_desc, "Gain stacks.");
+    assert_eq!(hits.files.load(Ordering::SeqCst), 4);
 
     let second = dd.load().await.unwrap();
     assert_eq!(second, first);
     assert_eq!(
         hits.files.load(Ordering::SeqCst),
-        3,
+        4,
         "files come from the cache the second time"
     );
     assert_eq!(
@@ -96,6 +99,29 @@ async fn works_offline_from_cache() {
         .await
         .unwrap();
     assert_eq!(offline.version, "16.19.1");
+    assert_eq!(offline.runes.len(), 1, "runes are cached with the patch");
+}
+
+#[tokio::test]
+async fn a_patch_missing_a_file_is_not_used_offline() {
+    let cache = temp_dir("partial");
+    let (base, _hits, server) = fake_ddragon("16.19.1").await;
+    DataDragon::new(&base, &cache, "en_US")
+        .unwrap()
+        .load()
+        .await
+        .unwrap();
+    server.abort();
+    let _ = server.await;
+    // A cache written before runes were loaded (or a download cut short).
+    std::fs::remove_file(cache.join("16.19.1/en_US/runesReforged.json")).unwrap();
+
+    let dd = DataDragon::new(&base, &cache, "en_US").unwrap();
+    assert_eq!(dd.newest_cached(), None);
+    assert!(matches!(
+        dd.load().await,
+        Err(StaticDataError::NothingCached)
+    ));
 }
 
 #[tokio::test]

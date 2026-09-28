@@ -1,4 +1,4 @@
-//! Riot Data Dragon: static game data (champions, items, summoner spells) per patch.
+//! Riot Data Dragon: static game data (champions, items, summoner spells, runes) per patch.
 //!
 //! Files are cached on disk per version, so the app starts offline with the last known
 //! patch and downloads a new patch once. Only the current and previous versions are kept.
@@ -8,11 +8,16 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use domain::{ChampionInfo, GameData, ItemInfo, SpellInfo};
+use domain::{ChampionInfo, GameData, ItemInfo, RuneInfo, RuneStyle, SpellInfo};
 use serde::Deserialize;
 
 pub const DDRAGON: &str = "https://ddragon.leagueoflegends.com";
-const FILES: [&str; 3] = ["champion.json", "item.json", "summoner.json"];
+const FILES: [&str; 4] = [
+    "champion.json",
+    "item.json",
+    "summoner.json",
+    "runesReforged.json",
+];
 const KEEP_VERSIONS: usize = 2;
 
 #[derive(Debug, thiserror::Error)]
@@ -139,6 +144,7 @@ impl DataDragon {
             get("champion.json"),
             get("item.json"),
             get("summoner.json"),
+            get("runesReforged.json"),
         )
     }
 
@@ -272,6 +278,85 @@ struct DdSpell {
     name: String,
 }
 
+/// `runesReforged.json` is a bare array of trees (no `data` map).
+#[derive(Deserialize)]
+struct DdRuneStyle {
+    id: u32,
+    key: String,
+    name: String,
+    icon: String,
+    #[serde(default)]
+    slots: Vec<DdRuneSlot>,
+}
+
+#[derive(Deserialize)]
+struct DdRuneSlot {
+    #[serde(default)]
+    runes: Vec<DdRune>,
+}
+
+#[derive(Deserialize)]
+struct DdRune {
+    id: u32,
+    key: String,
+    name: String,
+    icon: String,
+    #[serde(default, rename = "shortDesc")]
+    short_desc: String,
+}
+
+/// Data Dragon descriptions carry the client's markup (`<b>`, `<br>`, tooltip tags): plain
+/// text for the UI, a line break read as a space.
+fn plain_text(markup: &str) -> String {
+    let mut text = String::with_capacity(markup.len());
+    let mut rest = markup;
+    while let Some(open) = rest.find('<') {
+        text.push_str(&rest[..open]);
+        let Some(len) = rest[open..].find('>') else {
+            // An unclosed `<` is text.
+            text.push_str(&rest[open..]);
+            rest = "";
+            break;
+        };
+        let tag = rest[open + 1..open + len].trim_start_matches('/');
+        let name = tag
+            .split(|c: char| c.is_whitespace() || c == '/')
+            .next()
+            .unwrap_or_default();
+        if name.eq_ignore_ascii_case("br") {
+            text.push(' ');
+        }
+        rest = &rest[open + len + 1..];
+    }
+    text.push_str(rest);
+    text.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+fn rune_style(style: DdRuneStyle) -> RuneStyle {
+    RuneStyle {
+        id: style.id,
+        key: style.key,
+        name: style.name,
+        icon: style.icon,
+        slots: style
+            .slots
+            .into_iter()
+            .map(|slot| {
+                slot.runes
+                    .into_iter()
+                    .map(|r| RuneInfo {
+                        id: r.id,
+                        key: r.key,
+                        name: r.name,
+                        icon: r.icon,
+                        short_desc: plain_text(&r.short_desc),
+                    })
+                    .collect()
+            })
+            .collect(),
+    }
+}
+
 /// Maps Data Dragon files onto the compact domain model.
 pub fn parse(
     version: &str,
@@ -279,6 +364,7 @@ pub fn parse(
     champions: &[u8],
     items: &[u8],
     spells: &[u8],
+    runes: &[u8],
 ) -> Result<GameData, StaticDataError> {
     fn file<T: for<'de> Deserialize<'de>>(
         name: &str,
@@ -324,6 +410,14 @@ pub fn parse(
             })
         })
         .collect();
+    let runes = serde_json::from_slice::<Vec<DdRuneStyle>>(runes)
+        .map_err(|source| StaticDataError::Parse {
+            file: "runesReforged.json".into(),
+            source,
+        })?
+        .into_iter()
+        .map(rune_style)
+        .collect();
     Ok(GameData {
         version: version.to_owned(),
         asset_base: asset_base.to_owned(),
@@ -334,6 +428,7 @@ pub fn parse(
         champions,
         items,
         summoner_spells,
+        runes,
     })
 }
 
@@ -354,20 +449,82 @@ mod tests {
         let items = br#"{"data":{"3031":{"name":"Infinity Edge","gold":{"total":3500}},"oops":{"name":"?"}}}"#;
         let spells =
             br#"{"data":{"SummonerFlash":{"id":"SummonerFlash","key":"4","name":"Flash"}}}"#;
-        let data =
-            parse("16.19.1", "https://x/cdn/16.19.1", champions, items, spells).expect("valid");
+        let data = parse(
+            "16.19.1",
+            "https://x/cdn/16.19.1",
+            champions,
+            items,
+            spells,
+            RUNES,
+        )
+        .expect("valid");
         assert_eq!(data.champions.len(), 1, "unparseable keys are skipped");
         assert_eq!(data.champions[0].id, 145);
         assert_eq!(data.champions[0].key, "Kaisa");
         assert_eq!(data.items[0].gold, 3500);
         assert_eq!(data.summoner_spells[0].id, 4);
+        assert_eq!(data.runes.len(), 1);
+    }
+
+    const EMPTY: &[u8] = br#"{"data":{}}"#;
+    const RUNES: &[u8] = br#"[{"id":8000,"key":"Precision","icon":"perk-images/Styles/7201_Precision.png","name":"Precision","slots":[
+        {"runes":[
+            {"id":8005,"key":"PressTheAttack","icon":"perk-images/Styles/Precision/PressTheAttack/PressTheAttack.png","name":"Press the Attack",
+             "shortDesc":"Hitting an enemy <b>3 consecutive</b> times deals <lol-uikit-tooltipped-keyword key='x'>bonus damage</lol-uikit-tooltipped-keyword>."},
+            {"id":8010,"key":"Conqueror","icon":"perk-images/Styles/Precision/Conqueror/Conqueror.png","name":"Conqueror",
+             "shortDesc":"Gain stacks.<br>Heal at 12 stacks."}]},
+        {"runes":[{"id":9111,"key":"Triumph","icon":"perk-images/Styles/Precision/Triumph.png","name":"Triumph","longDesc":"ignored"}]}]}]"#;
+
+    #[test]
+    fn parses_rune_trees_row_by_row() {
+        let data = parse(
+            "16.19.1",
+            "https://x/cdn/16.19.1",
+            EMPTY,
+            EMPTY,
+            EMPTY,
+            RUNES,
+        )
+        .expect("valid");
+        let [precision] = data.runes.as_slice() else {
+            panic!("one tree expected, got {:?}", data.runes);
+        };
+        assert_eq!((precision.id, precision.name.as_str()), (8000, "Precision"));
+        assert_eq!(precision.icon, "perk-images/Styles/7201_Precision.png");
+        let rows: Vec<Vec<u32>> = precision
+            .slots
+            .iter()
+            .map(|row| row.iter().map(|r| r.id).collect())
+            .collect();
+        assert_eq!(rows, [vec![8005, 8010], vec![9111]], "keystones first");
+        assert_eq!(
+            precision.slots[0][0].short_desc,
+            "Hitting an enemy 3 consecutive times deals bonus damage."
+        );
+        assert_eq!(
+            precision.slots[0][1].short_desc, "Gain stacks. Heal at 12 stacks.",
+            "a line break reads as a space"
+        );
+        assert_eq!(precision.slots[1][0].short_desc, "", "no description");
+    }
+
+    #[test]
+    fn plain_text_drops_markup_only() {
+        assert_eq!(plain_text("a <b>b</b>  c<br/>d<br />e<BR>f"), "a b c d e f");
+        assert_eq!(plain_text("x<i>y</i>z"), "xyz");
+        assert_eq!(plain_text("2 < 3"), "2 < 3", "an unclosed `<` is text");
+        assert_eq!(plain_text(""), "");
     }
 
     #[test]
     fn rejects_garbage() {
         assert!(matches!(
-            parse("1", "x", b"<html>", b"{}", b"{}"),
+            parse("1", "x", b"<html>", b"{}", b"{}", b"[]"),
             Err(StaticDataError::Parse { .. })
+        ));
+        assert!(matches!(
+            parse("1", "x", EMPTY, EMPTY, EMPTY, EMPTY),
+            Err(StaticDataError::Parse { file, .. }) if file == "runesReforged.json"
         ));
     }
 }

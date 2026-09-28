@@ -1,0 +1,39 @@
+.switches {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+/* Data badge: the patch as a pill, then where the numbers come from. */
+.badge {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  min-width: 0;
+  font-size: var(--text-sm);
+  color: var(--text-3);
+}
+
+.patch {
+  flex: none;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-full);
+  background: var(--bg-3);
+  border: 1px solid var(--line-2);
+  color: var(--text-1);
+  font-weight: var(--weight-semibold);
+  line-height: 22px;
+  white-space: nowrap;
+}
+
+.facts {
+  min-width: 0;
+}
+
+/* Wraps between facts, never inside one. */
+.fact {
+  white-space: nowrap;
+}

@@ -15,6 +15,9 @@ pub struct GameData {
     pub champions: Vec<ChampionInfo>,
     pub items: Vec<ItemInfo>,
     pub summoner_spells: Vec<SpellInfo>,
+    /// Rune trees (Precision, Domination…), from `runesReforged.json`. Stat shards (ids
+    /// 5001–5013) aren't in Data Dragon: the UI names them itself.
+    pub runes: Vec<RuneStyle>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -48,4 +51,35 @@ pub struct SpellInfo {
     /// Asset id, e.g. `SummonerFlash`.
     pub key: String,
     pub name: String,
+}
+
+/// A rune tree (a "path" in the client): its keystones and minor runes, row by row.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RuneStyle {
+    /// Numeric id, as in match data and rune pages (`8000` = Precision).
+    pub id: u32,
+    /// Asset id, e.g. `Precision`.
+    pub key: String,
+    pub name: String,
+    /// Icon path under the version-less art base: `{art_base}/img/{icon}`.
+    pub icon: String,
+    /// Rows from top to bottom: the keystones, then the three rows of minor runes.
+    pub slots: Vec<Vec<RuneInfo>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RuneInfo {
+    /// Numeric id, as in match data (`perk`) and rune pages (`8005` = Press the Attack).
+    pub id: u32,
+    /// Asset id, e.g. `PressTheAttack`.
+    pub key: String,
+    pub name: String,
+    /// Icon path under the version-less art base: `{art_base}/img/{icon}`.
+    pub icon: String,
+    /// One-line description as plain text (Data Dragon's markup removed).
+    pub short_desc: String,
 }

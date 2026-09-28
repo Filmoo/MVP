@@ -1,4 +1,5 @@
 import type { GameData } from "../generated/GameData";
+import type { RuneStyle } from "../generated/RuneStyle";
 
 /** Where the dev server serves Data Dragon files fetched by scripts/fetch-dev-assets.mjs. */
 export const DEV_ASSET_BASE = "/dd/16.19.1";
@@ -7,10 +8,44 @@ interface DdFile<T> {
   data: Record<string, T>;
 }
 
-async function file<T>(name: string): Promise<DdFile<T>> {
+async function json<T>(name: string): Promise<T> {
   const res = await fetch(`${DEV_ASSET_BASE}/data/en_US/${name}`);
   if (!res.ok) throw new Error(`${name}: HTTP ${res.status}`);
-  return (await res.json()) as DdFile<T>;
+  return (await res.json()) as T;
+}
+
+const file = <T>(name: string) => json<DdFile<T>>(name);
+
+interface DdRune {
+  id: number;
+  key: string;
+  name: string;
+  icon: string;
+  shortDesc?: string;
+}
+
+/** Same as the core's `plain_text`: markup dropped, a line break read as a space. */
+export function plainText(markup: string): string {
+  return markup
+    .replace(/<br\s*\/?>/gi, " ")
+    .replace(/<[^>]*>/g, "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .join(" ");
+}
+
+function runeStyles(
+  styles: Array<{ id: number; key: string; name: string; icon: string; slots: Array<{ runes: DdRune[] }> }>,
+): RuneStyle[] {
+  return styles.map((s) => ({
+    id: s.id,
+    key: s.key,
+    name: s.name,
+    icon: s.icon,
+    slots: s.slots.map((slot) =>
+      slot.runes.map((r) => ({ id: r.id, key: r.key, name: r.name, icon: r.icon, shortDesc: plainText(r.shortDesc ?? "") })),
+    ),
+  }));
 }
 
 /**
@@ -19,10 +54,11 @@ async function file<T>(name: string): Promise<DdFile<T>> {
  */
 export async function loadDevGameData(): Promise<GameData | null> {
   try {
-    const [champions, items, spells] = await Promise.all([
+    const [champions, items, spells, runes] = await Promise.all([
       file<{ id: string; key: string; name: string; tags?: string[] }>("champion.json"),
       file<{ name: string; gold?: { total?: number } }>("item.json"),
       file<{ id: string; key: string; name: string }>("summoner.json"),
+      json<Parameters<typeof runeStyles>[0]>("runesReforged.json"),
     ]);
     return {
       version: "16.19.1",
@@ -33,6 +69,7 @@ export async function loadDevGameData(): Promise<GameData | null> {
         .sort((a, b) => a.name.localeCompare(b.name)),
       items: Object.entries(items.data).map(([id, i]) => ({ id: Number(id), name: i.name, gold: i.gold?.total ?? 0 })),
       summonerSpells: Object.values(spells.data).map((s) => ({ id: Number(s.key), key: s.id, name: s.name })),
+      runes: runeStyles(runes),
     };
   } catch {
     return null;

@@ -1,139 +1,169 @@
-/* A champion's hero: art across the card, lit by its own colors (like the profile hero). */
-.hero {
-  container: champion / inline-size;
-  position: relative;
-  isolation: isolate;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  min-height: 280px;
-  background:
-    radial-gradient(80% 150% at 100% 0%, color-mix(in oklab, var(--amb-a) 26%, transparent), transparent 62%),
-    radial-gradient(55% 120% at 0% 0%, color-mix(in oklab, var(--amb-b) 14%, transparent), transparent 60%), var(--bg-2);
-  border: 1px solid var(--line-1);
-  border-radius: var(--radius-4);
-}
-
-.art {
-  position: absolute;
-  z-index: -1;
-  top: 0;
-  right: 0;
-  width: min(72%, 1000px);
-  height: 100%;
-  object-fit: cover;
-  object-position: 50% 20%;
-  opacity: 0.75;
-  pointer-events: none;
-  mask-image: linear-gradient(90deg, transparent, black 45%);
-}
-
-.body {
-  flex: 1;
+/* Champion page: a way back and the data scope on top, the hero, then builds beside matchups. */
+.top {
   display: flex;
   align-items: center;
-  gap: var(--space-8);
-  padding: var(--space-9) var(--space-8);
-  min-width: 0;
-}
-
-.body img,
-.body [role="img"] {
-  border: 2px solid var(--accent-soft);
-  border-radius: var(--radius-4);
-}
-
-.identity {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  min-width: 0;
-}
-
-.name {
-  font-size: var(--text-3xl);
-  font-weight: var(--weight-bold);
-  letter-spacing: -0.02em;
-  line-height: 1.15;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.tags {
-  display: flex;
+  justify-content: space-between;
   flex-wrap: wrap;
-  gap: var(--space-3);
-  margin: 0;
-  padding: 0;
-  list-style: none;
+  gap: var(--space-4) var(--space-6);
+  min-height: var(--space-9);
 }
 
-.tag {
-  padding: 0 var(--space-4);
-  border-radius: var(--radius-full);
-  background: var(--bg-glass);
-  border: 1px solid var(--line-2);
-  font-size: var(--text-sm);
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4) var(--space-2) var(--space-2);
+  border-radius: var(--radius-3);
+  font-size: var(--text-md);
   font-weight: var(--weight-medium);
   color: var(--text-2);
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    background-color var(--dur-1) var(--ease),
+    color var(--dur-1) var(--ease);
 }
 
-/* What's coming, on a frosted strip under the art. */
-.soon {
-  display: flex;
-  align-items: center;
-  gap: var(--space-6);
-  padding: var(--space-6) var(--space-8);
-  background: var(--bg-glass);
-  backdrop-filter: blur(8px);
-  border-top: 1px solid var(--line-1);
+.back:hover {
+  background: var(--bg-3);
+  color: var(--text-1);
 }
 
-.soonIcon {
-  flex: none;
+.grid {
   display: grid;
-  place-items: center;
-  width: var(--space-10);
-  height: var(--space-10);
-  border-radius: var(--radius-full);
-  background: var(--accent-soft);
-  color: var(--accent);
+  grid-template-columns: minmax(0, 1fr) minmax(var(--aside-w), 32%);
+  gap: var(--space-6);
+  align-items: start;
 }
 
-.soonText {
+.main {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: var(--space-6);
   min-width: 0;
 }
 
-.soonTitle {
-  font-size: var(--text-base);
-  font-weight: var(--weight-semibold);
+/* Spells and skill order side by side, as tall as each other. */
+.pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-6);
 }
 
-.soonDetail {
+.pair > * {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.pair > * > * {
+  flex: 1;
+}
+
+/* Matchups stay in view next to the long build column. */
+.aside {
+  min-width: 0;
+  position: sticky;
+  top: var(--space-8);
+}
+
+.skeletonList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* A newer answer is on its way: the current one stays, quieter. */
+.busy {
+  opacity: 0.6;
+  transition: opacity var(--dur-2) var(--ease);
+}
+
+@container page (max-width: 1099px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .aside {
+    position: static;
+  }
+}
+
+@container page (max-width: 719px) {
+  .pair {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Champion index: title with the search, then the role filter. */
+.indexHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-4) var(--space-6);
+  min-height: var(--space-9);
+}
+
+.search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 0 1 320px;
+  min-width: 0;
+}
+
+.searchIcon {
+  position: absolute;
+  left: var(--space-5);
+  color: var(--text-3);
+  pointer-events: none;
+}
+
+.searchInput {
+  width: 100%;
+  height: 36px;
+  padding: 0 var(--space-5) 0 var(--space-10);
+  border: 1px solid var(--line-glass);
+  border-radius: var(--radius-3);
+  background: var(--bg-1);
+  color: var(--text-1);
+  font: inherit;
   font-size: var(--text-md);
+  outline: none;
+  transition: border-color var(--dur-1) var(--ease);
+}
+
+.searchInput::placeholder {
+  color: var(--text-3);
+}
+
+/* Narrow: the search takes its own full line under the title. */
+@container page (max-width: 559px) {
+  .search {
+    flex-basis: 100%;
+  }
+}
+
+.searchInput:focus-visible {
+  border-color: var(--accent);
+}
+
+.indexFilters {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-4) var(--space-6);
+}
+
+.scope {
+  font-size: var(--text-sm);
+  color: var(--text-3);
+}
+
+.scope a {
   color: var(--text-2);
 }
 
-@container champion (max-width: 559px) {
-  .art {
-    width: 100%;
-    opacity: 0.5;
-  }
-  .body {
-    flex-direction: column;
-    align-items: flex-start;
-    justify-content: flex-end;
-    gap: var(--space-6);
-    padding: var(--space-8) var(--space-7);
-  }
-  .name {
-    font-size: var(--text-2xl);
-  }
-  .soon {
-    padding: var(--space-6) var(--space-7);
-  }
+.scope a:hover {
+  color: var(--text-1);
 }

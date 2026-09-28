@@ -18,6 +18,7 @@ const Draft = lazy(() => import("../views/draft/Draft"));
 const Live = lazy(() => import("../views/live/Live"));
 const Player = lazy(() => import("../views/player/Player"));
 const Champions = lazy(() => import("../views/champions/Champions"));
+const TierList = lazy(() => import("../views/tierlist/TierList"));
 const Harness = lazy(() => import("../widgets/Harness"));
 const Banners = lazy(() => import("./Banners"));
 
@@ -126,7 +127,7 @@ export function App(): JSX.Element {
               <Champions />
             </Match>
             <Match when={path() === "/tier-list"}>
-              <Planned title="Tier list" icon="tiers" description="Champion strength by role and rank bracket, for the current patch." />
+              <TierList />
             </Match>
             <Match when={path() === "/settings"}>
               <Settings />

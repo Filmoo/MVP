@@ -45,6 +45,10 @@ const SCENARIO_VIEWS = [
   { view: "/player/euw1/Blade%20Dancer/IRE", scenario: "default" },
   { view: "/player/euw1/WWWWWWWWWWWWWWWW/WWWWW", scenario: "default" },
   { view: "/champions?id=103", scenario: "default" },
+  // A support (both halves of the bot lane in matchups), ARAM (no roles, no matchups, no bans).
+  { view: "/champions?id=412", scenario: "default" },
+  { view: "/champions?id=99&queue=450", scenario: "default" },
+  { view: "/tier-list?queue=450", scenario: "default" },
 ] as const;
 
 // Their other states at the extreme sizes.
@@ -58,6 +62,13 @@ const STATE_VIEWS = [
   { view: "/settings", scenario: "update-available" },
   { view: "/settings", scenario: "auto-accept-paused" },
   { view: "/live", scenario: "banners" },
+  { view: "/tier-list", scenario: "stats-empty" },
+  { view: "/tier-list", scenario: "stats-offline" },
+  { view: "/tier-list", scenario: "stats-aram-only" },
+  { view: "/champions?id=103", scenario: "stats-empty" },
+  { view: "/champions?id=103", scenario: "stats-offline" },
+  { view: "/champions?id=904", scenario: "default" },
+  { view: "/champions", scenario: "stats-offline" },
 ] as const;
 for (const { view, scenario } of STATE_VIEWS) {
   for (const size of [SIZES[0], SIZES[3], SIZES[6]]) {

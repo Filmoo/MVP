@@ -5,7 +5,14 @@ import { profile } from "../data/mock/fixtures";
 import { liveGame } from "../data/mock/live-fixtures";
 import { outageBanner, patchBanner, requiredConfig, updateReady } from "../data/mock/platform-fixtures";
 import { defaultSettings } from "../data/mock/settings-fixtures";
-import { ChampionSoonHero } from "../views/champions/Champions";
+import { mockChampionPage, mockStatsIndex, mockTierList } from "../data/mock/stats-fixtures";
+import { buildFor, roleTabs } from "../lib/stats";
+import { BuildSummary } from "../views/champions/BuildSummary";
+import { ItemsCard, SkillsCard, SpellsCard } from "../views/champions/Builds";
+import { ChampionGrid } from "../views/champions/ChampionGrid";
+import { ChampionHero } from "../views/champions/ChampionHero";
+import { MatchupsCard } from "../views/champions/Matchups";
+import { RunesCard } from "../views/champions/Runes";
 import { IDLE_HINT, ImportPanel } from "../views/draft/ImportBar";
 import { Suggestions } from "../views/draft/Suggestions";
 import { Teams } from "../views/draft/Teams";
@@ -15,6 +22,13 @@ import { ProfileHeader } from "../views/home/ProfileHeader";
 import { RecentMatches } from "../views/home/RecentMatches";
 import { LiveTeam } from "../views/live/LiveTeam";
 import { About, AppSettings, AutomationSettings, ImportSettings } from "../views/settings/sections";
+import { TierTable } from "../views/tierlist/TierTable";
+
+// Stats widgets measured on a two-role champion (Lux: support, mid) and the full Emerald+ list.
+const tierList = mockTierList(420, "emeraldPlus");
+const lux = mockChampionPage(99, 420, "emeraldPlus");
+const luxBuild = buildFor(lux, "support");
+if (!luxBuild) throw new Error("the Lux fixture has a support build");
 
 /**
  * Every widget with representative data, for isolated performance measurement
@@ -52,7 +66,6 @@ export const widgetRegistry: Record<string, () => JSX.Element> = {
   "settings-imports": () => <ImportSettings settings={defaultSettings} onChange={() => {}} />,
   "settings-app": () => <AppSettings settings={defaultSettings} onChange={() => {}} />,
   "live-team": () => <LiveTeam title="Your team" players={liveGame.allies} enemy={false} scouting="done" />,
-  "champion-soon": () => <ChampionSoonHero championId={103} />,
   "settings-about": () => <About info={{ name: "MVP", version: "0.1.0", platform: "windows", installId: null }} update={updateReady} />,
   banners: () => (
     <NoticeList
@@ -73,4 +86,23 @@ export const widgetRegistry: Record<string, () => JSX.Element> = {
       onCheck={() => {}}
     />
   ),
+  "tier-list": () => <TierTable list={tierList} roleFilter="all" />,
+  "champion-grid": () => <ChampionGrid list={tierList} roleFilter="all" query="" />,
+  "champion-hero": () => (
+    <ChampionHero
+      championId={99}
+      page={lux}
+      loading={false}
+      tabs={roleTabs(lux)}
+      forRole="support"
+      onRole={() => {}}
+      index={mockStatsIndex()}
+    />
+  ),
+  "champion-runes": () => <RunesCard build={luxBuild} />,
+  "champion-spells": () => <SpellsCard build={luxBuild} />,
+  "champion-skills": () => <SkillsCard build={luxBuild} />,
+  "champion-items": () => <ItemsCard build={luxBuild} />,
+  "champion-matchups": () => <MatchupsCard page={lux} forRole="support" />,
+  "build-summary": () => <BuildSummary championId={99} build={luxBuild} />,
 };

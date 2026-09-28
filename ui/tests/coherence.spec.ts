@@ -65,12 +65,36 @@ for (const { view, scenario } of [
   { view: "/player/euw1/Busy/429", scenario: "default" },
   { view: "/player/euw1/Nobody/404", scenario: "default" },
   { view: "/champions?id=103", scenario: "default" },
+  { view: "/champions?id=412", scenario: "default" },
+  { view: "/champions?id=99&queue=450", scenario: "default" },
+  { view: "/champions?id=904", scenario: "default" },
+  { view: "/champions?id=103", scenario: "stats-offline" },
+  { view: "/champions?id=103", scenario: "stats-empty" },
+  { view: "/tier-list?queue=450", scenario: "default" },
+  { view: "/tier-list", scenario: "stats-empty" },
+  { view: "/tier-list", scenario: "stats-offline" },
+  { view: "/__harness?show=build-summary", scenario: "default" },
 ] as const) {
   test(`${view}/${scenario} only uses design tokens`, async ({ page }) => {
     await openApp(page, { view, scenario });
     expect(await page.evaluate(auditTokens)).toEqual([]);
   });
 }
+
+test("stats pages after switching (all rows, a role, duos, another rune page) only use design tokens", async ({ page }) => {
+  await openApp(page, { view: "/tier-list" });
+  await page.getByTestId("role-filter").getByRole("radio", { name: "Bot" }).click();
+  await page.getByTestId("tier-row").first().hover();
+  expect(await page.evaluate(auditTokens), "tier list").toEqual([]);
+  await openApp(page, { view: "/champions?id=99" });
+  await page.getByTestId("role-tabs").getByRole("radio", { name: /^Mid/ }).click();
+  await page.getByTestId("matchup-kind").getByRole("radio", { name: "Duos" }).click();
+  await page.getByTestId("rune-page").nth(1).click();
+  await page.mouse.move(0, 0);
+  // Segments and pills glide to their new colors: audit the settled ones.
+  await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)));
+  expect(await page.evaluate(auditTokens), "champion page").toEqual([]);
+});
 
 test("live cards while scouting only use design tokens", async ({ page }) => {
   await page.goto("/?scenario=live-scouting#/live");

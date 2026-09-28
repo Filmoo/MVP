@@ -93,6 +93,21 @@ test("idle: no scripts, layouts or style work while nothing happens", async ({ p
   expect(idle.styleRecalcs).toBeLessThanOrEqual(budgets.idle.styleRecalcs);
 });
 
+// Stats pages load data on open: once shown, they're as quiet as Home.
+for (const view of ["/tier-list", "/champions?id=103"]) {
+  test(`idle on ${view}: no scripts, layouts or style work`, async ({ page }) => {
+    await openApp(page, { view, freezeClock: false });
+    await page.waitForTimeout(800);
+    const cdp = await cdpFor(page);
+    const before = await metrics(cdp);
+    await page.waitForTimeout(3_000);
+    const after = await metrics(cdp);
+    expect(((after.ScriptDuration ?? 0) - (before.ScriptDuration ?? 0)) * 1_000, "script ms").toBeLessThanOrEqual(budgets.idle.scriptMs);
+    expect((after.LayoutCount ?? 0) - (before.LayoutCount ?? 0), "layouts").toBeLessThanOrEqual(budgets.idle.layouts);
+    expect((after.RecalcStyleCount ?? 0) - (before.RecalcStyleCount ?? 0), "style recalcs").toBeLessThanOrEqual(budgets.idle.styleRecalcs);
+  });
+}
+
 test("switching views is instant and memory stays small", async ({ page }) => {
   await openApp(page, { freezeClock: false });
   const switches: Record<string, number> = {};

@@ -1,0 +1,65 @@
+.rune {
+  flex: none;
+  border-radius: var(--radius-full);
+  background: var(--bg-1);
+  object-fit: cover;
+}
+
+.style {
+  flex: none;
+  object-fit: contain;
+}
+
+.fallback {
+  display: inline-grid;
+  place-items: center;
+  border-radius: var(--radius-full);
+  background: var(--bg-3);
+  color: var(--text-3);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+}
+
+/* Stat shards: a glyph on a small round chip; the chosen one in its stat's color. */
+.shard {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--line-2);
+  background: var(--bg-1);
+  color: var(--text-3);
+}
+
+.shard:not(.chosen) svg {
+  opacity: 0.6;
+}
+
+.chosen {
+  background: var(--bg-4);
+  border-color: currentColor;
+}
+
+.chosen.adaptive {
+  color: var(--tier-s);
+}
+.chosen.attackSpeed {
+  color: var(--warn);
+}
+.chosen.haste {
+  color: var(--win);
+}
+.chosen.moveSpeed {
+  color: var(--role-support);
+}
+.chosen.health,
+.chosen.healthScaling {
+  color: var(--good);
+}
+.chosen.tenacity,
+.chosen.magicResist {
+  color: var(--accent);
+}
+.chosen.armor {
+  color: var(--tier-c);
+}
