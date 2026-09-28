@@ -3,6 +3,7 @@ import { useData } from "../data/context";
 import type { Banner } from "../data/generated/Banner";
 import type { ClientStatus } from "../data/generated/ClientStatus";
 import { IN_GAME_PHASES, useRemoteConfig, useUpdates } from "../data/platform";
+import { localized, t } from "../i18n";
 import { reportError } from "../lib/errors";
 import type { Ready } from "./notices/Notices";
 
@@ -60,6 +61,11 @@ export default function Banners(props: { status: ClientStatus | undefined }): JS
     if (u.state !== "ready" || config().updateRequired || inGame()) return undefined;
     return later() && !u.mandatory ? undefined : u;
   };
+  // The server's words, in the player's language.
+  const requiredMessage = () => {
+    const message = config().minVersion?.message;
+    return message ? localized(message) : t().updates.required.unsupported;
+  };
   const dismiss = (id: string) => {
     const next = [...dismissed().filter((d) => d !== id), id];
     setDismissed(next);
@@ -70,7 +76,7 @@ export default function Banners(props: { status: ClientStatus | undefined }): JS
   };
   const restart = () => {
     updates.restart().catch((error: unknown) => {
-      reportError(`Couldn't restart into the update: ${error instanceof Error ? error.message : String(error)}`, "update");
+      reportError(t().updates.restartFailed(error instanceof Error ? error.message : String(error)), "update");
     });
   };
 
@@ -80,7 +86,7 @@ export default function Banners(props: { status: ClientStatus | undefined }): JS
       <Suspense>
         <Show when={config().updateRequired}>
           <UpdateBlocker
-            message={config().minVersion?.message.en ?? "This version of MVP is no longer supported."}
+            message={requiredMessage()}
             update={updates.status()}
             inGame={inGame()}
             onRestart={restart}

@@ -7,6 +7,7 @@ import { Card } from "../../design/Card";
 import { ChampionIcon } from "../../design/GameIcon";
 import { EmptyState } from "../../design/States";
 import { GradeBadge } from "../../design/TierBadge";
+import { t } from "../../i18n";
 import { bestMatches } from "../../lib/fuzzy";
 import type { RoleFilter } from "../../lib/stats-filters";
 import styles from "./ChampionGrid.module.css";
@@ -44,8 +45,8 @@ export function ChampionGrid(props: { list: TierList | undefined; roleFilter: Ro
         fallback={
           <EmptyState
             icon="search"
-            title={props.query.trim() ? `No champion matches “${props.query.trim()}”` : "No champion here yet"}
-            text={props.query.trim() ? "Check the spelling, or clear the search." : "Champions show once game data and stats are loaded."}
+            title={props.query.trim() ? t().champions.noMatch(props.query.trim()) : t().champions.noneYet}
+            text={props.query.trim() ? t().champions.checkSpelling : t().champions.whenLoaded}
           />
         }
       >

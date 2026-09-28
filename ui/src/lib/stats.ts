@@ -10,25 +10,40 @@ import type { Role } from "../data/generated/Role";
 import type { StatsIndex } from "../data/generated/StatsIndex";
 import type { TierEntry } from "../data/generated/TierEntry";
 import type { SegmentedOption } from "../design/Segmented";
-import { ROLE_ICON, ROLE_LABEL, ROLES } from "./roles";
+import { t } from "../i18n";
+import { ROLE_ICON, ROLES, roleLabel } from "./roles";
 import { ARAM, type Queue, RANKED, type RoleFilter } from "./stats-filters";
 
-export const QUEUE_LABEL: Record<Queue, string> = { 420: "Ranked Solo", 450: "ARAM" };
-export const BRACKET_LABEL: Record<Bracket, string> = { emeraldPlus: "Emerald+", diamondPlus: "Diamond+", masterPlus: "Master+" };
+/** A stats queue's name: `Ranked Solo`, `ARAM`. */
+export const queueLabel = (queue: Queue): string => t().queues[queue];
 
-export const QUEUE_OPTIONS: SegmentedOption<Queue>[] = [
-  { value: 420, label: QUEUE_LABEL[420] },
-  { value: 450, label: QUEUE_LABEL[450] },
+/** A rank bracket's name: `Emerald+`. */
+export const bracketLabel = (bracket: Bracket): string => t().brackets[bracket];
+
+const BRACKETS = ["emeraldPlus", "diamondPlus", "masterPlus"] as const;
+
+/** How the core labels brackets in `DataInfo` (`crates/domain` `Bracket::label`). */
+const CORE_LABELS: Record<string, Bracket> = { "Emerald+": "emeraldPlus", "Diamond+": "diamondPlus", "Master+": "masterPlus" };
+
+/** A bracket as the core labels it (`Emerald+`), in the current language. */
+export function bracketName(label: string): string {
+  const bracket = CORE_LABELS[label];
+  return bracket ? bracketLabel(bracket) : label;
+}
+
+/** `Ranked Solo · Emerald+`: which data a number comes from. */
+export const scopeLabel = (queue: Queue, bracket: Bracket): string => `${queueLabel(queue)} · ${bracketLabel(bracket)}`;
+
+export const queueOptions = (): SegmentedOption<Queue>[] => [
+  { value: 420, label: queueLabel(420) },
+  { value: 450, label: queueLabel(450) },
 ];
 
-export const BRACKET_OPTIONS: SegmentedOption<Bracket>[] = (["emeraldPlus", "diamondPlus", "masterPlus"] as const).map((value) => ({
-  value,
-  label: BRACKET_LABEL[value],
-}));
+export const bracketOptions = (): SegmentedOption<Bracket>[] => BRACKETS.map((value) => ({ value, label: bracketLabel(value) }));
 
-export const ROLE_FILTER_OPTIONS: SegmentedOption<RoleFilter>[] = [
-  { value: "all", label: "All", icon: "champions" },
-  ...ROLES.map((role) => ({ value: role, label: ROLE_LABEL[role], icon: ROLE_ICON[role] })),
+export const roleFilterOptions = (): SegmentedOption<RoleFilter>[] => [
+  { value: "all", label: t().stats.all, icon: "champions" },
+  ...ROLES.map((role) => ({ value: role, label: roleLabel(role), icon: ROLE_ICON[role] })),
 ];
 
 /** Summoner's Rift queues (normal, ranked, Clash, co-op vs AI): their builds are ranked data's. */
@@ -69,35 +84,16 @@ export interface StatsErrorWords {
 
 /** How a failed stats request reads. */
 export function statsErrorWords(error: BackendError): StatsErrorWords {
+  const words = t().stats.errors;
   switch (error.kind) {
     case "notFound":
-      return {
-        title: "No stats published yet",
-        text: "Nothing is counted for this queue and rank on the current patch yet. Stats appear here as soon as they are published.",
-        retry: false,
-        empty: true,
-      };
+      return { ...words.notFound, retry: false, empty: true };
     case "rateLimited":
-      return {
-        title: "Too many requests right now",
-        text: error.retryAfter === null ? "Try again in a moment." : `Try again in ${error.retryAfter} s.`,
-        retry: true,
-        empty: false,
-      };
+      return { title: words.rateLimited.title, text: words.rateLimited.text(error.retryAfter), retry: true, empty: false };
     case "unavailable":
-      return {
-        title: "Stats are unavailable",
-        text: "Our stats service can't answer right now. Try again in a moment.",
-        retry: true,
-        empty: false,
-      };
+      return { ...words.unavailable, retry: true, empty: false };
     case "network":
-      return {
-        title: "Can't reach MVP's servers",
-        text: "Check your internet connection, then try again. Stats you opened before stay available offline.",
-        retry: true,
-        empty: false,
-      };
+      return { ...words.network, retry: true, empty: false };
   }
 }
 

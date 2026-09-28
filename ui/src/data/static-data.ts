@@ -1,4 +1,5 @@
-import { type Accessor, createResource, onCleanup } from "solid-js";
+import { type Accessor, createEffect, createSignal, on, onCleanup } from "solid-js";
+import { lang } from "../i18n";
 import type { ChampionInfo } from "./generated/ChampionInfo";
 import type { GameData } from "./generated/GameData";
 import type { ItemInfo } from "./generated/ItemInfo";
@@ -50,21 +51,33 @@ function index(data: GameData): GameDataView {
 }
 
 /**
- * Names and asset ids of the current patch. Missing data never breaks a view: lookups fall
- * back to placeholders, so a failed download only degrades visuals.
+ * Names and asset ids of the current patch, in the UI's language (Riot's own names: Data Dragon
+ * per locale). Missing data never breaks a view: lookups fall back to placeholders, so a failed
+ * download only degrades visuals.
  */
 export function createGameData(transport: Transport): Accessor<GameDataView | undefined> {
-  const [data, { mutate }] = createResource(async () => {
-    try {
-      const loaded = await transport.call("game_data");
-      return loaded ? index(loaded) : undefined;
-    } catch {
-      return undefined;
-    } finally {
-      // Lets tests (and anything else) know names and art URLs are resolved, or never will be.
-      document.documentElement.dataset.gameData = "settled";
-    }
-  });
-  onCleanup(transport.listen("game-data", (loaded) => mutate(index(loaded))));
-  return () => (data.state === "ready" ? data() : undefined);
+  const [data, setData] = createSignal<GameDataView>();
+  let ticket = 0;
+  // Asked again when the language changes: the core loads the names in it, then emits them.
+  createEffect(
+    on(lang, (language) => {
+      const mine = ++ticket;
+      transport
+        .call("game_data", { language })
+        .then(
+          (loaded) => {
+            if (loaded && mine === ticket) setData(index(loaded));
+          },
+          () => {
+            // Unavailable: placeholders (or the names already shown) stay.
+          },
+        )
+        .finally(() => {
+          // Lets tests (and anything else) know names and art URLs are resolved, or never will be.
+          document.documentElement.dataset.gameData = "settled";
+        });
+    }),
+  );
+  onCleanup(transport.listen("game-data", (loaded) => setData(index(loaded))));
+  return data;
 }

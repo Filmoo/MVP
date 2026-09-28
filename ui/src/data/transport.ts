@@ -7,6 +7,7 @@ import type { DraftView } from "./generated/DraftView";
 import type { GameData } from "./generated/GameData";
 import type { ImportRequest } from "./generated/ImportRequest";
 import type { ImportResult } from "./generated/ImportResult";
+import type { Language } from "./generated/Language";
 import type { LiveGame } from "./generated/LiveGame";
 import type { PlayerProfile } from "./generated/PlayerProfile";
 import type { RemoteConfig } from "./generated/RemoteConfig";
@@ -22,8 +23,12 @@ export interface Commands {
   app_info: { args: undefined; result: AppInfo };
   client_status: { args: undefined; result: ClientStatus };
   current_profile: { args: undefined; result: PlayerProfile | null };
-  /** `null` until the core has loaded the current patch (a `game-data` event follows). */
-  game_data: { args: undefined; result: GameData | null };
+  /**
+   * Names and asset ids of the current patch in `language` (the UI's, `auto` resolved: English
+   * or French); `null` until the core has loaded them in it (a `game-data` event follows). Asking
+   * in another language makes the core load that one and emit `game-data` again.
+   */
+  game_data: { args: { language: Language }; result: GameData | null };
   /** Current champion select, `null` outside of it (`draft` events follow changes). */
   draft_state: { args: undefined; result: DraftView | null };
   get_settings: { args: undefined; result: Settings };

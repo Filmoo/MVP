@@ -4,6 +4,7 @@ import type { GameDataView } from "../../data/static-data";
 import { Card } from "../../design/Card";
 import { championArtUrl } from "../../design/GameIcon";
 import { Skeleton } from "../../design/States";
+import { t } from "../../i18n";
 import { Widget } from "../../widgets/Widget";
 import styles from "./Home.module.css";
 import { PerformanceSummary } from "./PerformanceSummary";
@@ -76,12 +77,12 @@ export function ProfileSkeleton(): JSX.Element {
         </div>
       </div>
       <div class={styles.matches}>
-        <Card title="Match history">
+        <Card title={t().matches.title}>
           <Skeleton height="360px" />
         </Card>
       </div>
       <div class={styles.summary}>
-        <Card title="Champions">
+        <Card title={t().summary.championsTitle}>
           <Skeleton height="240px" />
         </Card>
       </div>

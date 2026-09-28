@@ -6,9 +6,20 @@ import { ChampionIcon, ProfileIcon } from "../../design/GameIcon";
 import { Icon } from "../../design/Icon";
 import { liquid } from "../../design/liquid/liquid";
 import { TierBadge } from "../../design/TierBadge";
+import { t } from "../../i18n";
+import { classes } from "../../lib/champions";
 import { backendError, lookupPlayer } from "../../lib/players";
 import { clearRecent, recent, remember } from "../../lib/recent";
-import { DEFAULT_PLATFORM, isPlatform, PLATFORMS, parseRiotId, platformLabel, playerPath, riotIdKey } from "../../lib/riot-id";
+import {
+  DEFAULT_PLATFORM,
+  formatRiotId,
+  isPlatform,
+  PLATFORMS,
+  parseRiotId,
+  platformLabel,
+  playerPath,
+  riotIdKey,
+} from "../../lib/riot-id";
 import { navigate } from "../router";
 import { buildSections, defaultIndex, type SearchOption, type SearchSection } from "./options";
 import styles from "./Search.module.css";
@@ -48,12 +59,13 @@ function PlayerLine(props: { option: Extract<SearchOption, { kind: "player" }>; 
   const profile = () => (props.lookup?.state === "ready" ? props.lookup.profile : undefined);
   const secondary = () => {
     const l = props.lookup;
-    if (props.option.recent && !l) return `Player · ${region()}`;
-    if (!l) return `Search ${props.option.riotId.gameName}#${props.option.riotId.tagLine} on ${region()}`;
-    if (l.state === "loading") return `Searching ${region()}…`;
-    if (l.state === "ready") return `Level ${l.profile.level} · ${region()}`;
-    if (l.error.kind === "notFound") return `No player with this Riot ID on ${region()}`;
-    return "Couldn't check right now · Enter opens the page anyway";
+    const words = t().search;
+    if (props.option.recent && !l) return words.player(region());
+    if (!l) return words.searchOn(formatRiotId(props.option.riotId), region());
+    if (l.state === "loading") return words.searching(region());
+    if (l.state === "ready") return words.level(l.profile.level, region());
+    if (l.error.kind === "notFound") return words.noPlayerOn(region());
+    return words.checkFailed;
   };
   return (
     <>
@@ -81,11 +93,11 @@ function PlayerLine(props: { option: Extract<SearchOption, { kind: "player" }>; 
           </Match>
           <Match when={profile()}>
             {(p) => (
-              <Show when={p().soloQueue} fallback={<span class={styles.muted}>Unranked</span>}>
+              <Show when={p().soloQueue} fallback={<span class={styles.muted}>{t().common.unranked}</span>}>
                 {(q) => (
                   <>
                     <TierBadge tier={q().tier} division={q().division} class={styles.tier} />
-                    <span class={`${styles.muted} ${styles.lp}`}>{q().leaguePoints} LP</span>
+                    <span class={`${styles.muted} ${styles.lp}`}>{t().common.lp(q().leaguePoints)}</span>
                   </>
                 )}
               </Show>
@@ -107,9 +119,11 @@ function ChampionLine(props: { option: Extract<SearchOption, { kind: "champion" 
       </span>
       <span class={styles.text}>
         <span class={styles.primary}>
-          <span class={styles.name}>{champion()?.name ?? `Champion ${props.option.championId}`}</span>
+          <span class={styles.name}>{champion()?.name ?? t().common.championN(props.option.championId)}</span>
         </span>
-        <span class={styles.secondary}>{props.option.recent ? "Champion" : (champion()?.tags.join(" · ") ?? "Champion")}</span>
+        <span class={styles.secondary}>
+          {props.option.recent ? t().common.champion : (classes(champion()?.tags) ?? t().common.champion)}
+        </span>
       </span>
       <span class={styles.trail} />
     </>
@@ -274,12 +288,12 @@ export function Search(): JSX.Element {
           class={styles.input}
           type="text"
           role="combobox"
-          aria-label="Search champions and players"
+          aria-label={t().search.label}
           aria-expanded={open()}
           aria-controls="search-panel"
           aria-autocomplete="list"
           aria-activedescendant={open() && active() >= 0 ? optionId(active()) : undefined}
-          placeholder="Champion or Name#TAG"
+          placeholder={t().search.placeholder}
           spellcheck={false}
           autocomplete="off"
           value={query()}
@@ -297,7 +311,7 @@ export function Search(): JSX.Element {
         </span>
         <select
           class={styles.region}
-          aria-label="Region"
+          aria-label={t().search.region}
           value={platform()}
           onChange={(e) => changePlatform(e.currentTarget.value)}
           data-testid="search-region"
@@ -312,17 +326,17 @@ export function Search(): JSX.Element {
             when={sections().length > 0}
             fallback={
               <p class={styles.hint}>
-                Search a champion, or a player by Riot ID: <span class={styles.example}>Name#TAG</span>
+                {t().search.hint} <span class={styles.example}>{t().search.example}</span>
               </p>
             }
           >
-            <div class={styles.list} role="listbox" aria-label="Search results">
+            <div class={styles.list} role="listbox" aria-label={t().search.results}>
               <For each={laidOut()}>
                 {(section) => (
                   // biome-ignore lint/a11y/useSemanticElements: ARIA listbox group (a fieldset isn't allowed in a listbox)
                   <div class={styles.section} role="group" aria-labelledby={`search-section-${section.id}`} data-section={section.id}>
                     <div class={styles.sectionHead} id={`search-section-${section.id}`}>
-                      {section.title}
+                      {t().search.sections[section.id]}
                     </div>
                     <For each={section.options}>
                       {(option, j) => {
@@ -355,9 +369,7 @@ export function Search(): JSX.Element {
                       }}
                     </For>
                     <Show when={section.note}>
-                      <p class={styles.note}>
-                        {section.note === "noChampion" ? "No champion by that name" : "Type a Riot ID, like Name#TAG, to find a player"}
-                      </p>
+                      <p class={styles.note}>{section.note === "noChampion" ? t().search.noChampion : t().search.typeRiotId}</p>
                     </Show>
                   </div>
                 )}
@@ -370,20 +382,20 @@ export function Search(): JSX.Element {
               fallback={
                 <span class={styles.keys} aria-hidden="true">
                   <span>
-                    <kbd>↑</kbd> <kbd>↓</kbd> to move
+                    <kbd>↑</kbd> <kbd>↓</kbd> {t().search.keys.move}
                   </span>
                   <span>
-                    <kbd>Enter</kbd> to open
+                    <kbd>{t().search.keys.enter}</kbd> {t().search.keys.open}
                   </span>
                   <span>
-                    <kbd>Esc</kbd> to close
+                    <kbd>{t().search.keys.esc}</kbd> {t().search.keys.close}
                   </span>
                 </span>
               }
             >
               <span class={styles.keys} aria-hidden="true">
                 <span>
-                  <kbd>Enter</kbd> to open
+                  <kbd>{t().search.keys.enter}</kbd> {t().search.keys.open}
                 </span>
               </span>
               <button
@@ -395,7 +407,7 @@ export function Search(): JSX.Element {
                   input.focus();
                 }}
               >
-                Clear recent searches
+                {t().search.clearRecent}
               </button>
             </Show>
           </footer>

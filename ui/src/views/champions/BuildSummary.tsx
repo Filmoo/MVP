@@ -6,8 +6,8 @@ import type { Role } from "../../data/generated/Role";
 import { Card } from "../../design/Card";
 import { ItemIcon, SpellIcon } from "../../design/GameIcon";
 import { RuneIcon, RuneStyleIcon } from "../../design/RuneIcon";
-import { games, percent } from "../../lib/format";
-import { ROLE_LABEL } from "../../lib/roles";
+import { t } from "../../i18n";
+import { percent } from "../../lib/format";
 import { runePage } from "../../lib/runes";
 import { buildFor, winRateOf } from "../../lib/stats";
 import styles from "./BuildSummary.module.css";
@@ -25,7 +25,7 @@ export function summaryBuild(page: ChampionPage, role: Role | undefined): BuildS
  */
 export function BuildSummary(props: { championId: number; build: BuildStats; title?: string }): JSX.Element {
   const { gameData } = useData();
-  const champion = () => gameData()?.champions.get(props.championId)?.name ?? `Champion ${props.championId}`;
+  const champion = () => gameData()?.champions.get(props.championId)?.name ?? t().common.championN(props.championId);
   const page = () => {
     const ids = props.build.runes.top[0]?.ids;
     return ids ? runePage(ids) : undefined;
@@ -33,12 +33,12 @@ export function BuildSummary(props: { championId: number; build: BuildStats; tit
   const spells = () => props.build.spells.top[0];
   const skills = () => props.build.skills.top[0];
   const core = () => props.build.core.top[0];
-  const heading = () => props.title ?? `${champion()} ${props.build.role ? ROLE_LABEL[props.build.role] : "ARAM"} build`;
+  const heading = () => props.title ?? t().champions.buildTitle(champion(), props.build.role ?? undefined);
   return (
     <Card title={heading()}>
       <div class={styles.summary} data-testid="build-summary">
         <div class={styles.block}>
-          <span class={styles.label}>Runes</span>
+          <span class={styles.label}>{t().champions.summary.runes}</span>
           <Show when={page()} fallback={<span class={styles.none}>–</span>}>
             {(p) => (
               <span class={styles.icons}>
@@ -49,7 +49,7 @@ export function BuildSummary(props: { championId: number; build: BuildStats; tit
           </Show>
         </div>
         <div class={styles.block}>
-          <span class={styles.label}>Spells</span>
+          <span class={styles.label}>{t().champions.summary.spells}</span>
           <Show when={spells()} fallback={<span class={styles.none}>–</span>}>
             {(s) => (
               <span class={styles.icons}>
@@ -59,7 +59,7 @@ export function BuildSummary(props: { championId: number; build: BuildStats; tit
           </Show>
         </div>
         <div class={styles.block}>
-          <span class={styles.label}>Skills</span>
+          <span class={styles.label}>{t().champions.summary.skills}</span>
           <Show when={skills()} fallback={<span class={styles.none}>–</span>}>
             {(s) => (
               <span class={styles.icons}>
@@ -69,7 +69,7 @@ export function BuildSummary(props: { championId: number; build: BuildStats; tit
           </Show>
         </div>
         <div class={styles.block}>
-          <span class={styles.label}>Core items</span>
+          <span class={styles.label}>{t().champions.summary.core}</span>
           <Show when={core()} fallback={<span class={styles.none}>–</span>}>
             {(c) => (
               <span class={styles.icons}>
@@ -90,7 +90,7 @@ export function BuildSummary(props: { championId: number; build: BuildStats; tit
           </Show>
         </div>
         <p class={`${styles.record} num`}>
-          <span class={styles.wr}>{percent(winRateOf(props.build) ?? 0, 1)}</span> win rate · {games(props.build.g)} games
+          <span class={styles.wr}>{percent(winRateOf(props.build) ?? 0, 1)}</span> {t().champions.buildRecord(props.build.g)}
         </p>
       </div>
     </Card>

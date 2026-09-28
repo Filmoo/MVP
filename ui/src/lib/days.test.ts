@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { setLanguage } from "../i18n";
 import { dayLabel, groupByDay } from "./days";
 
 const NOW = new Date(2026, 8, 27, 20, 0).getTime(); // Sunday 27 Sep 2026, 20:00 local
@@ -20,5 +21,19 @@ describe("days", () => {
       ["Yesterday", 1],
       ["Thursday", 2],
     ]);
+  });
+});
+
+describe("days in French", () => {
+  beforeAll(() => setLanguage("fr"));
+  afterAll(() => setLanguage("en"));
+
+  it("labels days like a French speaker", () => {
+    expect(dayLabel(at(27, 1), NOW)).toBe("Aujourd’hui");
+    expect(dayLabel(at(26, 23), NOW)).toBe("Hier");
+    expect(dayLabel(at(23, 12), NOW)).toBe("Mercredi");
+    expect(dayLabel(at(12, 12), NOW)).toBe("12 sept.");
+    expect(dayLabel(at(1, 12), NOW)).toBe("1er sept.");
+    expect(dayLabel(new Date(2026, 6, 14, 12).getTime(), NOW)).toBe("14 juil.");
   });
 });

@@ -66,5 +66,7 @@ export default defineConfig(({ mode }) => ({
     // src: pure logic (browser code); tests/unit: checks that read the source tree (Node).
     include: ["src/**/*.test.ts", "src/**/*.test.tsx", "tests/unit/**/*.test.ts"],
     environment: "node",
+    // The views' words load with the views in the app; tests of their code need them at once.
+    setupFiles: ["src/i18n/test-setup.ts"],
   },
 }));

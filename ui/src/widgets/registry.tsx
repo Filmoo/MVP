@@ -6,14 +6,16 @@ import { liveGame } from "../data/mock/live-fixtures";
 import { outageBanner, patchBanner, requiredConfig, updateReady } from "../data/mock/platform-fixtures";
 import { defaultSettings } from "../data/mock/settings-fixtures";
 import { mockChampionPage, mockStatsIndex, mockTierList } from "../data/mock/stats-fixtures";
-import { buildFor, roleTabs } from "../lib/stats";
+import { localized, t } from "../i18n";
+import { roleLabel } from "../lib/roles";
+import { bracketLabel, buildFor, roleTabs } from "../lib/stats";
 import { BuildSummary } from "../views/champions/BuildSummary";
 import { ItemsCard, SkillsCard, SpellsCard } from "../views/champions/Builds";
 import { ChampionGrid } from "../views/champions/ChampionGrid";
 import { ChampionHero } from "../views/champions/ChampionHero";
 import { MatchupsCard } from "../views/champions/Matchups";
 import { RunesCard } from "../views/champions/Runes";
-import { IDLE_HINT, ImportPanel } from "../views/draft/ImportBar";
+import { ImportPanel } from "../views/draft/ImportBar";
 import { Suggestions } from "../views/draft/Suggestions";
 import { Teams } from "../views/draft/Teams";
 import { Why } from "../views/draft/Why";
@@ -52,20 +54,20 @@ export const widgetRegistry: Record<string, () => JSX.Element> = {
   "draft-imports": () => (
     <ImportPanel
       championId={54}
-      subtitle="Malphite · Top · locked in"
+      subtitle={`Malphite · ${roleLabel("top")} · ${t().imports.lockedIn}`}
       parts={[
         { part: "runes", busy: false, outcome: { kind: "saved", name: "MVP · Malphite Top" }, automatic: true },
         { part: "itemSet", busy: true, automatic: false },
         { part: "spells", busy: false, outcome: { kind: "failed", reason: { kind: "noBuild" } }, automatic: false },
       ]}
-      status={{ tone: "hint", text: IDLE_HINT }}
+      status={{ tone: "hint", text: t().imports.idle("Flash") }}
       onImport={() => {}}
     />
   ),
   "settings-automation": () => <AutomationSettings settings={defaultSettings} onChange={() => {}} />,
   "settings-imports": () => <ImportSettings settings={defaultSettings} onChange={() => {}} />,
   "settings-app": () => <AppSettings settings={defaultSettings} onChange={() => {}} />,
-  "live-team": () => <LiveTeam title="Your team" players={liveGame.allies} enemy={false} scouting="done" />,
+  "live-team": () => <LiveTeam title={t().draft.yourTeam} players={liveGame.allies} enemy={false} scouting="done" />,
   "settings-about": () => <About info={{ name: "MVP", version: "0.1.0", platform: "windows", installId: null }} update={updateReady} />,
   banners: () => (
     <NoticeList
@@ -79,7 +81,7 @@ export const widgetRegistry: Record<string, () => JSX.Element> = {
   ),
   "update-required": () => (
     <UpdateRequiredDialog
-      message={requiredConfig.minVersion?.message.en ?? ""}
+      message={requiredConfig.minVersion ? localized(requiredConfig.minVersion.message) : ""}
       update={updateReady}
       inGame={false}
       onRestart={() => {}}
@@ -109,13 +111,13 @@ export const widgetRegistry: Record<string, () => JSX.Element> = {
   "champion-import": () => (
     <ImportPanel
       championId={99}
-      subtitle="Lux · Support · most played in Ranked Solo · Emerald+"
+      subtitle={`Lux · ${roleLabel("support")} · ${t().imports.mostPlayedIn(420, bracketLabel("emeraldPlus"))}`}
       parts={[
         { part: "runes", busy: false, outcome: { kind: "saved", name: "MVP · Lux Support" }, automatic: false },
         { part: "itemSet", busy: false, automatic: false },
-        { part: "spells", busy: false, disabled: "Spells can only change during champion select", automatic: false },
+        { part: "spells", busy: false, disabled: t().imports.spellsInChampSelect, automatic: false },
       ]}
-      status={{ tone: "done", text: "“MVP · Lux Support” is your current rune page." }}
+      status={{ tone: "done", text: t().imports.savedRunes("MVP · Lux Support") }}
       onImport={() => {}}
     />
   ),

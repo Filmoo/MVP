@@ -7,8 +7,9 @@ import { ChampionIcon } from "../../design/GameIcon";
 import { Icon } from "../../design/Icon";
 import { EmptyState } from "../../design/States";
 import { GradeBadge } from "../../design/TierBadge";
-import { games, percent, signedPoints } from "../../lib/format";
-import { ROLE_LABEL } from "../../lib/roles";
+import { t } from "../../i18n";
+import { percent, signedPoints } from "../../lib/format";
+import { roleLabel } from "../../lib/roles";
 import { defaultDir, rankEntries, type SortDir, sortEntries, type TierSortKey } from "../../lib/stats";
 import type { RoleFilter } from "../../lib/stats-filters";
 import styles from "./TierTable.module.css";
@@ -48,7 +49,7 @@ function SortHeader(props: {
 /** The tier list of one queue × bracket: sortable, one role or all, rows link to champion pages. */
 export function TierTable(props: { list: TierList; roleFilter: RoleFilter }): JSX.Element {
   const { gameData } = useData();
-  const name = (id: number) => gameData()?.champions.get(id)?.name ?? `Champion ${id}`;
+  const name = (id: number) => gameData()?.champions.get(id)?.name ?? t().common.championN(id);
   const [sort, setSort] = createSignal<Sort>({ key: "rank", dir: "asc" });
   const [limit, setLimit] = createSignal(INITIAL_ROWS);
   // Another list or role starts short again (the sort stays).
@@ -68,22 +69,15 @@ export function TierTable(props: { list: TierList; roleFilter: RoleFilter }): JS
   const opensTier = (i: number) => inTierOrder() && (i === 0 || shown()[i - 1]?.tier !== shown()[i]?.tier);
   const onSort = (key: TierSortKey) =>
     setSort((s) => (s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: defaultDir(key) }));
+  const columns = () => t().tierList.columns;
+  const titles = () => t().tierList.titles;
   const header = (label: string, key: TierSortKey, cls: string | undefined, title?: string) => (
     <SortHeader label={label} key={key} sort={sort()} onSort={onSort} class={cls} {...(title ? { title } : {})} />
   );
 
   return (
     <Card flush class={styles.card}>
-      <Show
-        when={rows().length > 0}
-        fallback={
-          <EmptyState
-            icon="tiers"
-            title="No champion ranked here yet"
-            text="Champions need enough games in a role to be ranked. Try another role or rank."
-          />
-        }
-      >
+      <Show when={rows().length > 0} fallback={<EmptyState icon="tiers" title={t().tierList.empty.title} text={t().tierList.empty.text} />}>
         <div class={`${styles.wrap} ${hasBans() ? "" : styles.noBans}`}>
           <table class={`${styles.table} num`} data-testid="tier-table">
             <colgroup>
@@ -97,15 +91,15 @@ export function TierTable(props: { list: TierList; roleFilter: RoleFilter }): JS
             </colgroup>
             <thead>
               <tr>
-                {header("#", "rank", styles.rank, "Rank by score")}
-                {header("Champion", "name", styles.champion)}
-                <th scope="col" class={styles.tier} title="S ≥ +2 · A ≥ +0.75 · B ≥ −0.75 · C ≥ −2 · D below (score, points)">
-                  Tier
+                {header(columns().rank, "rank", styles.rank, titles().rank)}
+                {header(columns().champion, "name", styles.champion)}
+                <th scope="col" class={styles.tier} title={titles().tier}>
+                  {columns().tier}
                 </th>
-                {header("Win rate", "winRate", styles.wr, "Win rate shrunk toward 50 %: small samples count less")}
-                {header("Pick", "pickRate", styles.pick, "Share of games with this champion in this role")}
-                {header("Ban", "banRate", styles.ban, "Share of games where it was banned")}
-                {header("Score", "score", styles.score, "Shrunk win rate minus 50 %, in points: what the tier is based on")}
+                {header(columns().winRate, "winRate", styles.wr, titles().winRate)}
+                {header(columns().pick, "pickRate", styles.pick, titles().pick)}
+                {header(columns().ban, "banRate", styles.ban, titles().ban)}
+                {header(columns().score, "score", styles.score, titles().score)}
               </tr>
             </thead>
             <tbody>
@@ -117,7 +111,7 @@ export function TierTable(props: { list: TierList; roleFilter: RoleFilter }): JS
                       <tr class={styles.group}>
                         <td colSpan={2}>
                           <span class={styles.groupLine}>
-                            <span class={styles[`tone${e.tier}`]}>Tier {e.tier}</span>
+                            <span class={styles[`tone${e.tier}`]}>{t().stats.tier(e.tier)}</span>
                             <span class={styles.groupSize}>{tierSizes().get(e.tier) ?? 0}</span>
                           </span>
                         </td>
@@ -135,7 +129,7 @@ export function TierTable(props: { list: TierList; roleFilter: RoleFilter }): JS
                           <ChampionIcon championId={e.id} size={32} />
                           <span class={styles.names}>
                             <span class={styles.name}>{name(e.id)}</span>
-                            <Show when={e.role}>{(r) => <span class={styles.sub}>{ROLE_LABEL[r()]}</span>}</Show>
+                            <Show when={e.role}>{(r) => <span class={styles.sub}>{roleLabel(r())}</span>}</Show>
                           </span>
                         </a>
                       </td>
@@ -144,7 +138,7 @@ export function TierTable(props: { list: TierList; roleFilter: RoleFilter }): JS
                       </td>
                       <td class={styles.wr}>
                         <span class={styles.value}>{percent(e.winRate, 1)}</span>
-                        <span class={styles.sub}>{games(e.g)} games</span>
+                        <span class={styles.sub}>{t().common.games(e.g)}</span>
                       </td>
                       <td class={styles.pick}>{percent(e.pickRate, 1)}</td>
                       <td class={styles.ban}>{percent(e.banRate, 1)}</td>
@@ -159,7 +153,7 @@ export function TierTable(props: { list: TierList; roleFilter: RoleFilter }): JS
         <Show when={rows().length > shown().length}>
           <div class={styles.more}>
             <button type="button" class={styles.moreButton} onClick={() => setLimit(Number.POSITIVE_INFINITY)} data-testid="tier-show-all">
-              Show all {rows().length}
+              {t().tierList.showAll(rows().length)}
             </button>
           </div>
         </Show>

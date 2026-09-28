@@ -1,6 +1,7 @@
 import { createSignal } from "solid-js";
 import type { ImportResult } from "../data/generated/ImportResult";
 import type { Transport } from "../data/transport";
+import { loadViewWords, t } from "../i18n";
 
 const [lastLockIn, setLastLockIn] = createSignal<ImportResult>();
 
@@ -22,9 +23,9 @@ export function listenForLockInImports(
   const stopImports = transport.listen("import", (result) => {
     if (!result.automatic) return;
     setLastLockIn(result);
-    void import("./imports").then(({ showLockInToasts }) => {
+    void Promise.all([import("./imports"), loadViewWords()]).then(([{ showLockInToasts }]) => {
       const { champion, spell } = names();
-      showLockInToasts(result, champion(result.championId) ?? "your champion", (id) => spell(id) ?? `Spell ${id}`);
+      showLockInToasts(result, champion(result.championId) ?? t().common.yourChampion, (id) => spell(id) ?? t().common.spellN(id));
     });
   });
   const stopStatus = transport.listen("client-status", (status) => {

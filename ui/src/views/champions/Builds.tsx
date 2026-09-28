@@ -5,7 +5,8 @@ import type { BuildSection } from "../../data/generated/BuildSection";
 import type { BuildStats } from "../../data/generated/BuildStats";
 import { Card } from "../../design/Card";
 import { ItemIcon, SpellIcon } from "../../design/GameIcon";
-import { games, percent } from "../../lib/format";
+import { t } from "../../i18n";
+import { percent } from "../../lib/format";
 import { optionShare, SKILL_KEYS, winRateOf } from "../../lib/stats";
 import styles from "./Builds.module.css";
 
@@ -14,13 +15,13 @@ export function OptionStats(props: { option: BuildOption; section: BuildSection;
   const wr = () => winRateOf(props.option);
   return (
     <span class={`${styles.stats} ${props.large ? styles.large : ""} num`}>
-      <span class={styles.stat} title={`${props.option.w} wins in ${props.option.g} games`}>
+      <span class={styles.stat} title={t().stats.winsInGames(props.option.w, props.option.g)}>
         <span class={styles.wr}>{percent(wr() ?? 0, 1)}</span>
-        <span class={styles.caption}>{games(props.option.g)} games</span>
+        <span class={styles.caption}>{t().common.games(props.option.g)}</span>
       </span>
-      <span class={styles.stat} title={`Picked in ${props.option.g} of ${props.section.n} games`}>
+      <span class={styles.stat} title={t().stats.pickedIn(props.option.g, props.section.n)}>
         <span class={styles.pick}>{percent(optionShare(props.option, props.section), 1)}</span>
-        <span class={styles.caption}>pick</span>
+        <span class={styles.caption}>{t().stats.pick}</span>
       </span>
     </span>
   );
@@ -32,9 +33,9 @@ function Section(props: { title: string; section: BuildSection; class?: string |
     <div class={`${styles.section} ${props.class ?? ""}`}>
       <h3 class={styles.sectionTitle}>
         <span>{props.title}</span>
-        <span class={`${styles.sectionGames} num`}>{games(props.section.n)} games</span>
+        <span class={`${styles.sectionGames} num`}>{t().common.games(props.section.n)}</span>
       </h3>
-      <Show when={props.section.top.length > 0} fallback={<p class={styles.none}>Not enough games yet.</p>}>
+      <Show when={props.section.top.length > 0} fallback={<p class={styles.none}>{t().stats.notEnoughGames}</p>}>
         {props.children}
       </Show>
     </div>
@@ -53,7 +54,7 @@ export function Keycap(props: { slot: number; strong?: boolean; small?: boolean 
 /** `Q › E › W`: the max order, first maxed first. */
 export function MaxOrder(props: { ids: readonly number[]; small?: boolean }): JSX.Element {
   return (
-    <span class={styles.order} role="img" aria-label={`Max ${props.ids.map((s) => SKILL_KEYS[s] ?? "?").join(", then ")}`}>
+    <span class={styles.order} role="img" aria-label={t().champions.maxOrder(props.ids.map((s) => SKILL_KEYS[s] ?? "?"))}>
       <For each={props.ids}>
         {(slot, i) => (
           <>
@@ -76,10 +77,10 @@ export const flashFirst = (ids: readonly number[]) => [...ids].sort((a, b) => Nu
 
 export function SpellsCard(props: { build: BuildStats }): JSX.Element {
   const { gameData } = useData();
-  const name = (id: number) => gameData()?.spells.get(id)?.name ?? `Spell ${id}`;
+  const name = (id: number) => gameData()?.spells.get(id)?.name ?? t().common.spellN(id);
   return (
-    <Card title="Summoner spells">
-      <Show when={props.build.spells.top.length > 0} fallback={<p class={styles.none}>Not enough games yet.</p>}>
+    <Card title={t().champions.spells}>
+      <Show when={props.build.spells.top.length > 0} fallback={<p class={styles.none}>{t().stats.notEnoughGames}</p>}>
         <ol class={styles.options}>
           <For each={props.build.spells.top.slice(0, 3)}>
             {(o) => (
@@ -100,8 +101,8 @@ export function SpellsCard(props: { build: BuildStats }): JSX.Element {
 
 export function SkillsCard(props: { build: BuildStats }): JSX.Element {
   return (
-    <Card title="Skill order">
-      <Show when={props.build.skills.top[0]} fallback={<p class={styles.none}>Not enough games yet.</p>}>
+    <Card title={t().champions.skills}>
+      <Show when={props.build.skills.top[0]} fallback={<p class={styles.none}>{t().stats.notEnoughGames}</p>}>
         {(main) => (
           <div class={styles.skills}>
             <div class={styles.option}>
@@ -112,8 +113,8 @@ export function SkillsCard(props: { build: BuildStats }): JSX.Element {
               {(start) => (
                 <div class={styles.option}>
                   <span class={`${styles.visual} ${styles.wraps}`}>
-                    <span class={styles.firstLabel}>First points</span>
-                    <ol class={styles.firstKeys} aria-label="First four skill points">
+                    <span class={styles.firstLabel}>{t().champions.firstPoints}</span>
+                    <ol class={styles.firstKeys} aria-label={t().champions.firstPointsLabel}>
                       <For each={start().ids}>
                         {(slot) => (
                           <li>
@@ -131,7 +132,7 @@ export function SkillsCard(props: { build: BuildStats }): JSX.Element {
               {(other) => (
                 <div class={`${styles.option} ${styles.alt}`}>
                   <span class={`${styles.visual} ${styles.wraps}`}>
-                    <span class={styles.firstLabel}>Or</span>
+                    <span class={styles.firstLabel}>{t().champions.or}</span>
                     <MaxOrder ids={other().ids} small />
                   </span>
                   <OptionStats option={other()} section={props.build.skills} />
@@ -147,7 +148,7 @@ export function SkillsCard(props: { build: BuildStats }): JSX.Element {
 
 function ItemRow(props: { option: BuildOption; section: BuildSection; named?: boolean; chain?: boolean }): JSX.Element {
   const { gameData } = useData();
-  const name = (id: number) => gameData()?.items.get(id)?.name ?? `Item ${id}`;
+  const name = (id: number) => gameData()?.items.get(id)?.name ?? t().common.itemN(id);
   return (
     <li class={styles.option}>
       <span class={styles.visual}>
@@ -176,20 +177,20 @@ function ItemRow(props: { option: BuildOption; section: BuildSection; named?: bo
 export function ItemsCard(props: { build: BuildStats }): JSX.Element {
   const b = () => props.build;
   return (
-    <Card title="Items">
+    <Card title={t().champions.items}>
       <div class={styles.items}>
         <div class={styles.itemsGrid}>
-          <Section title="Starting items" section={b().starts} class={styles.starts}>
+          <Section title={t().champions.starting} section={b().starts} class={styles.starts}>
             <ol class={styles.options}>
               <For each={b().starts.top.slice(0, 2)}>{(o) => <ItemRow option={o} section={b().starts} />}</For>
             </ol>
           </Section>
-          <Section title="Boots" section={b().boots} class={styles.boots}>
+          <Section title={t().champions.boots} section={b().boots} class={styles.boots}>
             <ol class={styles.options}>
               <For each={b().boots.top.slice(0, 2)}>{(o) => <ItemRow option={o} section={b().boots} named />}</For>
             </ol>
           </Section>
-          <Section title="Core build" section={b().core} class={styles.core}>
+          <Section title={t().champions.core} section={b().core} class={styles.core}>
             <ol class={styles.options}>
               <For each={b().core.top.slice(0, 3)}>{(o) => <ItemRow option={o} section={b().core} chain named />}</For>
             </ol>
@@ -197,9 +198,9 @@ export function ItemsCard(props: { build: BuildStats }): JSX.Element {
           <div class={styles.later}>
             <For
               each={[
-                { title: "4th item", section: b().item4 },
-                { title: "5th item", section: b().item5 },
-                { title: "6th item", section: b().item6 },
+                { title: t().champions.nth(4), section: b().item4 },
+                { title: t().champions.nth(5), section: b().item5 },
+                { title: t().champions.nth(6), section: b().item6 },
               ]}
             >
               {(slot) => (

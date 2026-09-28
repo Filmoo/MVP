@@ -13,8 +13,8 @@ export type SearchOption =
 export type SearchNote = "noChampion" | "typeRiotId";
 
 export interface SearchSection {
+  /** Also names its title (`t().search.sections`). */
   id: "recent" | "champions" | "players";
-  title: string;
   options: SearchOption[];
   note?: SearchNote;
 }
@@ -39,7 +39,6 @@ export function buildSections(
       : [
           {
             id: "recent",
-            title: "Recent",
             options: recent.map((r) =>
               r.kind === "champion"
                 ? { kind: "champion", key: recentKey(r), championId: r.championId, recent: true }
@@ -55,11 +54,10 @@ export function buildSections(
   const matches = bestMatches(championQuery, champions, (c) => c.name, MAX_CHAMPIONS);
   const championSection: SearchSection = {
     id: "champions",
-    title: "Champions",
     options: matches.map((c) => ({ kind: "champion", key: `c:${c.id}`, championId: c.id, recent: false })),
   };
   if (matches.length === 0) championSection.note = "noChampion";
-  const players: SearchSection = { id: "players", title: "Players", options: [] };
+  const players: SearchSection = { id: "players", options: [] };
   if (riotId) players.options.push({ kind: "player", key: `p:${platform}`, platform, riotId, recent: false });
   else players.note = "typeRiotId";
   return [championSection, players];

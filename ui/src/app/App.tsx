@@ -1,8 +1,10 @@
 import { createEffect, createResource, For, type JSX, lazy, Match, on, onCleanup, onMount, Suspense, Switch } from "solid-js";
 import { useData } from "../data/context";
+import type { Settings as SettingsData } from "../data/generated/Settings";
 import { Backdrop, setEffects } from "../design/backdrop";
 import { Icon } from "../design/Icon";
 import { liquid } from "../design/liquid/liquid";
+import { loadViewWords, setLanguage, t } from "../i18n";
 import { dismissIssue, issues, notify, reportError } from "../lib/errors";
 import { listenForLockInImports } from "../lib/lock-in-toasts";
 import { Home } from "../views/home/Home";
@@ -13,15 +15,21 @@ import { navigate, path } from "./router";
 import { Sidebar } from "./Sidebar";
 import { TitleBar } from "./TitleBar";
 
-const Settings = lazy(() => import("../views/settings/Settings"));
-const Draft = lazy(() => import("../views/draft/Draft"));
-const Live = lazy(() => import("../views/live/Live"));
-const Player = lazy(() => import("../views/player/Player"));
-const Champions = lazy(() => import("../views/champions/Champions"));
-const TierList = lazy(() => import("../views/tierlist/TierList"));
+/** A view besides Home: its code and its words (`loadViewWords`) load together. */
+const withWords =
+  <T,>(load: () => Promise<T>) =>
+  () =>
+    Promise.all([load(), loadViewWords()]).then(([module]) => module);
+
+const Settings = lazy(withWords(() => import("../views/settings/Settings")));
+const Draft = lazy(withWords(() => import("../views/draft/Draft")));
+const Live = lazy(withWords(() => import("../views/live/Live")));
+const Player = lazy(withWords(() => import("../views/player/Player")));
+const Champions = lazy(withWords(() => import("../views/champions/Champions")));
+const TierList = lazy(withWords(() => import("../views/tierlist/TierList")));
 // Test-only page of mock builds (the desktop build leaves it out with the mock).
-const Harness = __MVP_MOCK__ ? lazy(() => import("../widgets/Harness")) : () => null;
-const Banners = lazy(() => import("./Banners"));
+const Harness = __MVP_MOCK__ ? lazy(withWords(() => import("../widgets/Harness"))) : () => null;
+const Banners = lazy(withWords(() => import("./Banners")));
 
 function Toasts(): JSX.Element {
   return (
@@ -32,7 +40,7 @@ function Toasts(): JSX.Element {
             <div class={styles.toastGlass} aria-hidden="true" ref={(el) => liquid(el, "panel")} />
             <Icon name={issue.tone === "success" ? "check" : "alert"} size={16} class={styles.toastIcon} />
             <span>{issue.message}</span>
-            <button type="button" aria-label="Dismiss" onClick={() => dismissIssue(issue.id)}>
+            <button type="button" aria-label={t().common.dismiss} onClick={() => dismissIssue(issue.id)}>
               <Icon name="close" size={14} />
             </button>
           </div>
@@ -52,14 +60,19 @@ export function App(): JSX.Element {
   );
   onCleanup(transport.listen("client-status", (next) => mutate(next)));
   onCleanup(followPointerOnGlass());
-  // The core keeps the lasting visual effects choice; the first frame used the local copy.
+  // The core keeps the lasting visual effects and language choices; the first frame used the
+  // local copies.
+  const apply = (settings: SettingsData) => {
+    setEffects(settings.effects);
+    void setLanguage(settings.language);
+  };
   transport
     .call("get_settings")
-    .then((settings) => setEffects(settings.effects))
+    .then(apply)
     .catch(() => {
-      // Settings unreadable: the Settings page says so; keep the local choice meanwhile.
+      // Settings unreadable: the Settings page says so; keep the local choices meanwhile.
     });
-  onCleanup(transport.listen("settings", (settings) => setEffects(settings.effects)));
+  onCleanup(transport.listen("settings", apply));
   // Draft and Live open on their own when the game moves on: have their code ready, once, at start.
   onMount(() => {
     void Draft.preload();
@@ -78,8 +91,8 @@ export function App(): JSX.Element {
   );
   onCleanup(
     transport.listen("auto-accept", (outcome) => {
-      if (outcome.kind === "accepted") notify("Match accepted");
-      else reportError(`Couldn't accept the match: ${outcome.message}`, "auto-accept");
+      if (outcome.kind === "accepted") notify(t().shell.matchAccepted);
+      else reportError(t().shell.acceptFailed(outcome.message), "auto-accept");
     }),
   );
   onCleanup(
@@ -100,10 +113,10 @@ export function App(): JSX.Element {
           <Switch
             fallback={
               <Planned
-                title="Page not found"
+                title={t().shell.notFound.title}
                 icon="alert"
-                stateTitle="Nothing here"
-                description="This page doesn't exist. Pick a section in the menu."
+                stateTitle={t().shell.notFound.state}
+                description={t().shell.notFound.text}
               />
             }
           >

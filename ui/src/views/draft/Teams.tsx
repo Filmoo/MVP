@@ -5,8 +5,9 @@ import type { DraftView } from "../../data/generated/DraftView";
 import { useTone } from "../../design/ambient";
 import { Card } from "../../design/Card";
 import { ChampionIcon, championIconUrl } from "../../design/GameIcon";
-import { percent } from "../../lib/format";
-import { ROLE_LABEL, ROLE_SHORT } from "../../lib/roles";
+import { t } from "../../i18n";
+import { decimal, percent, percentOf100 } from "../../lib/format";
+import { roleLabel, roleShort } from "../../lib/roles";
 import { PhasePill } from "./PhasePill";
 import styles from "./Teams.module.css";
 
@@ -16,13 +17,13 @@ const ODDS_SHOWN = 2;
 /** Two short lines under the name: role, then state (allies) or the two likeliest roles (enemies). */
 function lines(slot: DraftSlot, enemy: boolean): [string, string] {
   if (enemy) {
-    const [first, second] = slot.roleOdds.slice(0, ODDS_SHOWN).map((o) => `${ROLE_SHORT[o.role]} ${percent(o.probability)}`);
+    const [first, second] = slot.roleOdds.slice(0, ODDS_SHOWN).map((o) => `${roleShort(o.role)} ${percent(o.probability)}`);
     return [first ?? "", second ?? ""];
   }
-  const role = slot.role ? ROLE_LABEL[slot.role] : "";
+  const role = slot.role ? roleLabel(slot.role) : "";
   // Your hover shows as a dashed ring on the portrait (the slot is too narrow for more words).
-  if (slot.isMe) return [role, "You"];
-  return [role, slot.championId !== null && slot.hovering ? "Hovering" : ""];
+  if (slot.isMe) return [role, t().common.you];
+  return [role, slot.championId !== null && slot.hovering ? t().draft.hovering : ""];
 }
 
 function Slot(props: { slot: DraftSlot; enemy: boolean }): JSX.Element {
@@ -36,13 +37,13 @@ function Slot(props: { slot: DraftSlot; enemy: boolean }): JSX.Element {
         props.slot.championId === null ? "" : styles.filled
       } ${props.slot.isMe ? styles.me : ""}`}
       data-testid={props.enemy ? "enemy-slot" : "ally-slot"}
-      title={props.slot.isMe && props.slot.hovering ? "You are hovering this champion" : undefined}
+      title={props.slot.isMe && props.slot.hovering ? t().draft.youHover : undefined}
     >
       <Show when={props.slot.championId} fallback={<div class={styles.empty} aria-hidden="true" />}>
         {(id) => <ChampionIcon championId={id()} size={48} />}
       </Show>
       <span class={`${styles.name} ${name() ? "" : styles.muted}`} title={name()}>
-        {name() ?? (props.slot.picking ? "Picking…" : "Waiting")}
+        {name() ?? (props.slot.picking ? t().draft.picking : t().draft.waiting)}
       </span>
       <span class={`${styles.detail} num`}>{text()[0]}</span>
       <span class={`${styles.detail} num ${props.slot.isMe ? styles.you : ""}`}>{text()[1]}</span>
@@ -56,7 +57,7 @@ function Team(props: { title: string; slots: DraftSlot[]; bans: number[]; enemy:
       <div class={styles.teamHead}>
         <h2 class={styles.teamName}>{props.title}</h2>
         <Show when={props.bans.length > 0}>
-          <ul class={styles.banList} aria-label={`${props.title} bans`}>
+          <ul class={styles.banList} aria-label={t().draft.bans(props.enemy)}>
             <For each={props.bans}>
               {(id) => (
                 <li class={styles.ban}>
@@ -81,20 +82,16 @@ function Odds(props: { draft: DraftView; percent: number; plusMinus: number }): 
       <span class={styles.oddsPill}>
         <PhasePill draft={props.draft} />
       </span>
-      <div
-        class={styles.oddsFigures}
-        role="img"
-        aria-label={`Win chance: your team ${props.percent.toFixed(1)}%, ± ${props.plusMinus.toFixed(1)}`}
-      >
-        <span class={styles.oddsLabel}>Win chance</span>
+      <div class={styles.oddsFigures} role="img" aria-label={t().draft.oddsAria(percentOf100(props.percent), decimal(props.plusMinus, 1))}>
+        <span class={styles.oddsLabel}>{t().draft.winChance}</span>
         <div class={styles.oddsLine}>
-          <span class={styles.us}>{props.percent.toFixed(1)}%</span>
-          <span class={styles.them}>{(100 - props.percent).toFixed(1)}%</span>
+          <span class={styles.us}>{percentOf100(props.percent)}</span>
+          <span class={styles.them}>{percentOf100(100 - props.percent)}</span>
         </div>
         <div class={styles.split}>
           <div class={styles.splitUs} style={{ width: `${props.percent}%` }} />
         </div>
-        <span class={styles.oddsPm}>± {props.plusMinus.toFixed(1)}</span>
+        <span class={styles.oddsPm}>± {decimal(props.plusMinus, 1)}</span>
       </div>
     </div>
   );
@@ -105,11 +102,11 @@ export function Teams(props: { draft: DraftView }): JSX.Element {
     <Card>
       <div class={styles.strip}>
         <div class={`${styles.teams} ${props.draft.team ? styles.withOdds : ""}`}>
-          <Team title="Your team" slots={props.draft.allies} bans={props.draft.allyBans} enemy={false} />
+          <Team title={t().draft.yourTeam} slots={props.draft.allies} bans={props.draft.allyBans} enemy={false} />
           <Show when={props.draft.team}>
             {(team) => <Odds draft={props.draft} percent={team().percent} plusMinus={team().plusMinus} />}
           </Show>
-          <Team title="Enemy team" slots={props.draft.enemies} bans={props.draft.enemyBans} enemy />
+          <Team title={t().draft.enemyTeam} slots={props.draft.enemies} bans={props.draft.enemyBans} enemy />
         </div>
       </div>
     </Card>

@@ -10,9 +10,10 @@ import { championArtUrl } from "../../design/GameIcon";
 import { Icon } from "../../design/Icon";
 import { Segmented } from "../../design/Segmented";
 import { EmptyState, Skeleton } from "../../design/States";
+import { t } from "../../i18n";
 import { createQuery } from "../../lib/query";
-import { ROLE_LABEL, ROLES } from "../../lib/roles";
-import { BRACKET_LABEL, buildFor, pickRole, QUEUE_LABEL, ROLE_FILTER_OPTIONS, roleTabs } from "../../lib/stats";
+import { ROLES } from "../../lib/roles";
+import { bracketLabel, buildFor, pickRole, roleFilterOptions, roleTabs, scopeLabel } from "../../lib/stats";
 import { ARAM, filters, setFilter } from "../../lib/stats-filters";
 import { Widget } from "../../widgets/Widget";
 import { ImportBar, useImportModes } from "../draft/ImportBar";
@@ -31,19 +32,15 @@ const parseRole = (value: string | null): Role | undefined => ROLES.find((r) => 
 export function ChampionBuilds(props: { page: ChampionPage; forRole: Role | undefined }): JSX.Element {
   const { gameData } = useData();
   const build = () => buildFor(props.page, props.forRole);
-  const name = () => gameData()?.champions.get(props.page.stats?.id ?? 0)?.name ?? "This champion";
+  const name = () => gameData()?.champions.get(props.page.stats?.id ?? 0)?.name ?? t().common.thisChampion;
   return (
     <div class={styles.grid}>
       <div class={styles.main}>
         <Show
           when={build()}
           fallback={
-            <Card title="Build">
-              <EmptyState
-                icon="champions"
-                title="No build data yet"
-                text={`${name()} needs more games${props.forRole ? ` as ${ROLE_LABEL[props.forRole]}` : ""} before its build is published.`}
-              />
+            <Card title={t().champions.build}>
+              <EmptyState icon="champions" title={t().champions.noBuild.title} text={t().champions.noBuild.text(name(), props.forRole)} />
             </Card>
           }
         >
@@ -79,20 +76,20 @@ function BuildsSkeleton(): JSX.Element {
   return (
     <div class={styles.grid} aria-busy="true">
       <div class={styles.main}>
-        <Card title="Runes">
+        <Card title={t().champions.runes}>
           <Skeleton height="310px" />
         </Card>
         <div class={styles.pair}>
-          <Card title="Summoner spells">
+          <Card title={t().champions.spells}>
             <Skeleton height="148px" />
           </Card>
-          <Card title="Skill order">
+          <Card title={t().champions.skills}>
             <Skeleton height="148px" />
           </Card>
         </div>
       </div>
       <div class={styles.aside}>
-        <Card title="Matchups">
+        <Card title={t().champions.matchups}>
           <div class={styles.skeletonList}>
             <For each={[0, 1, 2, 3, 4]}>{() => <Skeleton height="44px" />}</For>
           </div>
@@ -128,7 +125,7 @@ function ChampionView(props: { championId: number }): JSX.Element {
   );
   const role = createMemo(() => pickRole(tabs(), wanted()));
   useAmbient(() => championArtUrl(gameData(), props.championId));
-  const name = () => gameData()?.champions.get(props.championId)?.name ?? `Champion ${props.championId}`;
+  const name = () => gameData()?.champions.get(props.championId)?.name ?? t().common.championN(props.championId);
   // The build shown can go into the League client, like in Draft (spells in champion select only).
   const modes = useImportModes();
   const client = useClientStatus();
@@ -139,7 +136,7 @@ function ChampionView(props: { championId: number }): JSX.Element {
       <div class={styles.top}>
         <a class={styles.back} href="#/champions">
           <Icon name="back" size={16} />
-          All champions
+          {t().champions.all}
         </a>
         <ScopeSwitches />
       </div>
@@ -165,8 +162,8 @@ function ChampionView(props: { championId: number }): JSX.Element {
           <Card>
             <EmptyState
               icon="champions"
-              title={`No games of ${name()} yet`}
-              text={`Nothing counted in ${QUEUE_LABEL[queue()]} · ${BRACKET_LABEL[bracket()]} on this patch yet: new champions show up after their first games.`}
+              title={t().stats.noGamesOf(name())}
+              text={t().stats.nothingCountedNew(scopeLabel(queue(), bracket()))}
             />
           </Card>
         </Match>
@@ -178,7 +175,7 @@ function ChampionView(props: { championId: number }): JSX.Element {
                   <ImportBar
                     championId={props.championId}
                     role={queue() === ARAM ? null : (role() ?? null)}
-                    context={`most played in ${QUEUE_LABEL[queue()]} · ${BRACKET_LABEL[bracket()]}`}
+                    context={t().imports.mostPlayedIn(queue(), bracketLabel(bracket()))}
                     queue={queue()}
                     bracket={bracket()}
                     available={buildFor(p(), role()) !== undefined}
@@ -212,14 +209,14 @@ function ChampionIndex(): JSX.Element {
   return (
     <div class={page.page}>
       <div class={styles.indexHead}>
-        <h1 class={page.title}>Champions</h1>
+        <h1 class={page.title}>{t().champions.title}</h1>
         <label class={styles.search}>
           <Icon name="search" size={16} class={styles.searchIcon} />
           <input
             type="search"
             class={styles.searchInput}
-            placeholder="Search a champion"
-            aria-label="Search a champion"
+            placeholder={t().champions.search}
+            aria-label={t().champions.search}
             value={query()}
             onInput={(e) => setQuery(e.currentTarget.value)}
             data-testid="champion-search"
@@ -229,8 +226,8 @@ function ChampionIndex(): JSX.Element {
       <div class={styles.indexFilters}>
         <Show when={ranked()}>
           <Segmented
-            label="Role"
-            options={ROLE_FILTER_OPTIONS}
+            label={t().stats.role}
+            options={roleFilterOptions()}
             value={filters().role}
             onChange={(r) => setFilter({ role: r })}
             testId="role-filter"
@@ -238,7 +235,9 @@ function ChampionIndex(): JSX.Element {
         </Show>
         <Show when={list.data()}>
           <p class={styles.scope}>
-            Tiers from the <a href="#/tier-list">tier list</a>: {QUEUE_LABEL[queue()]} · {BRACKET_LABEL[bracket()]}
+            {t().champions.tiersFrom.before}
+            <a href="#/tier-list">{t().champions.tiersFrom.link}</a>
+            {t().champions.tiersFrom.after(scopeLabel(queue(), bracket()))}
           </p>
         </Show>
       </div>

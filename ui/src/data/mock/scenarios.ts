@@ -1,4 +1,5 @@
 import { loadEffects } from "../../design/backdrop/quality";
+import { savedLanguage } from "../../i18n";
 import type { BackendError } from "../generated/BackendError";
 import type { Bracket } from "../generated/Bracket";
 import type { ChampionPage } from "../generated/ChampionPage";
@@ -85,8 +86,9 @@ const base: Scenario["responses"] = {
   client_status: { data: connectedIdle },
   current_profile: { data: profile },
   draft_state: { data: null },
-  // The browser preview has no core to persist settings: the effects choice lives in localStorage.
-  get_settings: { handle: () => ({ ...defaultSettings, effects: loadEffects() }) },
+  // The browser preview has no core to persist settings: the effects and language choices live in
+  // localStorage.
+  get_settings: { handle: () => ({ ...defaultSettings, effects: loadEffects(), language: savedLanguage() }) },
   update_settings: { handle: (args) => saveSettings(args.settings), delayMs: 60 },
   view_changed: { data: null },
   // A lookup takes a moment, like the real backend with a warm cache.

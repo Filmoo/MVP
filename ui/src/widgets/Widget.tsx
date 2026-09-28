@@ -1,5 +1,6 @@
 import { ErrorBoundary, type JSX, onMount } from "solid-js";
 import { ErrorState } from "../design/States";
+import { t } from "../i18n";
 import { reportError } from "../lib/errors";
 import { markWidgetMounted } from "../lib/perf";
 
@@ -19,7 +20,7 @@ export function Widget(props: { name: string; class?: string | undefined; hideab
       <ErrorBoundary
         fallback={(error, reset) => {
           reportError(error, `widget:${props.name}`);
-          return <ErrorState title="This panel failed to load" message={String(error?.message ?? error)} onRetry={reset} />;
+          return <ErrorState title={t().common.panelFailed} message={String(error?.message ?? error)} onRetry={reset} />;
         }}
       >
         {props.children}

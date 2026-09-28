@@ -7,8 +7,9 @@ import { useTone } from "../../design/ambient";
 import { ChampionIcon, championIconUrl, SpellIcon } from "../../design/GameIcon";
 import { Icon } from "../../design/Icon";
 import { TierBadge, TierCrest } from "../../design/TierBadge";
+import { t } from "../../i18n";
 import { kdaRatio, percent, winRate } from "../../lib/format";
-import { ROLE_LABEL } from "../../lib/roles";
+import { roleLabel } from "../../lib/roles";
 import styles from "./LiveTeam.module.css";
 import { championRecord, chips } from "./words";
 
@@ -38,8 +39,8 @@ function Rank(props: { card: ScoutCard }): JSX.Element {
         <div class={styles.rank}>
           <TierCrest tier="iron" size={40} class={styles.unrankedCrest} />
           <div class={styles.rankText}>
-            <span class={styles.unranked}>Unranked</span>
-            <span class={styles.small}>Solo/Duo</span>
+            <span class={styles.unranked}>{t().common.unranked}</span>
+            <span class={styles.small}>{t().soloDuoShort}</span>
           </div>
         </div>
       }
@@ -50,7 +51,7 @@ function Rank(props: { card: ScoutCard }): JSX.Element {
           <div class={styles.rankText}>
             <TierBadge tier={q().tier} division={q().division} plain class={styles.tier} />
             <span class={`${styles.small} num`}>
-              {q().leaguePoints} LP · {percent(winRate(q().wins, q().losses) ?? 0)}
+              {t().common.lp(q().leaguePoints)} · {percent(winRate(q().wins, q().losses) ?? 0)}
             </span>
           </div>
         </div>
@@ -72,7 +73,7 @@ function Experience(props: { card: ScoutCard; championId: number | null }): JSX.
           <>
             <span class={styles.muted}>–</span>
             <span class={styles.small} title={name()}>
-              {name() ?? "Champion"}
+              {name() ?? t().common.champion}
             </span>
           </>
         }
@@ -82,11 +83,9 @@ function Experience(props: { card: ScoutCard; championId: number | null }): JSX.
           const tone = () => (r().games < MIN_GAMES_FOR_COLOR ? "" : wr() >= 0.5 ? styles.good : styles.bad);
           return (
             <>
-              <span class={styles.expGames}>
-                {r().games} {r().games === 1 ? "game" : "games"}
-              </span>
-              <span class={styles.small} title={`${kdaRatio(r().kills, r().deaths, r().assists)} KDA on ${name() ?? "this champion"}`}>
-                <span class={tone()}>{percent(wr())}</span> WR
+              <span class={styles.expGames}>{t().common.games(r().games)}</span>
+              <span class={styles.small} title={t().live.kdaOn(kdaRatio(r().kills, r().deaths, r().assists), name())}>
+                <span class={tone()}>{percent(wr())}</span> {t().live.wr}
               </span>
             </>
           );
@@ -101,14 +100,16 @@ function Pool(props: { card: ScoutCard }): JSX.Element {
   const { gameData } = useData();
   return (
     <Show when={props.card.topChampions.length > 0}>
-      <ul class={`${styles.pool} num`} aria-label="Most played lately">
+      <ul class={`${styles.pool} num`} aria-label={t().live.mostPlayed}>
         <For each={props.card.topChampions.slice(0, 3)}>
           {(c) => (
             <li
               class={styles.poolItem}
-              title={`${gameData()?.champions.get(c.championId)?.name ?? "Champion"}: ${c.games} ${c.games === 1 ? "game" : "games"}, ${percent(
-                c.wins / Math.max(1, c.games),
-              )} WR`}
+              title={t().live.poolTitle(
+                gameData()?.champions.get(c.championId)?.name ?? t().common.champion,
+                c.games,
+                percent(c.wins / Math.max(1, c.games)),
+              )}
             >
               <ChampionIcon championId={c.championId} size={24} round />
               <span class={styles.poolGames}>{c.games}</span>
@@ -126,17 +127,10 @@ function Form(props: { results: readonly boolean[] }): JSX.Element {
   return (
     <Show when={shown().length > 0}>
       <div class={`${styles.form} num`}>
-        <ol
-          class={styles.pips}
-          aria-label={`Last ${shown().length}: ${shown()
-            .map((w) => (w ? "win" : "loss"))
-            .join(", ")}`}
-        >
+        <ol class={styles.pips} aria-label={t().common.lastResults(shown())}>
           <For each={shown()}>{(win) => <li class={`${styles.pip} ${win ? styles.win : styles.loss}`} />}</For>
         </ol>
-        <span class={styles.small}>
-          {wins()}W {shown().length - wins()}L
-        </span>
+        <span class={styles.small}>{t().common.record(wins(), shown().length - wins())}</span>
       </div>
     </Show>
   );
@@ -146,12 +140,9 @@ function Identity(props: { player: LivePlayer }): JSX.Element {
   const riotId = () => props.player.riotId;
   const roles = () => props.player.card?.mainRoles ?? [];
   const second = () => {
-    if (props.player.hidden) return "Streamer mode";
-    if (roles().length > 0)
-      return `${roles()
-        .map((r) => ROLE_LABEL[r])
-        .join(" / ")} main`;
-    return props.player.role ? ROLE_LABEL[props.player.role] : "";
+    if (props.player.hidden) return t().live.streamer;
+    if (roles().length > 0) return t().live.mains(roles().map(roleLabel).join(" / "));
+    return props.player.role ? roleLabel(props.player.role) : "";
   };
   return (
     <div class={styles.identity}>
@@ -159,7 +150,7 @@ function Identity(props: { player: LivePlayer }): JSX.Element {
         <Switch>
           <Match when={props.player.hidden}>
             <Icon name="hidden" size={14} class={styles.hiddenIcon} />
-            <span class={`${styles.name} ${styles.muted}`}>Hidden player</span>
+            <span class={`${styles.name} ${styles.muted}`}>{t().live.hidden}</span>
           </Match>
           <Match when={riotId()}>
             {(id) => (
@@ -172,11 +163,11 @@ function Identity(props: { player: LivePlayer }): JSX.Element {
             )}
           </Match>
           <Match when={true}>
-            <span class={`${styles.name} ${styles.muted}`}>Unknown player</span>
+            <span class={`${styles.name} ${styles.muted}`}>{t().live.unknown}</span>
           </Match>
         </Switch>
         <Show when={props.player.isMe}>
-          <span class={styles.you}>You</span>
+          <span class={styles.you}>{t().common.you}</span>
         </Show>
       </span>
       <span class={styles.small}>{second()}</span>
@@ -187,7 +178,7 @@ function Identity(props: { player: LivePlayer }): JSX.Element {
 /** One player: champion, spells, who they are and how they've been doing (positive/neutral only). */
 function PlayerCard(props: { player: LivePlayer; scouting: Scouting["state"] }): JSX.Element {
   const { gameData } = useData();
-  const championName = (id: number) => gameData()?.champions.get(id)?.name ?? "Champion";
+  const championName = (id: number) => gameData()?.champions.get(id)?.name ?? t().common.champion;
   const card = () => props.player.card;
   return (
     <li
@@ -208,7 +199,7 @@ function PlayerCard(props: { player: LivePlayer; scouting: Scouting["state"] }):
           <div class={styles.rest}>
             {/* Failed: the card couldn't be asked for. Done without one: our backend has no data for them. */}
             <span class={styles.small}>
-              {props.player.hidden ? "" : props.scouting === "failed" ? "Card unavailable" : "No ranked data"}
+              {props.player.hidden ? "" : props.scouting === "failed" ? t().live.cardUnavailable : t().live.noRankedData}
             </span>
           </div>
         }

@@ -3,8 +3,9 @@ import { useData } from "../../data/context";
 import { Card } from "../../design/Card";
 import { Segmented } from "../../design/Segmented";
 import { Skeleton } from "../../design/States";
+import { t } from "../../i18n";
 import { createQuery } from "../../lib/query";
-import { ROLE_FILTER_OPTIONS } from "../../lib/stats";
+import { roleFilterOptions } from "../../lib/stats";
 import { ARAM, filters, setFilter } from "../../lib/stats-filters";
 import { Widget } from "../../widgets/Widget";
 import page from "../page.module.css";
@@ -40,15 +41,15 @@ export default function TierListView(): JSX.Element {
   return (
     <div class={page.page}>
       <div class={styles.head}>
-        <h1 class={page.title}>Tier list</h1>
+        <h1 class={page.title}>{t().tierList.title}</h1>
         <Show when={list.data()}>{(l) => <DataBadge info={l().info} index={index()} />}</Show>
       </div>
       <div class={styles.filters}>
         <ScopeSwitches />
         <Show when={queue() !== ARAM}>
           <Segmented
-            label="Role"
-            options={ROLE_FILTER_OPTIONS}
+            label={t().stats.role}
+            options={roleFilterOptions()}
             value={filters().role}
             onChange={(r) => setFilter({ role: r })}
             testId="role-filter"
@@ -71,11 +72,7 @@ export default function TierListView(): JSX.Element {
         </Match>
       </Switch>
       <Show when={list.data()}>
-        <p class={styles.note}>
-          Tiers come from the score: the win rate pulled toward 50 % as if every champion had 1,000 more games at 50 % (so a lucky small
-          sample can't top the list), minus 50 %. S ≥ +2 · A ≥ +0.75 · B ≥ −0.75 · C ≥ −2 · D below. Pick and ban rates are shares of all
-          games counted.
-        </p>
+        <p class={styles.note}>{t().tierList.note}</p>
       </Show>
     </div>
   );
