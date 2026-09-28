@@ -232,7 +232,7 @@ timeouts and `BackendError`s) and the UI asks the core, never the backend:
 - **When the network is used** (never on a timer): the index at startup (`If-None-Match`), then at
   most once per its `max-age` (5 min) when something asks for stats, e.g. champion select
   starting; a stale index answers at once and is revalidated in the background. Data files don't
-  change within a publication and carry its time (`info.updated_at` = the index's
+  change within a publication and carry its time (`info.updatedAt` = the index's
   `PatchIndex.updatedAt`): a cached file of the current generation is served with no request;
   otherwise `If-None-Match` (304 → the disk copy), and a 404 is remembered for that generation.
   Requests for one file are coalesced; a 429 pauses every request for its `Retry-After` (the
