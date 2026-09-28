@@ -4,8 +4,9 @@ import type { Effects } from "../../data/generated/Effects";
  * Visual effects level (pure parts are unit-tested). The core keeps the lasting choice in its
  * settings (`Settings.effects`); a copy in localStorage lets the first frame already match.
  *
- * - `auto` (default): the WebGL backdrop and liquid glass when the machine can draw them
- *   cheaply, else `light`.
+ * - `auto` (default): `full`, unless Windows asks for less transparency (then `light`).
+ * - `full`: the WebGL backdrop and liquid glass when the machine can draw them cheaply, else
+ *   `light`, whatever Windows' transparency switch says (the player chose it).
  * - `light`: static CSS gradients and plain blur, nothing bends.
  * - `off`: flat background, no blur at all (the lightest possible).
  */
@@ -14,7 +15,7 @@ export type { Effects };
 /** What is actually drawn. `shader` = WebGL backdrop; `css` = static gradients; `flat` = bg-0 only. */
 export type Rendering = "shader" | "css" | "flat";
 
-export const EFFECTS: readonly Effects[] = ["auto", "light", "off"];
+export const EFFECTS: readonly Effects[] = ["auto", "full", "light", "off"];
 
 const KEY = "mvp.effects";
 
@@ -52,21 +53,26 @@ export interface Plan {
   rendering: Rendering;
   /** Render every frame while the page light glides (else only its end state). */
   animate: boolean;
+  /** Why `auto` draws less than Full (Settings says so). */
+  reason?: string;
 }
 
 export function plan(effects: Effects, env: Environment): Plan {
   if (effects === "off") return { rendering: "flat", animate: false };
-  if (effects === "light" || env.reducedTransparency) return { rendering: "css", animate: false };
+  if (effects === "light") return { rendering: "css", animate: false };
+  // The default follows Windows' transparency switch; a Full the player picked doesn't.
+  if (effects === "auto" && env.reducedTransparency) return { rendering: "css", animate: false, reason: "reduced-transparency" };
   return { rendering: "shader", animate: !env.reducedMotion };
 }
 
 /** A first frame slower than this (GPU included) means a software or very weak GPU: use CSS. */
 export const SLOW_FIRST_RENDER_MS = 8;
 
+/** The OS preferences as media queries (Windows' transparency switch sets the first). */
+export const TRANSPARENCY_QUERY = "(prefers-reduced-transparency: reduce)";
+export const MOTION_QUERY = "(prefers-reduced-motion: reduce)";
+
 export function environment(): Environment {
   const query = (q: string) => typeof matchMedia === "function" && matchMedia(q).matches;
-  return {
-    reducedTransparency: query("(prefers-reduced-transparency: reduce)"),
-    reducedMotion: query("(prefers-reduced-motion: reduce)"),
-  };
+  return { reducedTransparency: query(TRANSPARENCY_QUERY), reducedMotion: query(MOTION_QUERY) };
 }

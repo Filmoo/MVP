@@ -374,16 +374,20 @@ functions) → the glass' tint → rim light.
 - **Tint**: declared once in the element's CSS (`--lg-tint: <token>` with
   `background: var(--lg-fill, <token>)`); while the lens runs, liquid.ts sets `--lg-fill:
   transparent` and the filter paints that tint scaled by blue. Text-heavy panes (search, toasts)
-  keep a deep middle for reading; `--bg-clear` panes over art let the art through.
+  keep a frosted middle for reading; `--bg-clear` panes over art let the art through. The middle's
+  frost and the tint follow the thickness eased by a gamma (`THICKNESS_EASE` 2.2): a steep rim is
+  almost full thickness a few pixels in, and taken as is the glass would turn frosted and dark at
+  once. Every rim keeps a 1 px pre-blur (0.5 on clear panes): the band right at the rim mirrors
+  what is behind it, and razor-sharp it shows text upside down, which reads as a bug.
 - **Rim light** comes from the same map: red/green are the outward normal scaled by steepness,
   so a colour matrix gives `normal · light` (light from the top left, a third of it on the far
   rim), sharpened with a gamma and added on top. The CSS `glass-rim` ring stays as the crisp edge.
 - The optical outline rounds corners at least as much as the bezel is wide (smooth normals, no
   crease along the corner diagonal); a drop is a stadium.
-- Kinds (`LIQUID`): `bar` (title bar: a 10 px lower rim; content scrolling under it stretches
-  along that rim, the rest is frosted), `dock` (the rail and the floating tab bar: 12 px rims,
-  frosted middle), `panel` (search results, toasts: 12 px rims matching their corners, frosted
-  middle), `clear` (rank pane and champion tier over art: a wide 20 px bent rim, corners
+- Kinds (`LIQUID`): `bar` (title bar: a 14 px lower rim bending strongly; content scrolling
+  under it stretches along that rim, the rest is lightly frosted, 4 px), `dock` (the rail and the
+  floating tab bar: 12 px rims, 6 px frost in the middle), `panel` (search results, toasts: 14 px
+  rims, 6 px frost in the middle), `clear` (rank pane and champion tier over art: a wide 20 px bent rim, corners
   `--radius-5` to match, a light frost in the middle for their captions), `lens` (rail selection,
   segment thumbs, held switches: a loupe, tinted with light so a choice reads lit, never as a
   hole). No colour split over the page (over text it reads as fringing).
@@ -500,13 +504,17 @@ rest: no rAF loop, no timers (the perf suite asserts 0 renders over 3 s, and a m
   difference from `--bg-0`, so dark areas and text backgrounds stay as they were. Cards add a
   crisp 1 px rim of light in CSS (`.glass-rim`).
 - **Levels** (`Settings.effects`, owned by the core; a copy in localStorage `mvp.effects` so the
-  first frame matches; shown on `<html data-effects>`; Settings → App → Visual effects): `auto`
-  ("Full", default) → `shader`, falling back to `css` when WebGL is missing, the first frame takes
-  more than 8 ms GPU included (software rendering, weak GPU), or the context is lost (back to
-  `shader` when restored); `prefers-reduced-transparency` → `css`; `prefers-reduced-motion` keeps
-  the shader but skips glides. `light` → `css`, static gradients and plain blur. `off` → `flat`:
-  `--bg-0` only, no blur, opaque floating panels. `data-effects-fallback` says why a fallback
-  happened (Settings words it).
+  first frame matches; shown on `<html data-effects>`; Settings → App → Visual effects): `full` →
+  `shader`, falling back to `css` when WebGL is missing, the first frame takes more than 8 ms GPU
+  included (software rendering, weak GPU), or the context is lost (back to `shader` when
+  restored). `auto` (default, never offered as such) is `full` unless Windows asks for less
+  transparency (its "Transparency effects" switch sets `prefers-reduced-transparency`), then
+  `css` with the reason `reduced-transparency`; Settings shows the default as what it draws
+  (Light, with a note that Full keeps the glass), and a Full the player picks wins over Windows.
+  The OS preferences are followed live (media query `change` events, no restart, nothing polls).
+  `prefers-reduced-motion` keeps the shader but skips glides. `light` → `css`, static gradients
+  and plain blur. `off` → `flat`: `--bg-0` only, no blur, opaque floating panels.
+  `data-effects-fallback` says why a fallback happened (Settings words it).
 - **Tests**: headless Chromium renders with SwiftShader, which the speed probe rightly rejects, so
   `tests/app.ts` sets `window.__MVP_TRUST_WEBGL__` to keep the shader in every suite
   (`webgl: "probe" | "missing"` exercises the fallbacks, `tests/backdrop.spec.ts`, which also

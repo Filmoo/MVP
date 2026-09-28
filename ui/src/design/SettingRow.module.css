@@ -64,6 +64,24 @@
   overflow-wrap: anywhere;
 }
 
+/* Why the setting does less than chosen right now: read with the description, a step brighter. */
+.note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-sm);
+  color: var(--text-2);
+  max-width: 60ch;
+  overflow-wrap: anywhere;
+}
+
+.noteIcon {
+  flex: none;
+  margin-top: 1px;
+  color: var(--text-3);
+}
+
 .control {
   flex: none;
   display: flex;

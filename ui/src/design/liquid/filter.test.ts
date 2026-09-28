@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { glassFor, type LiquidSpec, lensPrimitives, opticalRadius } from "./filter";
+import { glassFor, type LiquidSpec, lensPrimitives, opticalRadius, THICKNESS_EASE } from "./filter";
 import { scaleFor, slices } from "./maps";
 
 const slab: LiquidSpec = {
@@ -54,7 +54,11 @@ describe("lens filter", () => {
     expect(deep?.attrs).toMatchObject({ in: "SourceGraphic", stdDeviation: 12 });
     // Weighted by the map's blue: none at the rim, all of it past the bezel.
     const core = primitives.find((p) => p.attrs.result === "core");
-    expect(core?.attrs.in).toBe("map");
+    expect(core?.attrs.in).toBe("thick");
+    // The thickness eases in (a gamma on blue), so the frost doesn't start right at the rim.
+    const thick = primitives.find((p) => p.attrs.result === "thick");
+    expect(thick?.attrs.in).toBe("map");
+    expect(thick?.children?.[0]?.attrs).toMatchObject({ type: "gamma", exponent: THICKNESS_EASE });
     expect(String(core?.attrs.values).split(/\s+/).slice(15)).toEqual(["0", "0", "1", "0", "0"]);
     const over = primitives.findIndex((p) => p.attrs.in === "deep" && p.attrs.in2 === "lens");
     expect(primitives[over]?.attrs).toMatchObject({ operator: "over", result: "lens" });
@@ -73,7 +77,7 @@ describe("lens filter", () => {
     const tint = { r: 0.07, g: 0.08, b: 0.12, a: 0.8 };
     const primitives = lensPrimitives(slab, parts, 10, tint);
     const matrix = primitives.find((p) => p.attrs.result === "tint");
-    expect(matrix?.attrs.in).toBe("map");
+    expect(matrix?.attrs.in).toBe("thick");
     // Alpha = 0.8 × blue; colour constant.
     expect(String(matrix?.attrs.values).split(/\s+/).slice(15)).toEqual(["0", "0", "0.8", "0", "0"]);
     const over = primitives.find((p) => p.attrs.in === "tint");

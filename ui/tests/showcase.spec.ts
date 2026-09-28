@@ -202,6 +202,14 @@ for (const { scenario, sizes } of SETTINGS_SHOTS) {
   }
 }
 
+test("settings with Windows' transparency off 1280x800", async ({ page }) => {
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-transparency", value: "reduce" }] });
+  await openApp(page, { view: "/settings" });
+  await page.getByTestId("effects-fallback").scrollIntoViewIfNeeded();
+  await capture(page, `${OUT}/settings-transparency-off-1280x800.png`, false);
+});
+
 test("settings save error 1280x800", async ({ page }) => {
   await openApp(page, { view: "/settings", scenario: "settings-save-error" });
   await page.getByRole("switch", { name: "Close to tray" }).click();

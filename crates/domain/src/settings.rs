@@ -60,10 +60,14 @@ pub struct Settings {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub enum Effects {
-    /// Liquid glass that bends light, and the light shader, when the GPU draws them cheaply
-    /// (else the same as `Light`).
+    /// The default: `Full`, unless Windows asks for less transparency (its "Transparency
+    /// effects" switch off), then `Light`.
     #[default]
     Auto,
+    /// Liquid glass that bends light, and the light shader, when the GPU draws them cheaply
+    /// (else the same as `Light`), whatever Windows' transparency switch says: the player
+    /// chose it.
+    Full,
     /// Soft blur and static light only.
     Light,
     /// Flat background, no blur: the lightest.
@@ -210,6 +214,8 @@ mod tests {
         assert!(json.contains(r#""effects":"light""#), "{json}");
         let old: Settings = serde_json::from_str(r#"{"closeToTray":false}"#).expect("loads");
         assert_eq!(old.effects, Effects::Auto);
+        let full: Settings = serde_json::from_str(r#"{"effects":"full"}"#).expect("loads");
+        assert_eq!(full.effects, Effects::Full);
     }
 
     #[test]

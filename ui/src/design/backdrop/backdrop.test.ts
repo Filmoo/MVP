@@ -29,10 +29,17 @@ describe("quality", () => {
     expect(plan("off", env).rendering).toBe("flat");
   });
 
-  it("respects the OS: less transparency means no glass effects, less motion means no glides", () => {
-    expect(plan("auto", { ...env, reducedTransparency: true }).rendering).toBe("css");
+  it("respects the OS by default: less transparency means no glass effects, less motion means no glides", () => {
+    expect(plan("auto", { ...env, reducedTransparency: true })).toEqual({
+      rendering: "css",
+      animate: false,
+      reason: "reduced-transparency",
+    });
     expect(plan("auto", { ...env, reducedMotion: true })).toEqual({ rendering: "shader", animate: false });
-    // An explicit choice still wins over "auto" defaults.
+    // An explicit choice wins over the OS: Windows' transparency switch is often off for
+    // reasons of its own (seen on a real PC), and a player who picks Full wants the glass.
+    expect(plan("full", { ...env, reducedTransparency: true })).toEqual({ rendering: "shader", animate: true });
+    expect(plan("full", { reducedTransparency: true, reducedMotion: true })).toEqual({ rendering: "shader", animate: false });
     expect(plan("off", { reducedTransparency: true, reducedMotion: true }).rendering).toBe("flat");
   });
 

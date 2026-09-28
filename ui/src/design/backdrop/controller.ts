@@ -1,6 +1,15 @@
 import { createSignal } from "solid-js";
 import { setLensing } from "../liquid/liquid";
-import { type Effects, loadEffects, type Rendering, saveEffects } from "./quality";
+import {
+  type Effects,
+  type Environment,
+  environment,
+  loadEffects,
+  MOTION_QUERY,
+  type Rendering,
+  saveEffects,
+  TRANSPARENCY_QUERY,
+} from "./quality";
 
 /**
  * What the window draws: the visual effects preference and the rendering in force. The WebGL
@@ -14,6 +23,23 @@ export { effects };
 export function setEffects(next: Effects): void {
   saveEffects(next);
   setEffectsSignal(next);
+}
+
+const [os, setOs] = createSignal<Environment>(environment());
+let following = false;
+
+/**
+ * The OS preferences (less transparency, less motion), followed as they change: turning Windows'
+ * transparency switch applies at once. Media query events, nothing polls.
+ */
+export function osEnvironment(): Environment {
+  if (!following && typeof matchMedia === "function") {
+    following = true;
+    for (const query of [TRANSPARENCY_QUERY, MOTION_QUERY]) {
+      matchMedia(query).addEventListener("change", () => setOs(environment()));
+    }
+  }
+  return os();
 }
 
 const [rendered, setRendered] = createSignal<{ rendering: Rendering; reason: string | undefined }>({ rendering: "css", reason: undefined });

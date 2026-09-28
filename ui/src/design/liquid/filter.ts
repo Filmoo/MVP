@@ -86,6 +86,13 @@ export function opticalRadius(spec: LiquidSpec, glass: Glass, width: number, hei
   return spec.dome ? half : Math.min(half, Math.max(cssRadius, glass.bezel));
 }
 
+/**
+ * How the frost and the tint ease in across the bezel: a gamma on the map's blue (the glass'
+ * thickness). A steep rim is almost full thickness a few pixels in, so taken as is the glass
+ * turns from clear to frosted and dark at once; eased, it stays clear longer and darkens softly.
+ */
+export const THICKNESS_EASE = 2.2;
+
 /** Alpha = the map's blue (the glass' thickness: 0 at the rim, 1 past the bezel). */
 const THICKNESS = "0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 1 0 0";
 
@@ -137,6 +144,15 @@ export function lensPrimitives(
     attrs: { result: "map" },
     children: [{ tag: "feMergeNode", attrs: { in: "neutral" } }, ...slices.map((_, i) => ({ tag: "feMergeNode", attrs: { in: `s${i}` } }))],
   });
+  // The thickness, eased (blue only), for what deepens with it: the core's frost and the tint.
+  const eased = Boolean(spec.frostCore) || Boolean(tint && tint.a > 0);
+  if (eased) {
+    out.push({
+      tag: "feComponentTransfer",
+      attrs: { in: "map", result: "thick" },
+      children: [{ tag: "feFuncB", attrs: { type: "gamma", amplitude: 1, exponent: THICKNESS_EASE, offset: 0 } }],
+    });
+  }
   let source = "SourceGraphic";
   if (spec.frost) {
     out.push({ tag: "feGaussianBlur", attrs: { in: "SourceGraphic", stdDeviation: spec.frost, edgeMode: "duplicate", result: "frost" } });
@@ -166,7 +182,7 @@ export function lensPrimitives(
     // Nothing bends past the bezel: a deeper frost there costs no optics and keeps labels clear.
     out.push(
       { tag: "feGaussianBlur", attrs: { in: "SourceGraphic", stdDeviation: spec.frostCore, edgeMode: "duplicate", result: "deep" } },
-      { tag: "feColorMatrix", attrs: { in: "map", type: "matrix", values: THICKNESS, result: "core" } },
+      { tag: "feColorMatrix", attrs: { in: "thick", type: "matrix", values: THICKNESS, result: "core" } },
       { tag: "feComposite", attrs: { in: "deep", in2: "core", operator: "in", result: "deep" } },
       { tag: "feComposite", attrs: { in: "deep", in2: "lens", operator: "over", result: "lens" } },
     );
@@ -183,10 +199,10 @@ export function lensPrimitives(
     });
   }
   if (tint && tint.a > 0) {
-    // The tint's alpha follows blue: full past the bezel, none at the rim.
+    // The tint's alpha follows the eased thickness: full past the bezel, none at the rim.
     const values = `0 0 0 0 ${num(tint.r)}  0 0 0 0 ${num(tint.g)}  0 0 0 0 ${num(tint.b)}  0 0 ${num(tint.a)} 0 0`;
     out.push(
-      { tag: "feColorMatrix", attrs: { in: "map", type: "matrix", values, result: "tint" } },
+      { tag: "feColorMatrix", attrs: { in: "thick", type: "matrix", values, result: "tint" } },
       { tag: "feComposite", attrs: { in: "tint", in2: "lens", operator: "over", result: "lens" } },
     );
   }

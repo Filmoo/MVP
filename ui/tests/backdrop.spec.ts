@@ -71,6 +71,39 @@ test("the speed probe decides on its own and says why when it declines", async (
   }
 });
 
+test("Windows' transparency off: the default draws Light and says why; Full brings the glass back", async ({ page, t }) => {
+  // Windows' "Transparency effects" switch sets this media feature (off on a real test PC).
+  const cdp = await page.context().newCDPSession(page);
+  const transparency = (value: "reduce" | "no-preference") =>
+    cdp.send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-transparency", value }] });
+  await transparency("reduce");
+  await openApp(page, { view: "/settings" });
+  expect(await effects(page)).toBe("css");
+  expect(await fallback(page)).toBe("reduced-transparency");
+  const choice = page.getByTestId("setting-effects");
+  // The default shows as what it draws.
+  await expect(choice.locator("input:checked")).toHaveValue("light");
+  const note = page.getByTestId("effects-fallback");
+  await expect(note).toContainText(t.settings.app.effects.windowsOff);
+  // The control is described by it too.
+  const described = await choice.getAttribute("aria-describedby");
+  expect(described?.split(" ")).toContain(await page.locator("p:has([data-testid=effects-fallback])").getAttribute("id"));
+  // Turned on in Windows: followed at once, no restart.
+  await transparency("no-preference");
+  await expect.poll(() => effects(page)).toBe("shader");
+  await expect(note).toBeHidden();
+  await expect(choice.locator("input:checked")).toHaveValue("full");
+  // Off again, and the player picks Full: the glass stays, whatever Windows says.
+  await transparency("reduce");
+  await expect.poll(() => effects(page)).toBe("css");
+  await choice.locator("label", { hasText: t.settings.app.effects.levels.full }).click();
+  await expect.poll(() => effects(page)).toBe("shader");
+  await expect(note).toBeHidden();
+  await expect(choice.locator("input:checked")).toHaveValue("full");
+  const saved = await page.evaluate(() => window.__SCOUT_MOCK__?.log.filter((c) => c.command === "update_settings").map((c) => c.args));
+  expect(JSON.stringify(saved)).toContain('"effects":"full"');
+});
+
 test("light: today's gradients, no shader", async ({ page }) => {
   await openApp(page, { effects: "light" });
   expect(await effects(page)).toBe("css");
@@ -94,7 +127,15 @@ test("off: no light and no blur at all", async ({ page }) => {
 
 test("renders on demand: on scroll, resize and view changes, never at rest", async ({ page }) => {
   await openApp(page, { freezeClock: false });
-  await page.waitForTimeout(300);
+  // At rest means once the first view has settled (its light glides in, late art lays out):
+  // on a busy machine that takes longer than a fixed wait (seen on Windows with the app running).
+  await expect
+    .poll(async () => {
+      const before = await renders(page);
+      await page.waitForTimeout(300);
+      return (await renders(page)) - before;
+    })
+    .toBe(0);
   const rest = await renders(page);
   await page.waitForTimeout(1_000);
   expect(await renders(page), "at rest").toBe(rest);

@@ -503,8 +503,10 @@ export const frViews = {
       effects: {
         title: "Effets visuels",
         text: "La quantité de verre et de lumière que MVP affiche. «\u00A0Complet\u00A0» réfracte la lumière comme du vrai verre, si votre carte graphique le permet sans effort.",
-        levels: { auto: "Complet", light: "Léger", off: "Aucun" },
+        levels: { full: "Complet", light: "Léger", off: "Aucun" },
         fallback: (reason: string) => `Affichage en Léger pour l’instant\u00A0: ${reason}.`,
+        windowsOff:
+          "Léger, car les effets de transparence de Windows sont désactivés. Choisissez «\u00A0Complet\u00A0» pour garder le verre.",
         reasons: {
           "no-webgl": "ce PC n’a pas d’accélération graphique pour la fenêtre",
           slow: "votre carte graphique ne peut pas l’afficher sans effort",

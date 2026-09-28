@@ -92,6 +92,21 @@ respected. Design calls:
 - Maps at screen density (up to 2×) for a precise bend; a glass lab in the dev server to see
   every shape bend detailed content.
 
+## 2026-09-28 — Glass you see through (owner asked, Claude tuned)
+Owner, on the real app (Windows, RTX 3070): "on ne voit pas assez la distortion, trop de blur, il
+faudrait un gradient plus doux". Design calls:
+- **Less frost, more bend**: the title bar's middle frost 12 → 4 px (rail, tab bar, panels 6 px),
+  its bend stronger (thicker, higher glass); rims narrow enough to stay under the labels
+  (bar 14, dock 12, panels 14 px), the design review's call after a first try at 18–22 px put the
+  frost ramp on the search field and the tab labels.
+- **A soft gradient**: the frost and the tint ease in across the bezel (a gamma on the thickness)
+  instead of starting a few pixels from the rim.
+- **No mirrored text**: a 1 px pre-blur at every rim (0.5 px over art); at 0 the band at the rim
+  showed text upside down in toasts and search, and a bent badge faked a tab indicator.
+- **Full means Full**: the default follows Windows' "Transparency effects" switch (off → Light,
+  and Settings says why); a Full the player picks wins over it. On the owner's PC the switch was
+  off, so the glass never showed.
+
 ## 2026-09-28 — Rank emblems (owner asked, Claude designed)
 Owner: rank icons "look old/fake". Design calls:
 - **Riot's own emblems** where a player's rank shows (Home, Live cards): the League client's art,

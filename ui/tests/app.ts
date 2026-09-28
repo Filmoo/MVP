@@ -52,7 +52,7 @@ export interface OpenOptions {
   /** Freeze Date at FIXTURE_NOW (default). Perf tests opt out: the fake clock also stubs `performance`. */
   freezeClock?: boolean;
   /** Visual effects preference (default: none saved, i.e. the app's `auto`). */
-  effects?: "auto" | "light" | "off";
+  effects?: "auto" | "full" | "light" | "off";
   /**
    * WebGL as the app sees it. `trusted` (default): the WebGL backdrop is kept even on this
    * software rasterizer, which its speed probe would reject, so every suite covers it the same

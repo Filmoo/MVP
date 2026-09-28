@@ -34,29 +34,33 @@ export const LIQUID = {
   // past the bezel (where labels sit) a deeper frost keeps it calm. The tint (from the element's
   // CSS) deepens with the glass' thickness, so the rim is the clearest part. No colour split
   // over the page: over text it reads as fringing, not as optics.
+  // Owner, 2026-09-28: "more distortion, less blur, a softer gradient". A strong bend (thickness,
+  // elevation) on a rim narrow enough to stay under the labels; a light frost (the core's, eased
+  // in) instead of a deep one; a 1 px pre-blur so the band at the rim that mirrors what is behind
+  // it doesn't show text upside down, crisp enough to read as a bug.
   bar: {
-    glass: { profile: "squircle", bezel: 10, thickness: 10, elevation: 14 },
+    glass: { profile: "squircle", bezel: 14, thickness: 16, elevation: 20 },
     rims: "bottom",
-    frost: 0.5,
-    frostCore: 12,
-    saturate: 1.35,
-    brightness: 1.05,
+    frost: 1,
+    frostCore: 4,
+    saturate: 1.3,
+    brightness: 1.04,
     specular: 0.55,
   },
   /** The rail, and the floating tab bar on narrow windows: labels over scrolling content. */
   dock: {
-    glass: { profile: "squircle", bezel: 12, thickness: 11, elevation: 18 },
-    frost: 0.5,
-    frostCore: 10,
-    saturate: 1.4,
+    glass: { profile: "squircle", bezel: 12, thickness: 13, elevation: 20 },
+    frost: 1,
+    frostCore: 6,
+    saturate: 1.2,
     brightness: 1,
     specular: 0.8,
   },
   /** Floating panels holding text (search results, toasts): the page bends along a clear rim. */
   panel: {
-    glass: { profile: "squircle", bezel: 12, thickness: 11, elevation: 16 },
-    frost: 1.5,
-    frostCore: 10,
+    glass: { profile: "squircle", bezel: 14, thickness: 13, elevation: 18 },
+    frost: 1,
+    frostCore: 6,
     saturate: 1.5,
     brightness: 1.06,
     specular: 0.8,
@@ -66,9 +70,9 @@ export const LIQUID = {
    * little in the middle for the text on it. Their CSS corners match the bezel (`--radius-5`).
    */
   clear: {
-    glass: { profile: "squircle", bezel: 20, thickness: 18, elevation: 12 },
-    frost: 1,
-    frostCore: 4,
+    glass: { profile: "squircle", bezel: 20, thickness: 18, elevation: 14 },
+    frost: 0.5,
+    frostCore: 2,
     saturate: 1.25,
     brightness: 1.08,
     specular: 0.9,

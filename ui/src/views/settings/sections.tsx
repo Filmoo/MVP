@@ -8,7 +8,7 @@ import type { Language } from "../../data/generated/Language";
 import type { Settings } from "../../data/generated/Settings";
 import type { UpdateStatus } from "../../data/generated/UpdateStatus";
 import { Button } from "../../design/Button";
-import { rendered, setEffects } from "../../design/backdrop";
+import { osEnvironment, rendered, setEffects } from "../../design/backdrop";
 import { Card } from "../../design/Card";
 import { Choice, type ChoiceOption } from "../../design/Choice";
 import { Icon } from "../../design/Icon";
@@ -206,7 +206,7 @@ export function StatsSettings(props: SectionProps): JSX.Element {
 const effectLevels = (): ReadonlyArray<ChoiceOption<Effects>> => {
   const levels = t().settings.app.effects.levels;
   return [
-    { value: "auto", label: levels.auto },
+    { value: "full", label: levels.full },
     { value: "light", label: levels.light },
     { value: "off", label: levels.off },
   ];
@@ -231,7 +231,20 @@ export function AppSettings(props: SectionProps & { installId?: string | null | 
   // Only when the language itself changes (a settings change re-reads `props.settings`).
   const language = createMemo(() => props.settings.language);
   createEffect(on(language, (next) => void setLanguage(next), { defer: true }));
-  const fallback = () => (props.settings.effects === "auto" && rendered().rendering !== "shader" ? rendered().reason : undefined);
+  // The default shows as what it draws: Light while Windows asks for less transparency, else Full.
+  const shownEffects = (): Effects => {
+    const chosen = props.settings.effects;
+    if (chosen !== "auto") return chosen;
+    return osEnvironment().reducedTransparency ? "light" : "full";
+  };
+  // Why the glass is off when Full was chosen or is the default: Windows' switch, or the GPU.
+  const effectsNote = () => {
+    const chosen = props.settings.effects;
+    const reason = rendered().reason;
+    if (!(chosen === "auto" || chosen === "full") || rendered().rendering === "shader" || !reason) return undefined;
+    const words = t().settings.app.effects;
+    return reason === "reduced-transparency" ? words.windowsOff : words.fallback(words.reasons[reason] ?? reason);
+  };
   const words = () => t().settings.app;
   return (
     <Card title={words().title}>
@@ -292,11 +305,15 @@ export function AppSettings(props: SectionProps & { installId?: string | null | 
             </SettingRow>
           )}
         </Show>
-        <SettingRow title={words().effects.title} description={words().effects.text}>
+        <SettingRow
+          title={words().effects.title}
+          description={words().effects.text}
+          note={effectsNote() && <span data-testid="effects-fallback">{effectsNote()}</span>}
+        >
           {(ids) => (
             <Choice
               options={effectLevels()}
-              value={props.settings.effects}
+              value={shownEffects()}
               onChange={(effects) => props.onChange({ effects })}
               labelledBy={ids.label}
               describedBy={ids.description}
@@ -304,13 +321,6 @@ export function AppSettings(props: SectionProps & { installId?: string | null | 
             />
           )}
         </SettingRow>
-        <Show when={fallback()}>
-          {(reason) => (
-            <p class={styles.effectsNote} data-testid="effects-fallback">
-              {words().effects.fallback(words().effects.reasons[reason()] ?? reason())}
-            </p>
-          )}
-        </Show>
       </SettingList>
       <SaveError message={props.error} />
     </Card>

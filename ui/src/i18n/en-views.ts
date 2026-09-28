@@ -476,8 +476,9 @@ export const enViews = {
       effects: {
         title: "Visual effects",
         text: "How much glass and light MVP draws. Full bends the light like real glass, when your graphics card draws it easily.",
-        levels: { auto: "Full", light: "Light", off: "Off" },
+        levels: { full: "Full", light: "Light", off: "Off" },
         fallback: (reason: string) => `Showing Light for now: ${reason}.`,
+        windowsOff: "Light, because Windows' transparency effects are off. Choose Full to keep the glass.",
         reasons: {
           "no-webgl": "this PC has no graphics acceleration for the window",
           slow: "your graphics card can't draw it cheaply",

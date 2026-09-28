@@ -1,7 +1,7 @@
 import { createEffect, type JSX, onCleanup } from "solid-js";
 import styles from "./Backdrop.module.css";
-import { effects, setRendering } from "./controller";
-import { environment, plan } from "./quality";
+import { effects, osEnvironment, setRendering } from "./controller";
+import { plan } from "./quality";
 
 /**
  * The window's light, drawn by a shader behind the shell (first child of `[data-ambient-host]`).
@@ -9,12 +9,11 @@ import { environment, plan } from "./quality";
  */
 export function Backdrop(): JSX.Element {
   let canvas: HTMLCanvasElement | undefined;
-  const env = environment();
   createEffect(() => {
-    const { rendering, animate } = plan(effects(), env);
+    const { rendering, animate, reason } = plan(effects(), osEnvironment());
     const host = canvas?.closest<HTMLElement>("[data-ambient-host]");
     if (rendering !== "shader" || !canvas || !host) {
-      setRendering(rendering === "shader" ? "css" : rendering);
+      setRendering(rendering === "shader" ? "css" : rendering, reason);
       return;
     }
     setRendering("css"); // until the first frame is drawn
