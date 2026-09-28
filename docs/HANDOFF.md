@@ -10,13 +10,14 @@ Everything below is merged on `claude/upbeat-hamilton-0bms1t` and green on
 `node scripts/check.mjs full`, except where marked.
 
 - **Desktop app** (Tauri 2 + SolidJS): Home (own profile from the LCU), Draft (live champ select,
-  stats-only model on the published stats, pool-first picks), Live (loading-screen scouting of
+  stats-only model on the published stats, pool-first picks, both teams' compositions, ARAM's
+  bench ranked by the team's chances), Live (loading-screen scouting of
   all 10 players), player search (title bar, Ctrl+K) + player pages, build imports (rune page,
   item set, spells: one click in Draft, on a champion page or on lock-in), Tier list and
   Champions pages (builds, runes, items, matchups), Live's "My build" tab, Settings (auto-accept
-  opt-in, imports, window follows the game, close to tray, launch at startup, visual effects,
-  language). English and French. Liquid glass that refracts the page behind it, ambient light
-  sampled from champion art, Riot's ranked emblems (downloaded at run time).
+  opt-in, imports, stats rank, window follows the game, close to tray, launch at startup, visual
+  effects, language). English and French. Liquid glass that refracts the page behind it, ambient
+  light sampled from champion art, Riot's ranked emblems (downloaded at run time).
 - **Backend** `apps/backend` (`mvp-backend`): player profiles, batch scouting, `/v1/stats/*` file
   serving, caches. **Crawler** `apps/crawler` (`mvp-crawler crawl|publish|status`) + `crates/aggregate`:
   Emerald+ ranked/ARAM aggregates → per-patch JSON (tier list, builds, matchups, priors).
@@ -68,8 +69,8 @@ Everything below is merged on `claude/upbeat-hamilton-0bms1t` and green on
      `championPoints`), whether `pickable-champion-ids` is filled from the planning phase on (an
      empty list is treated as "unknown", bans/picks are filtered from the session anyway), how
      many games the match history returns (the "You · N games" record uses them);
-   - later: a bracket setting for the draft (Emerald+ today), ARAM (no roles: no suggestions),
-     calibration of the model (research D §3.14), own games in the estimate (shown, not counted).
+   - later: calibration of the model (research D §3.14), own games in the estimate (shown, not
+     counted). The bracket setting and ARAM are job 9.
 5. *(built, against mock-lcu only)* **Imports** (`companion::imports`, architecture.md "Build
    imports", policy.md "Build imports"): MVP's own rune page (never touches the player's pages),
    MVP's item set per champion (the player's sets round-trip untouched), summoner spells in champ
@@ -111,6 +112,22 @@ Everything below is merged on `claude/upbeat-hamilton-0bms1t` and green on
    every tier (checklist below), and before the production-key application, which source Riot
    prefers (policy.md).
 
+9. *(built, against mock-lcu and synthetic stats only)* **Draft insights** (architecture.md "Stats
+   pipeline" and "Stats in the app"): the crawler keeps each game's length and every player's
+   damage by type, damage soaked and crowd control, and publishes `compositions.json` per data
+   set; the draft shows both teams' compositions (side panel, *Teams* tab: damage mix, frontline,
+   crowd control, short/long games, neutral readings; hovers counted and marked) and your team's
+   with each suggestion; ARAM ranks your champion and the bench by the team's chances (nothing is
+   swapped); Settings → Stats → Rank (Emerald+/Diamond+/Master+) drives the draft, its
+   compositions and imports at once, and is where the stats pages start. Left:
+   - crawl again: games crawled before this have none of the composition numbers (left out, so
+     `compositions.json` appears once new games are in); check the file's size and the numbers
+     against real games (frontline ≈ 0.2 for a tank, damage per minute, CC seconds);
+   - calibrate the readings' thresholds (`companion::stats::comp`: 70 % one damage type, frontline
+     0.85/1.15 × usual, crowd control 0.7/1.3 × usual, 3 points between short and long games) and
+     ARAM's length buckets (17 and 22 minutes, a guess) on real data;
+   - the real client (checklist below): ARAM's session fields and the gameflow queue.
+
 ## Verify with the real client (Windows)
 ```sh
 pnpm install && node scripts/fetch-dev-assets.mjs
@@ -130,6 +147,20 @@ Riot's ranked emblems (log "ranked emblems ready"; cache in `%LOCALAPPDATA%\gg.m
 the crop frames every tier (Iron's small crest to Challenger's wings) at 100 % and 150 %, and an
 offline first start shows MVP's crests. Fix what differs from the mock; add a
 mock-lcu scenario for anything the real client does that the mock didn't.
+
+Draft insights (with published stats that have `compositions.json`; without League:
+`cargo run -p mock-lcu -- --aram` plays ARAM champion selects):
+- **Compositions:** Draft → *Teams* shows both teams as they pick, hovers dashed; your hover's
+  change shows under a suggestion ("Your team with …"); the numbers look right for well-known
+  champions (a tank's frontline, a mage's magic damage).
+- **ARAM:** the list shows your champion and the bench (session `benchEnabled`,
+  `benchChampions[].championId`, `allowRerolling`/`rerollsRemaining`: check the names), updates
+  after a reroll or a bench swap, "Rerolls left" matches the client; the enemy team shows "Shown
+  once the game loads" (`theirTeam` empty); the gameflow session's `gameData.queue.id` is 450 in
+  champion select (`/lol-gameflow/v1/session`, read once per champion select), else the bench
+  decides.
+- **Rank setting:** Settings → Stats → Rank → Diamond+ mid champion select: the data line says
+  Diamond+ at once (Emerald+ when Diamond+ isn't published); the Tier list opens on it.
 
 Build imports (needs a `BuildSource` with real stats; the logs say "rune page imported", "item set
 imported", "summoner spells imported", "automatic import on lock-in"):

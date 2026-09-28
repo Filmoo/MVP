@@ -60,6 +60,16 @@ detection, composite player scores, live win probability, sending data to third-
   `GET /lol-champ-select/v1/pickable-champion-ids`,
   `GET /lol-match-history/v1/products/lol/current-summoner/matches` (declare at product
   registration).
+- **Draft insights: team compositions, ARAM bench, stats rank (2026-09-28, built; not gray,
+  noted for the reasoning).** Compositions add up champion-level averages (damage mix, frontline,
+  crowd control, win rate by game length) of what champ select shows — picks and allies' hovers,
+  enemies over their likely roles — never anything about the players. Readings are neutral
+  descriptions ("mostly magic damage", "stronger in long games"), never advice or grades, and
+  none of it enters the estimate. Win rate by game length is a champion statistic shown before
+  the game, not a power-spike alert (nothing during the game, no timers). ARAM: MVP reads your
+  champion, the bench and rerolls left from the player's own session and ranks them by the team's
+  chances with their reasons; it never swaps, rerolls or picks for the player (no LCU write). The
+  queue comes from `GET /lol-gameflow/v1/session` (already declared), read once per champ select.
 - **Build imports: rune page, item set, summoner spells (2026-09-28, built; not yet tried on a
   real client).** Writes into the player's own client, allowed by precedent (Mobalytics, Blitz,
   Porofessor and U.GG write the same endpoints; research E §15–16) when user-triggered or opted
