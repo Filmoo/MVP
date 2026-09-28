@@ -13,9 +13,15 @@ import type { Suggestion } from "./Suggestion";
  */
 export type DraftView = { phase: DraftPhase, 
 /**
- * Seconds left in the current phase, if known.
+ * Seconds left in the current phase when the client took its timer snapshot, if known.
  */
 secondsLeft: number | null, 
+/**
+ * When the current phase's timer runs out, Unix epoch milliseconds on this PC's clock.
+ * The client sends its timer again only when the session changes, so the UI counts down
+ * to this. `None` when unknown or endless.
+ */
+phaseEndsAt: number | null, 
 /**
  * The local player's assigned role.
  */

@@ -10,8 +10,13 @@ use crate::Role;
 #[ts(export)]
 pub struct DraftView {
     pub phase: DraftPhase,
-    /// Seconds left in the current phase, if known.
+    /// Seconds left in the current phase when the client took its timer snapshot, if known.
     pub seconds_left: Option<u32>,
+    /// When the current phase's timer runs out, Unix epoch milliseconds on this PC's clock.
+    /// The client sends its timer again only when the session changes, so the UI counts down
+    /// to this. `None` when unknown or endless.
+    #[ts(type = "number | null")]
+    pub phase_ends_at: Option<i64>,
     /// The local player's assigned role.
     pub my_role: Option<Role>,
     pub allies: Vec<DraftSlot>,
