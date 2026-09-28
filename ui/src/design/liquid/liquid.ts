@@ -78,7 +78,9 @@ export const LIQUID = {
     specular: 0.9,
   },
   /**
-   * Drops of glass on controls (rail selection, segment thumbs, a held switch): a flat pill whose
+   * A drop of the glass lab (widgets/GlassLab.tsx). The app's controls (rail selection, thumbs,
+   * a held switch) use the CSS drop instead (design/glass.css `.glass-drop`): see there why.
+   * It was a flat pill whose
    * edge bends what is under it a little (≈ 3 px, smoothly: less than the 4 px to a track's border,
    * which a deeper bend drew again inside the thumb). Always behind the labels, moving or
    * not. Owner, 2026-09-28: the loupe it replaced (a magnifying dome lifted over the labels while

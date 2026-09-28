@@ -80,7 +80,7 @@ export function Sidebar(): JSX.Element {
         <NavItem route={settingsRoute} />
       </div>
       <span class={styles.lens} ref={lens} aria-hidden="true" data-hidden data-testid="rail-lens">
-        <span class={`${styles.glass} glass-rim`} ref={(el) => liquid(el, "lens")} />
+        <span class={`${styles.glass} glass-drop`} />
       </span>
     </nav>
   );

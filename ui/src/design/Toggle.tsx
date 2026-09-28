@@ -1,5 +1,4 @@
 import { createSignal, type JSX } from "solid-js";
-import { liquid } from "./liquid/liquid";
 import styles from "./Toggle.module.css";
 
 /**
@@ -40,7 +39,7 @@ export function Toggle(props: {
       onPointerLeave={release}
       onClick={() => props.onChange(!props.checked)}
     >
-      <span class={styles.thumb} ref={(el) => liquid(el, "lens")} />
+      <span class={styles.thumb} />
     </button>
   );
 }
