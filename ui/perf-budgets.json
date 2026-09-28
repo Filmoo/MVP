@@ -25,9 +25,17 @@
       "renderMs": 4,
       "domNodes": 120
     },
+    "draft-imports": {
+      "renderMs": 2,
+      "domNodes": 30
+    },
     "settings-automation": {
       "renderMs": 3,
       "domNodes": 44
+    },
+    "settings-imports": {
+      "renderMs": 3,
+      "domNodes": 84
     },
     "settings-app": {
       "renderMs": 2,

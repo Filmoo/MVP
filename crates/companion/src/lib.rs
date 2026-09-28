@@ -1,6 +1,7 @@
 //! App core: follows the League client and publishes the UI-facing [`ClientStatus`],
 //! champion-select [`DraftView`] (with the draft helper's numbers) and loading-screen
-//! [`LiveGame`], runs the client automations, owns the settings and talks to our backend.
+//! [`LiveGame`], runs the client automations and build imports, owns the settings and talks to
+//! our backend.
 //!
 //! Independent of Tauri so it runs in tests and could back other front ends (CLI, web).
 
@@ -8,14 +9,18 @@ pub mod automation;
 pub mod backend;
 pub mod champ_select;
 pub mod draft;
+pub mod imports;
 pub mod live;
 pub mod profile;
 pub mod settings;
 pub mod stats;
 
+use std::sync::Arc;
+
 use automation::{Autopilot, CoreEvent};
 use backend::BackendClient;
 use domain::{ClientConnection, ClientStatus, DraftView, GameflowPhase, LiveGame, Settings};
+use imports::{BuildSource, ChampionNames, Importer, LockIn, NoBuilds};
 use lcu::{ConnectionState, ConnectorConfig, ConnectorUpdate, EventKind, LcuClient};
 use tokio::sync::{mpsc, watch};
 
@@ -62,7 +67,42 @@ pub struct Companion {
     pub events: mpsc::Receiver<CoreEvent>,
     /// Where the UI reports the views it shows.
     pub views: ViewReporter,
+    /// Imports builds into the client on request (`import_build`).
+    pub imports: Importer,
     pub task: JoinHandle<()>,
+}
+
+/// What the core uses besides the League client.
+pub struct Services {
+    /// Our backend, for the loading-screen scouting cards (`None`: no cards).
+    pub backend: Option<BackendClient>,
+    /// Published champion stats: the draft helper's numbers (without them the draft shows the
+    /// teams only).
+    pub stats: Option<StatsClient>,
+    /// Builds for the imports: the published stats ([`NoBuilds`] until they are wired).
+    pub builds: Arc<dyn BuildSource>,
+    /// Champion names, for the names of MVP's rune page and item sets.
+    pub names: ChampionNames,
+}
+
+impl Default for Services {
+    fn default() -> Self {
+        Self {
+            backend: None,
+            stats: None,
+            builds: Arc::new(NoBuilds),
+            names: Arc::new(|_| None),
+        }
+    }
+}
+
+impl std::fmt::Debug for Services {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Services")
+            .field("backend", &self.backend)
+            .field("stats", &self.stats)
+            .finish_non_exhaustive()
+    }
 }
 
 /// Tells the core which view the UI shows, so automatic view switches never fight the user.
@@ -134,9 +174,9 @@ impl LiveFollower {
 }
 
 /// Starts following the client with the player's `settings`, without a backend (no scouting
-/// cards). Must run inside a Tokio runtime.
+/// cards) nor builds. Must run inside a Tokio runtime.
 pub fn start(config: ConnectorConfig, settings: watch::Receiver<Settings>) -> Companion {
-    start_with(config, settings, None)
+    start_with_services(config, settings, Services::default())
 }
 
 /// Starts following the client with the player's `settings`; `backend` answers the scouting
@@ -146,37 +186,32 @@ pub fn start_with(
     settings: watch::Receiver<Settings>,
     backend: Option<BackendClient>,
 ) -> Companion {
-    start_services(
+    start_with_services(
         config,
         settings,
         Services {
             backend,
-            stats: None,
+            ..Services::default()
         },
     )
 }
 
-/// What the core talks to besides the League client.
-#[derive(Debug, Clone, Default)]
-pub struct Services {
-    /// Our backend: loading-screen scouting.
-    pub backend: Option<BackendClient>,
-    /// Published champion stats: the draft helper's numbers (without them the draft shows the
-    /// teams only).
-    pub stats: Option<StatsClient>,
-}
-
-/// Starts following the client with the player's `settings` and our `services`. Must run
-/// inside a Tokio runtime.
-pub fn start_services(
+/// Starts following the client with the player's `settings` and the given `services`.
+/// Must run inside a Tokio runtime.
+pub fn start_with_services(
     mut config: ConnectorConfig,
     mut settings: watch::Receiver<Settings>,
     services: Services,
 ) -> Companion {
+    let Services {
+        backend,
+        stats,
+        builds,
+        names,
+    } = services;
     if !config.paths.iter().any(|p| p == champ_select::SESSION) {
         config.paths.push(champ_select::SESSION.to_owned());
     }
-    let Services { backend, stats } = services;
     let mut connector = lcu::spawn(config);
     let client = connector.client.clone();
     let (tx, status) = watch::channel(ClientStatus::not_running());
@@ -189,6 +224,14 @@ pub fn start_services(
     let (live_tx, live) = watch::channel(None);
     let (retry_tx, mut retry_rx) = mpsc::unbounded_channel::<()>();
     let lcu_client = client.clone();
+    let importer = Importer::new(
+        client.clone(),
+        status.clone(),
+        settings.clone(),
+        builds,
+        names,
+    );
+    let mut lock_in = LockIn::new(importer.clone(), events_tx.clone());
     let task = tokio::spawn(async move {
         let mut autopilot = Autopilot::default();
         let mut game = LiveFollower {
@@ -204,10 +247,15 @@ pub fn start_services(
                     let Some(update) = update else { break };
                     let before = tx.borrow().phase;
                     tx.send_if_modified(|status| apply(status, &update));
-                    follow_draft(&update, &tx, &session_tx, &lcu_client).await;
+                    if let Some(session) = follow_draft(&update, &tx, &session_tx, &lcu_client).await {
+                        lock_in.on_session(&session);
+                    }
                     let phase = tx.borrow().phase;
                     if phase == before {
                         continue;
+                    }
+                    if phase != GameflowPhase::ChampSelect {
+                        lock_in.reset();
                     }
                     game.on_phase(phase, &lcu_client);
                     let current = settings.borrow().clone();
@@ -253,6 +301,7 @@ pub fn start_services(
         client,
         events,
         views: ViewReporter(views_tx),
+        imports: importer,
         task,
     }
 }
@@ -276,36 +325,44 @@ fn send(events: &mpsc::Sender<CoreEvent>, event: CoreEvent) {
     }
 }
 
-/// Keeps the champion-select view in step with the client.
+/// Keeps the champion-select view in step with the client; answers the session it read, for
+/// the lock-in automation.
 async fn follow_draft(
     update: &ConnectorUpdate,
     status: &watch::Sender<ClientStatus>,
     draft_tx: &watch::Sender<Option<DraftView>>,
     lcu_client: &watch::Receiver<Option<LcuClient>>,
-) {
+) -> Option<serde_json::Value> {
     match update {
         ConnectorUpdate::Event(event) if event.uri == champ_select::SESSION => {
-            let next = match event.kind {
-                EventKind::Delete => None,
-                EventKind::Create | EventKind::Update => champ_select::map_session(&event.data),
+            let (next, session) = match event.kind {
+                EventKind::Delete => (None, None),
+                EventKind::Create | EventKind::Update => (
+                    champ_select::map_session(&event.data),
+                    Some(event.data.clone()),
+                ),
             };
             draft_tx.send_replace(next);
+            session
         }
         ConnectorUpdate::Phase(raw) if map_phase(raw) == GameflowPhase::ChampSelect => {
             // Entering champ select: read the session now instead of waiting for a change.
             let current = lcu_client.borrow().clone();
-            if let Some(lcu) = current
-                && let Ok(session) = lcu.get::<serde_json::Value>(champ_select::SESSION).await
-            {
-                draft_tx.send_replace(champ_select::map_session(&session));
-            }
+            let lcu = current?;
+            let session = lcu
+                .get::<serde_json::Value>(champ_select::SESSION)
+                .await
+                .ok()?;
+            draft_tx.send_replace(champ_select::map_session(&session));
+            Some(session)
         }
         ConnectorUpdate::Phase(_) | ConnectorUpdate::State(_) => {
             if status.borrow().phase != GameflowPhase::ChampSelect {
                 draft_tx.send_if_modified(|d| d.take().is_some());
             }
+            None
         }
-        ConnectorUpdate::Event(_) => {}
+        ConnectorUpdate::Event(_) => None,
     }
 }
 

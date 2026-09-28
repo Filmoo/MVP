@@ -2,10 +2,11 @@ import { loadEffects } from "../../design/backdrop/quality";
 import type { ClientStatus } from "../generated/ClientStatus";
 import type { PlayerProfile } from "../generated/PlayerProfile";
 import type { CommandName, Commands, EventName, Events } from "../transport";
-import { champSelectDraft } from "./draft-fixtures";
+import { champSelectDraft, champSelectLocked, champSelectNoStats } from "./draft-fixtures";
 import { corruptProfile, extremeProfile, newPlayerProfile, profile } from "./fixtures";
+import { flashKept, importAnswer, importFailures } from "./import-fixtures";
 import { liveExtreme, liveFailed, liveGame, liveScouting, searchPlayer } from "./live-fixtures";
-import { customSettings, defaultSettings, saveSettings } from "./settings-fixtures";
+import { customSettings, defaultSettings, importsOffSettings, lockInSettings, saveSettings } from "./settings-fixtures";
 
 /** Profile captured by `capture-profile`, served by the dev server; falls back to the fixture. */
 async function loadCapturedProfile(): Promise<PlayerProfile> {
@@ -56,6 +57,14 @@ const base: Scenario["responses"] = {
 
 const inGame: ClientStatus = { connection: "connected", phase: "inGame" };
 
+/** Mid-draft, with imports that work (each takes a moment, like the real client). */
+const champSelect: Scenario["responses"] = {
+  ...base,
+  client_status: { data: { connection: "connected", phase: "champSelect" } },
+  draft_state: { data: champSelectDraft },
+  import_build: { handle: importAnswer(), delayMs: 400 },
+};
+
 export const scenarios = {
   default: {
     description: "Client connected, rich profile.",
@@ -66,12 +75,33 @@ export const scenarios = {
     responses: { ...base, current_profile: { load: loadCapturedProfile } },
   },
   "champ-select": {
-    description: "Mid-draft: you're picking top against a locked Irelia.",
-    responses: {
-      ...base,
-      client_status: { data: { connection: "connected", phase: "champSelect" } },
-      draft_state: { data: champSelectDraft },
-    },
+    description: "Mid-draft: you're picking top against a locked Irelia. Imports work.",
+    responses: champSelect,
+  },
+  "import-failures": {
+    description: "Imports fail: no free rune page, the client refuses the item set, spells too late.",
+    responses: { ...champSelect, import_build: { handle: importAnswer(importFailures), delayMs: 300 } },
+  },
+  "import-flash": {
+    description: "The spells import keeps Flash on your key (F) although the build lists it on D.",
+    responses: { ...champSelect, import_build: { handle: importAnswer(flashKept), delayMs: 300 } },
+  },
+  "import-lock-in": {
+    description:
+      "Imports on lock-in: you locked Malphite in with every part set to import by itself. Tests emit the import (`lockInImport`) themselves: a toast only lasts 4 s.",
+    responses: { ...champSelect, draft_state: { data: champSelectLocked }, get_settings: { data: lockInSettings } },
+  },
+  "draft-no-stats": {
+    description: "Champion select before stats exist: no picks, the import buttons say why they wait.",
+    responses: { ...champSelect, draft_state: { data: champSelectNoStats } },
+  },
+  "imports-off": {
+    description: "Every import turned off in Settings: no import bar in Draft.",
+    responses: { ...champSelect, get_settings: { data: importsOffSettings } },
+  },
+  "import-error": {
+    description: "The core can't be asked (the app is still starting): the button says so.",
+    responses: { ...champSelect, import_build: { error: "MVP is still starting, try again in a moment", delayMs: 200 } },
   },
   "not-running": {
     description: "League client is not running; no profile.",

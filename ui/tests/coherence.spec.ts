@@ -1,4 +1,7 @@
 import { expect, test } from "@playwright/test";
+// Brings the window.__SCOUT_MOCK__ declaration into scope.
+import type {} from "../src/data/mock";
+import { lockInImport } from "../src/data/mock/import-fixtures";
 import { scenarioNames } from "../src/data/mock/scenarios";
 import { openApp, VIEWS } from "./app";
 import { auditTokens } from "./coherence-rules";
@@ -20,6 +23,38 @@ for (const scenario of scenarioNames) {
 test("/draft in champion select only uses design tokens", async ({ page }) => {
   await openApp(page, { view: "/draft", scenario: "champ-select" });
   expect(await page.evaluate(auditTokens)).toEqual([]);
+});
+
+for (const scenario of ["import-lock-in", "draft-no-stats"] as const) {
+  test(`/draft/${scenario} only uses design tokens`, async ({ page }) => {
+    await openApp(page, { view: "/draft", scenario });
+    if (scenario === "import-lock-in") {
+      // The import on lock-in: its toast and the marked buttons.
+      await page.evaluate((result) => window.__SCOUT_MOCK__?.emit("import", result), lockInImport);
+      await page.getByTestId("toast").waitFor();
+      await expect(page.getByTestId("import-spells")).toHaveAttribute("data-tone", "warn");
+    }
+    expect(await page.evaluate(auditTokens)).toEqual([]);
+  });
+}
+
+test("the import bar only uses design tokens in every state", async ({ page }) => {
+  // Done and warn (the Flash note), then failed and skipped.
+  await openApp(page, { view: "/draft", scenario: "import-flash" });
+  await page.getByRole("button", { name: "Import runes" }).click();
+  await page.getByRole("button", { name: "Import spells" }).click();
+  await expect(page.getByTestId("import-spells")).toHaveAttribute("data-tone", "warn");
+  await page.mouse.move(0, 0);
+  await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)));
+  expect(await page.evaluate(auditTokens), "done, warn").toEqual([]);
+
+  await openApp(page, { view: "/draft", scenario: "import-failures" });
+  await page.getByRole("button", { name: "Import runes" }).click();
+  await page.getByRole("button", { name: "Import spells" }).click();
+  await expect(page.getByTestId("import-spells")).toHaveAttribute("data-tone", "skipped");
+  await page.mouse.move(0, 0);
+  await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)));
+  expect(await page.evaluate(auditTokens), "failed, skipped").toEqual([]);
 });
 
 for (const { view, scenario } of [

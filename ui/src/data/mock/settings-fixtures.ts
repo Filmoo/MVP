@@ -10,6 +10,10 @@ export const defaultSettings: Settings = {
   launchAtStartup: false,
   closeToTray: true,
   effects: "auto",
+  importRunes: "oneClick",
+  importItemSet: "oneClick",
+  importSpells: "oneClick",
+  flashKey: "auto",
 };
 
 /** A player who turned automations on and changed the app's defaults. */
@@ -20,7 +24,27 @@ export const customSettings: Settings = {
   autoSwitchView: true,
   launchAtStartup: true,
   closeToTray: false,
-  effects: "light",
+  effects: "auto",
+  importRunes: "onLockIn",
+  importItemSet: "onLockIn",
+  importSpells: "off",
+  flashKey: "f",
+};
+
+/** Every part imported by itself on lock-in. */
+export const lockInSettings: Settings = {
+  ...defaultSettings,
+  importRunes: "onLockIn",
+  importItemSet: "onLockIn",
+  importSpells: "onLockIn",
+};
+
+/** Every import turned off: no import bar in Draft. */
+export const importsOffSettings: Settings = {
+  ...defaultSettings,
+  importRunes: "off",
+  importItemSet: "off",
+  importSpells: "off",
 };
 
 /** What the core does with an update: clamps the delay, then answers what it saved. */

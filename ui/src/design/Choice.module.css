@@ -1,0 +1,118 @@
+/*
+ * Options side by side on one groove (they wrap on narrow cards); the chosen one sits under a
+ * thumb that springs over, in the accent like a switch that's on. With Full effects the thumb is
+ * a lens of tinted glass over the chosen label (design/liquid, "lens").
+ */
+.choice {
+  position: relative;
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  min-inline-size: 0;
+  max-width: 100%;
+  margin: 0;
+  padding: var(--space-1);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-3);
+  background: var(--bg-3);
+  box-shadow: inset 0 1px 2px var(--line-shade);
+}
+
+.thumb {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  display: none;
+  border-radius: var(--radius-2);
+  background: var(--accent-soft);
+  box-shadow:
+    inset 0 1px 0 var(--line-specular),
+    0 2px 6px -2px var(--line-shade);
+  transition: transform var(--dur-spring) var(--ease-spring);
+  pointer-events: none;
+}
+
+.thumb[data-ready] {
+  display: block;
+}
+
+.thumb[data-instant] {
+  transition: none;
+}
+
+.choice:disabled .thumb {
+  opacity: 0.4;
+}
+
+/* Full effects: the thumb is tinted glass over the chosen label, which it magnifies a little. */
+:global(:root[data-effects="shader"]) .thumb {
+  z-index: 3;
+  background: var(--bg-lens-accent);
+  backdrop-filter: var(--lg-filter, none);
+}
+
+.option {
+  position: relative;
+  z-index: 2;
+  flex: 1 0 auto;
+  display: flex;
+  cursor: pointer;
+}
+
+/* The radio itself stays for keyboards and screen readers; the label is what shows. */
+.input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  appearance: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.label {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 0 var(--space-5);
+  border-radius: var(--radius-2);
+  color: var(--text-2);
+  font-size: var(--text-md);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+  transition:
+    background-color var(--dur-1) var(--ease),
+    color var(--dur-1) var(--ease);
+}
+
+.input:checked + .label {
+  color: var(--accent-strong);
+  font-weight: var(--weight-semibold);
+}
+
+.input:focus-visible + .label {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 1px;
+}
+
+.choice:disabled .option {
+  cursor: default;
+}
+
+.choice:disabled .label {
+  opacity: 0.4;
+}
+
+/* Hover lights the other options, never the chosen one or a disabled group. */
+.choice:not(:disabled) .option:hover .input:not(:checked) + .label {
+  background: var(--bg-4);
+  color: var(--text-1);
+}

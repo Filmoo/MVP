@@ -128,7 +128,8 @@ Recent searches (max 8) and the region live in `localStorage`.
   atomically (temp file + fsync + rename) and publishes it on a watch channel. The UI reads and
   writes them with `get_settings` / `update_settings` and follows the `settings` event.
 - **Automations** run in the core (`companion::automation`), so they work with the window closed:
-  auto-accept (opt-in, delayed, once per ready check, see policy.md) and the `Autopilot`, which
+  auto-accept (opt-in, delayed, once per ready check, see policy.md), build imports on lock-in
+  (opt-in per part, see "Build imports" below) and the `Autopilot`, which
   turns gameflow phases into window intents: focus in champ select, Draft → Live → Home as the game
   goes. The UI reports every view it shows (`view_changed`), so a page the player opened is never
   switched away from.
@@ -176,6 +177,49 @@ normals, no crease along the corner diagonal); a dome is a stadium.
 
 **The window backdrop** (`backdrop/`): one WebGL 1 canvas (first child of `[data-ambient-host]`,
 fixed, `z-index: -1`, `aria-hidden`, `data-free-style`), drawn **on demand only**.
+
+## Build imports (`companion::imports`)
+MVP writes a champion's build into the League client: its own rune page, its item set for the
+champion, the summoner spells (policy: docs/policy.md, "Build imports"). The UI asks with
+`import_build { request: ImportRequest { championId, role, queue, parts } }` and gets an
+`ImportResult`, one outcome per part: `saved { name }`, `spellsSet { spellIds, changed, flash }`,
+`skipped { reason }` or `failed { reason }` (structured; the UI words them in
+`ui/src/lib/imports.ts`). The lock-in automation sends the same result as an `import` event
+(`automatic: true`): a toast anywhere, and the Draft bar's buttons.
+- **Builds** come from a `BuildSource` trait: `build(champion, role, queue) -> Option<BuildStats>`
+  (`role: None` = the most played role; queue 420 for every Summoner's Rift mode, 450 for ARAM,
+  from the gameflow session's `gameData.queue.mapId` when the request has none; other maps have
+  no builds). The desktop wires the stats client (`StatsClient` implements it: the current patch's
+  Emerald+ `builds/{id}.json` of the queue) into `companion::Services`;
+  `imports::build_for_role(&BuildsFile, role)` picks the role's build from a published file.
+- **Rune page**: `runes.top[0].ids` = `[primaryStyle, subStyle, 4 + 2 perks, 3 shards]` → a page
+  named like `MVP · Ahri Mid` (≤ 25 characters, `ARAM` instead of a role there). MVP's page is the
+  first editable page whose name's first word is "MVP" (any case): replaced with
+  `PUT /lol-perks/v1/pages/{id}`, its other fields kept. Without one: `POST /lol-perks/v1/pages`
+  if the inventory has room (`canAddCustomPage`, else custom pages < `ownedPageCount`), else
+  `noFreePage`. Then `PUT /lol-perks/v1/currentpage`. Nothing is ever deleted.
+- **Item set**: blocks *Starting items* (with counts), *Core build (in order)*, *Boots*,
+  *Situational* (4th–6th items by games, at most 6); tied to the champion and map 11 (12 for
+  ARAM). The document is read, MVP's set for the champion replaced (one per champion, whatever
+  the role), and `PUT` back whole: every other set and field as read, `timestamp` now.
+- **Spells**: champion select only (the core's phase, then a live session). Time left =
+  `adjustedTimeLeftInPhase − (now − internalNowInEpochMs)`; refused with `LAST_SECONDS` (5) or
+  less, or in `GAME_STARTING`, checked again right before the `PATCH …/my-selection`. Flash key:
+  the setting (D/F), else the key Flash sat on in most of the client's recent Summoner's Rift and
+  ARAM games, else where it is now, else F with a `guessed` note; `keptOnYourKey` when the build
+  lists it on the other key, `notInBuild` without Flash. Already set: no write.
+- **On lock-in** (`LockIn`, fed with every champion select session the core loop sees): a lock is
+  the local player's completed pick action (or no pick action at all, as in ARAM) with a
+  champion. `LockTracker` handles each locked champion once per champion select; a new champion
+  (trade, ARAM swap) aborts the previous import and starts its own. The parts set to "on
+  lock-in" run in one task. Spells locked with 7 s or less left in a phase before finalization
+  wait for the next session event with time on the clock (the next turn, or finalization).
+
+## Window backdrop (`ui/src/design/backdrop`)
+The ambient light behind the shell is one WebGL 1 canvas (first child of `[data-ambient-host]`,
+fixed, `z-index: -1`, `aria-hidden`, `data-free-style`), drawn **on demand only**. Nothing runs at
+rest: no rAF loop, no timers (the perf suite asserts 0 renders over 3 s, and a median render
+≤ 2 ms of CPU).
 - **What wakes it**: the page light changing (a MutationObserver on the host's inline `--amb-*`,
   written by `ambient.ts`; the 450/600 ms glide is mirrored in JS, a frame each only while it
   runs), a ResizeObserver on the host and on the glass panes, a DOM change under the host (panes
@@ -312,7 +356,7 @@ enemy's `role`/`roleOdds` (≥ 5 %).
 | `domain` | UI-facing types (serde + ts-rs) |
 | `lcu` | League client: discovery, pinned TLS, REST, WAMP events, connector lifecycle |
 | `mock-lcu` | fake League client for tests and development |
-| `companion` | Tauri-free core: client status, champ select → `DraftView` (+ draft helper), loading screen → `LiveGame`, settings, automations, backend client, stats download + disk cache |
+| `companion` | Tauri-free core: client status, champ select → `DraftView` (+ draft helper), loading screen → `LiveGame`, settings, automations, build imports, backend client, stats download + disk cache |
 | `static-data` | Data Dragon download + per-patch cache + offline fallback |
 | `stats` | statistics and the draft model |
 | `aggregate` | stats pipeline core: Match-V5 → facts → mergeable aggregates → published JSON |

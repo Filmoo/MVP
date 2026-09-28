@@ -1,16 +1,18 @@
 import { createEffect, type JSX, on, Show } from "solid-js";
 import type { AppInfo } from "../../data/generated/AppInfo";
 import type { Effects } from "../../data/generated/Effects";
+import type { FlashKey } from "../../data/generated/FlashKey";
+import type { ImportMode } from "../../data/generated/ImportMode";
 import type { Settings } from "../../data/generated/Settings";
 import { rendered, setEffects } from "../../design/backdrop";
 import { Card } from "../../design/Card";
+import { Choice, type ChoiceOption } from "../../design/Choice";
 import { Icon } from "../../design/Icon";
 import { Mark } from "../../design/Logo";
 import { SettingList, SettingRow } from "../../design/SettingRow";
 import { Slider } from "../../design/Slider";
 import { Toggle } from "../../design/Toggle";
 import { MAX_AUTO_ACCEPT_DELAY } from "../../lib/settings";
-import { Choice } from "./Choice";
 import styles from "./Settings.module.css";
 
 export interface SectionProps {
@@ -106,7 +108,80 @@ export function AutomationSettings(props: SectionProps): JSX.Element {
   );
 }
 
-const EFFECTS: ReadonlyArray<{ value: Effects; label: string }> = [
+const IMPORT_MODES: ReadonlyArray<ChoiceOption<ImportMode>> = [
+  { value: "off", label: "Off" },
+  { value: "oneClick", label: "One click" },
+  { value: "onLockIn", label: "On lock-in" },
+];
+
+const FLASH_KEYS: ReadonlyArray<ChoiceOption<FlashKey>> = [
+  { value: "auto", label: "From your games" },
+  { value: "d", label: "D" },
+  { value: "f", label: "F" },
+];
+
+/** Build imports into the League client: when each part is imported, and where Flash goes. */
+export function ImportSettings(props: SectionProps): JSX.Element {
+  const mode = (title: string, description: string, key: "importRunes" | "importItemSet" | "importSpells", testId: string) => (
+    <SettingRow title={title} description={description}>
+      {(ids) => (
+        <Choice
+          value={props.settings[key]}
+          options={IMPORT_MODES}
+          onChange={(next) => {
+            const patch: Partial<Settings> = {};
+            patch[key] = next;
+            props.onChange(patch);
+          }}
+          labelledBy={ids.label}
+          describedBy={ids.description}
+          testId={testId}
+        />
+      )}
+    </SettingRow>
+  );
+  return (
+    <Card title="Imports">
+      <SettingList>
+        {mode(
+          "Rune page",
+          "Writes the build's runes into MVP's own page, named “MVP”, and selects it. Your pages are never changed.",
+          "importRunes",
+          "setting-import-runes",
+        )}
+        {mode(
+          "Item set",
+          "Adds the build to the in-game shop as MVP's set for the champion. Your item sets are never changed.",
+          "importItemSet",
+          "setting-import-item-set",
+        )}
+        {mode(
+          "Summoner spells",
+          "Sets the build's spells in champion select, never in its last 5 seconds.",
+          "importSpells",
+          "setting-import-spells",
+        )}
+        <SettingRow nested title="Flash key" description="Flash always goes on this key, whatever the build lists.">
+          {(ids) => (
+            <Choice
+              value={props.settings.flashKey}
+              options={FLASH_KEYS}
+              onChange={(flashKey) => props.onChange({ flashKey })}
+              labelledBy={ids.label}
+              describedBy={ids.description}
+              disabled={props.settings.importSpells === "off"}
+              testId="setting-flash-key"
+            />
+          )}
+        </SettingRow>
+      </SettingList>
+      <p class={styles.footnote}>One click: buttons in Draft. On lock-in: also by itself, once, when you lock in your champion.</p>
+      <SaveError message={props.error} />
+    </Card>
+  );
+}
+
+const EFFECTS: ReadonlyArray<ChoiceOption<Effects>> = [
   { value: "auto", label: "Full" },
   { value: "light", label: "Light" },
   { value: "off", label: "Off" },

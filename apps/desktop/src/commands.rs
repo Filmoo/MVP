@@ -3,8 +3,8 @@
 use companion::settings::SettingsStore;
 use companion::stats::StatsClient;
 use domain::{
-    AppInfo, BackendError, Bracket, ChampionPage, ClientStatus, DraftView, GameData, LiveGame,
-    PlayerProfile, RiotId, Settings, StatsIndex, TierList,
+    AppInfo, BackendError, Bracket, ChampionPage, ClientStatus, DraftView, GameData, ImportRequest,
+    ImportResult, LiveGame, PlayerProfile, RiotId, Settings, StatsIndex, TierList,
 };
 use tauri::{Emitter as _, Manager as _};
 use tauri_plugin_autostart::ManagerExt as _;
@@ -235,4 +235,23 @@ pub async fn champion_stats(
     stats(&app)?
         .champion_page(champion_id, queue, bracket)
         .await
+}
+
+/// Imports (parts of) a build into the League client: MVP's rune page, its item set, the
+/// summoner spells (champion select only). Answers what happened to each part; parts turned off
+/// in Settings are skipped. Rejects only while the app is still starting.
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub async fn import_build(
+    app: tauri::AppHandle,
+    request: ImportRequest,
+) -> Result<ImportResult, String> {
+    let importer = app
+        .try_state::<Core>()
+        .map(|core| core.imports.clone())
+        .ok_or_else(|| "MVP is still starting, try again in a moment".to_owned())?;
+    Ok(importer.import(&request, false).await)
 }

@@ -760,6 +760,24 @@ impl StatsClient {
     }
 }
 
+/// The published builds feed the imports (runes, item set, spells): the current patch's
+/// Emerald+ data set of the queue, the champion's build in the role (its most played role when
+/// the role is unknown). `None` when it isn't published, or offline without a cached copy.
+impl crate::imports::BuildSource for StatsClient {
+    fn build(
+        &self,
+        champion_id: u32,
+        role: Option<domain::Role>,
+        queue: u32,
+    ) -> crate::imports::BuildFuture<'_> {
+        Box::pin(async move {
+            let set = self.data_set(queue, Bracket::EmeraldPlus).await.ok()?;
+            let file = self.builds(&set, champion_id).await.ok()??;
+            crate::imports::build_for_role(&file, role).cloned()
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

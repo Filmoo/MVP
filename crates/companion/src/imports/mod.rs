@@ -1,0 +1,453 @@
+//! Build imports: MVP's rune page, item set and summoner spells written into the League client,
+//! on a click (`import_build`) or once per lock-in when the player opted in (Settings).
+//!
+//! Policy (docs/policy.md, "Build imports"): these are client writes, so they are user-triggered
+//! or opted-in only, and the player's own things are never touched:
+//! - rune pages: only MVP's page (named "MVP…") is replaced, a new one is created only when
+//!   there is room, the player's pages are never modified or deleted (no DELETE at all);
+//! - item sets: the player's sets are written back exactly as read, only MVP's set for the
+//!   champion is replaced;
+//! - summoner spells: during champion select only, never in its last seconds
+//!   ([`LAST_SECONDS`]), Flash on the player's key.
+//!
+//! Builds come from a [`BuildSource`]: the published stats in the app, a fake in tests.
+
+mod item_sets;
+mod lock_in;
+mod runes;
+mod spells;
+
+use std::fmt;
+use std::future::Future;
+use std::pin::Pin;
+use std::sync::Arc;
+
+use domain::{
+    BuildStats, BuildsFile, ClientStatus, FailReason, GameflowPhase, ImportMode, ImportOutcome,
+    ImportPart, ImportRequest, ImportResult, PartResult, Role, Settings, SkipReason,
+};
+use lcu::{LcuClient, LcuError};
+use serde_json::Value;
+use tokio::sync::watch;
+
+pub use item_sets::{ItemBlock, item_blocks, item_set, merge_item_set, sets_path};
+pub(crate) use lock_in::LockIn;
+pub use lock_in::{Lock, LockTracker, locked};
+pub use runes::{CURRENT_PAGE, INVENTORY, PAGES, RunePage};
+pub use spells::{
+    FLASH, KeyChoice, LAST_SECONDS, MY_SELECTION, Selection, arrange, flash_habit, selection,
+    too_late,
+};
+
+/// Ranked solo/duo data: used for every Summoner's Rift mode.
+pub const RANKED: u32 = 420;
+/// ARAM data (Howling Abyss).
+pub const ARAM: u32 = 450;
+/// The game the client is in (queue and map).
+pub const GAMEFLOW_SESSION: &str = "/lol-gameflow/v1/session";
+
+/// A boxed build answer, so [`BuildSource`] stays object-safe without extra crates.
+pub type BuildFuture<'a> = Pin<Box<dyn Future<Output = Option<BuildStats>> + Send + 'a>>;
+
+/// Where builds come from: in the app, the current patch's published `BuildsFile`s (see
+/// [`build_for_role`]); in tests, a fake.
+pub trait BuildSource: Send + Sync {
+    /// The build of `champion_id` in `role` for the stats `queue` (420 ranked, 450 ARAM).
+    /// `role: None` (blind pick, ARAM): the champion's most played role. `None` when there is no
+    /// such build: not published, no stats yet, or offline without a cached copy.
+    fn build(&self, champion_id: u32, role: Option<Role>, queue: u32) -> BuildFuture<'_>;
+}
+
+/// No stats in the app yet: every import answers "no build".
+#[derive(Debug, Clone, Copy, Default)]
+pub struct NoBuilds;
+
+impl BuildSource for NoBuilds {
+    fn build(&self, _champion_id: u32, _role: Option<Role>, _queue: u32) -> BuildFuture<'_> {
+        Box::pin(std::future::ready(None))
+    }
+}
+
+/// The build for `role` in a published file: the role's own, or the most played role's when
+/// `role` is `None`. A role without a build gives `None`: another role's runes would be wrong.
+pub fn build_for_role(file: &BuildsFile, role: Option<Role>) -> Option<&BuildStats> {
+    match role {
+        None => file.roles.first(),
+        Some(role) => file.roles.iter().find(|b| b.role == Some(role)),
+    }
+}
+
+/// Champion names for page and set names (`MVP · Ahri Mid`); `None` when unknown.
+pub type ChampionNames = Arc<dyn Fn(u32) -> Option<String> + Send + Sync>;
+
+/// First word of everything MVP writes. A rune page or item set named like this is MVP's to
+/// replace: the player can hand one of their pages to MVP by renaming it "MVP".
+pub const NAME_PREFIX: &str = "MVP";
+/// Longest name MVP gives a page or set (the client's rune page names are short).
+pub const NAME_MAX_CHARS: usize = 25;
+
+/// Whether `name` marks a page or set as MVP's: "MVP" as its first word, any case
+/// (`MVP`, `MVP · Ahri Mid`, `mvp ahri`), not a longer word (`MVPlayer`).
+pub fn is_mvp_name(name: &str) -> bool {
+    let name = name.trim_start();
+    name.get(..NAME_PREFIX.len())
+        .is_some_and(|word| word.eq_ignore_ascii_case(NAME_PREFIX))
+        && name
+            .get(NAME_PREFIX.len()..)
+            .and_then(|rest| rest.chars().next())
+            .is_none_or(|next| !next.is_alphanumeric())
+}
+
+const fn role_words(role: Role) -> (&'static str, &'static str) {
+    match role {
+        Role::Top => ("Top", "Top"),
+        Role::Jungle => ("Jungle", "Jgl"),
+        Role::Middle => ("Mid", "Mid"),
+        Role::Bottom => ("Bot", "Bot"),
+        Role::Support => ("Support", "Sup"),
+    }
+}
+
+/// The name of MVP's page and set: `MVP · Ahri Mid`, `MVP · Nunu & Willump Sup`,
+/// `MVP · Ahri ARAM`, at most [`NAME_MAX_CHARS`] characters.
+pub fn build_name(champion: Option<&str>, role: Option<Role>, queue: u32) -> String {
+    let (long, short) = if queue == ARAM {
+        ("ARAM", "ARAM")
+    } else {
+        role.map_or(("", ""), role_words)
+    };
+    let champion = champion.map(str::trim).unwrap_or_default();
+    let join = |champion: &str, suffix: &str| {
+        let body = [champion, suffix]
+            .into_iter()
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>()
+            .join(" ");
+        if body.is_empty() {
+            NAME_PREFIX.to_owned()
+        } else {
+            format!("{NAME_PREFIX} · {body}")
+        }
+    };
+    for suffix in [long, short] {
+        let name = join(champion, suffix);
+        if name.chars().count() <= NAME_MAX_CHARS {
+            return name;
+        }
+    }
+    // Still too long: shorten the champion's name, keep the role.
+    let fixed = join("x", short).chars().count() - 1;
+    let room = NAME_MAX_CHARS.saturating_sub(fixed + 1);
+    let cut: String = champion.chars().take(room).collect();
+    join(&format!("{}…", cut.trim_end()), short)
+}
+
+/// The stats queue for the game in `session` (`/lol-gameflow/v1/session`): ARAM data on
+/// Howling Abyss, ranked data on Summoner's Rift (and outside of a game), `None` elsewhere
+/// (Arena and other modes without published builds).
+pub fn stats_queue(session: &Value) -> Option<u32> {
+    let queue = session.pointer("/gameData/queue");
+    let map = queue
+        .and_then(|q| q.get("mapId"))
+        .and_then(Value::as_u64)
+        .or_else(|| session.pointer("/map/id").and_then(Value::as_u64))
+        .unwrap_or(0);
+    let id = queue
+        .and_then(|q| q.get("id"))
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    match (map, id) {
+        (12, _) | (_, 450) => Some(ARAM),
+        (11 | 0, _) => Some(RANKED),
+        _ => None,
+    }
+}
+
+/// The client refused or didn't answer: its own words, for the player.
+pub(crate) fn client_failure(error: &LcuError) -> ImportOutcome {
+    let message = match error {
+        LcuError::Http {
+            status, message, ..
+        } if !message.trim().is_empty() => format!("{} (HTTP {})", message.trim(), status.as_u16()),
+        LcuError::Http { status, .. } => format!("HTTP {}", status.as_u16()),
+        other => other.to_string(),
+    };
+    ImportOutcome::Failed {
+        reason: FailReason::Client { message },
+    }
+}
+
+const fn failed(reason: FailReason) -> ImportOutcome {
+    ImportOutcome::Failed { reason }
+}
+
+/// The player's choice for `part`.
+pub const fn mode(settings: &Settings, part: ImportPart) -> ImportMode {
+    match part {
+        ImportPart::Runes => settings.import_runes,
+        ImportPart::ItemSet => settings.import_item_set,
+        ImportPart::Spells => settings.import_spells,
+    }
+}
+
+/// Unix epoch milliseconds (the champion select timer's clock).
+pub(crate) fn now_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()
+        .and_then(|d| i64::try_from(d.as_millis()).ok())
+        .unwrap_or(0)
+}
+
+/// Imports builds into the League client, for `import_build` clicks and the lock-in automation.
+#[derive(Clone)]
+pub struct Importer {
+    client: watch::Receiver<Option<LcuClient>>,
+    status: watch::Receiver<ClientStatus>,
+    settings: watch::Receiver<Settings>,
+    builds: Arc<dyn BuildSource>,
+    names: ChampionNames,
+}
+
+impl fmt::Debug for Importer {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Importer").finish_non_exhaustive()
+    }
+}
+
+impl Importer {
+    pub fn new(
+        client: watch::Receiver<Option<LcuClient>>,
+        status: watch::Receiver<ClientStatus>,
+        settings: watch::Receiver<Settings>,
+        builds: Arc<dyn BuildSource>,
+        names: ChampionNames,
+    ) -> Self {
+        Self {
+            client,
+            status,
+            settings,
+            builds,
+            names,
+        }
+    }
+
+    pub(crate) fn settings(&self) -> Settings {
+        self.settings.borrow().clone()
+    }
+
+    /// Imports the requested parts, in order, and says what happened to each. Parts turned off
+    /// in Settings are skipped, whoever asks.
+    pub async fn import(&self, request: &ImportRequest, automatic: bool) -> ImportResult {
+        let settings = self.settings();
+        let mut parts: Vec<ImportPart> = Vec::new();
+        for part in &request.parts {
+            if !parts.contains(part) {
+                parts.push(*part);
+            }
+        }
+        let mut result = ImportResult {
+            champion_id: request.champion_id,
+            role: request.role,
+            queue: request.queue.unwrap_or(RANKED),
+            automatic,
+            parts: Vec::new(),
+        };
+        let in_champ_select = self.status.borrow().phase == GameflowPhase::ChampSelect;
+        let lcu = self.client.borrow().clone();
+        // What each part can't do before anything is read.
+        let early = |part: ImportPart| -> Option<ImportOutcome> {
+            if mode(&settings, part) == ImportMode::Off {
+                return Some(ImportOutcome::Skipped {
+                    reason: SkipReason::Off,
+                });
+            }
+            if lcu.is_none() {
+                return Some(failed(FailReason::NoClient));
+            }
+            (part == ImportPart::Spells && !in_champ_select).then_some(ImportOutcome::Skipped {
+                reason: SkipReason::NotInChampSelect,
+            })
+        };
+        let pending: Vec<ImportPart> = parts
+            .iter()
+            .copied()
+            .filter(|p| early(*p).is_none())
+            .collect();
+        let (Some(lcu), false) = (lcu.as_ref(), pending.is_empty()) else {
+            result.parts = parts
+                .iter()
+                .map(|&part| PartResult {
+                    part,
+                    outcome: early(part).unwrap_or(failed(FailReason::NoClient)),
+                })
+                .collect();
+            return result;
+        };
+
+        let queue = match request.queue {
+            Some(queue) => Some(queue),
+            None => match lcu.get::<Value>(GAMEFLOW_SESSION).await {
+                Ok(session) => stats_queue(&session),
+                Err(_) => Some(RANKED),
+            },
+        };
+        let build = match queue {
+            Some(queue) => {
+                result.queue = queue;
+                // ARAM has no roles.
+                if queue == ARAM {
+                    result.role = None;
+                }
+                self.builds
+                    .build(request.champion_id, result.role, queue)
+                    .await
+                    .ok_or(FailReason::NoBuild)
+            }
+            None => Err(FailReason::UnsupportedMode),
+        };
+        let name = build_name(
+            (self.names)(request.champion_id).as_deref(),
+            result.role,
+            result.queue,
+        );
+        for part in parts {
+            let outcome = match (early(part), &build) {
+                (Some(outcome), _) => outcome,
+                (None, Err(reason)) => failed(reason.clone()),
+                (None, Ok(build)) => match part {
+                    ImportPart::Runes => runes::import(lcu, build, &name).await,
+                    ImportPart::ItemSet => {
+                        item_sets::import(lcu, build, request.champion_id, &name, result.queue)
+                            .await
+                    }
+                    ImportPart::Spells => spells::import(lcu, build, settings.flash_key).await,
+                },
+            };
+            if let ImportOutcome::Failed { reason } = &outcome {
+                tracing::warn!(?part, ?reason, "import failed");
+            }
+            result.parts.push(PartResult { part, outcome });
+        }
+        result
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn recognises_mvp_names() {
+        for name in [
+            "MVP",
+            "MVP · Ahri Mid",
+            "mvp ahri",
+            "  Mvp",
+            "MVP·Ahri",
+            "MVP-2",
+        ] {
+            assert!(is_mvp_name(name), "{name}");
+        }
+        for name in ["MVPlayer", "My MVP page", "", "Ahri", "MV", "MVP2"] {
+            assert!(!is_mvp_name(name), "{name}");
+        }
+    }
+
+    #[test]
+    fn names_fit_the_client() {
+        assert_eq!(
+            build_name(Some("Ahri"), Some(Role::Middle), RANKED),
+            "MVP · Ahri Mid"
+        );
+        assert_eq!(
+            build_name(Some("Ahri"), Some(Role::Middle), ARAM),
+            "MVP · Ahri ARAM"
+        );
+        assert_eq!(build_name(Some("Ahri"), None, RANKED), "MVP · Ahri");
+        assert_eq!(build_name(None, Some(Role::Jungle), RANKED), "MVP · Jungle");
+        assert_eq!(build_name(None, None, RANKED), "MVP");
+        // Long names fall back to short roles, then shorten the champion's name.
+        assert_eq!(
+            build_name(Some("Nunu & Willump"), Some(Role::Jungle), RANKED),
+            "MVP · Nunu & Willump Jgl"
+        );
+        let long = build_name(
+            Some("A Very Long Champion Name"),
+            Some(Role::Support),
+            RANKED,
+        );
+        assert_eq!(long, "MVP · A Very Long Ch… Sup");
+        for champion in [
+            "Nunu & Willump",
+            "Aurelion Sol",
+            "Kog'Maw",
+            "A Very Long Champion Name",
+        ] {
+            for role in [
+                Role::Top,
+                Role::Jungle,
+                Role::Middle,
+                Role::Bottom,
+                Role::Support,
+            ] {
+                let name = build_name(Some(champion), Some(role), RANKED);
+                assert!(name.chars().count() <= NAME_MAX_CHARS, "{name}");
+                assert!(is_mvp_name(&name), "{name}");
+            }
+        }
+    }
+
+    #[test]
+    fn picks_the_stats_queue_from_the_game() {
+        let game = |map: u64, queue: u64| json!({ "gameData": { "queue": { "id": queue, "mapId": map } } });
+        assert_eq!(stats_queue(&game(11, 420)), Some(RANKED));
+        assert_eq!(stats_queue(&game(11, 400)), Some(RANKED));
+        assert_eq!(stats_queue(&game(12, 450)), Some(ARAM));
+        assert_eq!(stats_queue(&game(30, 1700)), None, "Arena");
+        assert_eq!(stats_queue(&json!({})), Some(RANKED), "no game");
+        assert_eq!(stats_queue(&json!({ "map": { "id": 12 } })), Some(ARAM));
+    }
+
+    #[test]
+    fn picks_the_build_of_the_role() {
+        let build = |role| BuildStats {
+            role,
+            g: 10,
+            w: 5,
+            runes: domain::BuildSection::default(),
+            keystones: domain::BuildSection::default(),
+            spells: domain::BuildSection::default(),
+            skills: domain::BuildSection::default(),
+            skill_start: domain::BuildSection::default(),
+            starts: domain::BuildSection::default(),
+            core: domain::BuildSection::default(),
+            boots: domain::BuildSection::default(),
+            item4: domain::BuildSection::default(),
+            item5: domain::BuildSection::default(),
+            item6: domain::BuildSection::default(),
+        };
+        let file = BuildsFile {
+            info: domain::DataSetInfo {
+                schema: 1,
+                patch: "16.19".into(),
+                queue: RANKED,
+                bracket: domain::Bracket::EmeraldPlus,
+                games: 100,
+                updated_at: 0,
+            },
+            id: 103,
+            roles: vec![build(Some(Role::Middle)), build(Some(Role::Support))],
+        };
+        assert_eq!(
+            build_for_role(&file, Some(Role::Support)).and_then(|b| b.role),
+            Some(Role::Support)
+        );
+        assert_eq!(
+            build_for_role(&file, None).and_then(|b| b.role),
+            Some(Role::Middle)
+        );
+        assert!(build_for_role(&file, Some(Role::Top)).is_none());
+    }
+}

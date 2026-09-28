@@ -1,11 +1,12 @@
 //! Client automations: accepting the ready check (opt-in) and following the game with the window.
+//! Build imports on lock-in live in `imports`.
 //!
 //! Policy (docs/policy.md): automation is opt-in or clearly user-visible. Auto-accept is off by
 //! default and waits a visible delay; it never overrides an answer the player already gave.
 
 use std::time::Duration;
 
-use domain::{AutoAcceptEvent, GameflowPhase, Settings, ViewRoute};
+use domain::{AutoAcceptEvent, GameflowPhase, ImportResult, Settings, ViewRoute};
 use lcu::{LcuClient, LcuError};
 use serde::Deserialize;
 use tokio::sync::{mpsc, watch};
@@ -29,6 +30,8 @@ pub struct WindowIntent {
 pub enum CoreEvent {
     Window(WindowIntent),
     AutoAccept(AutoAcceptEvent),
+    /// An automatic import on lock-in finished (a toast in the UI).
+    Import(ImportResult),
 }
 
 /// Decides where the window goes as the game moves on, without fighting the user: it switches

@@ -6,6 +6,12 @@
 //! pushes the matching `OnJsonApiEvent` to subscribers, exactly like the real client.
 //!
 //! TLS uses a throwaway CA generated at start; point the connector at [`MockLcu::ca_pem`].
+//!
+//! The client's write endpoints the app uses behave like the real ones (see `writes`): rune
+//! pages with the page limit, item sets, the champion-select spell selection, the ready check.
+//! Every request is recorded with its JSON body for assertions.
+
+mod writes;
 
 use std::collections::{HashMap, HashSet};
 use std::net::SocketAddr;
@@ -48,17 +54,29 @@ struct ApiEvent {
     data: Value,
 }
 
+/// One request as received.
+#[derive(Debug, Clone)]
+struct Received {
+    method: Method,
+    path: String,
+    body: Option<Value>,
+}
+
 #[derive(Debug)]
 struct Shared {
     password: String,
     docs: Mutex<HashMap<String, Value>>,
-    requests: Mutex<Vec<(Method, String)>>,
+    requests: Mutex<Vec<Received>>,
     events: broadcast::Sender<ApiEvent>,
     /// Flipped on drop: open web sockets close, like when the real client quits.
     shutdown: watch::Sender<bool>,
 }
 
 impl Shared {
+    fn get(&self, path: &str) -> Option<Value> {
+        lock(&self.docs).get(path).cloned()
+    }
+
     fn set(&self, path: &str, value: Value) {
         let existed = lock(&self.docs)
             .insert(path.to_owned(), value.clone())
@@ -195,11 +213,16 @@ impl MockLcu {
         });
     }
 
+    /// The document served at `path` now (after the app's writes), if any.
+    pub fn get(&self, path: &str) -> Option<Value> {
+        self.shared.get(path)
+    }
+
     /// Every request received so far, as `(method, path)`.
     pub fn requests(&self) -> Vec<(String, String)> {
         lock(&self.shared.requests)
             .iter()
-            .map(|(m, p)| (m.to_string(), p.clone()))
+            .map(|r| (r.method.to_string(), r.path.clone()))
             .collect()
     }
 
@@ -207,8 +230,25 @@ impl MockLcu {
     pub fn count(&self, method: &str, path: &str) -> usize {
         lock(&self.shared.requests)
             .iter()
-            .filter(|(m, p)| m.as_str() == method && p == path)
+            .filter(|r| r.method.as_str() == method && r.path == path)
             .count()
+    }
+
+    /// How many requests with `method` were received, whatever the path (e.g. every `DELETE`).
+    pub fn count_method(&self, method: &str) -> usize {
+        lock(&self.shared.requests)
+            .iter()
+            .filter(|r| r.method.as_str() == method)
+            .count()
+    }
+
+    /// JSON bodies of the `method path` requests received so far, oldest first.
+    pub fn bodies(&self, method: &str, path: &str) -> Vec<Value> {
+        lock(&self.shared.requests)
+            .iter()
+            .filter(|r| r.method.as_str() == method && r.path == path)
+            .filter_map(|r| r.body.clone())
+            .collect()
     }
 
     /// A match is found: the ready check pops up (nobody answered yet) and the gameflow phase
@@ -251,23 +291,46 @@ fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     m.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
+/// Largest request body read (the client's documents are far smaller).
+const BODY_LIMIT: usize = 1024 * 1024;
+
 async fn handle(State(shared): State<Arc<Shared>>, req: Request<Body>) -> Response {
     let (mut parts, body) = req.into_parts();
-    lock(&shared.requests).push((parts.method.clone(), parts.uri.path().to_owned()));
-    if !shared.authorized(&parts.headers) {
-        return lcu_error(StatusCode::UNAUTHORIZED, "Unauthorized");
-    }
-    if parts.uri.path() == "/" {
+    let path = parts.uri.path().to_owned();
+    if path == "/" {
+        record(&shared, &parts.method, path, None);
+        if !shared.authorized(&parts.headers) {
+            return lcu_error(StatusCode::UNAUTHORIZED, "Unauthorized");
+        }
         return match WebSocketUpgrade::from_request_parts(&mut parts, &shared).await {
             Ok(ws) => ws.on_upgrade(move |socket| wamp(socket, shared)),
             Err(rejection) => rejection.into_response(),
         };
     }
-    drop(body);
-    route(&shared, &parts.method, &parts.uri)
+    let body = axum::body::to_bytes(body, BODY_LIMIT)
+        .await
+        .ok()
+        .filter(|bytes| !bytes.is_empty())
+        .and_then(|bytes| serde_json::from_slice::<Value>(&bytes).ok());
+    record(&shared, &parts.method, path, body.clone());
+    if !shared.authorized(&parts.headers) {
+        return lcu_error(StatusCode::UNAUTHORIZED, "Unauthorized");
+    }
+    route(&shared, &parts.method, &parts.uri, body.as_ref())
 }
 
-fn route(shared: &Shared, method: &Method, uri: &Uri) -> Response {
+fn record(shared: &Shared, method: &Method, path: String, body: Option<Value>) {
+    lock(&shared.requests).push(Received {
+        method: method.clone(),
+        path,
+        body,
+    });
+}
+
+fn route(shared: &Shared, method: &Method, uri: &Uri, body: Option<&Value>) -> Response {
+    if let Some(response) = writes::route(shared, method, uri.path(), body) {
+        return response;
+    }
     let answer = match (method, uri.path()) {
         (&Method::POST, READY_CHECK_ACCEPT) => Some("Accepted"),
         (&Method::POST, READY_CHECK_DECLINE) => Some("Declined"),

@@ -35,6 +35,8 @@ for (const scenario of scenarioNames) {
 // Views that only show content in a specific scenario, at every window size.
 const SCENARIO_VIEWS = [
   { view: "/draft", scenario: "champ-select" },
+  { view: "/draft", scenario: "import-lock-in" },
+  { view: "/draft", scenario: "draft-no-stats" },
   { view: "/settings", scenario: "settings-custom" },
   { view: "/settings", scenario: "settings-error" },
   { view: "/live", scenario: "live" },
@@ -47,6 +49,7 @@ const SCENARIO_VIEWS = [
 
 // Their other states at the extreme sizes.
 const STATE_VIEWS = [
+  { view: "/draft", scenario: "imports-off" },
   { view: "/live", scenario: "live-error" },
   { view: "/live", scenario: "live-scouting" },
   { view: "/player/euw1/Nobody/404", scenario: "default" },

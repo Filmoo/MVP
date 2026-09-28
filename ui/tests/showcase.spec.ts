@@ -1,6 +1,9 @@
 import { resolve } from "node:path";
 import { type Page, test } from "@playwright/test";
+// Brings the window.__SCOUT_MOCK__ declaration into scope.
+import type {} from "../src/data/mock";
 import { FIXTURE_NOW } from "../src/data/mock/fixtures";
+import { lockInImport } from "../src/data/mock/import-fixtures";
 import { openApp, settle, VIEWS } from "./app";
 
 // Screenshots for human/UI-agent review. Not asserted: layout, coherence and
@@ -73,6 +76,46 @@ for (const view of VIEWS.slice(1)) {
     await page.screenshot({ path: `${OUT}/${view.slice(1)}-default-1280x800.png` });
   });
 }
+
+// Build imports: every state of the import bar, the lock-in toast, and the draft without stats.
+for (const [width, height] of [
+  [1280, 800],
+  [420, 800],
+] as const) {
+  test(`draft import failures ${width}x${height}`, async ({ page }) => {
+    await openApp(page, { view: "/draft", scenario: "import-failures", width, height });
+    for (const name of ["Import item set", "Import spells", "Import runes"]) {
+      await page.getByRole("button", { name }).click();
+      await page.getByRole("button", { name }).and(page.locator(":not([aria-busy])")).waitFor();
+    }
+    await page.mouse.move(0, 0);
+    await settle(page);
+    await capture(page, `${OUT}/draft-import-failures-${width}x${height}.png`, false);
+  });
+}
+
+test("draft import flash 1280x800", async ({ page }) => {
+  await openApp(page, { view: "/draft", scenario: "import-flash" });
+  await page.getByRole("button", { name: "Import runes" }).click();
+  await page.getByRole("button", { name: "Import spells" }).click();
+  await page.getByTestId("import-spells").and(page.locator("[data-tone=warn]")).waitFor();
+  await page.mouse.move(0, 0);
+  await settle(page);
+  await capture(page, `${OUT}/draft-import-flash-1280x800.png`, false);
+});
+
+test("draft import lock-in 1280x800", async ({ page }) => {
+  await openApp(page, { view: "/draft", scenario: "import-lock-in" });
+  await page.evaluate((result) => window.__SCOUT_MOCK__?.emit("import", result), lockInImport);
+  await page.getByTestId("toast").waitFor();
+  await settle(page);
+  await capture(page, `${OUT}/draft-import-lock-in-1280x800.png`, false);
+});
+
+test("draft no stats 1280x800", async ({ page }) => {
+  await openApp(page, { view: "/draft", scenario: "draft-no-stats" });
+  await capture(page, `${OUT}/draft-no-stats-1280x800.png`, false);
+});
 
 test("draft champ-select 420x800 tapped", async ({ page }) => {
   await openApp(page, { view: "/draft", scenario: "champ-select", width: 420, height: 800 });

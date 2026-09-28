@@ -34,6 +34,7 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export function createMockTransport(scenario: Scenario): Transport {
   const handlers = new Map<string, Set<Handler>>();
+  const started = new Set<string>();
   const calls: CommandName[] = [];
   const log: MockControls["log"] = [];
 
@@ -61,12 +62,16 @@ export function createMockTransport(scenario: Scenario): Transport {
       const set = handlers.get(event) ?? new Set();
       set.add(handler as Handler);
       handlers.set(event, set);
-      const timers = (scenario.timeline ?? [])
-        .filter((step) => step.event === event)
-        .map((step) => setTimeout(() => emit(event, step.payload), step.afterMs));
+      // Like the core, each timeline event happens once, for everyone listening then: counted
+      // from the first subscription to it (several views may listen to the same event).
+      if (!started.has(event)) {
+        started.add(event);
+        for (const step of scenario.timeline ?? []) {
+          if (step.event === event) setTimeout(() => emit(event, step.payload), step.afterMs);
+        }
+      }
       return () => {
         set.delete(handler as Handler);
-        for (const t of timers) clearTimeout(t);
       };
     },
   };

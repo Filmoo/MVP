@@ -1,0 +1,943 @@
+//! Build imports against the fake client: what MVP writes, and what it must never touch.
+#![allow(clippy::unwrap_used, reason = "tests")]
+
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
+
+use companion::automation::CoreEvent;
+use companion::imports::{
+    self, BuildFuture, BuildSource, CURRENT_PAGE, INVENTORY, Importer, MY_SELECTION, PAGES,
+};
+use domain::{
+    BuildOption, BuildSection, BuildStats, ClientConnection, ClientStatus, FailReason, FlashKey,
+    FlashNote, GameflowPhase, ImportMode, ImportOutcome, ImportPart, ImportRequest, ImportResult,
+    Role, Settings, SkipReason, SpellKey,
+};
+use lcu::tls::pinned_client_config;
+use lcu::{ConnectorConfig, LcuClient};
+use mock_lcu::MockLcu;
+use serde_json::{Value, json};
+use tokio::sync::watch;
+
+const AHRI: u32 = 103;
+const FLASH: u32 = 4;
+const IGNITE: u32 = 14;
+const SUMMONER_ID: u64 = 2_345_678;
+const SESSION: &str = "/lol-champ-select/v1/session";
+const HISTORY: &str = "/lol-match-history/v1/products/lol/current-summoner/matches";
+
+fn sets_path() -> String {
+    imports::sets_path(SUMMONER_ID)
+}
+
+// ── Fixtures ──────────────────────────────────────────────────────────────────────────────
+
+fn option(ids: &[u32], g: u32) -> BuildSection {
+    BuildSection {
+        n: 1_000,
+        top: vec![BuildOption {
+            ids: ids.to_vec(),
+            g,
+            w: g / 2,
+        }],
+    }
+}
+
+/// Ahri's published build: Electrocute page, Flash + Ignite (lower id first), items.
+fn ahri_build(role: Option<Role>) -> BuildStats {
+    BuildStats {
+        role,
+        g: 1_000,
+        w: 520,
+        runes: option(
+            &[
+                8100, 8300, 8112, 8139, 8138, 8135, 8345, 8347, 5008, 5008, 5001,
+            ],
+            400,
+        ),
+        keystones: option(&[8112], 700),
+        spells: option(&[FLASH, IGNITE], 800),
+        skills: option(&[1, 3, 2], 600),
+        skill_start: option(&[1, 3, 2, 1], 300),
+        starts: option(&[1056, 2003, 2003], 700),
+        core: option(&[6655, 4645, 3089], 300),
+        boots: option(&[3020], 800),
+        item4: option(&[3157], 200),
+        item5: option(&[3135], 150),
+        item6: option(&[3102], 90),
+    }
+}
+
+/// Builds for Ahri only; remembers what was asked.
+#[derive(Debug, Default)]
+struct FakeBuilds {
+    asked: Mutex<Vec<(u32, Option<Role>, u32)>>,
+}
+
+impl BuildSource for FakeBuilds {
+    fn build(&self, champion_id: u32, role: Option<Role>, queue: u32) -> BuildFuture<'_> {
+        self.asked.lock().unwrap().push((champion_id, role, queue));
+        Box::pin(std::future::ready(
+            (champion_id == AHRI).then(|| ahri_build(role)),
+        ))
+    }
+}
+
+fn preset(id: u64, name: &str) -> Value {
+    json!({ "id": id, "name": name, "isDeletable": false, "isEditable": false, "isActive": false, "current": false,
+            "primaryStyleId": 8000, "subStyleId": 8200, "selectedPerkIds": [8005, 9111, 9104, 8014, 8233, 8236, 5005, 5008, 5002], "order": 9 })
+}
+
+/// Two presets and two pages of the player's (one current), with fields MVP doesn't know.
+fn player_pages() -> Vec<Value> {
+    vec![
+        preset(1, "Domination"),
+        preset(2, "Precision"),
+        json!({ "id": 101, "name": "Ahri mid (mine)", "isDeletable": true, "isEditable": true, "isActive": true, "current": true,
+                "primaryStyleId": 8200, "subStyleId": 8100, "selectedPerkIds": [8229, 8226, 8210, 8237, 8139, 8135, 5008, 5008, 5001],
+                "order": 0, "lastModified": 1_780_000_000_000_i64, "uiPerks": [{ "id": 8229 }], "futureField": { "kept": true } }),
+        json!({ "id": 102, "name": "Jungle", "isDeletable": true, "isEditable": true, "isActive": false, "current": false,
+                "primaryStyleId": 8000, "subStyleId": 8100, "selectedPerkIds": [8010, 9111, 9104, 8299, 8143, 8135, 5005, 5008, 5001],
+                "order": 1, "lastModified": 1_770_000_000_000_i64 }),
+    ]
+}
+
+fn player_item_sets() -> Value {
+    json!({
+        "accountId": SUMMONER_ID,
+        "itemSets": [
+            { "uid": "p-ahri", "title": "My Ahri", "type": "custom", "map": "any", "mode": "any", "sortrank": 1, "startedFrom": "blank",
+              "associatedChampions": [AHRI], "associatedMaps": [11], "preferredItemSlots": [{ "id": "3089", "preferredItemSlot": 2 }],
+              "blocks": [{ "type": "Mine", "items": [{ "id": "3089", "count": 1 }], "hideIfSummonerSpell": "", "showIfSummonerSpell": "" }],
+              "customFlag": true },
+            { "uid": "p-all", "title": "All champions", "type": "custom", "map": "any", "mode": "any", "sortrank": 0, "startedFrom": "blank",
+              "associatedChampions": [], "associatedMaps": [], "preferredItemSlots": [], "blocks": [] }
+        ],
+        "timestamp": 1_780_000_000_000_i64,
+        "futureField": "kept"
+    })
+}
+
+/// Recent games: Flash on F three times out of four.
+fn flash_on_f_history() -> Value {
+    let game = |d: u32, f: u32| json!({ "mapId": 11, "queueId": 420, "participants": [{ "spell1Id": d, "spell2Id": f }] });
+    json!({ "games": { "games": [game(IGNITE, FLASH), game(12, FLASH), game(FLASH, IGNITE), game(IGNITE, FLASH)] } })
+}
+
+/// Champion select: you (cell 2, mid) on `champion`, locked or hovering, `left_ms` on the clock
+/// (`phase` timer), Flash currently on D.
+fn champ_select(champion: u32, locked: bool, phase: &str, left_ms: i64) -> Value {
+    json!({
+        "localPlayerCellId": 2,
+        "myTeam": [
+            { "cellId": 0, "assignedPosition": "top", "championId": 54, "spell1Id": 12, "spell2Id": 4 },
+            { "cellId": 2, "assignedPosition": "middle", "championId": champion, "championPickIntent": AHRI, "spell1Id": FLASH, "spell2Id": 7 }
+        ],
+        "theirTeam": [{ "cellId": 5, "championId": 39 }],
+        "actions": [[{ "id": 1, "actorCellId": 2, "type": "pick", "championId": champion, "completed": locked, "isInProgress": !locked }]],
+        "timer": { "phase": phase, "adjustedTimeLeftInPhase": left_ms, "isInfinite": false }
+    })
+}
+
+/// A client with the player's pages (`owned` custom pages allowed), sets and history.
+async fn client_with_player_data(owned: u64) -> MockLcu {
+    let mock = MockLcu::start().await.unwrap();
+    mock.set(
+        companion::profile::CURRENT_SUMMONER,
+        json!({ "summonerId": SUMMONER_ID, "accountId": SUMMONER_ID, "gameName": "Fillmo", "tagLine": "7272" }),
+    );
+    mock.set(PAGES, Value::Array(player_pages()));
+    mock.set(
+        INVENTORY,
+        json!({ "ownedPageCount": owned, "customPageCount": 2, "isCustomPageCreationUnlocked": true }),
+    );
+    mock.set(&sets_path(), player_item_sets());
+    mock.set(HISTORY, flash_on_f_history());
+    mock.set(
+        imports::GAMEFLOW_SESSION,
+        json!({ "phase": "ChampSelect", "gameData": { "queue": { "id": 420, "mapId": 11 } } }),
+    );
+    mock
+}
+
+fn lcu_client(mock: &MockLcu) -> LcuClient {
+    let creds = lcu::Lockfile::parse(&mock.lockfile())
+        .unwrap()
+        .credentials();
+    LcuClient::new(
+        &creds,
+        pinned_client_config(mock.ca_pem().as_bytes()).unwrap(),
+    )
+    .unwrap()
+}
+
+struct Setup {
+    importer: Importer,
+    builds: Arc<FakeBuilds>,
+    _settings: watch::Sender<Settings>,
+    _status: watch::Sender<ClientStatus>,
+}
+
+fn names() -> imports::ChampionNames {
+    Arc::new(|id| (id == AHRI).then(|| "Ahri".to_owned()))
+}
+
+/// An importer on `mock`, in `phase`, with `settings`.
+fn importer(mock: &MockLcu, phase: GameflowPhase, settings: Settings) -> Setup {
+    let builds = Arc::new(FakeBuilds::default());
+    let (settings_tx, settings_rx) = watch::channel(settings);
+    let (status_tx, status_rx) = watch::channel(ClientStatus {
+        connection: ClientConnection::Connected,
+        phase,
+    });
+    let (_client_tx, client_rx) = watch::channel(Some(lcu_client(mock)));
+    Setup {
+        importer: Importer::new(client_rx, status_rx, settings_rx, builds.clone(), names()),
+        builds,
+        _settings: settings_tx,
+        _status: status_tx,
+    }
+}
+
+fn request(parts: &[ImportPart]) -> ImportRequest {
+    ImportRequest {
+        champion_id: AHRI,
+        role: Some(Role::Middle),
+        queue: None,
+        parts: parts.to_vec(),
+    }
+}
+
+fn outcome(result: &ImportResult, part: ImportPart) -> ImportOutcome {
+    result
+        .parts
+        .iter()
+        .find(|p| p.part == part)
+        .map(|p| p.outcome.clone())
+        .unwrap()
+}
+
+fn pages_now(mock: &MockLcu) -> Vec<Value> {
+    mock.get(PAGES).unwrap().as_array().unwrap().clone()
+}
+
+/// The player's pages as they are now, without the client's own current-page flags.
+fn player_pages_now(mock: &MockLcu) -> Vec<Value> {
+    let strip = |mut page: Value| {
+        let fields = page.as_object_mut().unwrap();
+        fields.remove("current");
+        fields.remove("isActive");
+        page
+    };
+    let ids: Vec<u64> = player_pages()
+        .iter()
+        .map(|p| p["id"].as_u64().unwrap())
+        .collect();
+    let mut now: Vec<Value> = pages_now(mock)
+        .into_iter()
+        .filter(|p| ids.contains(&p["id"].as_u64().unwrap()))
+        .map(strip)
+        .collect();
+    now.sort_by_key(|p| p["id"].as_u64());
+    now
+}
+
+fn player_pages_before() -> Vec<Value> {
+    let mut pages: Vec<Value> = player_pages()
+        .into_iter()
+        .map(|mut page| {
+            let fields = page.as_object_mut().unwrap();
+            fields.remove("current");
+            fields.remove("isActive");
+            page
+        })
+        .collect();
+    pages.sort_by_key(|p| p["id"].as_u64());
+    pages
+}
+
+fn mvp_pages(mock: &MockLcu) -> Vec<Value> {
+    pages_now(mock)
+        .into_iter()
+        .filter(|p| p["name"].as_str().is_some_and(imports::is_mvp_name))
+        .collect()
+}
+
+/// Nothing of the player's was modified or deleted.
+fn assert_player_pages_untouched(mock: &MockLcu) {
+    assert_eq!(player_pages_now(mock), player_pages_before());
+    assert_eq!(mock.count_method("DELETE"), 0, "never deletes anything");
+    for id in [1, 2, 101, 102] {
+        assert_eq!(
+            mock.count("PUT", &format!("{PAGES}/{id}")),
+            0,
+            "page {id} written"
+        );
+    }
+}
+
+// ── Rune pages ────────────────────────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn creates_mvp_page_when_there_is_room() {
+    let mock = client_with_player_data(3).await;
+    let setup = importer(&mock, GameflowPhase::ChampSelect, Settings::default());
+    let result = setup
+        .importer
+        .import(&request(&[ImportPart::Runes]), false)
+        .await;
+    assert_eq!(
+        outcome(&result, ImportPart::Runes),
+        ImportOutcome::Saved {
+            name: "MVP · Ahri Mid".into()
+        }
+    );
+    assert!(!result.automatic);
+    let ours = mvp_pages(&mock);
+    assert_eq!(ours.len(), 1);
+    let page = &ours[0];
+    assert_eq!(page["current"], true);
+    assert_eq!(page["primaryStyleId"], 8100);
+    assert_eq!(page["subStyleId"], 8300);
+    assert_eq!(
+        page["selectedPerkIds"],
+        json!([8112, 8139, 8138, 8135, 8345, 8347, 5008, 5008, 5001])
+    );
+    assert_eq!(mock.count("POST", PAGES), 1);
+    assert_eq!(mock.bodies("PUT", CURRENT_PAGE), vec![page["id"].clone()]);
+    assert_player_pages_untouched(&mock);
+    assert_eq!(
+        setup.builds.asked.lock().unwrap().as_slice(),
+        [(AHRI, Some(Role::Middle), 420)]
+    );
+}
+
+#[tokio::test]
+async fn reuses_mvp_page_instead_of_creating_another() {
+    let mock = client_with_player_data(3).await;
+    let setup = importer(&mock, GameflowPhase::ChampSelect, Settings::default());
+    setup
+        .importer
+        .import(&request(&[ImportPart::Runes]), false)
+        .await;
+    let first = mvp_pages(&mock)[0]["id"].clone();
+    let support = ImportRequest {
+        role: Some(Role::Support),
+        ..request(&[ImportPart::Runes])
+    };
+    let result = setup.importer.import(&support, false).await;
+    assert_eq!(
+        outcome(&result, ImportPart::Runes),
+        ImportOutcome::Saved {
+            name: "MVP · Ahri Support".into()
+        }
+    );
+    let ours = mvp_pages(&mock);
+    assert_eq!(ours.len(), 1, "one MVP page, reused");
+    assert_eq!(ours[0]["id"], first);
+    assert_eq!(ours[0]["name"], "MVP · Ahri Support");
+    assert_eq!(mock.count("POST", PAGES), 1, "created once");
+    assert_eq!(mock.count("PUT", &format!("{PAGES}/{first}")), 1);
+    assert_player_pages_untouched(&mock);
+}
+
+#[tokio::test]
+async fn a_page_the_player_renamed_mvp_is_used_even_when_full() {
+    let mock = client_with_player_data(2).await;
+    let mut pages = player_pages();
+    pages[3]["name"] = json!("MVP");
+    mock.set(PAGES, Value::Array(pages));
+    let setup = importer(&mock, GameflowPhase::ChampSelect, Settings::default());
+    let result = setup
+        .importer
+        .import(&request(&[ImportPart::Runes]), false)
+        .await;
+    assert!(matches!(
+        outcome(&result, ImportPart::Runes),
+        ImportOutcome::Saved { .. }
+    ));
+    assert_eq!(mock.count("POST", PAGES), 0);
+    assert_eq!(mock.count("PUT", &format!("{PAGES}/102")), 1);
+    let page = pages_now(&mock)
+        .into_iter()
+        .find(|p| p["id"] == 102)
+        .unwrap();
+    assert_eq!(page["name"], "MVP · Ahri Mid");
+    assert_eq!(page["current"], true);
+    // The other page of the player's is untouched.
+    let mine = pages_now(&mock)
+        .into_iter()
+        .find(|p| p["id"] == 101)
+        .unwrap();
+    assert_eq!(
+        mine["selectedPerkIds"],
+        player_pages()[2]["selectedPerkIds"]
+    );
+    assert_eq!(mine["futureField"], json!({ "kept": true }));
+    assert_eq!(mock.count_method("DELETE"), 0);
+}
+
+#[tokio::test]
+async fn no_free_page_is_a_clear_failure() {
+    let mock = client_with_player_data(2).await;
+    let setup = importer(&mock, GameflowPhase::ChampSelect, Settings::default());
+    let result = setup
+        .importer
+        .import(&request(&[ImportPart::Runes]), false)
+        .await;
+    assert_eq!(
+        outcome(&result, ImportPart::Runes),
+        ImportOutcome::Failed {
+            reason: FailReason::NoFreePage
+        }
+    );
+    assert_eq!(mock.count("POST", PAGES), 0, "checked before trying");
+    assert_eq!(pages_now(&mock), player_pages());
+    assert_eq!(mock.count_method("DELETE"), 0);
+}
+
+#[tokio::test]
+async fn the_page_limit_answer_of_the_client_is_understood() {
+    // The inventory says there's room, the client says otherwise.
+    let mock = client_with_player_data(2).await;
+    mock.set(
+        INVENTORY,
+        json!({ "ownedPageCount": 2, "canAddCustomPage": true }),
+    );
+    let setup = importer(&mock, GameflowPhase::ChampSelect, Settings::default());
+    let result = setup
+        .importer
+        .import(&request(&[ImportPart::Runes]), false)
+        .await;
+    assert_eq!(
+        outcome(&result, ImportPart::Runes),
+        ImportOutcome::Failed {
+            reason: FailReason::NoFreePage
+        }
+    );
+    assert_eq!(pages_now(&mock), player_pages());
+}
+
+// ── Item sets ─────────────────────────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn item_sets_round_trip_untouched() {
+    let mock = client_with_player_data(3).await;
+    let setup = importer(&mock, GameflowPhase::ChampSelect, Settings::default());
+    let result = setup
+        .importer
+        .import(&request(&[ImportPart::ItemSet]), false)
+        .await;
+    assert_eq!(
+        outcome(&result, ImportPart::ItemSet),
+        ImportOutcome::Saved {
+            name: "MVP · Ahri Mid".into()
+        }
+    );
+    let check = |mock: &MockLcu| {
+        let document = mock.get(&sets_path()).unwrap();
+        let before = player_item_sets();
+        assert_eq!(document["accountId"], before["accountId"]);
+        assert_eq!(document["futureField"], "kept");
+        let sets = document["itemSets"].as_array().unwrap().clone();
+        assert_eq!(sets[0], before["itemSets"][0], "the player's Ahri set");
+        assert_eq!(sets[1], before["itemSets"][1], "the player's global set");
+        sets
+    };
+    let sets = check(&mock);
+    assert_eq!(sets.len(), 3);
+    let ours = &sets[2];
+    assert_eq!(ours["title"], "MVP · Ahri Mid");
+    assert_eq!(ours["associatedChampions"], json!([AHRI]));
+    assert_eq!(ours["associatedMaps"], json!([11]));
+    let block = |i: usize| {
+        (
+            ours["blocks"][i]["type"].as_str().unwrap().to_owned(),
+            ours["blocks"][i]["items"].clone(),
+        )
+    };
+    assert_eq!(
+        block(0),
+        (
+            "Starting items".into(),
+            json!([{ "id": "1056", "count": 1 }, { "id": "2003", "count": 2 }])
+        )
+    );
+    assert_eq!(
+        block(1),
+        (
+            "Core build (in order)".into(),
+            json!([{ "id": "6655", "count": 1 }, { "id": "4645", "count": 1 }, { "id": "3089", "count": 1 }])
+        )
+    );
+    assert_eq!(block(2).1, json!([{ "id": "3020", "count": 1 }]));
+
+    // Again, from support: MVP's set is replaced, still one of ours.
+    let support = ImportRequest {
+        role: Some(Role::Support),
+        ..request(&[ImportPart::ItemSet])
+    };
+    setup.importer.import(&support, false).await;
+    let sets = check(&mock);
+    assert_eq!(sets.len(), 3);
+    assert_eq!(sets[2]["title"], "MVP · Ahri Support");
+    assert_eq!(mock.count("PUT", &sets_path()), 2);
+}
+
+// ── Summoner spells ───────────────────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn flash_stays_on_the_players_key() {
+    let mock = client_with_player_data(3).await;
+    mock.set(SESSION, champ_select(AHRI, true, "BAN_PICK", 25_000));
+    let setup = importer(&mock, GameflowPhase::ChampSelect, Settings::default());
+    let result = setup
+        .importer
+        .import(&request(&[ImportPart::Spells]), false)
+        .await;
+    // Recent games say F; the build lists Flash first (D): Flash stays on F, with a note.
+    assert_eq!(
+        outcome(&result, ImportPart::Spells),
+        ImportOutcome::SpellsSet {
+            spell_ids: [IGNITE, FLASH],
+            changed: true,
+            flash: Some(FlashNote::KeptOnYourKey { key: SpellKey::F }),
+        }
+    );
+    assert_eq!(
+        mock.bodies("PATCH", MY_SELECTION),
+        vec![json!({ "spell1Id": IGNITE, "spell2Id": FLASH })]
+    );
+    let me = &mock.get(SESSION).unwrap()["myTeam"][1];
+    assert_eq!(
+        (me["spell1Id"].clone(), me["spell2Id"].clone()),
+        (json!(IGNITE), json!(FLASH))
+    );
+
+    // Already like this: nothing is written again.
+    let again = setup
+        .importer
+        .import(&request(&[ImportPart::Spells]), false)
+        .await;
+    assert!(matches!(
+        outcome(&again, ImportPart::Spells),
+        ImportOutcome::SpellsSet { changed: false, .. }
+    ));
+    assert_eq!(mock.count("PATCH", MY_SELECTION), 1);
+}
+
+#[tokio::test]
+async fn the_flash_key_setting_wins() {
+    let mock = client_with_player_data(3).await;
+    mock.set(SESSION, champ_select(AHRI, true, "BAN_PICK", 25_000));
+    let settings = Settings {
+        flash_key: FlashKey::D,
+        ..Settings::default()
+    };
+    let setup = importer(&mock, GameflowPhase::ChampSelect, settings);
+    let result = setup
+        .importer
+        .import(&request(&[ImportPart::Spells]), false)
+        .await;
+    assert_eq!(
+        outcome(&result, ImportPart::Spells),
+        ImportOutcome::SpellsSet {
+            spell_ids: [FLASH, IGNITE],
+            changed: true,
+            flash: None,
+        }
+    );
+    assert_eq!(mock.count("GET", HISTORY), 0, "no need for the history");
+}
+
+#[tokio::test]
+async fn no_habit_keeps_flash_where_it_is() {
+    let mock = client_with_player_data(3).await;
+    mock.remove(HISTORY);
+    // Flash is on D in the current selection.
+    mock.set(SESSION, champ_select(AHRI, true, "FINALIZATION", 25_000));
+    let setup = importer(&mock, GameflowPhase::ChampSelect, Settings::default());
+    let result = setup
+        .importer
+        .import(&request(&[ImportPart::Spells]), false)
+        .await;
+    assert_eq!(
+        outcome(&result, ImportPart::Spells),
+        ImportOutcome::SpellsSet {
+            spell_ids: [FLASH, IGNITE],
+            changed: true,
+            flash: None,
+        }
+    );
+}
+
+#[tokio::test]
+async fn never_in_the_last_seconds() {
+    let mock = client_with_player_data(3).await;
+    let setup = importer(&mock, GameflowPhase::ChampSelect, Settings::default());
+    for (phase, left) in [
+        ("FINALIZATION", 4_900),
+        ("FINALIZATION", 5_000),
+        ("BAN_PICK", 1_000),
+        ("GAME_STARTING", 30_000),
+    ] {
+        mock.set(SESSION, champ_select(AHRI, true, phase, left));
+        let result = setup
+            .importer
+            .import(&request(&[ImportPart::Spells]), false)
+            .await;
+        assert!(
+            matches!(
+                outcome(&result, ImportPart::Spells),
+                ImportOutcome::Skipped {
+                    reason: SkipReason::TooLate { .. }
+                }
+            ),
+            "{phase} {left}"
+        );
+    }
+    assert_eq!(mock.count("PATCH", MY_SELECTION), 0);
+}
+
+#[tokio::test]
+async fn spells_only_in_champion_select() {
+    let mock = client_with_player_data(3).await;
+    // The core isn't in champion select: nothing is even read.
+    let lobby = importer(&mock, GameflowPhase::Lobby, Settings::default());
+    let result = lobby
+        .importer
+        .import(&request(&[ImportPart::Spells]), false)
+        .await;
+    assert_eq!(
+        outcome(&result, ImportPart::Spells),
+        ImportOutcome::Skipped {
+            reason: SkipReason::NotInChampSelect
+        }
+    );
+    assert!(lobby.builds.asked.lock().unwrap().is_empty());
+    // The phase says champion select but the client has no session (it just ended).
+    let late = importer(&mock, GameflowPhase::ChampSelect, Settings::default());
+    let result = late
+        .importer
+        .import(&request(&[ImportPart::Spells]), false)
+        .await;
+    assert_eq!(
+        outcome(&result, ImportPart::Spells),
+        ImportOutcome::Skipped {
+            reason: SkipReason::NotInChampSelect
+        }
+    );
+    assert_eq!(mock.count("PATCH", MY_SELECTION), 0);
+}
+
+// ── Whole imports ─────────────────────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn parts_turned_off_are_never_written() {
+    let mock = client_with_player_data(3).await;
+    mock.set(SESSION, champ_select(AHRI, true, "BAN_PICK", 25_000));
+    let settings = Settings {
+        import_runes: ImportMode::Off,
+        import_spells: ImportMode::Off,
+        ..Settings::default()
+    };
+    let setup = importer(&mock, GameflowPhase::ChampSelect, settings);
+    let result = setup
+        .importer
+        .import(&request(&ImportPart::ALL), false)
+        .await;
+    let off = ImportOutcome::Skipped {
+        reason: SkipReason::Off,
+    };
+    assert_eq!(outcome(&result, ImportPart::Runes), off);
+    assert_eq!(outcome(&result, ImportPart::Spells), off);
+    assert!(matches!(
+        outcome(&result, ImportPart::ItemSet),
+        ImportOutcome::Saved { .. }
+    ));
+    assert_eq!(mock.count("POST", PAGES), 0);
+    assert_eq!(mock.count("PATCH", MY_SELECTION), 0);
+}
+
+#[tokio::test]
+async fn without_a_build_nothing_is_written() {
+    let mock = client_with_player_data(3).await;
+    mock.set(SESSION, champ_select(99, true, "BAN_PICK", 25_000));
+    let setup = importer(&mock, GameflowPhase::ChampSelect, Settings::default());
+    let lux = ImportRequest {
+        champion_id: 99,
+        ..request(&ImportPart::ALL)
+    };
+    let result = setup.importer.import(&lux, false).await;
+    for part in ImportPart::ALL {
+        assert_eq!(
+            outcome(&result, part),
+            ImportOutcome::Failed {
+                reason: FailReason::NoBuild
+            }
+        );
+    }
+    for method in ["POST", "PUT", "PATCH", "DELETE"] {
+        assert_eq!(mock.count_method(method), 0, "{method}");
+    }
+}
+
+#[tokio::test]
+async fn aram_uses_aram_builds_without_roles() {
+    let mock = client_with_player_data(3).await;
+    mock.set(
+        imports::GAMEFLOW_SESSION,
+        json!({ "gameData": { "queue": { "id": 450, "mapId": 12 } } }),
+    );
+    let setup = importer(&mock, GameflowPhase::ChampSelect, Settings::default());
+    let result = setup
+        .importer
+        .import(&request(&[ImportPart::ItemSet]), false)
+        .await;
+    assert_eq!((result.queue, result.role), (450, None));
+    assert_eq!(
+        setup.builds.asked.lock().unwrap().as_slice(),
+        [(AHRI, None, 450)]
+    );
+    let sets = mock.get(&sets_path()).unwrap();
+    assert_eq!(sets["itemSets"][2]["title"], "MVP · Ahri ARAM");
+    assert_eq!(sets["itemSets"][2]["associatedMaps"], json!([12]));
+}
+
+#[tokio::test]
+async fn arena_has_no_builds() {
+    let mock = client_with_player_data(3).await;
+    mock.set(
+        imports::GAMEFLOW_SESSION,
+        json!({ "gameData": { "queue": { "id": 1700, "mapId": 30 } } }),
+    );
+    let setup = importer(&mock, GameflowPhase::ChampSelect, Settings::default());
+    let result = setup
+        .importer
+        .import(&request(&[ImportPart::Runes]), false)
+        .await;
+    assert_eq!(
+        outcome(&result, ImportPart::Runes),
+        ImportOutcome::Failed {
+            reason: FailReason::UnsupportedMode
+        }
+    );
+    assert!(setup.builds.asked.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn without_a_client_every_part_says_so() {
+    let (_settings_tx, settings) = watch::channel(Settings::default());
+    let (_status_tx, status) = watch::channel(ClientStatus::not_running());
+    let (_client_tx, client) = watch::channel(None);
+    let importer = Importer::new(
+        client,
+        status,
+        settings,
+        Arc::new(FakeBuilds::default()),
+        names(),
+    );
+    let result = importer.import(&request(&ImportPart::ALL), false).await;
+    for part in ImportPart::ALL {
+        assert_eq!(
+            outcome(&result, part),
+            ImportOutcome::Failed {
+                reason: FailReason::NoClient
+            }
+        );
+    }
+}
+
+// ── Automatic import on lock-in ───────────────────────────────────────────────────────────
+
+fn config_for(mock: &MockLcu) -> ConnectorConfig {
+    let lockfile = mock.lockfile();
+    ConnectorConfig {
+        discover: Box::new(move || {
+            lcu::Lockfile::parse(&lockfile)
+                .ok()
+                .map(|l| l.credentials())
+        }),
+        tls: pinned_client_config(mock.ca_pem().as_bytes()).unwrap(),
+        paths: vec![],
+        poll_interval: Duration::from_millis(50),
+        startup_grace: Duration::from_secs(1),
+    }
+}
+
+fn on_lock_in() -> Settings {
+    Settings {
+        import_runes: ImportMode::OnLockIn,
+        import_item_set: ImportMode::OnLockIn,
+        import_spells: ImportMode::OnLockIn,
+        // Only the imports matter here.
+        auto_switch_view: false,
+        bring_to_front_on_champ_select: false,
+        ..Settings::default()
+    }
+}
+
+/// A core connected to `mock`, in champion select, hovering Ahri.
+async fn in_champ_select(
+    mock: &MockLcu,
+    settings: Settings,
+) -> (
+    companion::Companion,
+    watch::Sender<Settings>,
+    Arc<FakeBuilds>,
+) {
+    let builds = Arc::new(FakeBuilds::default());
+    let (settings_tx, settings_rx) = watch::channel(settings);
+    let companion = companion::start_with_services(
+        config_for(mock),
+        settings_rx,
+        companion::Services {
+            builds: builds.clone(),
+            names: names(),
+            ..companion::Services::default()
+        },
+    );
+    let mut status = companion.status.clone();
+    tokio::time::timeout(
+        Duration::from_secs(5),
+        status.wait_for(|s| s.connection == ClientConnection::Connected),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    mock.set(SESSION, champ_select(AHRI, false, "BAN_PICK", 25_000));
+    mock.set(lcu::GAMEFLOW_PHASE, json!("ChampSelect"));
+    tokio::time::timeout(
+        Duration::from_secs(5),
+        status.wait_for(|s| s.phase == GameflowPhase::ChampSelect),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    (companion, settings_tx, builds)
+}
+
+async fn next_import(companion: &mut companion::Companion) -> ImportResult {
+    loop {
+        let event = tokio::time::timeout(Duration::from_secs(5), companion.events.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        if let CoreEvent::Import(result) = event {
+            return result;
+        }
+    }
+}
+
+fn writes(mock: &MockLcu) -> usize {
+    ["POST", "PUT", "PATCH", "DELETE"]
+        .iter()
+        .map(|m| mock.count_method(m))
+        .sum()
+}
+
+#[tokio::test]
+async fn imports_once_per_lock() {
+    let mock = client_with_player_data(3).await;
+    let (mut companion, _settings, _builds) = in_champ_select(&mock, on_lock_in()).await;
+    // Hovering: nothing.
+    mock.set(SESSION, champ_select(AHRI, false, "BAN_PICK", 20_000));
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    assert_eq!(writes(&mock), 0, "a hover never imports");
+
+    mock.set(SESSION, champ_select(AHRI, true, "BAN_PICK", 20_000));
+    let result = next_import(&mut companion).await;
+    assert!(result.automatic);
+    assert_eq!(
+        (result.champion_id, result.role),
+        (AHRI, Some(Role::Middle))
+    );
+    assert!(matches!(
+        outcome(&result, ImportPart::Runes),
+        ImportOutcome::Saved { .. }
+    ));
+    assert!(matches!(
+        outcome(&result, ImportPart::ItemSet),
+        ImportOutcome::Saved { .. }
+    ));
+    assert!(matches!(
+        outcome(&result, ImportPart::Spells),
+        ImportOutcome::SpellsSet { changed: true, .. }
+    ));
+
+    // The same lock, event after event (other players pick, the timer moves on).
+    for left in [18_000, 15_000, 30_000] {
+        let mut session = champ_select(AHRI, true, "BAN_PICK", left);
+        session["theirTeam"][0]["championId"] = json!(left);
+        mock.set(SESSION, session);
+    }
+    mock.set(SESSION, champ_select(AHRI, true, "FINALIZATION", 30_000));
+    tokio::time::sleep(Duration::from_millis(400)).await;
+    assert_eq!(mock.count("POST", PAGES), 1);
+    assert_eq!(mock.count("PUT", &sets_path()), 1);
+    assert_eq!(mock.count("PATCH", MY_SELECTION), 1);
+    assert_player_pages_untouched(&mock);
+}
+
+#[tokio::test]
+async fn one_click_by_default_never_imports_by_itself() {
+    let mock = client_with_player_data(3).await;
+    let (_companion, _settings, builds) = in_champ_select(&mock, Settings::default()).await;
+    mock.set(SESSION, champ_select(AHRI, true, "BAN_PICK", 20_000));
+    tokio::time::sleep(Duration::from_millis(400)).await;
+    assert_eq!(writes(&mock), 0);
+    assert!(builds.asked.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn a_last_second_lock_sets_spells_on_the_next_turn() {
+    let mock = client_with_player_data(3).await;
+    let (mut companion, _settings, _builds) = in_champ_select(&mock, on_lock_in()).await;
+    // Locked with 2 s left on the pick timer: runes and items now, spells wait.
+    mock.set(SESSION, champ_select(AHRI, true, "BAN_PICK", 2_000));
+    let first = next_import(&mut companion).await;
+    let parts: Vec<ImportPart> = first.parts.iter().map(|p| p.part).collect();
+    assert_eq!(parts, [ImportPart::Runes, ImportPart::ItemSet]);
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    assert_eq!(mock.count("PATCH", MY_SELECTION), 0);
+
+    // Still the last seconds: still waiting.
+    mock.set(SESSION, champ_select(AHRI, true, "BAN_PICK", 1_000));
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    assert_eq!(mock.count("PATCH", MY_SELECTION), 0);
+
+    // The next turn starts with time on the clock.
+    mock.set(SESSION, champ_select(AHRI, true, "BAN_PICK", 27_000));
+    let second = next_import(&mut companion).await;
+    assert_eq!(second.parts.len(), 1);
+    assert!(matches!(
+        outcome(&second, ImportPart::Spells),
+        ImportOutcome::SpellsSet { changed: true, .. }
+    ));
+    assert_eq!(mock.count("PATCH", MY_SELECTION), 1);
+}
+
+#[tokio::test]
+async fn a_trade_is_a_new_lock() {
+    let mock = client_with_player_data(3).await;
+    let settings = Settings {
+        import_spells: ImportMode::OneClick,
+        import_item_set: ImportMode::OneClick,
+        ..on_lock_in()
+    };
+    let (mut companion, _settings, builds) = in_champ_select(&mock, settings).await;
+    mock.set(SESSION, champ_select(AHRI, true, "BAN_PICK", 20_000));
+    next_import(&mut companion).await;
+    // Traded for another champion (no build for it): a new import is tried.
+    mock.set(SESSION, champ_select(99, true, "FINALIZATION", 20_000));
+    let traded = next_import(&mut companion).await;
+    assert_eq!(traded.champion_id, 99);
+    assert_eq!(
+        outcome(&traded, ImportPart::Runes),
+        ImportOutcome::Failed {
+            reason: FailReason::NoBuild
+        }
+    );
+    assert_eq!(builds.asked.lock().unwrap().len(), 2);
+}

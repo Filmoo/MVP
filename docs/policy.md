@@ -58,3 +58,34 @@ detection, composite player scores, live win probability, sending data to third-
   `GET /lol-champ-select/v1/pickable-champion-ids`,
   `GET /lol-match-history/v1/products/lol/current-summoner/matches` (declare at product
   registration).
+- **Build imports: rune page, item set, summoner spells (2026-09-28, built; not yet tried on a
+  real client).** Writes into the player's own client, allowed by precedent (Mobalytics, Blitz,
+  Porofessor and U.GG write the same endpoints; research E §15–16) when user-triggered or opted
+  in. The build is statistics only: the most played options of our Emerald+ aggregates.
+  Guard rails:
+  - **One click by default, never automatic by default.** Per part (Settings → Imports): off (no
+    button, no automation) / one click (Draft's import bar) / on lock-in (opt-in). Parts turned
+    off are refused by the core whoever asks.
+  - **The player's things are never touched.** Rune pages: only MVP's own page (named "MVP…";
+    the player can hand one over by renaming it "MVP") is replaced; a new one is created only
+    when the account has room, else a clear error ("No free rune page: delete one, or rename one
+    to 'MVP'…"); no page is ever modified or deleted (no DELETE call at all). Item sets: the
+    document goes back with every set and field of the player exactly as read; only MVP's set
+    for that champion (named "MVP…", tied to that champion only) is replaced.
+  - **Summoner spells: Flash side safe, never last second.** Champion select only; never with
+    5 s or less on the timer (`LAST_SECONDS`) nor once the game is starting, checked right
+    before the write; Flash goes on the player's key (their setting, else the key it sat on in
+    most recent games, else where it is now) and the player is told when that differs from the
+    build, or had to be guessed.
+  - **On lock-in means once per lock-in**: not on hovers or pick intents, not again on later
+    session events (a trade or an ARAM swap is a new lock). Spells of a lock in a turn's last
+    seconds wait for time on the clock. A toast confirms every automatic import, and the Draft
+    bar shows it.
+  LCU endpoints (declare at product registration): reads `GET /lol-perks/v1/pages`,
+  `GET /lol-perks/v1/inventory`, `GET /lol-summoner/v1/current-summoner`,
+  `GET /lol-item-sets/v1/item-sets/{summonerId}/sets`, `GET /lol-champ-select/v1/session`,
+  `GET /lol-gameflow/v1/session` (queue/map → ranked or ARAM builds),
+  `GET /lol-match-history/v1/products/lol/current-summoner/matches` (the local player's Flash key);
+  writes `POST /lol-perks/v1/pages` (MVP's page only), `PUT /lol-perks/v1/pages/{id}` (MVP's page
+  only), `PUT /lol-perks/v1/currentpage`, `PUT /lol-item-sets/v1/item-sets/{summonerId}/sets`,
+  `PATCH /lol-champ-select/v1/session/my-selection` (`spell1Id`, `spell2Id`).

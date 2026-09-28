@@ -4,6 +4,7 @@ use std::sync::{Arc, RwLock};
 
 use companion::automation::CoreEvent;
 use companion::backend::{BackendClient, BackendConfig};
+use companion::imports::{BuildSource, ChampionNames, Importer, NoBuilds};
 use companion::settings::SettingsStore;
 use companion::stats::StatsClient;
 use companion::{ScoutingHandle, Services, ViewReporter};
@@ -20,6 +21,7 @@ pub struct Core {
     pub scouting: ScoutingHandle,
     pub client: watch::Receiver<Option<lcu::LcuClient>>,
     pub views: ViewReporter,
+    pub imports: Importer,
 }
 
 /// Game data of the current patch, once loaded.
@@ -75,6 +77,20 @@ fn backend<R: Runtime>(app: &AppHandle<R>) -> Option<BackendClient> {
     }
 }
 
+/// Champion names of the loaded game data (Data Dragon), for MVP's rune page and item set names.
+fn champion_names<R: Runtime>(app: &AppHandle<R>) -> ChampionNames {
+    let app = app.clone();
+    Arc::new(move |id| {
+        let state = app.try_state::<GameDataState>()?;
+        let data = state.0.read().ok()?;
+        data.as_ref()?
+            .champions
+            .iter()
+            .find(|c| c.id == id)
+            .map(|c| c.name.clone())
+    })
+}
+
 /// Starts following the League client and pushes every status change to the UI.
 pub fn start<R: Runtime>(app: &AppHandle<R>, settings: &SettingsStore) {
     app.manage(GameDataState::default());
@@ -95,13 +111,21 @@ pub fn start<R: Runtime>(app: &AppHandle<R>, settings: &SettingsStore) {
         }
     };
     let settings = settings.subscribe();
+    let names = champion_names(app);
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
+        // The published stats feed both the draft helper and the build imports.
+        let builds: Arc<dyn BuildSource> = match &published {
+            Some(stats) => Arc::new(stats.clone()),
+            None => Arc::new(NoBuilds),
+        };
         let services = Services {
             backend,
             stats: published,
+            builds,
+            names,
         };
-        let companion = companion::start_services(config, settings, services);
+        let companion = companion::start_with_services(config, settings, services);
         app.manage(Core {
             status: companion.status.clone(),
             draft: companion.draft.clone(),
@@ -109,6 +133,7 @@ pub fn start<R: Runtime>(app: &AppHandle<R>, settings: &SettingsStore) {
             scouting: companion.scouting.clone(),
             client: companion.client.clone(),
             views: companion.views.clone(),
+            imports: companion.imports.clone(),
         });
         forward(&app, companion.draft.clone(), "draft");
         forward(&app, companion.live.clone(), "live");
@@ -137,6 +162,11 @@ fn handle<R: Runtime>(app: &AppHandle<R>, event: CoreEvent) {
         CoreEvent::AutoAccept(outcome) => {
             if let Err(error) = app.emit("auto-accept", outcome) {
                 tracing::warn!(%error, "cannot emit auto-accept");
+            }
+        }
+        CoreEvent::Import(result) => {
+            if let Err(error) = app.emit("import", result) {
+                tracing::warn!(%error, "cannot emit import");
             }
         }
     }

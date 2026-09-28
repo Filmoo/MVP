@@ -761,12 +761,12 @@ async fn core_with(mock: &MockLcu, stats: StatsClient) -> Companion {
         bring_to_front_on_champ_select: false,
         ..Settings::default()
     });
-    let core = companion::start_services(
+    let core = companion::start_with_services(
         config_for(mock),
         settings_rx,
         companion::Services {
-            backend: None,
             stats: Some(stats),
+            ..companion::Services::default()
         },
     );
     let mut client = core.status.clone();

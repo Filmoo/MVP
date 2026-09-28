@@ -8,6 +8,7 @@ import { EmptyState, ErrorState, Skeleton } from "../../design/States";
 import { Widget } from "../../widgets/Widget";
 import page from "../page.module.css";
 import styles from "./Draft.module.css";
+import { ImportBar, useImportModes } from "./ImportBar";
 import { PhasePill } from "./PhasePill";
 import { Suggestions } from "./Suggestions";
 import { selectedPick } from "./selection";
@@ -27,11 +28,27 @@ export function DraftContent(props: { draft: DraftView }): JSX.Element {
     setClicked(championId);
     setExpanded((open) => (open === championId ? undefined : championId));
   };
+  // Imports of your hovered or locked champion's build, unless every part is turned off.
+  const modes = useImportModes();
+  const imports = () => Object.values(modes()).some((mode) => mode !== "off");
+  const me = () => props.draft.allies.find((slot) => slot.isMe);
   return (
-    <div class={styles.grid}>
+    <div class={`${styles.grid} ${imports() ? "" : styles.noImports}`}>
       <Widget name="draft-teams" class={styles.teams}>
         <Teams draft={props.draft} />
       </Widget>
+      <Show when={imports()}>
+        <Widget name="draft-imports" class={styles.imports}>
+          <ImportBar
+            championId={me()?.championId ?? null}
+            role={props.draft.myRole}
+            hovering={me()?.hovering ?? false}
+            available={props.draft.data !== null}
+            inChampSelect
+            modes={modes()}
+          />
+        </Widget>
+      </Show>
       <Widget name="draft-suggestions" class={styles.picks}>
         <Suggestions draft={props.draft} selected={selected()} expanded={expanded()} onSelect={select} />
       </Widget>
@@ -50,6 +67,11 @@ function DraftSkeleton(): JSX.Element {
       <div class={styles.teams}>
         <Card>
           <Skeleton height="132px" />
+        </Card>
+      </div>
+      <div class={styles.imports}>
+        <Card>
+          <Skeleton height="20px" />
         </Card>
       </div>
       <div class={styles.picks}>
@@ -73,7 +95,8 @@ export default function Draft(): JSX.Element {
 
   return (
     <div class={`${page.page} ${page.live}`}>
-      <div class={styles.head}>
+      {/* The teams card carries the clock once it has the odds column (stats): the head can fold. */}
+      <div class={styles.head} data-folds={draft.state === "ready" && draft()?.team ? "" : undefined}>
         <h1 class={page.title}>Draft</h1>
         <Show when={draft.state === "ready" && draft()}>{(d) => <PhasePill draft={d()} />}</Show>
       </div>

@@ -169,3 +169,22 @@ export const champSelectDraft: DraftView = {
   ],
   data: { bracket: "Emerald+", patch: "26.19", games: 1_912_400, updatedAt: FIXTURE_NOW - 3 * 3_600_000 },
 };
+
+/** Finalization: you locked Malphite in, the enemy team is complete. */
+export const champSelectLocked: DraftView = {
+  ...champSelectDraft,
+  phase: "finalizing",
+  secondsLeft: 21,
+  allies: champSelectDraft.allies.map((slot) => (slot.isMe ? { ...slot, hovering: false, picking: false } : slot)),
+  enemies: champSelectDraft.enemies.map((slot, i) =>
+    slot.championId === null ? { ...slot, championId: i % 2 === 0 ? C.kaisa : C.nautilus, picking: false } : slot,
+  ),
+};
+
+/** The app today, before stats are published: the draft without suggestions or odds. */
+export const champSelectNoStats: DraftView = {
+  ...champSelectDraft,
+  team: null,
+  suggestions: [],
+  data: null,
+};

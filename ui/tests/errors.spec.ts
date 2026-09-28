@@ -119,6 +119,37 @@ test("player page: skeleton first, then the profile without layout jumps", async
   expect(cls, "cumulative layout shift").toBeLessThan(0.1);
 });
 
+test("build import: the core can't be asked, the bar says so and can retry", async ({ page }) => {
+  const errors = trackErrors(page);
+  await openApp(page, { view: "/draft", scenario: "import-error" });
+  const items = page.getByRole("button", { name: "Import item set" });
+  await items.click();
+  await expect(page.getByTestId("import-status")).toHaveText("Couldn't import: MVP is still starting, try again in a moment");
+  await expect(page.getByTestId("import-itemSet")).toHaveAttribute("data-tone", "failed");
+  // Nothing is stuck: it can be tried again, and the rest of the draft still works.
+  await expect(items).toBeEnabled();
+  await items.click();
+  await expect.poll(() => page.evaluate(() => window.__SCOUT_MOCK__?.calls.filter((c) => c === "import_build").length)).toBe(2);
+  await expect(page.locator("[data-widget=draft-suggestions]")).toContainText("Malphite");
+  expect(errors).toEqual([]);
+});
+
+test("build import: every failure renders its own words, nothing crashes", async ({ page }) => {
+  const errors = trackErrors(page);
+  await openApp(page, { view: "/draft", scenario: "import-failures" });
+  const words = {
+    runes: "No free rune page",
+    itemSet: "The League client refused: Item sets are unavailable",
+    spells: "only 3 s left in champion select",
+  } as const;
+  for (const [part, text] of Object.entries(words)) {
+    await page.getByTestId(`import-${part}`).click();
+    await expect(page.getByTestId("import-status")).toContainText(text);
+  }
+  await expect(page.locator("[data-widget=draft-imports] [role=alert]")).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
 test("champion page for an unknown id: the champions placeholder", async ({ page }) => {
   await openApp(page, { view: "/champions?id=999999" });
   await expect(page.getByRole("heading", { level: 1, name: "Champions" })).toBeVisible();
