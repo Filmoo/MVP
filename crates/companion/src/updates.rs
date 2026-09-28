@@ -19,6 +19,18 @@ pub const CHECK_EVERY: Duration = Duration::from_secs(6 * 60 * 60);
 /// After a failed check or download.
 pub const RETRY_AFTER_FAILURE: Duration = Duration::from_secs(60 * 60);
 
+/// The project's latest GitHub release (`release.yml` attaches its `latest.json`: version, notes,
+/// installer URL and signature). Updates come from there while MVP's own server isn't reachable,
+/// so builds update themselves before any server of ours exists.
+pub const GITHUB_LATEST: &str =
+    "https://github.com/Filmoo/MVP/releases/latest/download/latest.json";
+
+/// Our backend can serve updates only over HTTPS (the updater refuses plain HTTP, and a local
+/// development server is no update source).
+pub fn serves_updates(base: &str) -> bool {
+    base.trim().starts_with("https://")
+}
+
 /// The updater endpoint on our backend `base`, stable channel. Tauri fills in `{{target}}`,
 /// `{{arch}}` and `{{current_version}}` (e.g. `windows/x86_64/0.1.0`).
 pub fn endpoint(base: &str) -> String {
@@ -270,6 +282,15 @@ mod tests {
     use GameflowPhase as P;
 
     use super::*;
+
+    #[test]
+    fn only_an_https_backend_serves_updates() {
+        assert!(serves_updates("https://api.mvp.gg"));
+        assert!(!serves_updates("http://127.0.0.1:8787"));
+        assert!(!serves_updates(""));
+        assert!(GITHUB_LATEST.starts_with("https://github.com/"));
+        assert!(GITHUB_LATEST.ends_with("/releases/latest/download/latest.json"));
+    }
 
     fn offer() -> Offer {
         Offer {

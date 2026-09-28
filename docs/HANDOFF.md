@@ -37,11 +37,13 @@ check the latest run before building on it.
    ran run 43's exe and saw the old app. Quit from the tray first. Fix: a different executable
    takes over (the running one hands over and quits), and Settings → About and the diagnostics
    show the build's commit, so anyone can tell which build runs.
-3. **Release v0.2.0 is blocked on the update key** (owner only): `pnpm tauri signer generate`,
-   public key → `apps/desktop/tauri.conf.json` `plugins.updater.pubkey` (committed), private key +
-   password → GitHub secrets (apps/backend/README.md, "The signing key pair"). Then tag `v0.2.0`
-   on a green commit: `release.yml` builds a signed installer into a draft release. Until then
-   `release.yml` stops at its first step and no build updates itself.
+3. **Updates need the owner's key, once**: `node scripts/setup-updates.mjs` on the owner's machine
+   (makes the key pair in `~/.tauri`, writes the public key into `tauri.conf.json`, sets the two
+   GitHub secrets with `gh` or says what to paste). Commit, push, then tag the version in
+   Cargo.toml on a green commit (`v0.2.0`): `release.yml` publishes the signed installer and
+   `latest.json`, and installed apps update from the latest GitHub release (the backend first,
+   once it serves updates over HTTPS). Install that first release by hand; later ones (a new
+   version, tagged) install themselves. Until then no build updates itself.
 4. **Nothing has run against a real League client or on Windows** beyond CI's build and footprint:
    the checklists below (client fields, imports, grades, emblems' crop, updates, glass frame times
    on real GPUs) are the next real work, on the owner's machine.

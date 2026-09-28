@@ -4,10 +4,12 @@
 //! select and games, restart when the player says so ("Update ready — Restart"), otherwise
 //! install when MVP quits — never during a game.
 //!
-//! Endpoint: `{backend}/v1/updates/{{target}}/{{arch}}/{{current_version}}?channel=stable`, with
-//! `X-MVP-Install`. Downloads are verified with `plugins.updater.pubkey` in `tauri.conf.json`
-//! (how to make the key pair: apps/backend/README.md, App updates). Debug builds, builds
-//! without that key and builds pointing at a plain-HTTP backend don't update themselves.
+//! Sources, asked in order until one answers: our backend
+//! (`{backend}/v1/updates/{{target}}/{{arch}}/{{current_version}}?channel=stable`, with
+//! `X-MVP-Install`; HTTPS only), then the project's latest GitHub release (its `latest.json`,
+//! made by `release.yml`; no install id sent). Downloads are verified with
+//! `plugins.updater.pubkey` in `tauri.conf.json` (`node scripts/setup-updates.mjs` makes the key
+//! pair). Debug builds and builds without that key don't update themselves.
 
 use std::fmt;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
@@ -96,8 +98,9 @@ impl Updates {
     }
 }
 
-/// Builds the updater for our backend, or says why this build doesn't update itself.
-fn build<R: Runtime>(app: &AppHandle<R>, install_id: &str) -> Result<Updater, String> {
+/// The update sources in the order they are asked (see the module docs), or why this build
+/// doesn't update itself.
+fn build<R: Runtime>(app: &AppHandle<R>, install_id: &str) -> Result<Vec<Updater>, String> {
     if cfg!(debug_assertions) {
         return Err("development build".to_owned());
     }
@@ -112,7 +115,30 @@ fn build<R: Runtime>(app: &AppHandle<R>, install_id: &str) -> Result<Updater, St
     if pubkey.trim().is_empty() {
         return Err("no update key in this build".to_owned());
     }
-    let endpoint = companion::updates::endpoint(&companion::backend::base_url());
+    let mut sources = Vec::new();
+    let base = companion::backend::base_url();
+    if companion::updates::serves_updates(&base) {
+        match backend_updater(app, &base, install_id) {
+            Ok(updater) => sources.push(updater),
+            Err(error) => tracing::warn!(%error, "no updates from MVP's server"),
+        }
+    }
+    match github_updater(app) {
+        Ok(updater) => sources.push(updater),
+        Err(error) => tracing::warn!(%error, "no updates from GitHub"),
+    }
+    if sources.is_empty() {
+        return Err("no update source".to_owned());
+    }
+    Ok(sources)
+}
+
+fn backend_updater<R: Runtime>(
+    app: &AppHandle<R>,
+    base: &str,
+    install_id: &str,
+) -> Result<Updater, String> {
+    let endpoint = companion::updates::endpoint(base);
     let endpoint = Url::parse(&endpoint).map_err(|e| format!("update server URL: {e}"))?;
     app.updater_builder()
         .endpoints(vec![endpoint])
@@ -124,6 +150,34 @@ fn build<R: Runtime>(app: &AppHandle<R>, install_id: &str) -> Result<Updater, St
         .map_err(|e| e.to_string())
 }
 
+/// The latest GitHub release's `latest.json`: no install id (not our server).
+fn github_updater<R: Runtime>(app: &AppHandle<R>) -> Result<Updater, String> {
+    let endpoint =
+        Url::parse(companion::updates::GITHUB_LATEST).map_err(|e| format!("GitHub URL: {e}"))?;
+    app.updater_builder()
+        .endpoints(vec![endpoint])
+        .map_err(|e| format!("GitHub releases: {e}"))?
+        .timeout(CHECK_TIMEOUT)
+        .build()
+        .map_err(|e| e.to_string())
+}
+
+/// Asks each source in turn: the first that answers decides ("no update" included), a source
+/// that can't be reached hands over to the next.
+async fn check_sources(sources: &[Updater]) -> Result<Option<Update>, String> {
+    let mut failure = "no update source".to_owned();
+    for source in sources {
+        match source.check().await {
+            Ok(found) => return Ok(found),
+            Err(error) => {
+                tracing::info!(%error, "update source unavailable");
+                failure = error.to_string();
+            }
+        }
+    }
+    Err(failure)
+}
+
 /// Starts following the plan. `phase` is the client status (no update during a game),
 /// `remote` the remote config (`updateRequired` asks for a check at once).
 pub fn start<R: Runtime>(
@@ -133,8 +187,8 @@ pub fn start<R: Runtime>(
     remote: watch::Receiver<RemoteConfig>,
 ) -> Updates {
     let ready = Arc::new(Mutex::new(None));
-    let updater = match build(app, install_id) {
-        Ok(updater) => updater,
+    let sources = match build(app, install_id) {
+        Ok(sources) => sources,
         Err(reason) => {
             tracing::info!(%reason, "app updates off");
             let plan = UpdatePlan::unavailable(reason);
@@ -153,7 +207,7 @@ pub fn start<R: Runtime>(
     let (events_tx, events) = mpsc::unbounded_channel();
     let task = Task {
         app: app.clone(),
-        updater: Arc::new(updater),
+        sources: Arc::new(sources),
         plan: Arc::clone(&plan),
         ready: Arc::clone(&ready),
         status: status_tx,
@@ -220,7 +274,8 @@ async fn wait_until(at: Option<Instant>) {
 /// The updater's loop: owns the checks and downloads, follows the plan.
 struct Task<R: Runtime> {
     app: AppHandle<R>,
-    updater: Arc<Updater>,
+    /// Where updates come from, in order (see [`build`]).
+    sources: Arc<Vec<Updater>>,
     plan: Arc<Mutex<UpdatePlan>>,
     ready: Arc<Mutex<Option<Downloaded>>>,
     status: watch::Sender<UpdateStatus>,
@@ -344,14 +399,12 @@ impl<R: Runtime> Task<R> {
         match step {
             None | Some(Step::Install { .. }) => {}
             Some(Step::Check) => {
-                let updater = Arc::clone(&self.updater);
+                let sources = Arc::clone(&self.sources);
                 let events = self.events.clone();
                 tauri::async_runtime::spawn(async move {
-                    let found = updater
-                        .check()
+                    let found = check_sources(&sources)
                         .await
-                        .map(|found| found.map(Box::new))
-                        .map_err(|e| e.to_string());
+                        .map(|found| found.map(Box::new));
                     if let Err(error) = &found {
                         tracing::info!(%error, "update check failed");
                     }

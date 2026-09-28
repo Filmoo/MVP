@@ -164,13 +164,15 @@ file isn't in the container). Adding an existing version with another `--platfor
 **Producing signed artifacts** (`.github/workflows/release.yml`, on a `v*` tag): the build
 runs with `createUpdaterArtifacts` and the `TAURI_SIGNING_PRIVATE_KEY` /
 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` repository secrets, so the bundler writes
-`MVP_<version>_x64-setup.exe.sig` next to the NSIS installer; both go to a draft GitHub
-release and the job summary prints the `release add` command (URL + signature filled in).
-Publish the draft, then run the command.
+`MVP_<version>_x64-setup.exe.sig` next to the NSIS installer; both go to a published GitHub
+release with `latest.json` (version, installer URL, signature), which installed apps read while
+this server doesn't serve updates. The job summary prints the `release add` command (URL +
+signature filled in) for when it does.
 
 **The signing key pair (once, by the owner).** Until it exists, builds don't update themselves
 (Settings says "doesn't update itself (no update key in this build)") and the release workflow
-refuses to run.
+refuses to run. `node scripts/setup-updates.mjs` does all of the below (the secrets with `gh` if
+it is logged in, else it says what to paste where); by hand:
 
 1. `pnpm tauri signer generate -w ~/.tauri/mvp.key` (pick a password). It writes the private
    key `~/.tauri/mvp.key` and the public key `~/.tauri/mvp.key.pub`.
@@ -184,9 +186,10 @@ refuses to run.
    reads it from; every build made after that verifies updates with it.
 
 **Desktop app side** (`apps/desktop/src/updater.rs`, following `companion::updates::UpdatePlan`):
-tauri-plugin-updater with the endpoint set at run time from the build's backend URL,
-`{MVP_BACKEND_URL}/v1/updates/{{target}}/{{arch}}/{{current_version}}?channel=stable`, and
-`X-MVP-Install`. It checks 30 s after start and every 6 h (at once when the config says
+tauri-plugin-updater asking, in order, the build's backend when it is HTTPS
+(`{MVP_BACKEND_URL}/v1/updates/{{target}}/{{arch}}/{{current_version}}?channel=stable`, with
+`X-MVP-Install`), then the latest GitHub release's `latest.json` (no install id): the first that
+answers decides. It checks 30 s after start and every 6 h (at once when the config says
 `updateRequired`, or from Settings → About), downloads only while no ready check, champ select or
 game is running (and stops if one starts), then asks the player ("Update ready — Restart");
 otherwise the update installs when MVP quits, never during a game. `mandatory` makes the prompt

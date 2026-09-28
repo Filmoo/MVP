@@ -10,7 +10,7 @@ mod window;
 
 use companion::settings::SettingsStore;
 use tauri::{Manager as _, RunEvent};
-use tauri_plugin_autostart::MacosLauncher;
+use tauri_plugin_autostart::{MacosLauncher, ManagerExt as _};
 
 /// Passed by the startup entry: start in the tray, without a window.
 const AUTOSTART_ARG: &str = "--autostart";
@@ -38,6 +38,15 @@ pub fn run() {
             );
             tracing::debug!(path = %settings.path().display(), "settings loaded");
             core::start(app.handle(), &settings);
+            // Launch at startup starts this copy: registered again at every start, or an install
+            // in another folder (a portable copy, an older install) would keep starting at login
+            // and, as MVP runs once, answer for the newer one.
+            if !cfg!(debug_assertions)
+                && settings.get().launch_at_startup
+                && let Err(error) = app.autolaunch().enable()
+            {
+                tracing::warn!(%error, "cannot register launch at startup");
+            }
             app.manage(settings);
             app.manage(window::PendingRoute::default());
             tray::install(app.handle())?;

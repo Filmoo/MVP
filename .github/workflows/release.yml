@@ -1,14 +1,16 @@
 name: Release
 
-# Push a tag like v0.2.0 to publish a draft GitHub release with the Windows installer and its
-# updater signature. The job summary prints the `mvp-backend release add` command that offers
-# the update to installed apps (see apps/backend/README.md, "App updates").
+# Push a tag with the app's version (Cargo.toml [workspace.package], e.g. v0.2.0) to publish a
+# GitHub release: the signed Windows installer, its signature and `latest.json`, which installed
+# apps read to update themselves (apps/desktop/src/updater.rs; a tag with a "-", like
+# v0.3.0-beta.1, is a pre-release that apps don't take). The job summary also prints the
+# `mvp-backend release add` command for when MVP's own server offers updates.
 #
-# Secrets (repository settings → Secrets and variables → Actions; never committed):
-#   TAURI_SIGNING_PRIVATE_KEY           contents of the key made by `pnpm tauri signer generate`
+# Once, on the owner's machine: `node scripts/setup-updates.mjs` makes the key pair, commits-ready
+# the public key (apps/desktop/tauri.conf.json plugins.updater.pubkey: installed apps verify every
+# update with it) and sets these secrets (repository settings → Secrets and variables → Actions):
+#   TAURI_SIGNING_PRIVATE_KEY           the private key
 #   TAURI_SIGNING_PRIVATE_KEY_PASSWORD  its password
-# The matching public key is committed in apps/desktop/tauri.conf.json (plugins.updater.pubkey):
-# installed apps verify every update with it, and a build without it never updates itself.
 on:
   push:
     tags: ["v*"]
@@ -21,6 +23,15 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - name: The tag is the app's version
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          app=$(grep -m1 '^version = ' Cargo.toml | cut -d'"' -f2)
+          if [ "$version" != "$app" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME, but the app is $app (Cargo.toml): installed apps would be offered this build again and again."
+            exit 1
+          fi
       - name: Check the updater signing key
         shell: bash
         env:
@@ -52,13 +63,34 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: pnpm build:exe --config '{"bundle":{"createUpdaterArtifacts":true}}'
+      # What installed apps read: the latest release's latest.json (the installer's URL and signature).
+      - name: Update manifest (latest.json)
+        shell: bash
+        run: |
+          installer=$(ls target/release/bundle/nsis/*-setup.exe | head -n 1)
+          name=$(basename "$installer")
+          url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/${name// /.}"
+          node -e '
+            const fs = require("node:fs");
+            const [version, url, signature] = process.argv.slice(1);
+            const manifest = {
+              version,
+              notes: "",
+              pub_date: new Date().toISOString(),
+              platforms: { "windows-x86_64": { signature: fs.readFileSync(signature, "utf8").trim(), url } },
+            };
+            fs.writeFileSync("target/release/bundle/nsis/latest.json", `${JSON.stringify(manifest, null, 2)}\n`);
+          ' "${GITHUB_REF_NAME#v}" "$url" "$installer.sig"
+          cat target/release/bundle/nsis/latest.json
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          draft: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          make_latest: ${{ !contains(github.ref_name, '-') }}
           files: |
             target/release/bundle/nsis/*-setup.exe
             target/release/bundle/nsis/*-setup.exe.sig
+            target/release/bundle/nsis/latest.json
       - name: Updater command
         shell: bash
         run: |
@@ -70,8 +102,9 @@ jobs:
           case "$version" in *-*) channel=beta ;; esac
           url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/${name// /.}"
           {
-            echo "### Offer this update to installed apps"
-            echo "Publish the draft release first (draft assets are not downloadable), then on the server:"
+            echo "### Published"
+            echo "Installed apps find it on GitHub within 6 hours (or at once: Settings → About → Check for updates)."
+            echo "Once MVP's own server serves updates, offer it there too:"
             echo '```sh'
             echo "docker exec mvp-backend mvp-backend release add --version $version --channel $channel \\"
             echo "  --url '$url' \\"
