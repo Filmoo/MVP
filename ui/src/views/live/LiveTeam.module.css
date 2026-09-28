@@ -47,7 +47,7 @@
  */
 .card {
   display: grid;
-  grid-template-columns: 48px 20px minmax(0, 1fr) auto 136px 84px;
+  grid-template-columns: 48px 20px minmax(0, 1fr) auto 160px 84px;
   grid-template-rows: 48px 20px;
   grid-template-areas:
     "pic spells who pool rank champ"
@@ -188,10 +188,16 @@
   font-weight: var(--weight-semibold);
 }
 
-/* Only wide cards have room for it. */
+/* Only wide cards have room for it; without it, its column and gap go to the name. */
 @container team (max-width: 599px) {
   .pool {
     display: none;
+  }
+  .card {
+    grid-template-columns: 48px 20px minmax(0, 1fr) 160px 84px;
+    grid-template-areas:
+      "pic spells who rank champ"
+      "pic spells foot foot foot";
   }
 }
 
@@ -340,9 +346,9 @@
 }
 .skeletonCrest {
   flex: none;
-  /* The emblem's box (RankEmblem "sm"): nothing moves when the card lands. */
-  width: 48px;
-  height: 36px;
+  /* The emblem's box (RankEmblem "md"): nothing moves when the card lands. */
+  width: 64px;
+  height: 48px;
   border-radius: var(--radius-full);
 }
 .skeletonLine {

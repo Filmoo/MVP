@@ -37,7 +37,7 @@ function Rank(props: { card: ScoutCard }): JSX.Element {
       when={props.card.soloQueue}
       fallback={
         <div class={styles.rank}>
-          <RankEmblem tier="unranked" size="sm" class={styles.crest} />
+          <RankEmblem tier="unranked" size="md" class={styles.crest} />
           <div class={styles.rankText}>
             <span class={styles.unranked}>Unranked</span>
             <span class={styles.small}>Solo/Duo</span>
@@ -47,7 +47,7 @@ function Rank(props: { card: ScoutCard }): JSX.Element {
     >
       {(q) => (
         <div class={styles.rank}>
-          <RankEmblem tier={q().tier} size="sm" class={styles.crest} />
+          <RankEmblem tier={q().tier} size="md" class={styles.crest} />
           <div class={styles.rankText}>
             <TierBadge tier={q().tier} division={q().division} plain class={styles.tier} />
             <span class={`${styles.small} num`}>
