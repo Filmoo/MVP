@@ -74,8 +74,8 @@
       "domNodes": 900
     },
     "champion-grid": {
-      "renderMs": 16,
-      "domNodes": 760
+      "renderMs": 6,
+      "domNodes": 200
     },
     "champion-hero": {
       "renderMs": 3,
