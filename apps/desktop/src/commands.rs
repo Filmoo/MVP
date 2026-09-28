@@ -4,8 +4,8 @@ use companion::settings::SettingsStore;
 use companion::stats::StatsClient;
 use domain::{
     AppInfo, BackendError, Bracket, ChampionPage, ClientStatus, DraftView, GameData, ImportRequest,
-    ImportResult, LiveGame, PlayerProfile, RemoteConfig, RiotId, Settings, StatsIndex, TierList,
-    UpdateStatus,
+    ImportResult, Language, LiveGame, PlayerProfile, RemoteConfig, RiotId, Settings, StatsIndex,
+    TierList, UpdateStatus,
 };
 use tauri::{Emitter as _, Manager as _};
 use tauri_plugin_autostart::ManagerExt as _;
@@ -161,15 +161,19 @@ pub fn draft_state(app: tauri::AppHandle) -> Option<DraftView> {
         .and_then(|core| core.draft.borrow().clone())
 }
 
-/// Game data of the current patch; `None` until loaded (a `game-data` event follows).
+/// Game data of the current patch in the UI's `language` (`auto` resolved by the UI: it knows
+/// the system's language); `None` until loaded in it (a `game-data` event follows). Asking in
+/// another language reloads the names in it.
 #[tauri::command]
 #[allow(
     clippy::needless_pass_by_value,
     reason = "Tauri injects command arguments by value"
 )]
-pub fn game_data(app: tauri::AppHandle) -> Option<GameData> {
-    app.try_state::<GameDataState>()
-        .and_then(|state| state.0.read().ok().and_then(|data| data.clone()))
+pub fn game_data(app: tauri::AppHandle, language: Option<Language>) -> Option<GameData> {
+    let state = app.try_state::<GameDataState>()?;
+    let locale = language.unwrap_or_default().data_dragon_locale();
+    state.want(locale);
+    state.get(locale)
 }
 
 /// The player's settings.

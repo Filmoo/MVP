@@ -27,9 +27,51 @@ pub struct Core {
     pub imports: Importer,
 }
 
-/// Game data of the current patch, once loaded.
-#[derive(Debug, Default)]
-pub struct GameDataState(pub RwLock<Option<GameData>>);
+/// Game data of the current patch in the UI's language (Data Dragon locale), once loaded.
+#[derive(Debug)]
+pub struct GameDataState {
+    /// The data loaded for the locale asked for last (English names when that locale can't be
+    /// had, e.g. offline before its first download).
+    loaded: RwLock<Option<(&'static str, GameData)>>,
+    /// The locale the UI asked for last: the loader follows it.
+    wanted: watch::Sender<&'static str>,
+}
+
+impl GameDataState {
+    fn new(locale: &'static str) -> Self {
+        Self {
+            loaded: RwLock::new(None),
+            wanted: watch::Sender::new(locale),
+        }
+    }
+
+    /// Asks for game data in `locale` (`fr_FR`…): a new one loads, then `game-data` follows.
+    pub fn want(&self, locale: &'static str) {
+        self.wanted.send_if_modified(|current| {
+            let changed = *current != locale;
+            *current = locale;
+            changed
+        });
+    }
+
+    /// The data loaded for `locale`, if it is.
+    pub fn get(&self, locale: &str) -> Option<GameData> {
+        let loaded = self.loaded.read().ok()?;
+        loaded
+            .as_ref()
+            .filter(|(asked, _)| *asked == locale)
+            .map(|(_, data)| data.clone())
+    }
+
+    /// Whatever is loaded, in any language (champion names for MVP's page and set names).
+    fn any(&self) -> Option<GameData> {
+        self.loaded
+            .read()
+            .ok()?
+            .as_ref()
+            .map(|(_, data)| data.clone())
+    }
+}
 
 /// Our backend (player lookups, scouting), `None` when the client couldn't be built.
 #[derive(Debug)]
@@ -86,12 +128,12 @@ fn champion_names<R: Runtime>(app: &AppHandle<R>) -> ChampionNames {
     let app = app.clone();
     Arc::new(move |id| {
         let state = app.try_state::<GameDataState>()?;
-        let data = state.0.read().ok()?;
-        data.as_ref()?
+        state
+            .any()?
             .champions
-            .iter()
+            .into_iter()
             .find(|c| c.id == id)
-            .map(|c| c.name.clone())
+            .map(|c| c.name)
     })
 }
 
@@ -141,8 +183,11 @@ fn platform_services<R: Runtime>(
 
 /// Starts following the League client and pushes every status change to the UI.
 pub fn start<R: Runtime>(app: &AppHandle<R>, settings: &SettingsStore) {
-    app.manage(GameDataState::default());
-    load_game_data(app);
+    // The chosen language's names; `auto` waits for the UI to say which (English until then).
+    let game_data = GameDataState::new(settings.get().language.data_dragon_locale());
+    let wanted = game_data.wanted.subscribe();
+    app.manage(game_data);
+    follow_game_data(app, wanted);
     let dir = app.path().app_config_dir().unwrap_or_else(|error| {
         tracing::error!(%error, "no config directory, using the temporary one");
         std::env::temp_dir().join(&app.config().identifier)
@@ -277,8 +322,9 @@ fn forward<R: Runtime, T: Clone + serde::Serialize + Send + Sync + 'static>(
     });
 }
 
-/// Loads champion/item/spell data (cached per patch) and hands it to the UI.
-fn load_game_data<R: Runtime>(app: &AppHandle<R>) {
+/// Loads champion/item/spell data (cached per patch and locale) in the language the UI asks for,
+/// and hands it to the UI; again whenever it asks for another language.
+fn follow_game_data<R: Runtime>(app: &AppHandle<R>, mut wanted: watch::Receiver<&'static str>) {
     let cache = match app.path().app_cache_dir() {
         Ok(dir) => dir.join("ddragon"),
         Err(error) => {
@@ -288,27 +334,52 @@ fn load_game_data<R: Runtime>(app: &AppHandle<R>) {
     };
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
-        let result = match static_data::DataDragon::new(static_data::DDRAGON, cache, "en_US") {
-            Ok(dd) => dd.load().await,
-            Err(error) => Err(error),
-        };
-        match result {
-            Ok(data) => {
-                tracing::info!(
-                    version = data.version,
-                    champions = data.champions.len(),
-                    "game data ready"
-                );
-                if let Some(state) = app.try_state::<GameDataState>()
-                    && let Ok(mut slot) = state.0.write()
-                {
-                    *slot = Some(data.clone());
-                }
-                if let Err(error) = app.emit("game-data", data) {
-                    tracing::warn!(%error, "cannot emit game data");
-                }
+        loop {
+            let locale = *wanted.borrow_and_update();
+            let mut result = load_game_data(&cache, locale).await;
+            if let Err(error) = &result
+                && locale != ENGLISH
+            {
+                // Offline before this language's first download: English names beat none.
+                tracing::warn!(%error, locale, "game data unavailable, trying English");
+                result = load_game_data(&cache, ENGLISH).await;
             }
-            Err(error) => tracing::warn!(%error, "game data unavailable"),
+            match result {
+                // The UI asked for another language meanwhile: that one loads next.
+                Ok(_) if *wanted.borrow() != locale => {}
+                Ok(data) => {
+                    tracing::info!(
+                        version = data.version,
+                        locale,
+                        champions = data.champions.len(),
+                        "game data ready"
+                    );
+                    if let Some(state) = app.try_state::<GameDataState>()
+                        && let Ok(mut slot) = state.loaded.write()
+                    {
+                        *slot = Some((locale, data.clone()));
+                    }
+                    if let Err(error) = app.emit("game-data", data) {
+                        tracing::warn!(%error, "cannot emit game data");
+                    }
+                }
+                Err(error) => tracing::warn!(%error, locale, "game data unavailable"),
+            }
+            if wanted.changed().await.is_err() {
+                break;
+            }
         }
     });
+}
+
+/// Data Dragon's locale for English, the fallback.
+const ENGLISH: &str = "en_US";
+
+async fn load_game_data(
+    cache: &Path,
+    locale: &str,
+) -> Result<GameData, static_data::StaticDataError> {
+    static_data::DataDragon::new(static_data::DDRAGON, cache, locale)?
+        .load()
+        .await
 }

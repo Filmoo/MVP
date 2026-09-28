@@ -30,6 +30,9 @@ pub struct Settings {
     /// How much the window draws: glass, light and motion.
     #[serde(deserialize_with = "or_default")]
     pub effects: Effects,
+    /// The app's language; `auto` follows the system's (the webview's) language.
+    #[serde(deserialize_with = "or_default")]
+    pub language: Language,
     /// Rune page import: off, one click, or also automatically on lock-in.
     #[serde(deserialize_with = "or_default")]
     pub import_runes: ImportMode,
@@ -61,6 +64,31 @@ pub enum Effects {
     Light,
     /// Flat background, no blur: the lightest.
     Off,
+}
+
+/// The app's language. The UI keeps a copy in `localStorage` so the first frame is already in
+/// it; this is the lasting choice.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum Language {
+    /// The system's language: French when the webview's language is French, else English.
+    #[default]
+    Auto,
+    En,
+    Fr,
+}
+
+impl Language {
+    /// Riot's locale for game data (Data Dragon names) in this language. `Auto` is resolved by
+    /// the UI (the webview knows the system's language); unresolved, it reads as English.
+    #[must_use]
+    pub const fn data_dragon_locale(self) -> &'static str {
+        match self {
+            Self::Fr => "fr_FR",
+            Self::Auto | Self::En => "en_US",
+        }
+    }
 }
 
 /// A value this version doesn't know (written by a newer one) falls back to the default
@@ -105,6 +133,7 @@ impl Default for Settings {
             launch_at_startup: false,
             close_to_tray: true,
             effects: Effects::Auto,
+            language: Language::Auto,
             // One click is user-triggered; automatic imports are opt-in (docs/policy.md).
             import_runes: ImportMode::OneClick,
             import_item_set: ImportMode::OneClick,
@@ -176,6 +205,34 @@ mod tests {
         assert!(json.contains(r#""effects":"light""#), "{json}");
         let old: Settings = serde_json::from_str(r#"{"closeToTray":false}"#).expect("loads");
         assert_eq!(old.effects, Effects::Auto);
+    }
+
+    #[test]
+    fn language_follows_the_system_until_chosen() {
+        assert_eq!(Settings::default().language, Language::Auto);
+        let old: Settings = serde_json::from_str(r#"{"closeToTray":false}"#).expect("loads");
+        assert_eq!(
+            old.language,
+            Language::Auto,
+            "files from before the setting"
+        );
+        let chosen: Settings = serde_json::from_str(r#"{"language":"fr"}"#).expect("loads");
+        assert_eq!(chosen.language, Language::Fr);
+        let newer: Settings = serde_json::from_str(r#"{"language":"de"}"#).expect("loads");
+        assert_eq!(
+            newer.language,
+            Language::Auto,
+            "a language this version lacks"
+        );
+        let json = serde_json::to_string(&chosen).expect("serializable");
+        assert!(json.contains(r#""language":"fr""#), "{json}");
+    }
+
+    #[test]
+    fn languages_map_to_data_dragon_locales() {
+        assert_eq!(Language::Fr.data_dragon_locale(), "fr_FR");
+        assert_eq!(Language::En.data_dragon_locale(), "en_US");
+        assert_eq!(Language::Auto.data_dragon_locale(), "en_US");
     }
 
     #[test]

@@ -37,7 +37,7 @@ pub use remote::{
     RemoteConfig, ReportKind,
 };
 pub use scout::{ChampionRecord, ScoutCard, ScoutRequest, ScoutTag};
-pub use settings::{AutoAcceptEvent, Effects, Settings, ViewRoute};
+pub use settings::{AutoAcceptEvent, Effects, Language, Settings, ViewRoute};
 pub use stats::{
     Bracket, BuildOption, BuildSection, BuildStats, BuildsFile, ChampionPage, ChampionRoleStats,
     ChampionStats, ChampionsFile, DataSetIndex, DataSetInfo, GamesWins, MatchupEntry, MatchupsFile,

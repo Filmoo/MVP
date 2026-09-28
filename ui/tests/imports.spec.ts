@@ -171,6 +171,7 @@ test("draft: a part turned off has no button", async ({ page }) => {
     launchAtStartup: false,
     closeToTray: true,
     effects: "auto",
+    language: "auto",
     importRunes: "oneClick",
     importItemSet: "oneClick",
     importSpells: "off",
