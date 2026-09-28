@@ -1,5 +1,8 @@
-//! Removes personal data from crash reports before they are stored: Riot IDs, PUUIDs and other
-//! long ids, user names in file paths, e-mails, credentials in URLs/headers and IP addresses.
+//! Removes personal data from crash reports: Riot IDs, PUUIDs and other long ids, user names in
+//! file paths, e-mails, credentials in URLs/headers and IP addresses.
+//!
+//! Used twice: by the app before a report leaves the machine, and by the backend before one is
+//! stored (older or modified apps may send anything).
 //!
 //! It errs on the side of removing too much: a stack line that loses a word is fine, a stored
 //! Riot ID is not.

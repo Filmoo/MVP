@@ -2507,6 +2507,7 @@ dependencies = [
  "reqwest",
  "riot-api",
  "rustls",
+ "scrub",
  "semver",
  "serde",
  "serde_json",
@@ -3732,6 +3733,13 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "scrub"
+version = "0.1.0"
+dependencies = [
+ "regex",
 ]
 
 [[package]]

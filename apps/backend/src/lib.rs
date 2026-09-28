@@ -25,7 +25,6 @@ mod config;
 mod limits;
 mod ops;
 mod reports;
-mod scrub;
 mod store;
 mod telemetry;
 mod updates;

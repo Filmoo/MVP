@@ -1,6 +1,6 @@
 //! Opt-in crash/diagnostic reports: `POST /v1/reports` (`domain::CrashReport`) → 202.
 //!
-//! Validated, size-limited, scrubbed of personal data (`scrub.rs`), rate limited per install
+//! Validated, size-limited, scrubbed of personal data (`crates/scrub`), rate limited per install
 //! and appended to `reports/YYYY-MM-DD.jsonl` (UTC day) in the data dir. Files older than
 //! `RETENTION_DAYS` are deleted by `prune` (daily task + `mvp-backend reports prune`);
 //! `mvp-backend reports forget --install-id …` erases one install's reports (GDPR).
@@ -17,6 +17,7 @@ use axum::extract::rejection::JsonRejection;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use domain::{ApiErrorCode, CrashReport, ReportKind};
+use scrub::{scrub, truncate};
 use serde::{Deserialize, Serialize};
 use time::format_description::well_known::Rfc3339;
 use time::macros::format_description;
@@ -24,7 +25,6 @@ use time::{Date, Duration as Days, OffsetDateTime};
 
 use crate::error::Failure;
 use crate::limits::{TokenBuckets, too_many, valid_install_id};
-use crate::scrub::{scrub, truncate};
 use crate::telemetry::Metrics;
 use crate::watched::write_atomic;
 
