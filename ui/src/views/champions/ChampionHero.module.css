@@ -112,7 +112,7 @@
   gap: var(--space-5);
   min-width: 0;
   padding: var(--space-5) var(--space-7) var(--space-5) var(--space-5);
-  border-radius: var(--radius-4);
+  border-radius: var(--radius-5);
   box-shadow: var(--shadow-float);
 }
 

@@ -107,7 +107,18 @@
 .button {
   width: 150px;
   height: 44px;
-  border-radius: var(--radius-3);
+  border-radius: var(--radius-5);
+}
+
+/* The tab bar of narrow windows. */
+.dock {
+  width: 320px;
+  height: 56px;
+  border-radius: var(--radius-full);
+}
+
+.dock .glass {
+  --lg-tint: var(--bg-chrome);
 }
 
 .capsule {

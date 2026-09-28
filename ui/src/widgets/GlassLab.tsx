@@ -9,7 +9,7 @@ interface Piece {
   /** Written on the glass (drops carry nothing: they magnify what's under them). */
   name?: string;
   note?: string;
-  shape: "circle" | "knob" | "capsule" | "button" | "panel" | "strip";
+  shape: "circle" | "knob" | "capsule" | "button" | "panel" | "strip" | "dock";
   x: number;
   y: number;
 }
@@ -22,6 +22,7 @@ const PIECES: Piece[] = [
   { kind: "clear", name: "Capsule", note: "clear glass, bent rims", shape: "capsule", x: 300, y: 196 },
   { kind: "clear", name: "Button", shape: "button", x: 340, y: 330 },
   { kind: "panel", name: "Panel", note: "tinted middle for text, clear rim", shape: "panel", x: 640, y: 170 },
+  { kind: "dock", name: "Dock", note: "labels over content: frosted middle, bent rim", shape: "dock", x: 300, y: 430 },
 ];
 
 const LINES = ["Victory", "Ahri · Ranked Solo", "9 / 2 / 11", "10.00 KDA", "231 CS", "8.0 / min", "Emerald II 67 LP"];

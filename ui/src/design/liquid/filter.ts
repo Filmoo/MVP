@@ -1,8 +1,9 @@
 /**
  * The SVG filter of a liquid glass element, as data (pure, unit-tested): liquid.ts turns it into
  * `<filter>` primitives. Frost → a nine-slice displacement map → the lens (optionally three
- * displaced copies, one per colour channel) → vibrancy → the glass' own tint, deeper where it is
- * thicker → light on the rim, from the surface's normals (the same map).
+ * displaced copies, one per colour channel) → a deeper frost where the glass is thick → vibrancy
+ * → the glass' own tint, deeper where it is thicker → light on the rim, from the surface's
+ * normals (the same map).
  */
 import { type Rims, type Slice, scaleFor } from "./maps";
 import type { Glass } from "./optics";
@@ -20,6 +21,11 @@ export interface LiquidSpec {
   rims?: Rims;
   /** Frost before the light bends, CSS px of blur (0 = clear glass). */
   frost?: number;
+  /**
+   * Frost where the glass is thick, CSS px of blur: none at the rim (the bend stays sharp and
+   * visible), all of it past the bezel, where labels sit (what is behind them stays calm).
+   */
+  frostCore?: number;
   /** Colour split at the rim: blue bends this share more than green, red this share less. */
   dispersion?: number;
   /**
@@ -79,6 +85,9 @@ export function opticalRadius(spec: LiquidSpec, glass: Glass, width: number, hei
   const half = Math.min(width, height) / 2;
   return spec.dome ? half : Math.min(half, Math.max(cssRadius, glass.bezel));
 }
+
+/** Alpha = the map's blue (the glass' thickness: 0 at the rim, 1 past the bezel). */
+const THICKNESS = "0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 1 0 0";
 
 /** Keeps one colour channel of a displaced copy (alpha kept). */
 const CHANNEL = {
@@ -152,6 +161,15 @@ export function lensPrimitives(
     );
   } else {
     out.push(displace(scale, "lens"));
+  }
+  if (spec.frostCore) {
+    // Nothing bends past the bezel: a deeper frost there costs no optics and keeps labels clear.
+    out.push(
+      { tag: "feGaussianBlur", attrs: { in: "SourceGraphic", stdDeviation: spec.frostCore, edgeMode: "duplicate", result: "deep" } },
+      { tag: "feColorMatrix", attrs: { in: "map", type: "matrix", values: THICKNESS, result: "core" } },
+      { tag: "feComposite", attrs: { in: "deep", in2: "core", operator: "in", result: "deep" } },
+      { tag: "feComposite", attrs: { in: "deep", in2: "lens", operator: "over", result: "lens" } },
+    );
   }
   if (spec.saturate && spec.saturate !== 1) {
     out.push({ tag: "feColorMatrix", attrs: { in: "lens", type: "saturate", values: spec.saturate, result: "lens" } });

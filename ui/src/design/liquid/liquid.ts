@@ -30,29 +30,45 @@ export type { LiquidSpec };
 export const LIQUID = {
   /** Title bar: content scrolls under it; its lower rim bends it, the rest is frosted. */
   // Glass floats above the page (elevation): the light it bends crosses that gap too, which is
-  // what makes the bend visible. Frost stays light so what is behind stays recognizable; the
-  // tint (from the element's CSS) deepens with the glass' thickness, so the rim is the clearest
-  // part. No colour split over the page: over text it reads as fringing, not as optics.
+  // what makes the bend visible. The rim stays sharp so what is behind stays recognizable, bent;
+  // past the bezel (where labels sit) a deeper frost keeps it calm. The tint (from the element's
+  // CSS) deepens with the glass' thickness, so the rim is the clearest part. No colour split
+  // over the page: over text it reads as fringing, not as optics.
   bar: {
-    glass: { profile: "squircle", bezel: 16, thickness: 14, elevation: 10 },
+    glass: { profile: "squircle", bezel: 10, thickness: 10, elevation: 14 },
     rims: "bottom",
-    frost: 1.5,
+    frost: 0.5,
+    frostCore: 12,
     saturate: 1.35,
     brightness: 1.05,
     specular: 0.55,
   },
+  /** The rail, and the floating tab bar on narrow windows: labels over scrolling content. */
+  dock: {
+    glass: { profile: "squircle", bezel: 12, thickness: 11, elevation: 18 },
+    frost: 0.5,
+    frostCore: 10,
+    saturate: 1.4,
+    brightness: 1,
+    specular: 0.8,
+  },
   /** Floating panels holding text (search results, toasts): the page bends along a clear rim. */
   panel: {
-    glass: { profile: "squircle", bezel: 22, thickness: 20, elevation: 12 },
-    frost: 3,
+    glass: { profile: "squircle", bezel: 12, thickness: 11, elevation: 16 },
+    frost: 1.5,
+    frostCore: 10,
     saturate: 1.5,
     brightness: 1.06,
     specular: 0.8,
   },
-  /** Clear glass over art (the rank pane, a champion's tier, the floating tab bar). */
+  /**
+   * Clear glass over art (the rank pane, a champion's tier): a wide bent rim, the art frosted a
+   * little in the middle for the text on it. Their CSS corners match the bezel (`--radius-5`).
+   */
   clear: {
     glass: { profile: "squircle", bezel: 20, thickness: 18, elevation: 12 },
     frost: 1,
+    frostCore: 4,
     saturate: 1.25,
     brightness: 1.08,
     specular: 0.9,

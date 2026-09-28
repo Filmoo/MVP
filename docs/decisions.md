@@ -85,7 +85,10 @@ respected. Design calls:
   so what is behind shows, bent, along every rim; text-heavy panes keep a deep middle.
 - **Light from the surface**: rim light computed from the same normals (brighter where the rim
   faces the top-left light, a third of it opposite), not a painted gradient only.
-- **Text first**: drops sit behind labels at rest and lift over them only while gliding.
+- **Text first**: drops sit behind labels at rest and lift over them only while gliding. Bars
+  and panels whose labels sit over moving content (title bar, tab bar, search, toasts) frost
+  their middle and keep the rim sharp and bent (design review: text behind the tab labels read
+  almost sharp).
 - Maps at screen density (up to 2×) for a precise bend; a glass lab in the dev server to see
   every shape bend detailed content.
 

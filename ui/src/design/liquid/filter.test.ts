@@ -48,6 +48,23 @@ describe("lens filter", () => {
     expect(lensPrimitives(dome, parts, 10).at(-1)?.attrs.in).toBe("SourceGraphic");
   });
 
+  it("frosts deeper where the glass is thick, keeping the rim's bend sharp, before vibrancy", () => {
+    const primitives = lensPrimitives({ ...slab, frostCore: 12 }, parts, 10);
+    const deep = primitives.find((p) => p.tag === "feGaussianBlur" && p.attrs.result === "deep");
+    expect(deep?.attrs).toMatchObject({ in: "SourceGraphic", stdDeviation: 12 });
+    // Weighted by the map's blue: none at the rim, all of it past the bezel.
+    const core = primitives.find((p) => p.attrs.result === "core");
+    expect(core?.attrs.in).toBe("map");
+    expect(String(core?.attrs.values).split(/\s+/).slice(15)).toEqual(["0", "0", "1", "0", "0"]);
+    const over = primitives.findIndex((p) => p.attrs.in === "deep" && p.attrs.in2 === "lens");
+    expect(primitives[over]?.attrs).toMatchObject({ operator: "over", result: "lens" });
+    // After the bend, before the vibrancy.
+    expect(over).toBeGreaterThan(primitives.findLastIndex((p) => p.tag === "feDisplacementMap"));
+    expect(over).toBeLessThan(primitives.findIndex((p) => p.attrs.type === "saturate"));
+    // None without it.
+    expect(lensPrimitives(slab, parts, 10).some((p) => p.attrs.result === "deep")).toBe(false);
+  });
+
   it("starts from a middle that doesn't bend and is full thickness", () => {
     expect(lensPrimitives(dome, parts, 10)[0]?.attrs["flood-color"]).toBe("#8080ff");
   });

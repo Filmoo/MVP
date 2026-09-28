@@ -295,12 +295,17 @@ The curves are sampled into small tables shared by the two layers below, so they
 with the first lens, builds filters from `liquid/maps.ts` + `liquid/filter.ts`): floating chrome
 and controls bend the real page behind them. Each element gets an SVG filter used as its CSS
 `backdrop-filter` (`backdrop-filter: var(--lg-filter, <plain frost>)`): a light frost → the
-displacement map → vibrancy (saturate, brightness; inside the filter: Chromium drops a `url()`
-backdrop filter chained with CSS filter functions) → the glass' tint → rim light.
+displacement map → a deeper frost where the glass is thick (`frostCore`) → vibrancy (saturate,
+brightness; inside the filter: Chromium drops a `url()` backdrop filter chained with CSS filter
+functions) → the glass' tint → rim light.
 - **The map** (nine slices: four corners, four one-pixel edges stretched along, a flood for the
   middle; cached data-URL images at the screen's density, up to 2×, so the bend is as precise as
   the pixels) holds the pull in red/green and, in blue, how much tint the glass shows: none at the
   rim, easing in across the bezel, so the band where the light bends stays clear.
+- **Frosted core** (`frostCore`): the map's blue weights a strong blur of the page, so the rim
+  (thickness 0) stays sharp and visibly bent while the middle, where labels sit, is calm.
+  Nothing bends there anyway, so it costs no optics: bent at the edges, legible in the middle,
+  like iOS glass.
 - **Tint**: declared once in the element's CSS (`--lg-tint: <token>` with
   `background: var(--lg-fill, <token>)`); while the lens runs, liquid.ts sets `--lg-fill:
   transparent` and the filter paints that tint scaled by blue. Text-heavy panes (search, toasts)
@@ -310,10 +315,13 @@ backdrop filter chained with CSS filter functions) → the glass' tint → rim l
   rim), sharpened with a gamma and added on top. The CSS `glass-rim` ring stays as the crisp edge.
 - The optical outline rounds corners at least as much as the bezel is wide (smooth normals, no
   crease along the corner diagonal); a drop is a stadium.
-- Kinds (`LIQUID`): `bar` (title bar: lower rim only; content scrolling under it stretches along
-  that rim), `panel` (search results, toasts), `clear` (rank pane and champion tier over art, the
-  floating tab bar), `lens` (rail selection, segment thumbs, held switches: a loupe). No colour
-  split over the page (over text it reads as fringing).
+- Kinds (`LIQUID`): `bar` (title bar: a 10 px lower rim; content scrolling under it stretches
+  along that rim, the rest is frosted), `dock` (the rail and the floating tab bar: 12 px rims,
+  frosted middle), `panel` (search results, toasts: 12 px rims matching their corners, frosted
+  middle), `clear` (rank pane and champion tier over art: a wide 20 px bent rim, corners
+  `--radius-5` to match, a light frost in the middle for their captions), `lens` (rail selection,
+  segment thumbs, held switches: a loupe, tinted with light so a choice reads lit, never as a
+  hole). No colour split over the page (over text it reads as fringing).
 - **Icons and text stay crisp**: a drop sits *behind* the labels of the rail and of segmented
   controls at rest, and lifts over them (magnifying what it passes) only while it glides
   (`data-moving`, from the WAAPI glide or the thumb's `transform` transition). A held switch's

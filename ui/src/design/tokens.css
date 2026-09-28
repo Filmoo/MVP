@@ -91,6 +91,7 @@
   --radius-2: 6px;
   --radius-3: 8px;
   --radius-4: 12px;
+  --radius-5: 20px; /* glass panes over art: their corners follow the glass' 20 px bezel */
   --radius-full: 999px;
 
   /* Type scale. */
