@@ -60,13 +60,17 @@ test("cards: identity, rank, experience on the champion, form, positive tags; hi
 
 test("cards land in place: nothing moves when scouting finishes", async ({ page }) => {
   const errors = trackErrors(page);
-  await page.setViewportSize({ width: 1280, height: 720 });
-  await page.goto("/?scenario=live-scouting#/live");
+  // The core pushes the game while players are looked up, then again with the cards (as in the
+  // live-scouting scenario, without its timer: a loaded machine could miss the first state).
+  await openApp(page, { view: "/live", width: 1280, height: 720 });
+  await expect(page.getByText("Not in a game")).toBeVisible();
+  await page.evaluate((game) => window.__SCOUT_MOCK__?.emit("live", game), liveScouting);
   await expect(cards(page)).toHaveCount(10);
   await expect(page.getByTestId("scouting-status")).toHaveText("Looking players up…");
   await expect(cards(page).and(page.locator("[data-card=pending]"))).toHaveCount(9);
   const before = await cardBoxes(page);
-  await expect(cards(page).and(page.locator("[data-card=scouted]"))).toHaveCount(8, { timeout: 5_000 });
+  await page.evaluate((game) => window.__SCOUT_MOCK__?.emit("live", game), liveGame);
+  await expect(cards(page).and(page.locator("[data-card=scouted]"))).toHaveCount(8);
   await expect(page.getByTestId("scouting-status")).toHaveCount(0);
   expect(await cardBoxes(page)).toEqual(before);
   expect(errors).toEqual([]);
