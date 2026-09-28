@@ -113,7 +113,7 @@ function seat(
   scout: ScoutCard | null,
   isMe = false,
 ): LivePlayer {
-  return { championId, spells, role, isMe, hidden: false, riotId, card: scout };
+  return { championId, spells, role, isMe, hidden: false, bot: false, riotId, card: scout };
 }
 
 const id = (gameName: string, tagLine: string): RiotId => ({ gameName, tagLine });
@@ -133,6 +133,7 @@ export const liveGame: LiveGame = {
   queueId: 420,
   statsQueue: 420,
   platform: "euw1",
+  names: { state: "known" },
   scouting: { state: "done" },
   allies: [
     seat(
@@ -212,7 +213,7 @@ export const liveGame: LiveGame = {
         ],
       ),
     ),
-    { championId: 234, spells: [SMITE, FLASH], role: "jungle", isMe: false, hidden: true, riotId: null, card: null },
+    { championId: 234, spells: [SMITE, FLASH], role: "jungle", isMe: false, hidden: true, bot: false, riotId: null, card: null },
     seat(
       910,
       [FLASH, IGNITE],

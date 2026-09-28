@@ -24,7 +24,27 @@ pub struct LiveGame {
     /// The local player's team, then the other one.
     pub allies: Vec<LivePlayer>,
     pub enemies: Vec<LivePlayer>,
+    /// Where the other players' names are.
+    pub names: LiveNames,
     pub scouting: Scouting,
+}
+
+/// Where the players' names are. The League client names only the local player (2026): the
+/// others come from Riot's live game (Spectator-V5, asked through our server) or, when Riot has
+/// none for this game, from the game itself once it has loaded (Live Client Data API). Both
+/// keep players in streamer mode anonymous.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(tag = "state", rename_all = "camelCase")]
+#[ts(export)]
+pub enum LiveNames {
+    /// Asking our server for the game as Riot shows it.
+    Asking,
+    /// Waiting for the game to load: its own player list names them. `filtered`: Riot doesn't
+    /// share live games of this queue with apps (Ranked Flex and Arena in 2026).
+    Waiting { filtered: bool },
+    /// In: players named as Riot or the game shows them, streamer-mode players hidden, bots
+    /// marked.
+    Known,
 }
 
 /// Where the scouting cards are.
@@ -32,7 +52,7 @@ pub struct LiveGame {
 #[serde(tag = "state", rename_all = "camelCase")]
 #[ts(export)]
 pub enum Scouting {
-    /// Asked the backend, waiting for the answer.
+    /// Waiting for the names, or asked the backend and waiting for the answer.
     Loading,
     /// Cards are in (players the backend doesn't know have none).
     Done,
@@ -54,7 +74,9 @@ pub struct LivePlayer {
     pub is_me: bool,
     /// Identity hidden by Riot (streamer mode): never looked up, never shown.
     pub hidden: bool,
-    /// Riot ID from the client or the card; `None` when hidden or unknown.
+    /// A bot (co-op vs AI, custom games): no name, never looked up, no card.
+    pub bot: bool,
+    /// Riot ID as Riot or the game shows it; `None` when hidden, a bot, or not known (yet).
     pub riot_id: Option<RiotId>,
     /// Scouting card, once the backend answered (`None` when hidden, pending or unknown).
     pub card: Option<ScoutCard>,
@@ -114,6 +136,15 @@ mod tests {
         })
         .expect("serializable");
         assert_eq!(json, r#"{"state":"failed","error":{"kind":"notFound"}}"#);
+    }
+
+    #[test]
+    fn names_state_is_tagged() {
+        let json =
+            serde_json::to_string(&LiveNames::Waiting { filtered: true }).expect("serializable");
+        assert_eq!(json, r#"{"state":"waiting","filtered":true}"#);
+        let json = serde_json::to_string(&LiveNames::Known).expect("serializable");
+        assert_eq!(json, r#"{"state":"known"}"#);
     }
 
     #[test]

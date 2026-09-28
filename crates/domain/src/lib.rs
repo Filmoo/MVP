@@ -33,7 +33,7 @@ pub use imports::{
     FailReason, FlashKey, FlashNote, ImportMode, ImportOutcome, ImportPart, ImportRequest,
     ImportResult, PartResult, SkipReason, SpellKey,
 };
-pub use live::{ActiveGame, ActiveParticipant, LiveGame, LivePlayer, Scouting};
+pub use live::{ActiveGame, ActiveParticipant, LiveGame, LiveNames, LivePlayer, Scouting};
 pub use matches::{
     GradeBadge, GradeFactor, GradeFactorKind, GradeLetter, GradedMatch, MatchDetails, MatchGrade,
     MatchPlayer, MatchTeam,
