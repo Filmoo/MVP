@@ -78,9 +78,11 @@ test("cards land in place: nothing moves when scouting finishes", async ({ page,
   expect(errors).toEqual([]);
 });
 
-test("waiting cards lay out at every window size", async ({ page }) => {
+test("waiting cards lay out at every window size", async ({ page, t }) => {
   // The core says the game is loading and the cards never come: the waiting state holds still.
   await openApp(page, { view: "/live" });
+  // The view listens once it shows its empty state (lazily loaded, with its words).
+  await expect(page.getByText(t.live.idle.title)).toBeVisible();
   await page.evaluate((game) => window.__SCOUT_MOCK__?.emit("live", game), liveScouting);
   await expect(cards(page).and(page.locator("[data-card=pending]"))).toHaveCount(9);
   for (const size of SIZES) {
