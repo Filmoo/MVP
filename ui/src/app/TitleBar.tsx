@@ -7,9 +7,19 @@ import { t } from "../i18n";
 import { Search } from "./search/Search";
 import styles from "./TitleBar.module.css";
 
-async function windowAction(action: "minimize" | "toggleMaximize" | "close") {
-  const { getCurrentWindow } = await import("@tauri-apps/api/window");
-  await getCurrentWindow()[action]();
+/** The label Tauri gives this window (what `getCurrentWindow()` reads). */
+interface TauriInternals {
+  __TAURI_INTERNALS__: { metadata: { currentWindow: { label: string } } };
+}
+
+/**
+ * The window buttons send the same commands as `@tauri-apps/api/window`, without its window
+ * class (3 KB of methods the app never calls; a class can't be tree-shaken).
+ */
+async function windowAction(action: "minimize" | "toggle_maximize" | "close") {
+  const { invoke } = await import("@tauri-apps/api/core");
+  const label = (window as unknown as TauriInternals).__TAURI_INTERNALS__.metadata.currentWindow.label;
+  await invoke(`plugin:window|${action}`, { label });
 }
 
 export function TitleBar(props: { status: ClientStatus | undefined; native: boolean }): JSX.Element {
@@ -33,7 +43,7 @@ export function TitleBar(props: { status: ClientStatus | undefined; native: bool
           <button class={styles.control} type="button" aria-label={t().shell.minimize} onClick={() => void windowAction("minimize")}>
             <Icon name="minimize" size={16} />
           </button>
-          <button class={styles.control} type="button" aria-label={t().shell.maximize} onClick={() => void windowAction("toggleMaximize")}>
+          <button class={styles.control} type="button" aria-label={t().shell.maximize} onClick={() => void windowAction("toggle_maximize")}>
             <Icon name="maximize" size={14} />
           </button>
           <button
