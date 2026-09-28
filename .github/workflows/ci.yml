@@ -83,6 +83,18 @@ jobs:
           docker logs mvp-backend
           exit 1
 
+  crawler-image:
+    name: Crawler Docker image
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build (no push)
+        run: docker build -f apps/crawler/Dockerfile -t mvp-crawler:ci .
+      - name: Runs against an empty store and publishes nothing
+        run: |
+          docker run --rm -v crawl-ci:/crawl mvp-crawler:ci status
+          docker run --rm -v crawl-ci:/crawl -v data-ci:/data mvp-crawler:ci publish --out /data/stats --ddragon off
+
   windows:
     name: Windows build (.exe)
     runs-on: windows-latest
