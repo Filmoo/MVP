@@ -173,7 +173,49 @@ async fn match_ids(Path(puuid): Path<String>) -> Response {
     }))
 }
 
+/// The whole game `EUW1_9000000001` (30 minutes, blue wins), in Match-V5's shape: every
+/// participant's stats, names, spells and runes. Red's jungler plays in streamer mode (Riot
+/// withholds the name).
+fn full_game() -> Value {
+    let positions = ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"];
+    let participants: Vec<Value> = (0..10_u32)
+        .map(|i| {
+            let blue = i < 5;
+            let lane = usize::try_from(i % 5).unwrap();
+            let name = if i == 6 {
+                String::new()
+            } else {
+                format!("Player {i}")
+            };
+            json!({
+                "puuid": format!("full-{i}"), "riotIdGameName": name, "riotIdTagline": "EUW",
+                "teamId": if blue { 100 } else { 200 }, "win": blue,
+                "teamPosition": positions[lane], "championId": 100 + i, "champLevel": 15,
+                "kills": if i == 2 { 12 } else { 4 }, "deaths": if i == 2 { 1 } else { 5 },
+                "assists": 7, "totalMinionsKilled": 170 + i, "neutralMinionsKilled": 8,
+                "goldEarned": 11_000 + 100 * i, "totalDamageDealtToChampions": 15_000 + 1_000 * i,
+                "totalDamageTaken": 20_000, "damageSelfMitigated": 7_000, "visionScore": 20 + i,
+                "damageDealtToObjectives": 4_000, "summoner1Id": 4, "summoner2Id": 7,
+                "item0": 3031, "item1": 3006, "item6": 3363,
+                "challenges": { "kda": 3 },
+                "perks": { "styles": [
+                    { "style": 8000, "selections": [{ "perk": 8008 }, { "perk": 9111 }] },
+                    { "style": 8100, "selections": [{ "perk": 8143 }] }
+                ] }
+            })
+        })
+        .collect();
+    json!({
+        "metadata": { "matchId": "EUW1_9000000001" },
+        "info": { "gameDuration": 1800, "gameEndTimestamp": 1_790_000_000_000_i64, "queueId": 420,
+                  "gameMode": "CLASSIC", "participants": participants }
+    })
+}
+
 async fn match_by_id(Path(id): Path<String>) -> Response {
+    if id == "EUW1_9000000001" {
+        return Json(full_game()).into_response();
+    }
     let game = id.strip_prefix("EUW1_").and_then(|rest| {
         let (puuid, i) = rest.rsplit_once('_')?;
         let i: usize = i.parse().ok()?;
@@ -667,4 +709,75 @@ async fn cors_allows_the_app_origins_only() {
             .get("access-control-allow-origin")
             .is_none()
     );
+}
+
+#[tokio::test]
+async fn match_details_come_from_the_match_cache() {
+    let env = start(true).await;
+    let (status, body) = env.get("/v1/matches/euw1/EUW1_9000000001").await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["matchId"], "EUW1_9000000001");
+    assert_eq!(body["durationSeconds"], 1800);
+    let teams = body["teams"].as_array().unwrap();
+    assert_eq!(teams.len(), 2);
+    assert_eq!(
+        (teams[0]["teamId"].as_u64(), teams[0]["win"].as_bool()),
+        (Some(100), Some(true))
+    );
+    let mid = &teams[0]["players"][2];
+    assert_eq!(
+        mid["riotId"],
+        json!({ "gameName": "Player 2", "tagLine": "EUW" })
+    );
+    assert_eq!(mid["grade"]["badge"], "mvp");
+    assert_eq!(mid["items"], json!([3031, 3006]));
+    assert_eq!(mid["trinket"], 3363);
+    assert_eq!(
+        (mid["keystone"].as_u64(), mid["secondaryTree"].as_u64()),
+        (Some(8008), Some(8100))
+    );
+    assert!(mid.get("puuid").is_none(), "no PUUIDs go out");
+    // Riot withheld the name: it stays hidden.
+    let jungler = &teams[1]["players"][1];
+    assert_eq!(jungler["riotId"], Value::Null);
+    assert_eq!(jungler["hidden"], true);
+    let graded = teams
+        .iter()
+        .flat_map(|t| t["players"].as_array().unwrap())
+        .filter(|p| p["grade"]["letter"].is_string())
+        .count();
+    assert_eq!(graded, 10);
+
+    // Finished games never change: the second look is the cache's, whatever the id's case.
+    let calls = env.fake.calls();
+    let (status, again) = env.get("/v1/matches/EUW1/euw1_9000000001").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(again, body);
+    assert_eq!(env.fake.calls(), calls);
+}
+
+#[tokio::test]
+async fn match_details_validate_before_asking_riot() {
+    let env = start(true).await;
+    for (path, error) in [
+        ("/v1/matches/xx9/EUW1_9000000001", "badPlatform"),
+        ("/v1/matches/euw1/NA1_9000000001", "badRequest"),
+        ("/v1/matches/euw1/EUW1_", "badRequest"),
+        ("/v1/matches/euw1/EUW1_12ab", "badRequest"),
+        ("/v1/matches/euw1/9000000001", "badRequest"),
+    ] {
+        let (status, body) = env.get(path).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{path}");
+        assert_eq!(body["error"], error, "{path}");
+    }
+    assert_eq!(env.fake.calls(), 0);
+
+    let (status, body) = env.get("/v1/matches/euw1/EUW1_1234").await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert_eq!(body["error"], "notFound");
+
+    let keyless = start(false).await;
+    let (status, body) = keyless.get("/v1/matches/euw1/EUW1_9000000001").await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(body["error"], "riotKeyMissing");
 }

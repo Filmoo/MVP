@@ -5,6 +5,8 @@
 //! - `GET /v1/players/{platform}/{gameName}/{tagLine}` → `PlayerProfile`
 //! - `POST /v1/players/batch` (`ScoutRequest`: Riot IDs, or the older PUUIDs) → `ScoutCard[]`
 //!   for loading-screen scouting
+//! - `GET /v1/matches/{platform}/{matchId}` → `MatchDetails`: one finished game in full, with
+//!   every player's grade (from the match cache the profiles fill)
 //! - `GET /v1/stats/index` → `StatsIndex`; `GET /v1/stats/{patch}/{queue}/{file…}` → the
 //!   published stats files (from `STATS_DIR`, written by `mvp-crawler publish`)
 //!
@@ -58,7 +60,7 @@ use axum::extract::{Path, State};
 use axum::http::{HeaderName, HeaderValue, Method, header};
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use domain::{Health, PlayerProfile, RiotId, ScoutCard, ScoutRequest};
+use domain::{Health, MatchDetails, PlayerProfile, RiotId, ScoutCard, ScoutRequest};
 use futures_util::future::join_all;
 use players::RiotSource as _;
 use riot_api::{ApiKey, Config, Platform, RiotClient, RiotError};
@@ -205,6 +207,7 @@ pub fn app(state: AppState, allowed_origins: &[String]) -> Router {
             get(player_profile),
         )
         .route("/v1/players/batch", post(scout_batch))
+        .route("/v1/matches/{platform}/{match_id}", get(match_details))
         .route("/v1/stats/index", get(stats_files::index))
         .route("/v1/stats/{patch}/{queue}/{*file}", get(stats_files::file))
         .fallback(|| async { Failure::not_found() })
@@ -257,6 +260,39 @@ async fn player_profile(
     }))
     .await?;
     Ok(Json(profile))
+}
+
+/// A Match-V5 id of `platform` (`EUW1_7000000001` on euw1), with its prefix in Riot's case.
+fn match_id(platform: Platform, id: &str) -> Option<String> {
+    let (prefix, number) = id.trim().split_once('_')?;
+    let valid = prefix.eq_ignore_ascii_case(platform.id())
+        && (1..=20).contains(&number.len())
+        && number.bytes().all(|b| b.is_ascii_digit());
+    valid.then(|| format!("{}_{number}", platform.id().to_ascii_uppercase()))
+}
+
+/// One finished game in full (both teams, every player's grade), for the match details of a
+/// player page. Finished games never change: served from the match cache the profiles fill.
+async fn match_details(
+    State(state): State<AppState>,
+    Path((platform_id, id)): Path<(String, String)>,
+) -> Result<Json<MatchDetails>, Failure> {
+    let platform = platform(&platform_id)?;
+    let id = match_id(platform, &id).ok_or_else(|| {
+        Failure::bad_request("expected a match id of this platform, like EUW1_7000000001")
+    })?;
+    let riot = state.riot()?;
+    let game = with_timeout(async {
+        match riot.match_by_id(platform, &id).await {
+            // A game Riot withholds (some modes) is as good as unknown.
+            Err(RiotError::Forbidden(_)) => Err(RiotError::NotFound),
+            other => other,
+        }
+    })
+    .await?;
+    players::match_details(&game)
+        .map(Json)
+        .ok_or_else(Failure::not_found)
 }
 
 fn valid_puuid(p: &str) -> bool {
