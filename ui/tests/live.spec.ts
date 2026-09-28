@@ -125,6 +125,8 @@ test("a banner never makes the live screens scroll: their panels take what's lef
   const errors = trackErrors(page);
   const scrolls = () => page.locator("main").evaluate((el) => el.scrollHeight - el.clientHeight);
   await openApp(page, { view: "/live", scenario: "banners", width: 1280, height: 800 });
+  // The view listens once it shows its empty state.
+  await expect(page.getByText("Not in a game")).toBeVisible();
   await page.evaluate((game) => window.__SCOUT_MOCK__?.emit("live", game), liveGame);
   await expect(cards(page)).toHaveCount(10);
   await expect(page.getByTestId("banner").first()).toBeVisible();
