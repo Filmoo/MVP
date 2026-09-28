@@ -101,7 +101,7 @@ export async function animationsDone(page: Page): Promise<void> {
   });
 }
 
-export async function settle(page: Page): Promise<void> {
+export async function settle(page: Page, rounds = 3): Promise<void> {
   await expect(page.locator("[data-state=loading]")).toHaveCount(0, { timeout: 10_000 });
   await page.evaluate(async () => {
     await document.fonts.ready;
@@ -139,6 +139,9 @@ export async function settle(page: Page): Promise<void> {
     ]);
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
   });
+  // The first check can pass before the app has drawn anything; a lazy view may still be loading
+  // its code (then its data) now: settle again until nothing is.
+  if (rounds > 1 && (await page.locator("[data-state=loading]").count()) > 0) await settle(page, rounds - 1);
 }
 
 /** Collects uncaught exceptions and console errors for the whole test. */

@@ -113,7 +113,8 @@ export function App(): JSX.Element {
       <Sidebar />
       <main class={styles.main} data-view={path()}>
         <Banners status={status()} />
-        <Suspense>
+        {/* Nothing to see while a view's code loads, but the page says it is loading (tests wait). */}
+        <Suspense fallback={<div data-state="loading" hidden />}>
           <Switch
             fallback={
               <Planned
