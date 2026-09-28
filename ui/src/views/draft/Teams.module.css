@@ -252,8 +252,8 @@
   }
   .oddsFigures {
     display: grid;
-    /* The label wraps before the bar goes (« Chances de victoire » is long). */
-    grid-template-columns: minmax(0, auto) auto minmax(var(--space-11), 1fr) auto;
+    /* The label wraps (down to its longest word) before the bar goes: « Chances de victoire ». */
+    grid-template-columns: auto auto minmax(var(--space-11), 1fr) auto;
     align-items: center;
     column-gap: var(--space-5);
   }
@@ -262,6 +262,10 @@
 @container teams (max-width: 399px) {
   .slots {
     column-gap: var(--space-2);
+  }
+  /* The odds line fits a phone-narrow card, French label included. */
+  .oddsFigures {
+    column-gap: var(--space-3);
   }
   .slot {
     padding-inline: var(--space-1);
