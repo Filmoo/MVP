@@ -147,3 +147,20 @@ Owner: rank icons "look old/fake". Design calls:
 - **Notices load lazily**: the banners, update prompt and update-required card cost nothing at
   first paint; banner links open through the core by banner id, never from a URL the UI gives.
 
+## 2026-09-28 — Champion list: sorting and categories (owner asked, Claude designed)
+Owner: "Champs is a huge list, a bit hard to read, we need better sorting and categorizing. Keep
+it very simple and efficient"; then "avoid the general look everywhere, don't always use slider
+buttons, vary". Design calls:
+- **Categories are the roles the tier list has**: a champion is in every role it has a tier-list
+  row in (≥ 50 games and 0.5 % pick rate there), so a flex pick shows in both of its roles. The
+  role control stays the shared one (a shared vertical role picker will replace it).
+- **Three sorts, remembered**: tier (default: groups that read like a tier list, the letter and
+  its size beside the champions), pick rate, A–Z. Each tile shows the number it's sorted by (win
+  rate, or pick rate); a tier group's tiles leave the badge to the heading. The sort is words with
+  a gliding accent bar, not another pill.
+- **The field filters as you type**, best match first; Enter opens the first. "Type anywhere to
+  filter" was left out: the title bar search (`/`, Ctrl+K) already finds a champion by name.
+- **No stats is still a page**: one line says why sorting by stats is unavailable (a retry when it
+  can help), the champions are grouped by Data Dragon class.
+- **Budget**: the JS bundle had 1.3 KB left; the list fits in it (the loading skeleton is drawn by
+  CSS, constant classes are set once with `/*@once*/`).

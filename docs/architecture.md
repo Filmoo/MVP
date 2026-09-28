@@ -260,15 +260,27 @@ The Tier list and Champions pages read the published stats through the core only
   skill max order and first points (keycaps), items (starting, core in order, boots, 4th/5th/6th),
   every option with win rate, games and pick share; matchups best/worst by the shrunk effect `d`
   (lane, vs jungler, duos; rows open the other champion). ARAM: no roles, no bans, no matchups.
-  `/champions` without an id is a searchable grid with each champion's tier, built a slice at a
-  time (`lib/progressive.ts`: 40 tiles with the view, 40 more whenever the page is idle, again
-  from the start when a filter changes; `aria-busy` meanwhile): switching to it doesn't wait for
-  ~170 tiles, the first screen shows at once.
+- **Champion list** (`/champions` without an id; `lib/champion-grid.ts`, `views/champions/ChampionGrid.tsx`):
+  every champion as a tile (icon, name, and the number it's sorted by). A role shows the champions
+  with a tier-list row in it, so one played in two roles is in both (the tier list's role filter,
+  shared and remembered); "all" takes each champion's most played role for its tier and adds its
+  roles up for its pick rate. Sorted by tier (default), pick rate or name, the choice remembered in
+  `localStorage["mvp.champion-sort.v1"]`; by tier, groups read like a tier list (the letter and
+  the group's size in a column left of its tiles, champions with too few games last) and tiles
+  leave their badge to the heading. The field filters as you type (fuzzy, best match first,
+  ungrouped; Enter opens the first). Without stats (offline, nothing published) the page still
+  works: one line says why (with a retry when it can help), the role and sort go away and the
+  champions are grouped by Data Dragon class. The grid is built a slice at a time
+  (`lib/progressive.ts`: 36 tiles with the view, 36 more whenever the page is idle, again from the
+  start when a filter changes; `aria-busy` meanwhile; a group shows once some of its tiles are
+  built): switching to it doesn't wait for ~170 tiles, the first screen shows at once.
 - **Runes** come from `GameData.runes` (Data Dragon `runesReforged.json`, cached with the patch;
   icons under `artBase/img/…`). Stat shards (5001–5013) aren't in Data Dragon: `lib/runes.ts` names
   them and `design/RuneIcon.tsx` draws them as glyphs (no Riot art).
 - **Controls**: `design/Segmented.tsx` is the radio group used for every filter and tab (one tab
-  stop, arrow keys, Home/End; the selection is a separate thumb element).
+  stop, arrow keys, Home/End; the selection is a separate thumb element). Not every choice should
+  look like a pill: the champion list's sort is the same group restyled as words with a gliding
+  accent bar (`.sortTabs` in `Champions.module.css`).
 - **For later**: `views/champions/BuildSummary.tsx` (keystone + secondary tree, spells, max order,
   core items) is ready for the Live page (the local player's champion and role, the game's queue);
   an "Import" action (rune page, item set: HANDOFF job 5) belongs in the Runes card header, next to
