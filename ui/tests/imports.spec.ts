@@ -253,6 +253,19 @@ test("champion page: ARAM imports without a role; in champion select spells can 
   expect(await requests(page)).toEqual([{ championId: 99, role: null, queue: 450, bracket: "emeraldPlus", parts: ["spells"] }]);
 });
 
+test("champion page: without the League client, every button says why and nothing is asked", async ({ page, t }) => {
+  await openApp(page, { view: "/champions?id=99&role=middle", scenario: "not-running" });
+  const champion = page.locator("[data-widget=champion-import]");
+  for (const part of ["runes", "itemSet", "spells"] as const) {
+    const button = champion.getByRole("button", { name: t.imports.importPart(part) });
+    await expect(button).toBeDisabled();
+    await expect(button).toHaveAttribute("title", t.imports.needsClient);
+  }
+  // The same reason for every button: said once without a hover.
+  await expect(status(page)).toHaveText(`${t.imports.needsClient}.`);
+  expect(await requests(page)).toEqual([]);
+});
+
 test("champion page: imports turned off leave no bar", async ({ page }) => {
   await openApp(page, { view: "/champions?id=103", scenario: "imports-off" });
   await expect(page.locator("[data-widget=champion-runes]")).toBeVisible();

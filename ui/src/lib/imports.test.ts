@@ -21,6 +21,12 @@ describe("import words", () => {
     expect(toneOf({ ...set, flash: null })).toBe("done");
   });
 
+  it("says the client didn't answer instead of quoting a transport error as a refusal", () => {
+    const text = outcomeText("runes", { kind: "failed", reason: { kind: "notAnswering" } }, spell);
+    expect(text).toContain("didn't answer");
+    expect(text).not.toContain("refused");
+  });
+
   it("explains a full account and the last seconds", () => {
     expect(outcomeText("runes", { kind: "failed", reason: { kind: "noFreePage" } }, spell)).toContain("rename one to “MVP”");
     expect(outcomeText("spells", { kind: "skipped", reason: { kind: "tooLate", secondsLeft: 3 } }, spell)).toBe(

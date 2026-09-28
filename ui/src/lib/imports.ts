@@ -32,6 +32,8 @@ export function failText(reason: FailReason, part: ImportPart): string {
   switch (reason.kind) {
     case "noClient":
       return fail.noClient;
+    case "notAnswering":
+      return fail.notAnswering;
     case "noBuild":
       return fail.noBuild;
     case "noData":

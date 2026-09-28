@@ -57,6 +57,7 @@ export function DraftContent(props: { draft: DraftView }): JSX.Element {
             hovering={me()?.hovering ?? false}
             available={props.draft.data !== null}
             inChampSelect
+            clientReady
             modes={modes()}
           />
         </Widget>

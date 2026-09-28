@@ -180,6 +180,7 @@ function ChampionView(props: { championId: number }): JSX.Element {
                     bracket={bracket()}
                     available={buildFor(p(), role()) !== undefined}
                     inChampSelect={client()?.phase === "champSelect"}
+                    clientReady={client()?.connection === "connected"}
                     modes={modes()}
                   />
                 </Widget>

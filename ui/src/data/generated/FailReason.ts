@@ -3,4 +3,4 @@
 /**
  * Why a part couldn't be imported.
  */
-export type FailReason = { "kind": "noClient" } | { "kind": "noBuild" } | { "kind": "noData" } | { "kind": "unsupportedMode" } | { "kind": "noFreePage" } | { "kind": "client", message: string, };
+export type FailReason = { "kind": "noClient" } | { "kind": "notAnswering" } | { "kind": "noBuild" } | { "kind": "noData" } | { "kind": "unsupportedMode" } | { "kind": "noFreePage" } | { "kind": "client", message: string, };

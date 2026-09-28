@@ -180,8 +180,13 @@ pub fn stats_queue(session: &Value) -> Option<u32> {
     }
 }
 
-/// The client refused or didn't answer: its own words, for the player.
+/// The client refused (its own words, for the player) or didn't answer at all.
 pub(crate) fn client_failure(error: &LcuError) -> ImportOutcome {
+    if let LcuError::Transport(detail) = error {
+        // Seen on a real PC: another app held every connection the client takes.
+        tracing::warn!(error = %detail, "the League client didn't answer an import");
+        return failed(FailReason::NotAnswering);
+    }
     let message = match error {
         LcuError::Http {
             status, message, ..

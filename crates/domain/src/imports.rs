@@ -163,6 +163,8 @@ pub enum SkipReason {
 pub enum FailReason {
     /// The League client isn't connected.
     NoClient,
+    /// The League client didn't answer (busy, stuck, or closing): not a refusal.
+    NotAnswering,
     /// No published build for this champion, role and queue (or no stats at all yet).
     NoBuild,
     /// The build has no data for this part yet.
