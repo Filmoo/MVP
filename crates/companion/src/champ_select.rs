@@ -67,7 +67,7 @@ struct Timer {
     adjusted_time_left_in_phase: i64,
 }
 
-fn role(position: &str) -> Option<Role> {
+pub(crate) fn role(position: &str) -> Option<Role> {
     match position {
         "top" => Some(Role::Top),
         "jungle" => Some(Role::Jungle),
