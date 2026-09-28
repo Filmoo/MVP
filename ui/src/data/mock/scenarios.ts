@@ -1,10 +1,40 @@
+import type { BackendError } from "../generated/BackendError";
+import type { Bracket } from "../generated/Bracket";
+import type { ChampionPage } from "../generated/ChampionPage";
 import type { ClientStatus } from "../generated/ClientStatus";
 import type { PlayerProfile } from "../generated/PlayerProfile";
-import type { CommandName, Commands, EventName, Events } from "../transport";
+import type { TierList } from "../generated/TierList";
+import { CommandError, type CommandName, type Commands, type EventName, type Events } from "../transport";
 import { champSelectDraft } from "./draft-fixtures";
 import { corruptProfile, extremeProfile, newPlayerProfile, profile } from "./fixtures";
 import { liveExtreme, liveFailed, liveGame, liveScouting, searchPlayer } from "./live-fixtures";
 import { customSettings, defaultSettings, saveSettings } from "./settings-fixtures";
+import { mockChampionPage, mockStatsIndex, mockTierList } from "./stats-fixtures";
+
+/** Published queues: anything else is "not published", like the core answers. */
+function publishedQueue(command: CommandName, queue: number): 420 | 450 {
+  if (queue === 420 || queue === 450) return queue;
+  throw new CommandError(command, `queue ${queue} is not published`, { kind: "notFound" } satisfies BackendError);
+}
+
+const tierList = (args: { queue: number; bracket: Bracket }): TierList =>
+  mockTierList(publishedQueue("tier_list", args.queue), args.bracket);
+const championStats = (args: { championId: number; queue: number; bracket: Bracket }): ChampionPage =>
+  mockChampionPage(args.championId, publishedQueue("champion_stats", args.queue), args.bracket);
+
+/** Only ARAM is published (ranked answers "not published"). */
+function aramOnly<A extends { queue: number }, T>(command: CommandName, answer: (args: A) => T): (args: A) => T {
+  return (args) => {
+    if (args.queue !== 450) throw new CommandError(command, "not published", { kind: "notFound" } satisfies BackendError);
+    return answer(args);
+  };
+}
+
+const notPublished = { error: "stats not published", detail: { kind: "notFound" } satisfies BackendError };
+const offline = {
+  error: "error sending request for url (http://127.0.0.1:8787/v1/stats/index)",
+  detail: { kind: "network", message: "error sending request for url (http://127.0.0.1:8787/v1/stats/index)" } satisfies BackendError,
+};
 
 /** Profile captured by `capture-profile`, served by the dev server; falls back to the fixture. */
 async function loadCapturedProfile(): Promise<PlayerProfile> {
@@ -50,6 +80,10 @@ const base: Scenario["responses"] = {
   search_player: { handle: searchPlayer, delayMs: 350 },
   live_game: { data: null },
   retry_scouting: { data: null },
+  // Published champion stats (synthetic, see stats-fixtures.ts), answered from the core's cache.
+  stats_index: { data: mockStatsIndex() },
+  tier_list: { handle: tierList },
+  champion_stats: { handle: championStats },
 };
 
 const inGame: ClientStatus = { connection: "connected", phase: "inGame" };
@@ -148,6 +182,31 @@ export const scenarios = {
     description: "Auto-accept just accepted a match: a confirmation toast shows.",
     responses: { ...base, get_settings: { data: customSettings } },
     timeline: [{ afterMs: 300, event: "auto-accept", payload: { kind: "accepted" } }],
+  },
+  "stats-empty": {
+    description: "No champion stats published yet: the tier list and champion pages say so.",
+    responses: { ...base, stats_index: { data: null }, tier_list: notPublished, champion_stats: notPublished },
+  },
+  "stats-offline": {
+    description: "Offline without cached stats: the stats pages show an error with a retry.",
+    responses: { ...base, stats_index: { data: null }, tier_list: offline, champion_stats: offline },
+  },
+  "stats-slow": {
+    description: "Stats take 2.5 s: skeletons first, then the numbers without layout jumps.",
+    responses: {
+      ...base,
+      stats_index: { data: mockStatsIndex(), delayMs: 2_500 },
+      tier_list: { handle: tierList, delayMs: 2_500 },
+      champion_stats: { handle: championStats, delayMs: 2_500 },
+    },
+  },
+  "stats-aram-only": {
+    description: "Only ARAM is published: ranked says so, switching to ARAM shows the stats.",
+    responses: {
+      ...base,
+      tier_list: { handle: aramOnly("tier_list", tierList) },
+      champion_stats: { handle: aramOnly("champion_stats", championStats) },
+    },
   },
 } satisfies Record<string, Scenario>;
 
