@@ -1,0 +1,231 @@
+/* A champion's hero: its art across the card, lit by its own colors (like the profile hero). */
+.hero {
+  container: champion / inline-size;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 232px;
+  background:
+    radial-gradient(80% 150% at 100% 0%, color-mix(in oklab, var(--amb-a) 26%, transparent), transparent 62%),
+    radial-gradient(55% 120% at 0% 0%, color-mix(in oklab, var(--amb-b) 14%, transparent), transparent 60%), var(--bg-card);
+  border: 1px solid var(--line-glass);
+  border-radius: var(--radius-4);
+  box-shadow:
+    inset 0 1px 0 var(--line-specular),
+    var(--shadow-glass);
+}
+
+.art {
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  right: 0;
+  width: min(66%, 960px);
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 20%;
+  opacity: 0.72;
+  pointer-events: none;
+  mask-image: linear-gradient(90deg, transparent, black 45%);
+}
+
+.top {
+  flex: 1;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-8);
+  padding: var(--space-8);
+}
+
+.top > img,
+.top > [role="img"] {
+  border: 2px solid var(--accent-soft);
+  border-radius: var(--radius-4);
+}
+
+.identity {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.name {
+  max-width: 100%;
+  font-size: var(--text-3xl);
+  font-weight: var(--weight-bold);
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tag {
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-full);
+  background: var(--bg-glass);
+  border: 1px solid var(--line-2);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--text-2);
+}
+
+.roles {
+  margin-top: var(--space-2);
+}
+
+/* A champion played in one role only: a label, not a choice. */
+.onlyRole {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+  padding: var(--space-2) var(--space-5) var(--space-2) var(--space-4);
+  border-radius: var(--radius-3);
+  background: var(--bg-glass);
+  border: 1px solid var(--line-2);
+  font-size: var(--text-md);
+  font-weight: var(--weight-medium);
+  color: var(--text-1);
+}
+
+/* Tier on a frosted panel so it reads over the art. */
+.grade {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  min-width: 0;
+  padding: var(--space-5) var(--space-7) var(--space-5) var(--space-5);
+  border-radius: var(--radius-4);
+  background: var(--bg-glass);
+  border: 1px solid var(--line-2);
+  backdrop-filter: blur(6px);
+}
+
+.gradeText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.gradeTitle {
+  font-size: var(--text-xl);
+  font-weight: var(--weight-bold);
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.gradeDetail {
+  font-size: var(--text-sm);
+  color: var(--text-2);
+  white-space: nowrap;
+}
+
+/* Stat strip, like the profile hero's: equal cells split by hairlines. */
+.strip {
+  position: relative;
+  background: var(--bg-glass);
+  backdrop-filter: blur(8px);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  border-top: 1px solid var(--line-1);
+  overflow: hidden;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: var(--space-6) var(--space-8);
+  box-shadow:
+    -1px 0 0 var(--line-1),
+    0 -1px 0 var(--line-1);
+}
+
+.statValue {
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-bold);
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.statLabel {
+  font-size: var(--text-sm);
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.statDetail {
+  white-space: nowrap;
+}
+.statDetail::before {
+  content: " · ";
+}
+
+.good {
+  color: var(--win);
+}
+.bad {
+  color: var(--loss);
+}
+
+@container champion (max-width: 899px) {
+  .stat {
+    padding: var(--space-5) var(--space-7);
+  }
+  .statValue {
+    font-size: var(--text-xl);
+  }
+  .statLabel {
+    white-space: normal;
+  }
+  .statDetail {
+    display: block;
+    white-space: normal;
+  }
+  .statDetail::before {
+    content: none;
+  }
+}
+
+/* Narrow: identity over the art on the right, the tier panel under it. */
+@container champion (max-width: 639px) {
+  .art {
+    width: 100%;
+    opacity: 0.45;
+    mask-image: linear-gradient(90deg, transparent, black 60%);
+  }
+  .top {
+    grid-template-columns: auto minmax(0, 1fr);
+    row-gap: var(--space-6);
+    padding: var(--space-7);
+  }
+  .grade {
+    grid-column: 1 / -1;
+  }
+  .name {
+    font-size: var(--text-2xl);
+  }
+  .strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

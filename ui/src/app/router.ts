@@ -15,8 +15,8 @@ export const mainRoutes: readonly Route[] = [
   { path: "/", label: "Home", short: "Home", icon: "home" },
   { path: "/draft", label: "Draft", short: "Draft", icon: "draft" },
   { path: "/live", label: "Live game", short: "Live", icon: "live" },
-  { path: "/champions", label: "Champions", short: "Champs", icon: "champions", planned: true },
-  { path: "/tier-list", label: "Tier list", short: "Tiers", icon: "tiers", planned: true },
+  { path: "/champions", label: "Champions", short: "Champs", icon: "champions" },
+  { path: "/tier-list", label: "Tier list", short: "Tiers", icon: "tiers" },
 ];
 
 export const settingsRoute: Route = {
