@@ -68,7 +68,7 @@ describe("French sentences", () => {
     // Plural from 2, as shown.
     expect(t().champions.pointsVs50(0.8)).toBe("+0,8\u00A0pt au\u2011dessus de 50\u00A0%");
     expect(t().champions.pointsVs50(-1.96)).toBe("−2,0\u00A0pts en dessous de 50\u00A0%");
-    expect(t().champions.patchDetail(420, "Émeraude+", "hier")).toBe("Solo/Duo · Émeraude+ · hier");
+    expect(t().champions.patchDetail(420, "Émeraude+", "hier")).toBe("Solo/Duo ·\u00A0Émeraude+ ·\u00A0hier");
   });
 
   it("word imports, with each part's article", () => {

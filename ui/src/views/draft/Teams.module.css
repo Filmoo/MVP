@@ -252,7 +252,8 @@
   }
   .oddsFigures {
     display: grid;
-    grid-template-columns: auto auto minmax(0, 1fr) auto;
+    /* The label wraps before the bar goes (« Chances de victoire » is long). */
+    grid-template-columns: minmax(0, auto) auto minmax(var(--space-11), 1fr) auto;
     align-items: center;
     column-gap: var(--space-5);
   }

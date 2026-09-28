@@ -76,7 +76,7 @@ export const frViews = {
     with: (champion: string) => `avec ${champion}`,
     tier: (n: number) => `Tier ${n}`,
     best: (tied: boolean) => (tied ? "Meilleurs · à égalité statistique" : "Meilleur choix"),
-    yourGames: (games: number, winRate: string) => `Vous · ${games} ${plural(games, "partie", "parties")} · ${winRate}`,
+    yourGames: (games: number, winRate: string) => (games < 2 ? `Vous · 1 partie · ${winRate}` : `Vos ${games} parties · ${winRate}`),
     yourMastery: (level: number) => `Vous · Maîtrise ${level}`,
     masteryTitle: (level: number, points: number) => `Votre maîtrise\u00A0: niveau ${level}, ${integer(points)}\u00A0points`,
     noSuggestions: { title: "Pas encore de suggestions", text: "Les suggestions s’affichent dès que votre rôle est connu." },
@@ -107,7 +107,7 @@ export const frViews = {
     nouns: parts,
     importPart: (part: "runes" | "itemSet" | "spells") =>
       ({ runes: "Importer les runes", itemSet: "Importer le set d’objets", spells: "Importer les sorts" })[part],
-    auto: "Aussi importé tout seul quand vous verrouillez",
+    auto: "Importé aussi automatiquement au verrouillage",
     idle: (flash: string) => `Vos pages de runes et sets d’objets ne sont jamais modifiés, et ${flash} reste sur votre touche.`,
     pickFirst: "Survolez ou verrouillez d’abord un champion",
     pick: "Survolez ou verrouillez un champion",
@@ -116,7 +116,7 @@ export const frViews = {
     spellsInChampSelect: "Les sorts ne peuvent changer qu’en sélection des champions",
     hovering: "survolé",
     lockedIn: "verrouillé",
-    mostPlayedIn: (queue: 420 | 450, bracket: string) => `le plus joué en ${queue === 450 ? "ARAM" : "Solo/Duo"} · ${bracket}`,
+    mostPlayedIn: (queue: 420 | 450, bracket: string) => `build le plus joué en ${queue === 450 ? "ARAM" : "Solo/Duo"} · ${bracket}`,
     failed: (message: string) => `Import impossible\u00A0: ${message}`,
     fail: {
       noClient: "Le client League n’est pas connecté.",
@@ -168,8 +168,8 @@ export const frViews = {
     scouting: {
       busy: (seconds: number | null) =>
         seconds === null
-          ? "Riot est surchargé\u00A0: cartes des joueurs en pause"
-          : `Riot est surchargé\u00A0: cartes des joueurs en pause pendant ${seconds}\u00A0s`,
+          ? "Les serveurs de Riot sont surchargés\u00A0: cartes des joueurs en pause"
+          : `Les serveurs de Riot sont surchargés\u00A0: cartes des joueurs en pause pendant ${seconds}\u00A0s`,
       network: "Impossible de joindre les serveurs de MVP\u00A0: pas de cartes des joueurs",
       unavailable: "Les cartes des joueurs sont indisponibles pour le moment",
     },
@@ -189,7 +189,7 @@ export const frViews = {
     hidden: "Joueur masqué",
     unknown: "Joueur inconnu",
     cardUnavailable: "Carte indisponible",
-    noRankedData: "Pas de données classées",
+    noRankedData: "Aucune partie classée",
     build: {
       page: "page du champion",
       noMode: { title: "Pas de builds pour ce mode", text: "Les builds de MVP couvrent la Faille de l’invocateur et l’ARAM." },
@@ -286,7 +286,9 @@ export const frViews = {
     banRate: "Taux de ban",
     patch: "Patch",
     // Next to a rank, « Solo/Duo » says the queue: the line then fits a laptop screen.
-    patchDetail: (queue: 420 | 450, bracket: string, ago: string) => `${queue === 450 ? "ARAM" : "Solo/Duo"} · ${bracket} · ${ago}`,
+    // Each dot goes to the next line with what follows it (no-break space after it).
+    patchDetail: (queue: 420 | 450, bracket: string, ago: string) =>
+      `${queue === 450 ? "ARAM" : "Solo/Duo"} ·\u00A0${bracket} ·\u00A0${ago}`,
     ofGames: (n: number) => `sur ${count(n, "partie", "parties")}`,
     bans: (n: number) => count(n, "ban", "bans"),
     shrunkTitle: (wins: number, n: number, raw: string) =>
@@ -309,7 +311,8 @@ export const frViews = {
     starting: "Objets de départ",
     boots: "Bottes",
     core: "Build principal",
-    nth: (n: number) => `${n}e objet`,
+    // « ᵉ » has no capital: the uppercase caption still reads 4ᵉ.
+    nth: (n: number) => `${n}ᵉ objet`,
     matchups: "Matchups",
     lane: "Voie",
     vsJungler: "Face au jungler",
@@ -322,7 +325,7 @@ export const frViews = {
     effectTitle:
       "Effet sur le taux de victoire au-delà de la force des deux champions, en points, réduit quand les parties sont peu nombreuses",
     effectNote:
-      "Le nombre en couleur est l’effet sur le taux de victoire, en points, au-delà de la force des deux champions, réduit quand les parties sont peu nombreuses.",
+      "En couleur\u00A0: l’effet du matchup sur le taux de victoire, en points, au-delà de la force propre de chaque champion (atténué quand il y a peu de parties).",
     aram: {
       title: "Pas de matchups en ARAM.",
       text: "Tout le monde partage une seule voie avec des équipes aléatoires\u00A0: il n’y a pas d’adversaire de voie à mesurer. Les builds restent valables.",
@@ -360,7 +363,7 @@ export const frViews = {
       title: "Automatisation",
       autoAccept: {
         title: "Accepter les parties automatiquement",
-        text: "Accepte la fenêtre de partie trouvée à votre place, après un délai pour que vous la voyiez quand même. Refuser dans le client l’emporte toujours.",
+        text: "Accepte la partie trouvée à votre place, après un court délai pour que vous la voyiez quand même. Refuser dans le client reste prioritaire.",
       },
       delay: "Délai avant d’accepter",
       bringToFront: { title: "Mettre MVP au premier plan", text: "Affiche la fenêtre dès que votre sélection des champions commence." },
@@ -411,7 +414,7 @@ export const frViews = {
       },
       effects: {
         title: "Effets visuels",
-        text: "La quantité de verre et de lumière que MVP affiche. Complet courbe la lumière comme du vrai verre, quand votre carte graphique le permet sans effort.",
+        text: "La quantité de verre et de lumière que MVP affiche. «\u00A0Complet\u00A0» réfracte la lumière comme du vrai verre, si votre carte graphique le permet sans effort.",
         levels: { auto: "Complet", light: "Léger", off: "Aucun" },
         fallback: (reason: string) => `Affichage en Léger pour l’instant\u00A0: ${reason}.`,
         reasons: {
@@ -438,7 +441,7 @@ export const frViews = {
 
   updates: {
     unavailable: (reason: string) => `Cette copie de MVP ne se met pas à jour toute seule (${reason}).`,
-    idle: "MVP cherche les mises à jour tout seul, toutes les quelques heures.",
+    idle: "MVP recherche les mises à jour automatiquement, plusieurs fois par jour.",
     check: "Rechercher des mises à jour",
     checking: "Recherche de mises à jour…",
     upToDate: "MVP est à jour.",

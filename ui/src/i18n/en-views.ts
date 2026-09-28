@@ -98,7 +98,7 @@ export const enViews = {
     spellsInChampSelect: "Spells can only change during champion select",
     hovering: "hovering",
     lockedIn: "locked in",
-    mostPlayedIn: (queue: 420 | 450, bracket: string) => `most played in ${en.queues[queue]} · ${bracket}`,
+    mostPlayedIn: (queue: 420 | 450, bracket: string) => `most played build in ${en.queues[queue]} · ${bracket}`,
     failed: (message: string) => `Couldn't import: ${message}`,
     fail: {
       noClient: "The League client isn't connected.",
@@ -257,7 +257,8 @@ export const enViews = {
     banRate: "Ban rate",
     patch: "Patch",
     /** Under the patch: which games it counts and when they were published (`Ranked Solo · Emerald+ · 20h ago`). */
-    patchDetail: (queue: 420 | 450, bracket: string, ago: string) => `${en.queues[queue]} · ${bracket} · ${ago}`,
+    // Each dot goes to the next line with what follows it (no-break space after it).
+    patchDetail: (queue: 420 | 450, bracket: string, ago: string) => `${en.queues[queue]} ·\u00A0${bracket} ·\u00A0${ago}`,
     ofGames: (n: number) => `of ${games(n)} ${plural(n, "game", "games")}`,
     bans: (n: number) => `${games(n)} ${plural(n, "ban", "bans")}`,
     shrunkTitle: (wins: number, games: number, raw: string) =>

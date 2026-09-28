@@ -38,10 +38,14 @@
   margin-left: var(--space-3);
   font-size: var(--text-md);
   font-weight: var(--weight-medium);
+  line-height: 1.25;
   color: var(--text-1);
+  /* Two lines before an ellipsis: names run longer in French (Saut éclair + Téléportation). */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .then {
