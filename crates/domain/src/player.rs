@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
+use crate::MatchGrade;
+
 /// A Riot ID: `gameName#tagLine`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -89,6 +91,9 @@ pub struct MatchSummary {
     pub ended_at: i64,
     /// Final item ids, empty slots omitted.
     pub items: Vec<u32>,
+    /// MVP's grade of this game for the player, when the whole game is known (`None` for
+    /// remakes, modes without two teams of five, or while the League client hasn't said).
+    pub grade: Option<MatchGrade>,
 }
 
 /// The player shown on the home screen (the logged-in account by default).

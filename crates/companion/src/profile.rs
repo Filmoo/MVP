@@ -103,6 +103,8 @@ pub fn map_matches(history: &Value, platform: &str) -> Vec<MatchSummary> {
                     .map(|i| u32_at(stats, &format!("item{i}")))
                     .filter(|&id| id != 0)
                     .collect(),
+                // The list holds only the local player's side: the grade needs the whole game.
+                grade: None,
             })
         })
         .collect()

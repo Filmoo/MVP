@@ -12,6 +12,7 @@ mod draft;
 mod game_data;
 mod imports;
 mod live;
+mod matches;
 mod player;
 mod remote;
 mod scout;
@@ -33,6 +34,10 @@ pub use imports::{
     ImportResult, PartResult, SkipReason, SpellKey,
 };
 pub use live::{LiveGame, LivePlayer, Scouting};
+pub use matches::{
+    GradeBadge, GradeFactor, GradeFactorKind, GradeLetter, GradedMatch, MatchDetails, MatchGrade,
+    MatchPlayer, MatchTeam,
+};
 pub use player::{Division, MatchSummary, PlayerProfile, RankedEntry, RiotId, Role, Tier};
 pub use remote::{
     Banner, BannerSeverity, CrashReport, FeatureFlags, KillSwitches, LocalizedText, MinVersion,

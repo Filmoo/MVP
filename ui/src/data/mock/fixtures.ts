@@ -7,7 +7,7 @@ export const FIXTURE_NOW = 1_790_510_400_000;
 const MIN = 60_000;
 const HOUR = 60 * MIN;
 
-type MatchSeed = Omit<MatchSummary, "matchId" | "endedAt" | "queueId"> & {
+type MatchSeed = Omit<MatchSummary, "matchId" | "endedAt" | "queueId" | "grade"> & {
   hoursAgo: number;
   queueId?: number;
 };
@@ -167,6 +167,7 @@ export function matchesFromSeeds(list: MatchSeed[], idPrefix = "EUW1_75102"): Ma
     queueId,
     matchId: `${idPrefix}${String(40_000 + i).padStart(5, "0")}`,
     endedAt: FIXTURE_NOW - Math.round(hoursAgo * HOUR),
+    grade: null,
   }));
 }
 
