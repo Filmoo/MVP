@@ -169,6 +169,19 @@ for (const scenario of [
   });
 }
 
+// An opened match row (its game, or why it can't show) with a grade's why over it.
+for (const scenario of ["default", "extreme", "match-details-error"] as const) {
+  test(`home/${scenario}: an opened game and a grade's why only use design tokens`, async ({ page }) => {
+    await openApp(page, { scenario });
+    await page.locator("[data-testid=match-row] > button").first().click();
+    await expect(page.getByTestId("game").locator("[data-testid=game-player], [role=alert]").first()).toBeVisible();
+    await page.locator("[data-grade]").nth(1).hover();
+    await expect(page.getByTestId("grade-why")).toBeVisible();
+    await animationsDone(page);
+    expect(await page.evaluate(auditTokens)).toEqual([]);
+  });
+}
+
 test("every view has exactly one page heading", async ({ page }) => {
   for (const view of VIEWS) {
     await openApp(page, { view });

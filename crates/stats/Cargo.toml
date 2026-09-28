@@ -1,6 +1,6 @@
 [package]
 name = "stats"
-description = "Pure, well-tested statistics: win-rate smoothing, intervals and draft scoring."
+description = "Pure, well-tested statistics: win-rate smoothing, intervals, draft scoring and per-game grades."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -8,6 +8,8 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+# Shared vocabulary (roles) and the grade's UI-facing output.
+domain.workspace = true
 
 [dev-dependencies]
 proptest.workspace = true

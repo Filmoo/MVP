@@ -18,8 +18,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use domain::{
-    ApiError, ApiErrorCode, BackendError, CrashReport, PlayerProfile, RemoteConfig, RiotId,
-    ScoutCard, ScoutRequest,
+    ApiError, ApiErrorCode, BackendError, CrashReport, MatchDetails, PlayerProfile, RemoteConfig,
+    RiotId, ScoutCard, ScoutRequest,
 };
 use reqwest::header::{CACHE_CONTROL, ETAG, HeaderMap, HeaderValue, IF_NONE_MATCH, RETRY_AFTER};
 use reqwest::{StatusCode, Url};
@@ -208,6 +208,17 @@ impl BackendClient {
             &riot_id.game_name,
             &riot_id.tag_line,
         ]);
+        receive(self.0.http.get(url).timeout(self.0.timeout).send().await).await
+    }
+
+    /// One finished game in full, every player's grade included
+    /// (`GET /v1/matches/{platform}/{matchId}`).
+    pub async fn match_details(
+        &self,
+        platform: &str,
+        match_id: &str,
+    ) -> Result<MatchDetails, BackendError> {
+        let url = self.url(&["v1", "matches", platform, match_id]);
         receive(self.0.http.get(url).timeout(self.0.timeout).send().await).await
     }
 

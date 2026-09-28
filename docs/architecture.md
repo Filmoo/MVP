@@ -64,6 +64,7 @@ TypeScript types); failures answer `ApiError` `{ error, message, retryAfter? }`.
 | `GET /health` | `Health` `{ ok, version, riotKey }` |
 | `GET /v1/players/{platform}/{gameName}/{tagLine}` | `PlayerProfile` · 400 bad platform · 404 · 429 + `retryAfter` · 503 without key |
 | `POST /v1/players/batch` `{ platform, players: RiotId[] }` (≤ 10; older apps: `puuids`) | `ScoutCard[]` for loading-screen scouting |
+| `GET /v1/matches/{platform}/{matchId}` | `MatchDetails` (both teams, every player's grade) from the match cache · 400 bad platform or id · 404 |
 | `GET /v1/stats/index` | `StatsIndex` (published patches, `current`) · ETag, `max-age=300` |
 | `GET /v1/stats/{patch}/{queue}/{file…}` | published stats files (below) · ETag/304, `max-age=3600` · 404 when absent |
 | `GET /v1/updates/{target}/{arch}/{version}?channel=` | 204 or the Tauri updater manifest (staged rollout, channels, blocked releases) |
@@ -76,9 +77,12 @@ Scouting batches name players by **Riot ID**: the League client's PUUIDs are not
 day) and builds the card from our key's PUUID. Cards carry the account's Riot ID next to that
 PUUID and positive/neutral tags only (OTP, main role, hot streak, veteran); players nobody
 knows get no card. Caches in memory with request coalescing: profiles and cards 2 min,
-accounts 1 day, compacted match documents forever (LRU-bounded); accounts and matches are
-snapshotted to the data dir on shutdown. Lookups share one rate limiter per routing value; a
-429 is reported to the caller rather than waited out when Riot asks for more than 5 s.
+accounts 1 day, compacted match documents forever (LRU-bounded: the 28 participant fields the
+profile, the grade and match details read, keystone and rune trees only, kept as JSON text);
+accounts and matches are snapshotted to the data dir on shutdown (snapshot format 2: an older
+snapshot is ignored, its matches lack what grades need). Lookups share one rate limiter per
+routing value; a 429 is reported to the caller rather than waited out when Riot asks for more
+than 5 s.
 
 Platform services (`apps/backend/src/ops.rs` and siblings) sit next to the Riot routes:
 - **Updates:** releases are described in `releases.json` (edited by `mvp-backend release
@@ -170,6 +174,59 @@ dropped before anything else: no Riot ID, no PUUID, no lookup; players without a
 aren't looked up either. Champion select is never read for identities. The game ending clears
 the view; a failed batch is shown in the page head with a retry (`retry_scouting`). The remote
 config's `scouting` flag turns lookups off (the teams still show, without cards).
+
+## Match insights (`stats::grade`, `companion::matches`, `ui/src/views/home`)
+Every finished game in a match history gets a grade, and a match row opens on the whole game.
+- **The grade** (`crates/stats/src/grade.rs`, pure and property-tested; its doc has the formula)
+  rates one player's game against the other nine: kill participation, KDA (against the other
+  nine's), shares of the team's damage, damage taken (+ mitigated), damage to objectives and vision
+  score (each against the role's typical share), CS and gold per minute against the lane opponent.
+  Each part is scaled to [−1, 1], weighted by role, and `5 + 5 ×` their weighted mean is the score
+  (0–10, 5 is an even game for the role; a part the game doesn't have, like a lane opponent in
+  ARAM, leaves the mean). Letters: **S+** ≥ 8.5, **S** ≥ 7.5, **A** ≥ 6, **B** ≥ 4, **C** below.
+  Place 1–10 by score (ties: takedowns, then damage); **MVP** is the best of the winning team,
+  **ACE** the best of the losing team. The two or three parts that moved it most travel with it
+  (`GradeFactor`: kind, the scoreboard fact, points): the "why" the UI shows. No grade for remakes
+  (≤ 300 s) or games that aren't two teams of five with one winner. References and cut-offs are
+  first estimates, to calibrate on crawled games (each role should average 5).
+
+  | Role | Kill part. | KDA | Damage | Taken | Objectives | Vision | CS | Gold |
+  | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+  | Top | .15 | .20 | .20 | .10 | .10 | .05 | .10 | .10 |
+  | Jungle | .20 | .20 | .15 | .10 | .15 | .10 | .05 | .05 |
+  | Mid | .15 | .20 | .25 | — | .05 | .05 | .15 | .15 |
+  | Bot | .15 | .20 | .25 | — | .10 | .05 | .15 | .10 |
+  | Support | .25 | .20 | .10 | .10 | — | .30 | — | .05 |
+  | none (ARAM) | .25 | .25 | .30 | .15 | .05 | — | — | — |
+- **Computed where the whole game is known**, sent as `MatchSummary.grade`. Other players' games:
+  the backend grades the Match-V5 documents the profile already reads (`players::grade_of`). Your
+  games: the client's match list holds only you, so the core reads each gradable listed game once
+  from `GET /lol-match-history/v1/games/{gameId}` (4 at a time, the last 100 kept) *after* the
+  profile answered: the match list asks `match_grades { matchIds }` for its rows without one and
+  the core answers from its cache or reads what's missing; the next `current_profile` fills them
+  from the cache. A game the client doesn't return is asked again later, never a finished game
+  twice. LCU roles (`timeline.lane/role`) are fixed up: the Smite holder jungles, of the bottom
+  pair the one with fewer lane minions supports, duplicates are dropped, the last free role goes
+  to the last unknown player; ARAM has none.
+- **Match details**: `match_details { matchId }` → `MatchDetails`: both teams (blue first, lanes
+  in order), each player's Riot ID (none when hidden: `nameVisibilityType: HIDDEN` in the client,
+  no name in Match-V5), champion and level, role, K/D/A, CS, gold, damage to champions, vision,
+  items and trinket, spells, keystone and secondary tree, grade, `isMe`. Your listed games come
+  from the client (the same read as their grades, cached); any other game from
+  `GET /v1/matches/{platform}/{matchId}` (the backend's match cache); failures aren't cached.
+- **UI**: a match row is a button (`aria-expanded`) with the grade chip (`GradeChip`, the tier
+  list's grade colours) over the place or MVP/ACE. Click, Enter or Space opens the game under it,
+  one at a time; a second click or Escape closes it and gives the focus back; when a game above
+  closes, the page scrolls so the clicked row stays put. The game's code rides in the player
+  page's chunk (`provideDetails` in App.tsx: a chunk of its own would split the chunks it shares
+  with the first screen), loaded on first use with the views' words; meanwhile a skeleton of the
+  table's exact height (540 px, fixed line heights). Hovering a grade, or focusing its row from
+  the keyboard, shows its why: a popover anchored to the chip in CSS (`anchor-name`,
+  `position-try-fallbacks`), gone on leave, Escape or a click. The page owner's line is marked.
+  Grades never show in Draft or on the Live cards. Mock: `data/mock/match-fixtures.ts` (a seeded
+  whole game per row, graded by a TS port of the formula), scenarios `match-details-slow`,
+  `match-details-error`, `match-details-gone` and `extreme`; `mock-lcu` serves whole games
+  (`mock_lcu::history`, one player in streamer mode).
 
 ## Search (title bar)
 Champions match locally and instantly (fuzzy: prefix, word, initials, subsequence); a Riot ID
@@ -593,14 +650,14 @@ enemy's `role`/`roleOdds` (≥ 5 %).
 | --- | --- |
 | `domain` | UI-facing types (serde + ts-rs) |
 | `lcu` | League client: discovery, pinned TLS, REST, WAMP events, connector lifecycle |
-| `mock-lcu` | fake League client for tests and development |
-| `companion` | Tauri-free core: client status, champ select → `DraftView` (+ draft helper), loading screen → `LiveGame`, settings, automations, build imports, backend client, stats download + disk cache, remote config, crash reports, update policy |
+| `mock-lcu` | fake League client for tests and development (match history with whole games) |
+| `companion` | Tauri-free core: client status, champ select → `DraftView` (+ draft helper), loading screen → `LiveGame`, settings, automations, build imports, your games' grades and details, backend client, stats download + disk cache, remote config, crash reports, update policy |
 | `scrub` | removes personal data (Riot IDs, PUUIDs, user names in paths, e-mails, credentials, IPs) from crash reports, in the app and on the server |
 | `static-data` | Data Dragon download (champions, items, spells, rune trees) + per-patch cache + offline fallback |
-| `stats` | statistics and the draft model |
+| `stats` | statistics, the draft model and the per-game grade |
 | `aggregate` | stats pipeline core: Match-V5 → facts → mergeable aggregates → published JSON |
 | `riot-api` | Riot Web API client for the backend (rate limits, retries) |
-| `players` | Riot data → `PlayerProfile` / `ScoutCard` (behind a `RiotSource` trait the backend caches) |
+| `players` | Riot data → `PlayerProfile` / `ScoutCard` / `MatchDetails` and grades (behind a `RiotSource` trait the backend caches) |
 | `apps/desktop` | Tauri shell: window, tray, commands, event bridge |
-| `apps/backend` | `mvp-backend` HTTP service: player lookups, scouting, published stats files (key server-side), app updates, remote config, crash reports, admin CLI |
+| `apps/backend` | `mvp-backend` HTTP service: player lookups, scouting, match details, published stats files (key server-side), app updates, remote config, crash reports, admin CLI |
 | `apps/crawler` | `mvp-crawler`: crawl (Riot API → SQLite) and publish (→ `stats/v1/…`) |

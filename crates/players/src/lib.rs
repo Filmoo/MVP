@@ -1,14 +1,16 @@
 //! Player profiles from Riot API data, mapped to the UI's domain types.
 //! Used by the stats backend (live lookups) and by the `capture-profile` dev tool.
 
+mod matches;
 mod scout;
 mod source;
 
-use domain::{Division, MatchSummary, PlayerProfile, RankedEntry, RiotId, Role, Tier};
+use domain::{Division, MatchSummary, PlayerProfile, RankedEntry, RiotId, Tier};
 use futures_util::future::join_all;
 use riot_api::{LeagueEntry, MatchQuery, Platform, RiotError};
 use serde_json::Value;
 
+pub use matches::{grade_of, grades, match_details};
 pub use scout::{SCOUT_GAMES, fetch_scout_card, fetch_scout_card_for, scout_card};
 pub use source::RiotSource;
 
@@ -55,7 +57,8 @@ fn u32_field(v: &Value, key: &str) -> u32 {
         .unwrap_or(0)
 }
 
-/// One Match-V5 game from `puuid`'s point of view.
+/// One Match-V5 game from `puuid`'s point of view, with their grade when the document holds
+/// the whole game (every participant's stats).
 pub fn match_summary(game: &Value, puuid: &str) -> Option<MatchSummary> {
     let info = game.get("info")?;
     let me = info
@@ -63,14 +66,7 @@ pub fn match_summary(game: &Value, puuid: &str) -> Option<MatchSummary> {
         .as_array()?
         .iter()
         .find(|p| p.get("puuid").and_then(Value::as_str) == Some(puuid))?;
-    let role = match me.get("teamPosition").and_then(Value::as_str) {
-        Some("TOP") => Some(Role::Top),
-        Some("JUNGLE") => Some(Role::Jungle),
-        Some("MIDDLE") => Some(Role::Middle),
-        Some("BOTTOM") => Some(Role::Bottom),
-        Some("UTILITY") => Some(Role::Support),
-        _ => None,
-    };
+    let role = matches::role(me.get("teamPosition").and_then(Value::as_str));
     let duration = u32_field(info, "gameDuration");
     let ended_at = info
         .get("gameEndTimestamp")
@@ -92,6 +88,7 @@ pub fn match_summary(game: &Value, puuid: &str) -> Option<MatchSummary> {
             .map(|i| u32_field(me, &format!("item{i}")))
             .filter(|&id| id != 0)
             .collect(),
+        grade: grade_of(game, puuid),
     })
 }
 
@@ -184,8 +181,10 @@ pub(crate) async fn match_summaries<S: RiotSource>(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use domain::Role;
     use serde_json::json;
+
+    use super::*;
 
     fn game() -> Value {
         json!({
@@ -220,6 +219,15 @@ mod tests {
             "empty slots and the trinket are dropped"
         );
         assert!(match_summary(&game(), "nobody").is_none());
+        assert!(m.grade.is_none(), "two participants: no grade");
+    }
+
+    #[test]
+    fn a_full_game_carries_the_players_grade() {
+        let game = matches::tests::full_game("EUW1_7000000002", "me");
+        let m = match_summary(&game, "me").expect("mapped");
+        assert_eq!(m.grade, grade_of(&game, "me"));
+        assert!(m.grade.is_some());
     }
 
     #[test]

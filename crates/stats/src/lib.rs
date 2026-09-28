@@ -4,6 +4,7 @@
 //! reused identically by the desktop app and the stats backend.
 
 pub mod draft;
+pub mod grade;
 mod record;
 
 pub use record::{BetaPrior, Record, logit, sigmoid, wilson_interval};

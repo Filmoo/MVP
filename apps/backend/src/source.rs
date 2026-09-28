@@ -1,4 +1,8 @@
 //! The Riot client behind caches: accounts for a day, finished matches for good (LRU bounded).
+//!
+//! Matches are kept compacted (what player views, grades and match details read) as JSON text
+//! and parsed when read: a few KB each, several times less than the same document held as a
+//! `serde_json::Value` tree.
 
 use std::future::Future;
 use std::sync::Arc;
@@ -12,7 +16,7 @@ use crate::cache::Cache;
 
 const ACCOUNT_TTL: Duration = Duration::from_secs(24 * 60 * 60);
 const ACCOUNTS_MAX: usize = 50_000;
-/// Compacted matches weigh ~2 KB: 20,000 of them stay well under 100 MB.
+/// Compacted matches weigh ~5 KB as text: 20,000 of them stay around 100 MB.
 const MATCHES_MAX: usize = 20_000;
 
 #[derive(Debug)]
@@ -21,8 +25,9 @@ pub struct CachedRiot {
     /// Keyed by lower-cased `(gameName, tagLine)`: Riot IDs are case-insensitive.
     accounts_by_riot_id: Cache<(String, String), Account>,
     accounts_by_puuid: Cache<String, Account>,
-    /// Match ids are globally unique (`EUW1_…`) and finished games never change.
-    matches: Cache<String, Arc<Value>>,
+    /// Match ids are globally unique (`EUW1_…`) and finished games never change. Compacted
+    /// JSON text (see [`compact_match`]).
+    matches: Cache<String, Arc<str>>,
 }
 
 impl CachedRiot {
@@ -42,9 +47,15 @@ const MATCH_INFO_FIELDS: [&str; 4] = [
     "gameStartTimestamp",
     "queueId",
 ];
-const PARTICIPANT_FIELDS: [&str; 16] = [
+/// What a player's history, the grades and the match details read, for every participant.
+/// `perks` is rebuilt with the keystone and the secondary tree only.
+const PARTICIPANT_FIELDS: [&str; 28] = [
     "puuid",
+    "riotIdGameName",
+    "riotIdTagline",
+    "teamId",
     "championId",
+    "champLevel",
     "teamPosition",
     "win",
     "kills",
@@ -52,6 +63,14 @@ const PARTICIPANT_FIELDS: [&str; 16] = [
     "assists",
     "totalMinionsKilled",
     "neutralMinionsKilled",
+    "goldEarned",
+    "totalDamageDealtToChampions",
+    "totalDamageTaken",
+    "damageSelfMitigated",
+    "visionScore",
+    "damageDealtToObjectives",
+    "summoner1Id",
+    "summoner2Id",
     "item0",
     "item1",
     "item2",
@@ -61,35 +80,71 @@ const PARTICIPANT_FIELDS: [&str; 16] = [
     "item6",
 ];
 
-fn pick(from: &Value, fields: &[&str]) -> Value {
+fn pick(from: &Value, fields: &[&str]) -> Map<String, Value> {
     let mut out = Map::new();
     for &f in fields {
         if let Some(v) = from.get(f) {
             out.insert(f.to_owned(), v.clone());
         }
     }
-    Value::Object(out)
+    out
 }
 
-/// Keeps only what player views read from a Match-V5 document (~50× smaller).
+fn object(entries: impl IntoIterator<Item = (&'static str, Value)>) -> Value {
+    Value::Object(
+        entries
+            .into_iter()
+            .map(|(key, value)| (key.to_owned(), value))
+            .collect(),
+    )
+}
+
+/// The rune page as the match details show it, in Match-V5's shape: the keystone
+/// (`styles[0].selections[0].perk`) and the secondary tree (`styles[1].style`).
+fn compact_perks(perks: &Value) -> Option<Value> {
+    let primary = perks.pointer("/styles/0/style")?.clone();
+    let mut first = vec![("style", primary)];
+    if let Some(keystone) = perks.pointer("/styles/0/selections/0/perk") {
+        first.push((
+            "selections",
+            Value::Array(vec![object([("perk", keystone.clone())])]),
+        ));
+    }
+    let mut styles = vec![object(first)];
+    if let Some(secondary) = perks.pointer("/styles/1/style") {
+        styles.push(object([("style", secondary.clone())]));
+    }
+    Some(object([("styles", Value::Array(styles))]))
+}
+
+/// Keeps only what player views, grades and match details read from a Match-V5 document
+/// (~20× smaller).
 pub fn compact_match(game: &Value) -> Value {
     let mut info = pick(game.get("info").unwrap_or(&Value::Null), &MATCH_INFO_FIELDS);
     let participants: Vec<Value> = game
         .pointer("/info/participants")
         .and_then(Value::as_array)
-        .map(|ps| ps.iter().map(|p| pick(p, &PARTICIPANT_FIELDS)).collect())
+        .map(|ps| {
+            ps.iter()
+                .map(|p| {
+                    let mut kept = pick(p, &PARTICIPANT_FIELDS);
+                    if let Some(perks) = p.get("perks").and_then(compact_perks) {
+                        kept.insert("perks".to_owned(), perks);
+                    }
+                    Value::Object(kept)
+                })
+                .collect()
+        })
         .unwrap_or_default();
-    if let Value::Object(map) = &mut info {
-        map.insert("participants".to_owned(), Value::Array(participants));
-    }
+    info.insert("participants".to_owned(), Value::Array(participants));
     let mut metadata = Map::new();
     if let Some(id) = game.pointer("/metadata/matchId") {
         metadata.insert("matchId".to_owned(), id.clone());
     }
-    let mut out = Map::new();
-    out.insert("metadata".to_owned(), Value::Object(metadata));
-    out.insert("info".to_owned(), info);
-    Value::Object(out)
+    object([
+        ("metadata", Value::Object(metadata)),
+        ("info", Value::Object(info)),
+    ])
 }
 
 impl RiotSource for CachedRiot {
@@ -142,21 +197,31 @@ impl RiotSource for CachedRiot {
         self.client.match_ids(platform, puuid, query)
     }
 
-    fn match_by_id(
+    async fn match_by_id(
         &self,
         platform: Platform,
         match_id: &str,
-    ) -> impl Future<Output = Result<Arc<Value>, RiotError>> + Send {
-        self.matches
+    ) -> Result<Arc<Value>, RiotError> {
+        let text = self
+            .matches
             .get_or_try_insert(match_id.to_owned(), move || async move {
                 let game = self.client.match_by_id(platform, match_id).await?;
-                Ok(Arc::new(compact_match(&game)))
+                Ok::<_, RiotError>(Arc::<str>::from(compact_match(&game).to_string()))
+            })
+            .await?;
+        serde_json::from_str(&text)
+            .map(Arc::new)
+            .map_err(|source| RiotError::Decode {
+                path: format!("cached match {match_id}"),
+                source,
             })
     }
 }
 
 // ---- Access for the disk snapshot (store.rs) and metrics (ops.rs) ----
 pub(crate) type AccountCache = Cache<(String, String), Account>;
+/// Compacted matches, as JSON text.
+pub(crate) type MatchCache = Cache<String, Arc<str>>;
 
 impl CachedRiot {
     pub(crate) fn client(&self) -> &RiotClient {
@@ -164,13 +229,7 @@ impl CachedRiot {
     }
 
     /// Accounts by Riot ID, accounts by PUUID, compacted matches.
-    pub(crate) fn caches(
-        &self,
-    ) -> (
-        &AccountCache,
-        &Cache<String, Account>,
-        &Cache<String, Arc<Value>>,
-    ) {
+    pub(crate) fn caches(&self) -> (&AccountCache, &Cache<String, Account>, &MatchCache) {
         (
             &self.accounts_by_riot_id,
             &self.accounts_by_puuid,
@@ -187,17 +246,27 @@ mod tests {
 
     #[test]
     fn compaction_keeps_what_players_read() {
+        let perks = json!({ "statPerks": { "defense": 5011 }, "styles": [
+            { "description": "primaryStyle", "style": 8100,
+              "selections": [{ "perk": 8112, "var1": 1200 }, { "perk": 8139 }] },
+            { "description": "subStyle", "style": 8200, "selections": [{ "perk": 8233 }] }
+        ] });
+        let me = json!({
+            "puuid": "me", "riotIdGameName": "Fillmo", "riotIdTagline": "7272",
+            "teamId": 100, "championId": 103, "champLevel": 17, "teamPosition": "MIDDLE",
+            "win": true, "kills": 9, "deaths": 2, "assists": 11, "totalMinionsKilled": 211,
+            "neutralMinionsKilled": 20, "goldEarned": 14_200,
+            "totalDamageDealtToChampions": 31_000, "totalDamageTaken": 16_000,
+            "damageSelfMitigated": 9_000, "visionScore": 22,
+            "damageDealtToObjectives": 4_000, "summoner1Id": 4, "summoner2Id": 14,
+            "item0": 6655, "item1": 3020, "item6": 3340,
+            "challenges": { "kda": 10 }, "perks": perks
+        });
         let game = json!({
             "metadata": { "matchId": "EUW1_1", "participants": ["me"], "dataVersion": "2" },
             "info": {
                 "gameDuration": 1742, "gameEndTimestamp": 1_790_000_000_000_i64, "queueId": 420,
-                "gameMode": "CLASSIC", "teams": [{ "teamId": 100 }],
-                "participants": [{
-                    "puuid": "me", "championId": 103, "teamPosition": "MIDDLE", "win": true,
-                    "kills": 9, "deaths": 2, "assists": 11, "totalMinionsKilled": 211,
-                    "neutralMinionsKilled": 20, "item0": 6655, "item1": 3020, "item6": 3340,
-                    "challenges": { "kda": 10 }, "perks": { "styles": [] }
-                }]
+                "gameMode": "CLASSIC", "teams": [{ "teamId": 100 }], "participants": [me]
             }
         });
         let small = compact_match(&game);
@@ -205,7 +274,18 @@ mod tests {
             players::match_summary(&small, "me"),
             players::match_summary(&game, "me")
         );
+        assert_eq!(
+            players::match_details(&small),
+            players::match_details(&game)
+        );
         assert!(small.pointer("/info/participants/0/challenges").is_none());
         assert!(small.pointer("/info/teams").is_none());
+        assert_eq!(
+            small.pointer("/info/participants/0/perks"),
+            Some(&json!({ "styles": [
+                { "style": 8100, "selections": [{ "perk": 8112 }] },
+                { "style": 8200 }
+            ] }))
+        );
     }
 }

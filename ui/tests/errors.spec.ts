@@ -1,3 +1,4 @@
+import type { Page } from "@playwright/test";
 // Brings the window.__SCOUT_MOCK__ declaration into scope.
 import type {} from "../src/data/mock";
 import { aramDraft } from "../src/data/mock/draft-fixtures";
@@ -258,5 +259,44 @@ test("only ARAM published: ranked says so, ARAM shows its tier list", async ({ p
   await page.getByTestId("queue-switch").getByRole("radio", { name: t.queues[450] }).click();
   await expect(page.getByTestId("tier-row").first()).toBeVisible();
   await expect(page.locator("main")).not.toContainText(t.stats.errors.notFound.title);
+  expect(errors).toEqual([]);
+});
+
+// An opened match row: its game fails in place, nothing else does.
+const firstGame = (page: Page) => page.locator("[data-testid=match-row] > button").first();
+
+test("an opened game that can't load: its error in place, and a retry asks again", async ({ page, t }) => {
+  const errors = trackErrors(page);
+  await openApp(page, { scenario: "match-details-error" });
+  await firstGame(page).click();
+  const alert = page.getByTestId("game").getByRole("alert");
+  await expect(alert).toContainText(t.players.network.title);
+  await expect(alert).toContainText(t.players.network.text);
+  await alert.getByRole("button", { name: t.common.tryAgain }).click();
+  await expect.poll(() => page.evaluate(() => window.__SCOUT_MOCK__?.calls.filter((c) => c === "match_details").length)).toBe(2);
+  await expect(page.getByTestId("match-row").nth(1)).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("a game that isn't there anymore says so, without a retry", async ({ page, t }) => {
+  const errors = trackErrors(page);
+  await openApp(page, { scenario: "match-details-gone" });
+  await firstGame(page).click();
+  const alert = page.getByTestId("game").getByRole("alert");
+  await expect(alert).toContainText(t.matchDetails.errors.notFound);
+  await expect(alert.getByRole("button", { name: t.common.tryAgain })).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test("a slow game: a skeleton the table's height, then the table in its place", async ({ page }) => {
+  const errors = trackErrors(page);
+  await openApp(page, { scenario: "match-details-slow" });
+  const row = page.getByTestId("match-row").first();
+  await firstGame(page).click();
+  await expect(row.locator("[data-state=loading]")).toBeVisible();
+  const loading = await row.boundingBox();
+  await expect(row.getByTestId("game-player")).toHaveCount(10, { timeout: 5_000 });
+  const loaded = await row.boundingBox();
+  expect(loaded?.height, "the row's height, loading then loaded").toBe(loading?.height);
   expect(errors).toEqual([]);
 });

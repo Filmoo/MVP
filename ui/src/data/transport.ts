@@ -5,10 +5,12 @@ import type { ChampionPage } from "./generated/ChampionPage";
 import type { ClientStatus } from "./generated/ClientStatus";
 import type { DraftView } from "./generated/DraftView";
 import type { GameData } from "./generated/GameData";
+import type { GradedMatch } from "./generated/GradedMatch";
 import type { ImportRequest } from "./generated/ImportRequest";
 import type { ImportResult } from "./generated/ImportResult";
 import type { Language } from "./generated/Language";
 import type { LiveGame } from "./generated/LiveGame";
+import type { MatchDetails } from "./generated/MatchDetails";
 import type { PlayerProfile } from "./generated/PlayerProfile";
 import type { RankEmblems } from "./generated/RankEmblems";
 import type { RemoteConfig } from "./generated/RemoteConfig";
@@ -23,7 +25,19 @@ import type { ViewRoute } from "./generated/ViewRoute";
 export interface Commands {
   app_info: { args: undefined; result: AppInfo };
   client_status: { args: undefined; result: ClientStatus };
+  /** Your profile from the League client; games already read whole carry their grade. */
   current_profile: { args: undefined; result: PlayerProfile | null };
+  /**
+   * Your grade in each of your listed games (`current_profile`'s ids): the core reads each game
+   * whole from the League client once, a few at a time. Remakes, modes without two teams of five
+   * and ids that aren't your listed games answer `grade: null` (the last without any read).
+   */
+  match_grades: { args: { matchIds: string[] }; result: GradedMatch[] };
+  /**
+   * One finished game in full (both teams, every player's grade): yours from the League client,
+   * anyone else's from our backend. Rejects with a `BackendError` as the error's `detail`.
+   */
+  match_details: { args: { matchId: string }; result: MatchDetails };
   /**
    * Names and asset ids of the current patch in `language` (the UI's, `auto` resolved: English
    * or French); `null` until the core has loaded them in it (a `game-data` event follows). Asking

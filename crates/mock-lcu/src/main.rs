@@ -8,7 +8,7 @@
 //!   SCOUT_LCU_LOCKFILE=.cache/mock-lcu/lockfile SCOUT_LCU_CA=.cache/mock-lcu/ca.pem pnpm app
 //!
 //! The player has rune pages (two presets, two of their own, room for one more), item sets and
-//! Flash on F in their recent games; in champion select they lock in, then finalization runs,
+//! Flash on F in their recent games (each whole game served too: grades and match details); in champion select they lock in, then finalization runs,
 //! so build imports (one click and on lock-in) can be tried. Every write is logged.
 //!
 //! `cargo run -p mock-lcu -- --aram` plays ARAM champion selects instead: no roles, a shared
@@ -18,6 +18,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use mock_lcu::MockLcu;
+use mock_lcu::history::{self, Game, Local};
 use serde_json::json;
 
 const CYCLE: &[(&str, u64)] = &[
@@ -56,27 +57,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "/lol-ranked/v1/current-ranked-stats",
         json!({ "queueMap": { "RANKED_SOLO_5x5": { "tier": "EMERALD", "division": "II", "leaguePoints": 67, "wins": 142, "losses": 128 } } }),
     );
-    mock.set(
-        "/lol-match-history/v1/products/lol/current-summoner/matches",
-        json!({ "games": { "games": [
-            { "gameId": 7_000_000_003_u64, "queueId": 420, "mapId": 11, "gameCreation": 1_790_500_000_000_i64, "gameDuration": 1742,
-              "participants": [{ "championId": 103, "spell1Id": 14, "spell2Id": 4, "timeline": { "lane": "MIDDLE", "role": "SOLO" },
-                "stats": { "win": true, "kills": 9, "deaths": 2, "assists": 11, "totalMinionsKilled": 211, "neutralMinionsKilled": 20,
-                           "item0": 6655, "item1": 3020, "item2": 4645, "item3": 3157, "item4": 3089 } }] },
-            { "gameId": 7_000_000_002_u64, "queueId": 420, "mapId": 11, "gameCreation": 1_790_490_000_000_i64, "gameDuration": 1935,
-              "participants": [{ "championId": 134, "spell1Id": 12, "spell2Id": 4, "timeline": { "lane": "MIDDLE", "role": "SOLO" },
-                "stats": { "win": false, "kills": 3, "deaths": 6, "assists": 5, "totalMinionsKilled": 190, "neutralMinionsKilled": 8,
-                           "item0": 6655, "item1": 3020, "item2": 3157 } }] },
-            { "gameId": 7_000_000_001_u64, "queueId": 420, "gameCreation": 1_790_480_000_000_i64, "gameDuration": 1810,
-              "participants": [{ "championId": 54, "timeline": { "lane": "TOP", "role": "SOLO" },
-                "stats": { "win": true, "kills": 4, "deaths": 3, "assists": 14, "totalMinionsKilled": 201, "neutralMinionsKilled": 4,
-                           "item0": 3068, "item1": 3047, "item2": 3075 } }] },
-            { "gameId": 7_000_000_000_u64, "queueId": 440, "gameCreation": 1_790_470_000_000_i64, "gameDuration": 2011,
-              "participants": [{ "championId": 516, "timeline": { "lane": "TOP", "role": "SOLO" },
-                "stats": { "win": false, "kills": 1, "deaths": 5, "assists": 9, "totalMinionsKilled": 230, "neutralMinionsKilled": 0,
-                           "item0": 3068, "item1": 3111 } }] }
-        ] } }),
-    );
+    // Recent games: the list and each whole game (grades and match details on Home).
+    history::serve(&mock, &local(), &recent_games());
     // The local player's own mastery and what they can pick (the draft helper's pool).
     mock.set(
         "/lol-champion-mastery/v1/local-player/champion-mastery",
@@ -176,6 +158,73 @@ fn game_session() -> serde_json::Value {
 }
 
 const SUMMONER_ID: u64 = 2_345_678;
+
+/// The account logged in to the fake client.
+fn local() -> Local {
+    Local {
+        puuid: "00000000-mock-0000-0000-000000000000".to_owned(),
+        game_name: "Fillmo".to_owned(),
+        tag_line: "7272".to_owned(),
+        summoner_id: SUMMONER_ID,
+    }
+}
+
+/// The local player's last games, newest first: mid and top, Flash on F.
+fn recent_games() -> Vec<Game> {
+    let game = |game_id, queue_id, created, duration, champion, lane, spells, win| Game {
+        game_id,
+        queue_id,
+        map_id: 11,
+        created,
+        duration,
+        champion,
+        lane,
+        spells,
+        win,
+    };
+    vec![
+        game(
+            7_000_000_003,
+            420,
+            1_790_500_000_000,
+            1742,
+            103,
+            "MIDDLE",
+            [14, 4],
+            true,
+        ),
+        game(
+            7_000_000_002,
+            420,
+            1_790_490_000_000,
+            1935,
+            134,
+            "MIDDLE",
+            [12, 4],
+            false,
+        ),
+        game(
+            7_000_000_001,
+            420,
+            1_790_480_000_000,
+            1810,
+            54,
+            "TOP",
+            [12, 4],
+            true,
+        ),
+        game(
+            7_000_000_000,
+            440,
+            1_790_470_000_000,
+            2011,
+            516,
+            "TOP",
+            [12, 4],
+            false,
+        ),
+    ]
+}
 
 /// What build imports read and write: rune pages with room for one more, item sets.
 fn set_up_builds(mock: &MockLcu) {

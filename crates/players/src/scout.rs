@@ -230,6 +230,7 @@ mod tests {
             duration_seconds: 1800,
             ended_at: 0,
             items: vec![],
+            grade: None,
         }
     }
 

@@ -118,6 +118,23 @@ detection, composite player scores, live win probability, sending data to third-
   Riot also publishes these emblems for developers on developer.riotgames.com: before the
   production-key application, check which source Riot prefers and switch if needed
   (`static_data::emblems`, one constant).
+- **Per-game grades (2026-09-28, built; gray: a composite score, the owner can veto it).** Every
+  finished game in a match history (yours on Home, anyone's on a player page) gets a letter
+  (S+ to C), a score out of 10 and a place among the ten; an opened game shows all ten players'.
+  Why it stays on the right side: it rates **one finished game's scoreboard, not a player** (no
+  average grade, no player rating, no MMR or rank estimate); it only uses the post-game numbers
+  every player of that game already saw on the end screen; it is **transparent** (the two or
+  three facts that moved it are shown with it, and the method is written next to the column);
+  the words are neutral or positive (C is the lowest letter; MVP and ACE are the only badges, no
+  tags); it **never shows where it could steer a live decision**: not in champion select (Draft),
+  not on the loading screen or in game (Live cards), only in match histories after the game.
+  Streamer-mode players stay hidden in opened games (the client's `nameVisibilityType: HIDDEN`,
+  Match-V5 without a name): their line shows "Hidden player", and their name is never looked up.
+  Same kind of number as op.gg's per-game OP Score (with its MVP/ACE). If the owner vetoes it, the
+  grades come off the rows and the opened games (`MatchSummary.grade` and `MatchPlayer.grade`
+  stay `null`), and the details stay. LCU endpoint (read, declare at product registration):
+  `GET /lol-match-history/v1/games/{gameId}` (your listed games only, each read once), next to
+  the match list already declared.
 - **Remote config and self-updates (2026-09-28, shipped).** The app asks our server for its
   config and for updates with its version and install id only (no Riot data). Kill switches can
   only turn features **off**: they stop our own automations (auto-accept, each build import

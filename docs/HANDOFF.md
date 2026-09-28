@@ -111,6 +111,26 @@ Everything below is merged on `claude/upbeat-hamilton-0bms1t` and green on
    ornaments per tier). Blocked from the cloud sandbox, so never seen for real: check the crop on
    every tier (checklist below), and before the production-key application, which source Riot
    prefers (policy.md).
+10. *(built, against mock-lcu and a fake backend only)*
+   **Match insights** (architecture.md "Match insights", policy.md "Per-game grades"): a grade per
+   finished game (`stats::grade`: S+ to C, score out of 10, place, MVP/ACE, the facts that moved
+   it) on every match row, its why on hover or keyboard focus, and a row opens on the whole game
+   (both teams, Riot IDs with hidden players kept hidden, KDA, CS, gold, damage bars, vision,
+   items, spells, runes, every grade; the page owner's line marked). Your games are graded by the
+   core from `GET /lol-match-history/v1/games/{gameId}` (each read once, after the profile);
+   others' by the backend, which also answers `GET /v1/matches/{platform}/{matchId}`. Left:
+   - **the owner's call on the gray area** (policy.md): grades of all ten players in an opened
+     game, the letters' names and cut-offs, showing the score, MVP/ACE;
+   - calibrate the references and cut-offs on crawled games (`crates/stats/src/grade.rs`: role
+     shares, kill-participation offsets, scales; each role should average 5, S+ should be rare);
+   - the backend's match snapshot moved to format 2: the first start after the upgrade begins
+     with an empty match cache (older snapshots are ignored);
+   - Match-V5 and streamer mode: we treat a participant without `riotIdGameName` as hidden; check
+     what Riot sends for hidden players today (policy.md "Re-identify Streamer Mode players");
+   - bundle: the grade chip and the rows' wiring cost the first screen +0.9 KB gzip, the game and
+     the why (in the player page's chunk) and their words +4.7 KB; together with the draft
+     insights this is over the 120 KB total budget: savings to find (chunking) or a deliberate
+     raise.
 
 9. *(built, against mock-lcu and synthetic stats only)* **Draft insights** (architecture.md "Stats
    pipeline" and "Stats in the app"): the crawler keeps each game's length and every player's
@@ -183,6 +203,24 @@ imported", "summoner spells imported", "automatic import on lock-in"):
 - **On lock-in:** exactly one import per lock-in, none on hovers; a trade imports the new champion;
   ARAM imports on the given champion and after rerolls/bench swaps; blind pick and ARAM (no
   `assignedPosition`) use the most played role.
+
+Match insights (Home after a few games; a player page with the backend running):
+- **Your grades:** chips fill in a moment after Home shows (a game the client doesn't return logs
+  "game not read for its grade" and keeps an empty slot); a remake, Arena or Swarm gets none
+  (never read), nor a game that isn't two full teams of five; after the next game only that game
+  is read (`/lol-match-history/v1/games/{id}` once per game, never again for a finished one).
+- **The game's shape** (`crates/companion/src/matches.rs` reads it): `participantIdentities[].player`
+  `gameName`/`tagLine`/`puuid`/`summonerId`/`nameVisibilityType`; `participants[].stats` (kills,
+  deaths, assists, `totalMinionsKilled` + `neutralMinionsKilled`, `goldEarned`,
+  `totalDamageDealtToChampions`, `totalDamageTaken` + `damageSelfMitigated`, `visionScore`,
+  `damageDealtToObjectives`, `champLevel`, `item0`–`item6`, `perk0`, `perkSubStyle`, `win`),
+  `spell1Id`/`spell2Id`, `timeline.lane`/`role` (roles are fixed up from Smite and lane minions:
+  check that each team gets its five roles), `gameDuration` in seconds, `platformId`.
+- **Opened games:** yours open instantly the second time (cached); someone else's (player page)
+  come from the backend; a streamer-mode player shows "Hidden player" in both; your line (or the
+  page owner's) is marked; Escape closes and the row keeps the focus.
+- **Grades look right:** the MVP is the best of the winners, an obviously bad game gets a C, a
+  support with high vision isn't punished for low CS, and the why's facts match the end screen.
 
 Platform services (a `config.json` in the backend's data dir drives the config; config and
 crash reports work with a local backend and `pnpm app`, updates need a release build with the

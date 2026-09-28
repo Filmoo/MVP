@@ -27,7 +27,7 @@ export function ProfileContent(props: { profile: PlayerProfile }): JSX.Element {
         <ProfileHeader profile={props.profile} />
       </Widget>
       <Widget name="recent-matches" class={styles.matches}>
-        <RecentMatches matches={props.profile.recentMatches} />
+        <RecentMatches matches={props.profile.recentMatches} focus={props.profile.riotId} />
       </Widget>
       <Show when={hasGames()}>
         <Widget name="performance-summary" class={styles.summary}>

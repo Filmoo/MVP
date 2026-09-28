@@ -9,8 +9,10 @@
 //!
 //! The client's write endpoints the app uses behave like the real ones (see `writes`): rune
 //! pages with the page limit, item sets, the champion-select spell selection, the ready check.
-//! Every request is recorded with its JSON body for assertions.
+//! Every request is recorded with its JSON body for assertions. [`history`] serves the local
+//! player's match history: the list and whole games.
 
+pub mod history;
 mod writes;
 
 use std::collections::{HashMap, HashSet};

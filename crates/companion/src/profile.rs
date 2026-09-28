@@ -3,9 +3,14 @@
 //! Only the local player's data, which the client already shows them; nothing about other
 //! players is fetched here (lookups of others go through our backend and the Riot API).
 
+use std::collections::HashMap;
+
 use domain::{Division, MatchSummary, PlayerProfile, RankedEntry, RiotId, Role, Tier};
 use lcu::{LcuClient, LcuError};
 use serde_json::Value;
+use stats::grade::REMAKE_MAX_SECONDS;
+
+use crate::matches::Me;
 
 pub const CURRENT_SUMMONER: &str = "/lol-summoner/v1/current-summoner";
 pub const RANKED: &str = "/lol-ranked/v1/current-ranked-stats";
@@ -60,16 +65,46 @@ pub fn map_ranked(stats: &Value) -> Option<RankedEntry> {
     })
 }
 
-/// Games from the client's own match history (the local player is `participants[0]`).
-pub fn map_matches(history: &Value, platform: &str) -> Vec<MatchSummary> {
-    let Some(games) = history
+fn listed(history: &Value) -> &[Value] {
+    history
         .get("games")
         .and_then(|g| g.get("games"))
         .and_then(Value::as_array)
-    else {
-        return Vec::new();
-    };
-    games
+        .map_or(&[], Vec::as_slice)
+}
+
+/// A game's match id, `EUW1_7000000001`: the game's own platform, else `platform`.
+pub fn match_id(game: &Value, platform: &str) -> Option<String> {
+    let platform = str_at(game, "platformId").unwrap_or(platform);
+    Some(format!("{platform}_{}", game.get("gameId")?.as_u64()?))
+}
+
+/// Modes without two teams of five (Arena, Swarm): no grade to read the game for.
+fn two_teams_of_five(game: &Value) -> bool {
+    let mode = str_at(game, "gameMode");
+    let queue = u32_at(game, "queueId");
+    !matches!(mode, Some("CHERRY" | "STRAWBERRY"))
+        && !matches!(u32_at(game, "mapId"), 30 | 33)
+        && !(1700..=1710).contains(&queue)
+        && !(1810..=1840).contains(&queue)
+}
+
+/// The listed games by match id: whether each is worth reading whole for a grade (no remake,
+/// two teams of five).
+pub fn gradable(history: &Value, platform: &str) -> HashMap<String, bool> {
+    listed(history)
+        .iter()
+        .filter_map(|game| {
+            let worth =
+                u32_at(game, "gameDuration") > REMAKE_MAX_SECONDS && two_teams_of_five(game);
+            Some((match_id(game, platform)?, worth))
+        })
+        .collect()
+}
+
+/// Games from the client's own match history (the local player is `participants[0]`).
+pub fn map_matches(history: &Value, platform: &str) -> Vec<MatchSummary> {
+    listed(history)
         .iter()
         .filter_map(|game| {
             let me = game.get("participants")?.as_array()?.first()?;
@@ -87,7 +122,7 @@ pub fn map_matches(history: &Value, platform: &str) -> Vec<MatchSummary> {
                 _ => None,
             };
             Some(MatchSummary {
-                match_id: format!("{}_{}", platform, game.get("gameId")?.as_u64()?),
+                match_id: match_id(game, platform)?,
                 queue_id: u32_at(game, "queueId"),
                 champion_id: u32_at(me, "championId"),
                 role,
@@ -103,6 +138,8 @@ pub fn map_matches(history: &Value, platform: &str) -> Vec<MatchSummary> {
                     .map(|i| u32_at(stats, &format!("item{i}")))
                     .filter(|&id| id != 0)
                     .collect(),
+                // The list holds only the local player's side: the grade needs the whole game.
+                grade: None,
             })
         })
         .collect()
@@ -110,6 +147,21 @@ pub fn map_matches(history: &Value, platform: &str) -> Vec<MatchSummary> {
 
 /// Reads the whole profile. Missing pieces degrade gracefully (unranked, no games).
 pub async fn local_profile(client: &LcuClient) -> Result<PlayerProfile, LcuError> {
+    read_local(client).await.map(|read| read.profile)
+}
+
+/// The local player's profile, with what the core keeps to grade and open their games.
+#[derive(Debug)]
+pub struct LocalRead {
+    pub profile: PlayerProfile,
+    /// Who plays (their row in their games).
+    pub me: Me,
+    /// The listed games by match id, and whether each is worth reading whole for a grade.
+    pub gradable: HashMap<String, bool>,
+}
+
+/// Reads the profile (see [`local_profile`]) and what the core keeps with it.
+pub async fn read_local(client: &LcuClient) -> Result<LocalRead, LcuError> {
     let summoner: Value = client.get(CURRENT_SUMMONER).await?;
     let ranked = client.get::<Value>(RANKED).await.ok();
     let region = client
@@ -124,7 +176,7 @@ pub async fn local_profile(client: &LcuClient) -> Result<PlayerProfile, LcuError
     } else {
         format!("{region}1")
     };
-    Ok(PlayerProfile {
+    let profile = PlayerProfile {
         riot_id: RiotId {
             game_name: str_at(&summoner, "gameName")
                 .unwrap_or("Summoner")
@@ -138,6 +190,14 @@ pub async fn local_profile(client: &LcuClient) -> Result<PlayerProfile, LcuError
         recent_matches: history
             .as_ref()
             .map(|h| map_matches(h, &platform))
+            .unwrap_or_default(),
+    };
+    Ok(LocalRead {
+        profile,
+        me: Me::from_summoner(&summoner),
+        gradable: history
+            .as_ref()
+            .map(|h| gradable(h, &platform))
             .unwrap_or_default(),
     })
 }
@@ -186,5 +246,34 @@ mod tests {
         assert_eq!(g.ended_at, 1_790_000_000_000 + 1_742_000);
         assert_eq!(games[1].role, Some(Role::Support));
         assert!(map_matches(&json!({}), "EUW1").is_empty());
+        assert!(
+            games.iter().all(|g| g.grade.is_none()),
+            "the list has one side only"
+        );
+    }
+
+    #[test]
+    fn match_ids_follow_the_games_platform() {
+        let history = json!({ "games": { "games": [
+            { "gameId": 1, "platformId": "KR", "queueId": 420, "gameCreation": 0, "gameDuration": 1800,
+              "participants": [{ "championId": 1, "stats": {} }] },
+            { "gameId": 2, "queueId": 1700, "gameMode": "CHERRY", "gameCreation": 0, "gameDuration": 1500,
+              "participants": [{ "championId": 1, "stats": {} }] },
+            { "gameId": 3, "queueId": 420, "gameCreation": 0, "gameDuration": 250,
+              "participants": [{ "championId": 1, "stats": {} }] }
+        ] } });
+        let ids: Vec<String> = map_matches(&history, "EUW1")
+            .into_iter()
+            .map(|m| m.match_id)
+            .collect();
+        assert_eq!(ids, ["KR_1", "EUW1_2", "EUW1_3"]);
+        let worth = gradable(&history, "EUW1");
+        assert_eq!(worth.get("KR_1"), Some(&true));
+        assert_eq!(
+            worth.get("EUW1_2"),
+            Some(&false),
+            "Arena: no two teams of five"
+        );
+        assert_eq!(worth.get("EUW1_3"), Some(&false), "a remake");
     }
 }

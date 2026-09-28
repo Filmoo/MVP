@@ -18,7 +18,9 @@ use crate::source::CachedRiot;
 use crate::watched::write_atomic;
 
 pub const SNAPSHOT_FILE: &str = "cache/riot-cache.json";
-const FORMAT: u32 = 1;
+/// 2: compacted matches hold every participant's stats, names, spells and runes (grades and
+/// match details); older snapshots are ignored (their matches lack them).
+const FORMAT: u32 = 2;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Snapshot {
@@ -86,7 +88,7 @@ pub fn save(riot: &CachedRiot, path: &Path) -> std::io::Result<usize> {
         matches: matches
             .entries()
             .into_iter()
-            .map(|(id, game, _)| (id, Value::clone(&game)))
+            .filter_map(|(id, text, _)| Some((id, serde_json::from_str(&text).ok()?)))
             .collect(),
     };
     let count = snapshot.by_riot_id.len() + snapshot.by_puuid.len() + snapshot.matches.len();
@@ -123,7 +125,7 @@ pub fn load(riot: &CachedRiot, path: &Path) -> std::io::Result<usize> {
     }
     let count = snapshot.by_riot_id.len() + snapshot.by_puuid.len() + snapshot.matches.len();
     for (id, game) in snapshot.matches {
-        matches.insert_aged(id, Arc::new(game), Duration::ZERO);
+        matches.insert_aged(id, Arc::from(game.to_string()), Duration::ZERO);
     }
     Ok(count)
 }

@@ -101,6 +101,47 @@ for (const { view, scenario } of SCENARIO_VIEWS) {
   }
 }
 
+// An opened match row at every size, and a grade's why over it: a popover, which the audit
+// leaves out (fixed), so it is held inside the window here.
+test("home: an opened game and a grade's why lay out at every size", async ({ page, locale }) => {
+  // Eight sizes, each settled, audited and hovered twice: more than 30 s on a busy machine.
+  test.slow();
+  const errors = trackErrors(page);
+  await openApp(page);
+  await page.locator("[data-testid=match-row] > button").first().click();
+  await expect(page.getByTestId("game-player")).toHaveCount(10);
+  for (const size of SIZES) {
+    if (isFrench(locale) && !FRENCH_SIZES.has(size.name)) continue;
+    await page.mouse.move(0, 0);
+    await page.setViewportSize({ width: size.width, height: size.height });
+    await settle(page);
+    expect(await page.evaluate(auditLayout), `${size.name} opened`).toEqual([]);
+    for (const at of [0, 1]) {
+      await page.locator("[data-grade]").nth(at).hover();
+      const why = await page.getByTestId("grade-why").boundingBox();
+      expect(why, `${size.name} why ${at}`).not.toBeNull();
+      const inside = why && why.x >= 0 && why.y >= 0 && why.x + why.width <= size.width && why.y + why.height <= size.height;
+      expect(inside, `${size.name} why ${at} inside the window: ${JSON.stringify(why)}`).toBe(true);
+    }
+  }
+  expect(errors).toEqual([]);
+});
+
+// An opened game's other states (longest names and biggest numbers, errors) at the extreme sizes.
+for (const scenario of ["extreme", "match-details-error", "match-details-gone"] as const) {
+  for (const size of [SIZES[0], SIZES[3], SIZES[6]]) {
+    test(`home/${scenario}, a game opened @ ${size.name}`, async ({ page }) => {
+      const errors = trackErrors(page);
+      await openApp(page, { scenario, width: size.width, height: size.height });
+      await page.locator("[data-testid=match-row] > button").first().click();
+      await expect(page.getByTestId("game").locator("[data-testid=game-player], [role=alert]").first()).toBeVisible();
+      await settle(page);
+      expect(await page.evaluate(auditLayout)).toEqual([]);
+      expect(errors).toEqual([]);
+    });
+  }
+}
+
 // Live resizing (no reload) must re-layout correctly at every step.
 test("resize sweep keeps layout sound", async ({ page }) => {
   const errors = trackErrors(page);

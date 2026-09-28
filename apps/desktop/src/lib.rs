@@ -50,6 +50,8 @@ pub fn run() {
             commands::app_info,
             commands::client_status,
             commands::current_profile,
+            commands::match_grades,
+            commands::match_details,
             commands::game_data,
             commands::rank_emblems,
             commands::draft_state,
