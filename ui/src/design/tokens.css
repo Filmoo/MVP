@@ -111,6 +111,7 @@
   --sidebar-w: 72px; /* icon rail with labels */
   --content-max: 1440px;
   --aside-w: 340px; /* side column next to a main list (Home, Draft) */
+  --tabbar-space: 80px; /* narrow windows: room kept under the page for the floating tab bar */
 
   /* Motion: short and cheap (transform/opacity only). */
   --ease: cubic-bezier(0.2, 0, 0, 1);

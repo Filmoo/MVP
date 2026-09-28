@@ -26,6 +26,13 @@
   pointer-events: none;
 }
 
+/* The rim of light is for the floating tab bar (narrow windows), not the rail along the edge. */
+@media (min-width: 560px) {
+  .frost::after {
+    display: none;
+  }
+}
+
 .nav {
   display: flex;
   flex-direction: column;
@@ -126,14 +133,28 @@
   font-weight: var(--weight-medium);
 }
 
-/* Narrow windows: bottom tab bar, all tabs evenly spaced. */
+/*
+ * Narrow windows: a floating tab bar of liquid glass, the page scrolling under it (its rim
+ * bends what passes), all tabs evenly spaced; the lens glides sideways.
+ */
 @media (max-width: 559px) {
   .sidebar {
+    position: absolute;
+    right: var(--space-4);
+    bottom: var(--space-4);
+    left: var(--space-4);
+    z-index: 15;
     flex-direction: row;
     justify-content: space-around;
     padding: var(--space-2) var(--space-4);
-    border-right: 0;
-    border-top: 1px solid var(--line-1);
+    border-radius: var(--radius-full);
+    box-shadow: var(--shadow-float);
+  }
+  .frost {
+    border-radius: inherit;
+    background: var(--bg-float);
+    backdrop-filter: var(--lg-filter, var(--blur-glass));
+    box-shadow: none;
   }
   .nav,
   .bottom {
@@ -143,13 +164,8 @@
     width: 56px;
     height: 48px;
   }
+  /* The lens marks the current tab: no underline. */
   .active::before {
-    left: 14px;
-    right: 14px;
-    top: auto;
-    bottom: calc(-1 * var(--space-2));
-    width: auto;
-    height: 3px;
-    border-radius: var(--radius-1) var(--radius-1) 0 0;
+    display: none;
   }
 }

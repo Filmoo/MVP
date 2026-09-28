@@ -48,14 +48,24 @@
   margin-top: var(--titlebar-h);
 }
 
+/* Narrow windows: the page runs under a floating tab bar too (Sidebar.module.css). */
 @media (max-width: 559px) {
   .shell {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: var(--titlebar-h) minmax(0, 1fr) auto;
+    grid-template-rows: var(--titlebar-h) minmax(0, 1fr);
     grid-template-areas:
       "titlebar"
-      "main"
-      "sidebar";
+      "main";
+  }
+  .main {
+    padding-bottom: var(--tabbar-space);
+    scroll-padding-bottom: var(--tabbar-space);
+  }
+  .main::-webkit-scrollbar-track {
+    margin-bottom: var(--tabbar-space);
+  }
+  .toasts {
+    bottom: var(--tabbar-space);
   }
 }
 

@@ -121,9 +121,10 @@
   letter-spacing: 0.06em;
 }
 
-/* Rank on a frosted panel so it reads over the art. */
+/* Rank on a pane of liquid glass floating over the art: frosted, the art bends at its rim. */
 .ranked {
   grid-area: ranked;
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--space-6);
@@ -131,8 +132,8 @@
   padding: var(--space-5) var(--space-7) var(--space-5) var(--space-5);
   border-radius: var(--radius-4);
   background: var(--bg-glass);
-  border: 1px solid var(--line-2);
-  backdrop-filter: blur(6px);
+  backdrop-filter: var(--lg-filter, blur(6px));
+  box-shadow: var(--shadow-float);
 }
 
 .rankText {

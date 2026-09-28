@@ -74,7 +74,7 @@ export function Sidebar(): JSX.Element {
 
   return (
     <nav class={styles.sidebar} aria-label="Main" data-refract="chrome" ref={rail}>
-      <div class={styles.frost} aria-hidden="true" />
+      <div class={`${styles.frost} glass-rim`} aria-hidden="true" ref={(el) => liquid(el, "panel")} />
       <div class={styles.nav}>
         <For each={mainRoutes}>{(route) => <NavItem route={route} />}</For>
       </div>

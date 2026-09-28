@@ -2,6 +2,7 @@ import { createMemo, For, type JSX, Show } from "solid-js";
 import { useData } from "../../data/context";
 import type { PlayerProfile } from "../../data/generated/PlayerProfile";
 import { ChampionArt, ProfileIcon } from "../../design/GameIcon";
+import { liquid } from "../../design/liquid/liquid";
 import { TierBadge, TierCrest } from "../../design/TierBadge";
 import { duration, kdaRatio, percent, REMAKE_MAX_SECONDS, winRate } from "../../lib/format";
 import { ROLE_LABEL } from "../../lib/roles";
@@ -74,7 +75,7 @@ export function ProfileHeader(props: { profile: PlayerProfile }): JSX.Element {
               </div>
             </Show>
           </div>
-          <div class={styles.ranked}>
+          <div class={`${styles.ranked} glass-rim`} ref={(el) => liquid(el, "panel")}>
             <Show
               when={props.profile.soloQueue}
               fallback={
