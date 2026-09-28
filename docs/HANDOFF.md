@@ -308,9 +308,9 @@ update key and the backend on HTTPS):
   `with_mock_client` tests (5 s waits on the mock client) failed once at load 14;
   the perf suite's view switches (budget 120 ms) are timed on a busy machine too: run perf on a
   quiet one (`--workers=1`, as check.mjs does). `/champions` was the slow one for a real reason
-  (it built all ~170 tiles before its first frame; CI failed once at 129.5 ms): it now builds 40
+  (it built all ~170 tiles before its first frame; CI failed once at 129.5 ms): it now builds 36
   tiles with the view and the rest when idle (`lib/progressive.ts`; 24 cold switches at load ~20:
-  median 48 ms, max 79 ms).
+  median 48 ms, max 79 ms; 39 ms on a quiet machine since the tier groups).
 - `settle()` waits for lazily loaded views (App's Suspense marks their loading) and settles again
   if something started loading meanwhile; before, a test could push an event before the view
   listened (fixed 2026-09-28).

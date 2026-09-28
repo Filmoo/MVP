@@ -426,6 +426,8 @@ for (const [view, width, height, by] of [
   ["/", 1280, 800, 200],
   ["/", 420, 800, 470],
   ["/tier-list", 420, 800, 300],
+  // Mid-way through the A group: its letter stays in view beside the tiles.
+  ["/champions", 1280, 800, 640],
 ] as const) {
   test(`scrolled ${view} ${width}x${height}`, async ({ page }) => {
     await openApp(page, { view, width, height });

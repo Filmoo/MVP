@@ -5,7 +5,6 @@ import { useData } from "../../data/context";
 import type { ChampionPage } from "../../data/generated/ChampionPage";
 import type { Role } from "../../data/generated/Role";
 import { useAmbient } from "../../design/ambient";
-import { Button } from "../../design/Button";
 import { Card } from "../../design/Card";
 import { championArtUrl } from "../../design/GameIcon";
 import { Icon } from "../../design/Icon";
@@ -23,7 +22,7 @@ import { ImportBar, useImportModes } from "../draft/ImportBar";
 import page from "../page.module.css";
 import { ScopeSwitches, StatsProblem, useLinkFilters, useStatsIndex } from "../stats/common";
 import { ItemsCard, SkillsCard, SpellsCard } from "./Builds";
-import { ChampionGrid, GridSkeleton } from "./ChampionGrid";
+import { ChampionGrid } from "./ChampionGrid";
 import { ChampionHero } from "./ChampionHero";
 import styles from "./Champions.module.css";
 import { MatchupsCard } from "./Matchups";
@@ -259,31 +258,41 @@ function ChampionIndex(): JSX.Element {
                 class={styles.sortTabs}
               />
             </div>
-            <Show when={list.data()}>
-              <p class={styles.scope}>
-                {t().champions.tiersFrom.before}
-                <a href="#/tier-list">{t().champions.tiersFrom.link}</a>
-                {t().champions.tiersFrom.after(scopeLabel(queue(), bracket()))}
-              </p>
-            </Show>
+            {/* Shown while the list loads too: it only depends on the filters (nothing moves when it lands). */}
+            <p class={styles.scope}>
+              {t().champions.tiersFrom.before}
+              <a href="#/tier-list">{t().champions.tiersFrom.link}</a>
+              {t().champions.tiersFrom.after(scopeLabel(queue(), bracket()))}
+            </p>
           </div>
         }
       >
         {(words) => (
           <div class={styles.notice}>
             <Icon name="info" size={16} class={styles.noticeIcon} />
-            <p>{t().champions.noStats(words().title)}</p>
-            <Show when={words().retry}>
-              <Button variant="ghost" onClick={list.refetch}>
-                <Icon name="refresh" size={16} />
-                {t().common.tryAgain}
-              </Button>
-            </Show>
+            <p>
+              {t().champions.noStats(words().title)}
+              <Show when={words().retry}>
+                {" "}
+                {/* An arrow, not `list.refetch` itself: Solid then needs no event helper at startup. */}
+                <button type="button" class={styles.retry} onClick={() => list.refetch()}>
+                  {t().common.tryAgain}
+                </button>
+              </Show>
+            </p>
           </div>
         )}
       </Show>
       <Widget name="champion-grid">
-        <Show when={list.data() || failed()} fallback={<GridSkeleton />}>
+        <Show
+          when={list.data() || failed()}
+          fallback={
+            // While the first answer is on its way: placeholders on the grid's rhythm, drawn by CSS.
+            <Card>
+              <div class={styles.ghosts} aria-busy="true" data-state="loading" />
+            </Card>
+          }
+        >
           <ChampionGrid list={list.data()} roleFilter={role()} sort={gridSort()} query={query()} />
         </Show>
       </Widget>

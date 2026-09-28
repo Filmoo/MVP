@@ -359,7 +359,7 @@ export const frViews = {
     sort: "Trier par",
     sorts: { tier: "Tier", pickRate: "Popularité", name: "A–Z" },
     fewGames: "Trop peu de parties",
-    noStats: (reason: string) => `${reason}\u00A0: sans stats, les champions sont groupés par classe, pas par tier ni par popularité.`,
+    noStats: (reason: string) => `${reason}. Les champions sont groupés par classe en attendant les tiers et les taux de sélection.`,
     noBuild: {
       title: "Pas encore de données de build",
       text: (champion: string, role: Role | undefined) =>

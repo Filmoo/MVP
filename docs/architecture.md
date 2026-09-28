@@ -266,10 +266,11 @@ The Tier list and Champions pages read the published stats through the core only
   shared and remembered); "all" takes each champion's most played role for its tier and adds its
   roles up for its pick rate. Sorted by tier (default), pick rate or name, the choice remembered in
   `localStorage["mvp.champion-sort.v1"]`; by tier, groups read like a tier list (the letter and
-  the group's size in a column left of its tiles, champions with too few games last) and tiles
-  leave their badge to the heading. The field filters as you type (fuzzy, best match first,
-  ungrouped; Enter opens the first). Without stats (offline, nothing published) the page still
-  works: one line says why (with a retry when it can help), the role and sort go away and the
+  the group's size in a column left of its tiles, sticky while the group scrolls by, champions
+  with too few games last) and tiles leave their badge to the heading. The field filters as you
+  type (fuzzy, best match first, ungrouped; Enter opens the first; the sort waits, dimmed, until
+  the field is empty). Without stats (offline, nothing published) the page still works: one line
+  says why ("Try again" ending it when that can help), the role and sort go away and the
   champions are grouped by Data Dragon class. The grid is built a slice at a time
   (`lib/progressive.ts`: 36 tiles with the view, 36 more whenever the page is idle, again from the
   start when a filter changes; `aria-busy` meanwhile; a group shows once some of its tiles are

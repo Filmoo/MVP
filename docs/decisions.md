@@ -155,9 +155,10 @@ buttons, vary". Design calls:
   row in (≥ 50 games and 0.5 % pick rate there), so a flex pick shows in both of its roles. The
   role control stays the shared one (a shared vertical role picker will replace it).
 - **Three sorts, remembered**: tier (default: groups that read like a tier list, the letter and
-  its size beside the champions), pick rate, A–Z. Each tile shows the number it's sorted by (win
-  rate, or pick rate); a tier group's tiles leave the badge to the heading. The sort is words with
-  a gliding accent bar, not another pill.
+  its size beside the champions, the letter staying in view while its group scrolls by), pick
+  rate, A–Z. Each tile shows the number it's sorted by (win rate, or pick rate); a tier group's
+  tiles leave the badge to the heading. The sort is words with a gliding accent bar, not another
+  pill; it waits, dimmed, while the field filters (matches come best first).
 - **The field filters as you type**, best match first; Enter opens the first. "Type anywhere to
   filter" was left out: the title bar search (`/`, Ctrl+K) already finds a champion by name.
 - **No stats is still a page**: one line says why sorting by stats is unavailable (a retry when it

@@ -23,8 +23,15 @@
   border-top: 1px solid var(--line-1);
 }
 
-/* Level with the first row's icons. */
+/*
+ * Level with the first row's icons, and it stays in view while its group scrolls by, until the
+ * next group takes over. The offset counts from inside <main>'s padding, which already makes
+ * room for the title bar.
+ */
 .head {
+  position: sticky;
+  top: var(--space-6);
+  align-self: start;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -47,13 +54,15 @@
   color: var(--text-3);
 }
 
+/* Narrow: the heading on top of its tiles, level with the first icon. */
 @container page (max-width: 559px) {
   .group:has(> .head) {
     grid-template-columns: minmax(0, 1fr);
   }
   .head {
+    position: static;
     flex-direction: row;
-    padding: 0 var(--space-3) var(--space-2);
+    padding: 0 var(--space-8) var(--space-2);
   }
 }
 
@@ -61,25 +70,6 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
   gap: var(--space-2);
-}
-
-/*
- * Loading: two rows of placeholders on the tiles' rhythm (per 96 px column, the 56 px icon and a
- * name under it), cut out of a --bg-3 fill by a repeating mask: no element per tile.
- */
-.ghosts {
-  height: 248px;
-  background: var(--bg-3);
-  mask:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='124'%3E%3Crect x='20' y='12' width='56' height='56' rx='12'/%3E%3Crect x='18' y='80' width='60' height='10' rx='5'/%3E%3C/svg%3E")
-    0 0 / 96px 124px space;
-  animation: pulse 1.6s var(--ease) infinite;
-}
-
-@keyframes pulse {
-  50% {
-    opacity: 0.45;
-  }
 }
 
 .tile {

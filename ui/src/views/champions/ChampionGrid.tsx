@@ -95,15 +95,3 @@ export function ChampionGrid(props: { list: TierList | undefined; roleFilter: Ro
     </Card>
   );
 }
-
-/**
- * While the first stats answer is on its way: two rows of tiles' icons and names, drawn by CSS
- * (a repeating mask), pulsing like the other skeletons.
- */
-export function GridSkeleton(): JSX.Element {
-  return (
-    <Card>
-      <div class={/*@once*/ styles.ghosts} aria-busy="true" data-state="loading" />
-    </Card>
-  );
-}

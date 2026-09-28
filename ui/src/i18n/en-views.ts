@@ -342,7 +342,7 @@ export const enViews = {
     /** The group of champions without a tier: not enough games in their role. */
     fewGames: "Too few games",
     /** Why the grid is grouped by class: `reason` is why stats are missing (`Can't reach MVP's servers`). */
-    noStats: (reason: string) => `${reason}: without stats, champions are grouped by class, not by tier or pick rate.`,
+    noStats: (reason: string) => `${reason}. Champions are grouped by class until tiers and pick rates are available.`,
     noBuild: {
       title: "No build data yet",
       text: (champion: string, role: Role | undefined) =>
