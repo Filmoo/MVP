@@ -27,8 +27,8 @@ use std::sync::Arc;
 
 use domain::{
     Bracket, BuildStats, BuildsFile, ClientStatus, FailReason, GameflowPhase, ImportMode,
-    ImportOutcome, ImportPart, ImportRequest, ImportResult, PartResult, RemoteConfig, Role,
-    Settings, SkipReason,
+    ImportOutcome, ImportPart, ImportRequest, ImportResult, Language, PartResult, RemoteConfig,
+    Role, Settings, SkipReason,
 };
 use lcu::{LcuClient, LcuError};
 use serde_json::Value;
@@ -225,6 +225,7 @@ pub struct Importer {
     remote: watch::Receiver<RemoteConfig>,
     builds: Arc<dyn BuildSource>,
     names: ChampionNames,
+    language: watch::Receiver<Language>,
 }
 
 impl fmt::Debug for Importer {
@@ -234,6 +235,7 @@ impl fmt::Debug for Importer {
 }
 
 impl Importer {
+    /// `language`: the UI's (`auto` resolved), for the words MVP writes into the client.
     pub fn new(
         client: watch::Receiver<Option<LcuClient>>,
         status: watch::Receiver<ClientStatus>,
@@ -241,6 +243,7 @@ impl Importer {
         remote: watch::Receiver<RemoteConfig>,
         builds: Arc<dyn BuildSource>,
         names: ChampionNames,
+        language: watch::Receiver<Language>,
     ) -> Self {
         Self {
             client,
@@ -249,6 +252,7 @@ impl Importer {
             remote,
             builds,
             names,
+            language,
         }
     }
 
@@ -259,6 +263,36 @@ impl Importer {
     /// Whether the server lets `part` run right now.
     pub(crate) fn allowed(&self, part: ImportPart) -> bool {
         crate::remote::import_allowed(&self.remote.borrow(), part)
+    }
+
+    /// The build to import: for the request's queue (else the game's, else ranked), its role
+    /// (none in ARAM) and bracket. `result` takes the queue and role used.
+    async fn build_for(
+        &self,
+        lcu: &LcuClient,
+        request: &ImportRequest,
+        result: &mut ImportResult,
+    ) -> Result<BuildStats, FailReason> {
+        let queue = match request.queue {
+            Some(queue) => Some(queue),
+            None => match lcu.get::<Value>(GAMEFLOW_SESSION).await {
+                Ok(session) => stats_queue(&session),
+                Err(_) => Some(RANKED),
+            },
+        };
+        let Some(queue) = queue else {
+            return Err(FailReason::UnsupportedMode);
+        };
+        result.queue = queue;
+        // ARAM has no roles.
+        if queue == ARAM {
+            result.role = None;
+        }
+        let bracket = request.bracket.unwrap_or(Bracket::EmeraldPlus);
+        self.builds
+            .build(request.champion_id, result.role, queue, bracket)
+            .await
+            .ok_or(FailReason::NoBuild)
     }
 
     /// Imports the requested parts, in order, and says what happened to each. Parts turned off
@@ -315,28 +349,7 @@ impl Importer {
             return result;
         };
 
-        let queue = match request.queue {
-            Some(queue) => Some(queue),
-            None => match lcu.get::<Value>(GAMEFLOW_SESSION).await {
-                Ok(session) => stats_queue(&session),
-                Err(_) => Some(RANKED),
-            },
-        };
-        let build = match queue {
-            Some(queue) => {
-                result.queue = queue;
-                // ARAM has no roles.
-                if queue == ARAM {
-                    result.role = None;
-                }
-                let bracket = request.bracket.unwrap_or(Bracket::EmeraldPlus);
-                self.builds
-                    .build(request.champion_id, result.role, queue, bracket)
-                    .await
-                    .ok_or(FailReason::NoBuild)
-            }
-            None => Err(FailReason::UnsupportedMode),
-        };
+        let build = self.build_for(lcu, request, &mut result).await;
         let name = build_name(
             (self.names)(request.champion_id).as_deref(),
             result.role,
@@ -349,8 +362,16 @@ impl Importer {
                 (None, Ok(build)) => match part {
                     ImportPart::Runes => runes::import(lcu, build, &name).await,
                     ImportPart::ItemSet => {
-                        item_sets::import(lcu, build, request.champion_id, &name, result.queue)
-                            .await
+                        let language = *self.language.borrow();
+                        item_sets::import(
+                            lcu,
+                            build,
+                            request.champion_id,
+                            &name,
+                            result.queue,
+                            language,
+                        )
+                        .await
                     }
                     ImportPart::Spells => spells::import(lcu, build, settings.flash_key).await,
                 },

@@ -10,7 +10,9 @@ use domain::{
 use tauri::{Emitter as _, Manager as _};
 use tauri_plugin_autostart::ManagerExt as _;
 
-use crate::core::{Backend, Core, Crashes, EmblemState, GameDataState, InstallId, Remote, Stats};
+use crate::core::{
+    Backend, Core, Crashes, EmblemState, GameDataState, InstallId, Remote, Stats, UiLanguage,
+};
 use crate::updater::Updates;
 
 #[tauri::command]
@@ -170,6 +172,10 @@ pub fn draft_state(app: tauri::AppHandle) -> Option<DraftView> {
     reason = "Tauri injects command arguments by value"
 )]
 pub fn game_data(app: tauri::AppHandle, language: Option<Language>) -> Option<GameData> {
+    // The UI asks in its language: the core's own words follow it too.
+    if let (Some(language), Some(ui)) = (language, app.try_state::<UiLanguage>()) {
+        ui.set(language);
+    }
     let state = app.try_state::<GameDataState>()?;
     let locale = language.unwrap_or_default().data_dragon_locale();
     state.want(locale);

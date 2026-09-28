@@ -11,7 +11,9 @@ use companion::remote::{self, RemoteConfigStore};
 use companion::settings::SettingsStore;
 use companion::stats::StatsClient;
 use companion::{ScoutingHandle, Services, ViewReporter};
-use domain::{ClientStatus, DraftView, GameData, LiveGame, RankEmblem, RankEmblems, StatsIndex};
+use domain::{
+    ClientStatus, DraftView, GameData, Language, LiveGame, RankEmblem, RankEmblems, StatsIndex,
+};
 use tauri::{AppHandle, Emitter as _, Manager as _, Runtime};
 use tokio::sync::watch;
 
@@ -70,6 +72,39 @@ impl GameDataState {
             .ok()?
             .as_ref()
             .map(|(_, data)| data.clone())
+    }
+}
+
+/// The UI's language with `auto` resolved (the UI knows the system's): the core's own words
+/// follow it (the tray menu, MVP's item set blocks in the League client). English until the UI
+/// says, unless French was chosen.
+#[derive(Debug)]
+pub struct UiLanguage(watch::Sender<Language>);
+
+impl UiLanguage {
+    fn new(chosen: Language) -> Self {
+        Self(watch::Sender::new(Self::resolved(chosen)))
+    }
+
+    const fn resolved(language: Language) -> Language {
+        match language {
+            Language::Fr => Language::Fr,
+            Language::Auto | Language::En => Language::En,
+        }
+    }
+
+    /// The UI shows `language` (resolved: English or French).
+    pub fn set(&self, language: Language) {
+        let resolved = Self::resolved(language);
+        self.0.send_if_modified(|current| {
+            let changed = *current != resolved;
+            *current = resolved;
+            changed
+        });
+    }
+
+    pub fn subscribe(&self) -> watch::Receiver<Language> {
+        self.0.subscribe()
     }
 }
 
@@ -192,6 +227,9 @@ pub fn start<R: Runtime>(app: &AppHandle<R>, settings: &SettingsStore) {
     let wanted = game_data.wanted.subscribe();
     app.manage(game_data);
     follow_game_data(app, wanted);
+    let ui_language = UiLanguage::new(settings.get().language);
+    let language = ui_language.subscribe();
+    app.manage(ui_language);
     app.manage(EmblemState::default());
     load_rank_emblems(app);
     let dir = app.path().app_config_dir().unwrap_or_else(|error| {
@@ -239,6 +277,7 @@ pub fn start<R: Runtime>(app: &AppHandle<R>, settings: &SettingsStore) {
             stats: published,
             builds,
             names,
+            language,
         };
         let companion = companion::start_with_services(config, settings, services);
         app.manage(Core {

@@ -2,7 +2,7 @@
 //! MVP's own set for the champion (named "MVP…", for this champion only) is replaced, and the
 //! document goes back with every other set and field exactly as read.
 
-use domain::{BuildStats, FailReason, ImportOutcome};
+use domain::{BuildStats, FailReason, ImportOutcome, Language};
 use lcu::{LcuClient, LcuError};
 use reqwest::Method;
 use serde_json::{Value, json};
@@ -21,6 +21,25 @@ const HOWLING_ABYSS: u32 = 12;
 /// Situational items listed at most.
 const SITUATIONAL_MAX: usize = 6;
 
+/// The blocks' titles in the UI's language (players read them in the client's shop): starting
+/// items, core build, boots, situational.
+const fn block_titles(language: Language) -> [&'static str; 4] {
+    match language {
+        Language::Fr => [
+            "Objets de départ",
+            "Build principal (dans l’ordre)",
+            "Bottes",
+            "Objets situationnels",
+        ],
+        Language::Auto | Language::En => [
+            "Starting items",
+            "Core build (in order)",
+            "Boots",
+            "Situational",
+        ],
+    }
+}
+
 /// One block of the set: a title and items with counts, in shop order.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ItemBlock {
@@ -36,8 +55,8 @@ fn most_played(section: &domain::BuildSection) -> &[u32] {
 }
 
 /// Starting items (with counts), the core in completion order, boots, then the 4th–6th items
-/// players pick most, as shop blocks. Empty when the build has no item data.
-pub fn item_blocks(build: &BuildStats) -> Vec<ItemBlock> {
+/// players pick most, as shop blocks titled in `language`. Empty when the build has no item data.
+pub fn item_blocks(build: &BuildStats, language: Language) -> Vec<ItemBlock> {
     let mut starts: Vec<(u32, u32)> = Vec::new();
     for &id in most_played(&build.starts) {
         match starts.iter_mut().find(|(item, _)| *item == id) {
@@ -67,11 +86,12 @@ pub fn item_blocks(build: &BuildStats) -> Vec<ItemBlock> {
             break;
         }
     }
+    let [starting, core_build, boots_title, situational_title] = block_titles(language);
     [
-        ("Starting items", starts),
-        ("Core build (in order)", core),
-        ("Boots", boots),
-        ("Situational", situational),
+        (starting, starts),
+        (core_build, core),
+        (boots_title, boots),
+        (situational_title, situational),
     ]
     .into_iter()
     .filter(|(_, items)| items.iter().any(|&(id, _)| id != 0))
@@ -215,15 +235,17 @@ async fn write(
     Ok(())
 }
 
-/// Imports the build's items as MVP's set for the champion, named `title`.
+/// Imports the build's items as MVP's set for the champion, named `title`, its blocks titled in
+/// `language`.
 pub(super) async fn import(
     client: &LcuClient,
     build: &BuildStats,
     champion_id: u32,
     title: &str,
     queue: u32,
+    language: Language,
 ) -> ImportOutcome {
-    let blocks = item_blocks(build);
+    let blocks = item_blocks(build, language);
     if blocks.is_empty() {
         return ImportOutcome::Failed {
             reason: FailReason::NoData,
@@ -285,7 +307,7 @@ mod tests {
 
     #[test]
     fn blocks_follow_the_build() {
-        let blocks = item_blocks(&ahri());
+        let blocks = item_blocks(&ahri(), Language::En);
         let titles: Vec<&str> = blocks.iter().map(|b| b.title).collect();
         assert_eq!(
             titles,
@@ -307,6 +329,26 @@ mod tests {
     }
 
     #[test]
+    fn blocks_are_titled_in_the_ui_language() {
+        let french = item_blocks(&ahri(), Language::Fr);
+        let titles: Vec<&str> = french.iter().map(|b| b.title).collect();
+        assert_eq!(
+            titles,
+            [
+                "Objets de départ",
+                "Build principal (dans l’ordre)",
+                "Bottes",
+                "Objets situationnels"
+            ]
+        );
+        // Same items, whatever the language.
+        let english = item_blocks(&ahri(), Language::En);
+        assert!(french.iter().zip(&english).all(|(f, e)| f.items == e.items));
+        // Unresolved (the UI hasn't said yet): English.
+        assert_eq!(item_blocks(&ahri(), Language::Auto), english);
+    }
+
+    #[test]
     fn no_items_no_blocks() {
         let mut build = ahri();
         for section in [
@@ -319,7 +361,7 @@ mod tests {
         ] {
             *section = BuildSection::default();
         }
-        assert!(item_blocks(&build).is_empty());
+        assert!(item_blocks(&build, Language::En).is_empty());
     }
 
     #[test]
@@ -335,7 +377,7 @@ mod tests {
             103,
             420,
             "MVP · Ahri Support",
-            &item_blocks(&ahri()),
+            &item_blocks(&ahri(), Language::En),
         );
         let sets = document["itemSets"].as_array().expect("sets");
         assert_eq!(sets.len(), 4);
@@ -367,7 +409,13 @@ mod tests {
 
     #[test]
     fn aram_sets_go_to_howling_abyss() {
-        let set = item_set("u", "MVP · Ahri ARAM", 103, ARAM, &item_blocks(&ahri()));
+        let set = item_set(
+            "u",
+            "MVP · Ahri ARAM",
+            103,
+            ARAM,
+            &item_blocks(&ahri(), Language::En),
+        );
         assert_eq!(set["associatedMaps"], json!([12]));
     }
 }

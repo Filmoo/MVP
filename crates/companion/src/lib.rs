@@ -23,7 +23,8 @@ use std::sync::Arc;
 use automation::{Autopilot, CoreEvent};
 use backend::BackendClient;
 use domain::{
-    ClientConnection, ClientStatus, DraftView, GameflowPhase, LiveGame, RemoteConfig, Settings,
+    ClientConnection, ClientStatus, DraftView, GameflowPhase, Language, LiveGame, RemoteConfig,
+    Settings,
 };
 use imports::{BuildSource, ChampionNames, Importer, LockIn, NoBuilds};
 use lcu::{ConnectionState, ConnectorConfig, ConnectorUpdate, EventKind, LcuClient};
@@ -91,6 +92,9 @@ pub struct Services {
     pub builds: Arc<dyn BuildSource>,
     /// Champion names, for the names of MVP's rune page and item sets.
     pub names: ChampionNames,
+    /// The UI's language (`auto` resolved by the UI), for the words MVP writes into the League
+    /// client (its item set's block titles). English until the UI says.
+    pub language: watch::Receiver<Language>,
 }
 
 impl Default for Services {
@@ -101,6 +105,7 @@ impl Default for Services {
             stats: None,
             builds: Arc::new(NoBuilds),
             names: Arc::new(|_| None),
+            language: watch::channel(Language::En).1,
         }
     }
 }
@@ -111,6 +116,7 @@ impl std::fmt::Debug for Services {
             .field("backend", &self.backend)
             .field("remote", &*self.remote.borrow())
             .field("stats", &self.stats)
+            .field("language", &*self.language.borrow())
             .finish_non_exhaustive()
     }
 }
@@ -274,6 +280,7 @@ pub fn start_with_services(
         stats,
         builds,
         names,
+        language,
     } = services;
     if !config.paths.iter().any(|p| p == champ_select::SESSION) {
         config.paths.push(champ_select::SESSION.to_owned());
@@ -297,6 +304,7 @@ pub fn start_with_services(
         remote.clone(),
         builds,
         names,
+        language,
     );
     let mut lock_in = LockIn::new(importer.clone(), events_tx.clone());
     let task = tokio::spawn(async move {

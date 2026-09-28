@@ -1,19 +1,22 @@
 # Handoff — finishing MVP on a machine with a League client
 
-Written 2026-09-27 at the end of the cloud session. Read `CLAUDE.md` first (rules, layout,
-commands), then `docs/decisions.md` (the owner's product calls), `docs/policy.md` (Riot red lines)
-and `docs/architecture.md`. Work on branch `claude/keen-curie-92uuqm`.
+Written 2026-09-27, updated 2026-09-28 at the end of the second cloud session. Read `CLAUDE.md`
+first (rules, layout, commands), then `docs/decisions.md` (the owner's product calls),
+`docs/policy.md` (Riot red lines) and `docs/architecture.md`. Work on branch
+`claude/upbeat-hamilton-0bms1t`.
 
 ## State
-Everything below is merged on `claude/keen-curie-92uuqm` and green on `node scripts/check.mjs full`,
-except where marked.
+Everything below is merged on `claude/upbeat-hamilton-0bms1t` and green on
+`node scripts/check.mjs full`, except where marked.
 
 - **Desktop app** (Tauri 2 + SolidJS): Home (own profile from the LCU), Draft (live champ select,
   stats-only model on the published stats, pool-first picks), Live (loading-screen scouting of
   all 10 players), player search (title bar, Ctrl+K) + player pages, build imports (rune page,
-  item set, spells: one click in Draft or on lock-in), Settings (auto-accept opt-in, imports,
-  window follows the game, close
-  to tray, launch at startup). Glass UI with ambient light sampled from champion art.
+  item set, spells: one click in Draft, on a champion page or on lock-in), Tier list and
+  Champions pages (builds, runes, items, matchups), Live's "My build" tab, Settings (auto-accept
+  opt-in, imports, window follows the game, close to tray, launch at startup, visual effects,
+  language). English and French. Liquid glass that refracts the page behind it, ambient light
+  sampled from champion art, Riot's ranked emblems (downloaded at run time).
 - **Backend** `apps/backend` (`mvp-backend`): player profiles, batch scouting, `/v1/stats/*` file
   serving, caches. **Crawler** `apps/crawler` (`mvp-crawler crawl|publish|status`) + `crates/aggregate`:
   Emerald+ ranked/ARAM aggregates → per-patch JSON (tier list, builds, matchups, priors).
@@ -35,7 +38,10 @@ except where marked.
    rail's selection lens, held switches, segmented thumbs, the rank pane over art, the floating
    tab bar on narrow windows), the backdrop shader's thick-glass card edges, rim glints toward
    the pointer, springs for motion; Settings → App → Visual effects (Full / Light / Off, kept in
-   `Settings.effects`). Draft's Why captions are brighter over art. Left:
+   `Settings.effects`). Draft's Why captions are brighter over art. The glass floats above the
+   page (decisions.md "Refraction you can see"): rims bend 10–40 px, drops are loupes, labels
+   stay crisp at rest; `pnpm dev` → `#/__harness?show=glass` shows every kind bending art, text
+   and lines. Left:
    - **verify on real Windows/WebView2 GPUs**: frame times while scrolling under the title bar
      and while the rail lens glides (DevTools → Rendering → Frame rendering stats), at 100 % and
      150 % scaling, on an iGPU; the speed probe keeps "Full" off where the backdrop is slow;
@@ -71,9 +77,9 @@ except where marked.
    part: off / one click (default, Draft's import bar) / on lock-in (once per lock, toast), plus
    the Flash key (auto/D/F) in Settings → Imports. The stats client is the
    `BuildSource` (`Services.builds`, wired in `apps/desktop/src/core.rs`); the remote config can
-   pause each part for everyone (`SkipReason::Paused`). **Left:** the Champions
-   page import action can reuse `ImportBar` (`ui/src/views/draft/ImportBar.tsx`, props: champion, role,
-   queue, `inChampSelect`); verify on a real client (checklist below).
+   pause each part for everyone (`SkipReason::Paused`). Champion pages import the build shown
+   (`ImportBar`, same messages), Live's "My build" tab shows the build of your champion and role
+   for the game's mode. **Left:** verify on a real client (checklist below).
 6. *(done)* **Desktop side of updates/config/reports**: updater (plan in `companion::updates`,
    shell in `apps/desktop/src/updater.rs`), remote config (`companion::remote`, kill switches in
    `companion::Services.remote`), crash reports (`companion::crash`, `crates/scrub`), UI banners /
@@ -95,9 +101,15 @@ except where marked.
      fixes any wording that doesn't sound like the French client; unsure terms are listed in the
      i18n report (e.g. Swiftplay/Quickplay names, "Survol", roles as players say them — Top,
      Jungle, Mid, Bot, Support — where the League client says Haut, Milieu, Bas; shard rows);
-   - core words stay English: the tray menu, MVP's item set block titles and page names in the
-     League client (the core could follow `Settings.language` + the UI's `auto` answer);
+   - *(done)* the tray menu and MVP's item set block titles follow the UI's language (the rune
+     page and set names, "MVP · Ahri Mid", read the same in both);
    - check the French Data Dragon names on a real client (`fr_FR`, cached per patch).
+8. *(done, verify on a real machine)* **Rank emblems** (architecture.md "Ranked emblems"): the core
+   downloads Riot's ranked emblems (`CommunityDragon`'s mirror of the client files), crops them to
+   the crest and caches them; until then MVP draws its own crest (metal rim, enamel, cut gem,
+   ornaments per tier). Blocked from the cloud sandbox, so never seen for real: check the crop on
+   every tier (checklist below), and before the production-key application, which source Riot
+   prefers (policy.md).
 
 ## Verify with the real client (Windows)
 ```sh
@@ -152,17 +164,20 @@ update key and the backend on HTTPS):
   `reports/` on the server, scrubbed; turn them off → `crash-reports/` next to the settings is empty.
 
 ## Known issues
-- `tests/search.spec.ts` "local list never waits" can time out under heavy parallel load (passes
-  alone); make it robust rather than skipping it. Same for "the panel lays out at every window
-  size…" (30 s for eight sizes, seen once with several agents building).
-- `/live` first view switch is close to the 120 ms budget on loaded machines (lazy chunk).
+- Wall-clock tests are sensitive to load: "the panel lays out at every window size…" (30 s for
+  eight sizes) and `[layout] /live/banners @ qhd` timed out once with several agents building,
+  "draft: one click imports a part…" can miss its 400 ms busy state, and one of companion's
+  `with_mock_client` tests (5 s waits on the mock client) failed once at load 14;
+  the perf suite's view switches (budget 120 ms) failed at load 12–15 on 4 cores (`/champions`
+  162 ms) although an A/B against the previous build showed the same CPU per switch and a quiet
+  run switches in ~20 ms. Run perf on a quiet machine (`--workers=1`, as check.mjs does).
+- `settle()` in the UI tests doesn't wait for lazily loaded pages: count rows after they show
+  (see the tier-list tests).
 - A dev Riot key is slow: a cold 10-player scout ≈ 230 calls; crawling ≈ 2k games/day. Public use
   needs the production key (register the product; policy.md lists endpoints to declare).
 - Not yet verified on Windows: window re-creation from tray, autostart, WebView2 glass/blur cost,
   the updater's install (passive NSIS, relaunch), `open_banner_link` (ShellExecute), the panic
   hook's report surviving `panic = "abort"`, the OS/webview version string in reports.
-- While a banner shows, the live screens (Draft, Live) scroll by the banner's height (the strip
-  sits above the page); dismissible banners go away with ×.
 - `CARGO_TARGET_DIR` shared between worktrees: workspace crates of two checkouts hash to the same
   artifacts, so a build can pick up the other checkout's crate as "fresh". Touch your crates'
   `src/lib.rs` (or build in your own target dir) before trusting a result.

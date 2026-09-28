@@ -258,6 +258,9 @@ same language.
   the core loads Data Dragon in `en_US` or `fr_FR` (the disk cache keeps each locale under its
   patch), emits `game-data` again when another language is asked for, and falls back to English
   names offline before a language's first download. The browser mock stays English.
+- **The core's own words** follow the same answer (`UiLanguage` in `apps/desktop/src/core.rs`,
+  set by `game_data`): the tray menu (Ouvrir / Quitter) and the block titles of MVP's item set in
+  the League client's shop (`companion::imports::item_sets`). English until the UI says.
 - **Server texts**: the remote config's `LocalizedText { en, fr }` (banners, `minVersion`) shows
   in the current language (`localized`), English when the French one is empty.
 - **Still English**: errors worded by the core (shown inside a translated sentence), MVP's rune
@@ -267,7 +270,7 @@ same language.
   lines that can grow wrap (the champion hero's stat details go under their label while the hero
   is narrower than 1100 px).
 - **Tests**: the `*-fr` Playwright projects (`locale: "fr-FR"`, so `auto` picks French) run
-  layout (views × sizes at 400, 1280 and 2560 px), coherence, errors and interactions in French;
+  layout (views × sizes at 400, 820, 1280 and 2560 px), coherence, errors and interactions in French;
   specs read expected words from the `t` fixture (`tests/app.ts`). `pnpm screenshots` also writes
   the main screens in French (`fr-*.png`).
 

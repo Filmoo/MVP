@@ -11,7 +11,7 @@ use companion::imports::{
 use domain::{
     Bracket, BuildOption, BuildSection, BuildStats, ClientConnection, ClientStatus, FailReason,
     FlashKey, FlashNote, GameflowPhase, ImportMode, ImportOutcome, ImportPart, ImportRequest,
-    ImportResult, RemoteConfig, Role, Settings, SkipReason, SpellKey,
+    ImportResult, Language, RemoteConfig, Role, Settings, SkipReason, SpellKey,
 };
 use lcu::tls::pinned_client_config;
 use lcu::{ConnectorConfig, LcuClient};
@@ -213,6 +213,7 @@ fn importer(mock: &MockLcu, phase: GameflowPhase, settings: Settings) -> Setup {
             remote_rx,
             builds.clone(),
             names(),
+            watch::channel(Language::En).1,
         ),
         builds,
         _settings: settings_tx,
@@ -809,6 +810,7 @@ async fn without_a_client_every_part_says_so() {
         remote,
         Arc::new(FakeBuilds::default()),
         names(),
+        watch::channel(Language::En).1,
     );
     let result = importer.import(&request(&ImportPart::ALL), false).await;
     for part in ImportPart::ALL {
