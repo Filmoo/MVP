@@ -51,6 +51,34 @@ export const frViews = {
     network: { title: "Impossible de joindre les serveurs de MVP", text: "Vérifiez votre connexion Internet, puis réessayez." },
   },
 
+  matchDetails: {
+    columns: { damage: "Dégâts", gold: "Or", cs: "CS", vision: "Vision", grade: "Note" },
+    level: (n: number) => `Niveau ${n}`,
+    damageTitle: (damage: string) => `${damage} dégâts aux champions`,
+    errors: {
+      title: "Impossible d’ouvrir cette partie",
+      notFound: "Cette partie n’est plus disponible.",
+      unavailable: "Le serveur de MVP ne peut pas ouvrir de parties pour le moment. Réessayez dans un instant.",
+    },
+    note: "Chaque note compare le joueur aux neuf autres de la partie (participation aux éliminations, KDA, dégâts, vision et objectifs, CS et or face à l’adversaire de voie), selon son rôle. Elle juge une partie, pas un joueur.",
+  },
+
+  gradeWhy: {
+    title: (letter: string, score: string) => `Note ${letter} · ${score} / 10`,
+    place: (place: string) => `${place} sur 10 dans cette partie`,
+    mvp: "MVP : meilleur de l’équipe gagnante",
+    ace: "ACE : meilleur de l’équipe perdante",
+    factors: {
+      killParticipation: (pct: string) => `${pct} de participation aux éliminations`,
+      damageShare: (pct: string) => `${pct} des dégâts de l’équipe`,
+      damageTakenShare: (pct: string) => `${pct} des dégâts subis par l’équipe`,
+      objectiveShare: (pct: string) => `${pct} des dégâts de l’équipe aux objectifs`,
+      visionShare: (pct: string) => `${pct} du score de vision de l’équipe`,
+      csLead: (diff: string) => `${diff} CS face à l’adversaire de voie`,
+      goldLead: (diff: string) => `${diff} d’or face à l’adversaire de voie`,
+    },
+  },
+
   draft: {
     readFailed: "Impossible de lire la sélection des champions",
     idle: {

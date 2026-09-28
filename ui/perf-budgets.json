@@ -9,6 +9,10 @@
       "renderMs": 12,
       "domNodes": 450
     },
+    "match-details": {
+      "renderMs": 10,
+      "domNodes": 450
+    },
     "performance-summary": {
       "renderMs": 4,
       "domNodes": 140

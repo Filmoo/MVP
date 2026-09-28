@@ -32,6 +32,41 @@ export const enViews = {
     network: { title: "Can't reach MVP's servers", text: "Check your internet connection, then try again." },
   },
 
+  /** A match row opened: the whole game. */
+  matchDetails: {
+    columns: { damage: "Damage", gold: "Gold", cs: "CS", vision: "Vision", grade: "Grade" },
+    /** A champion's level at the end of the game. */
+    level: (n: number) => `Level ${n}`,
+    damageTitle: (damage: string) => `${damage} damage to champions`,
+    /** Why a game can't open (unreachable servers and rate limits read like the other lookups'). */
+    errors: {
+      title: "Couldn't open this game",
+      notFound: "This game isn't available anymore.",
+      unavailable: "MVP's server can't open games right now. Try again in a moment.",
+    },
+    note: "Each grade compares the player with the other nine of this game (kill participation, KDA, damage, vision and objectives, CS and gold against the lane opponent), weighted by role. It rates one game, not a player.",
+  },
+
+  /** Why a game got its grade (hover or focus a match row's grade). */
+  gradeWhy: {
+    /** `Grade A · 7.4 / 10`. */
+    title: (letter: string, score: string) => `Grade ${letter} · ${score} / 10`,
+    /** `2nd of 10 in this game`. */
+    place: (place: string) => `${place} of 10 in this game`,
+    mvp: "MVP: best of the winning team",
+    ace: "ACE: best of the losing team",
+    /** What moved the grade most, as facts of the scoreboard. */
+    factors: {
+      killParticipation: (pct: string) => `${pct} kill participation`,
+      damageShare: (pct: string) => `${pct} of the team's damage`,
+      damageTakenShare: (pct: string) => `${pct} of the damage the team took`,
+      objectiveShare: (pct: string) => `${pct} of the team's damage to objectives`,
+      visionShare: (pct: string) => `${pct} of the team's vision score`,
+      csLead: (diff: string) => `${diff} CS vs the lane opponent`,
+      goldLead: (diff: string) => `${diff} gold vs the lane opponent`,
+    },
+  },
+
   draft: {
     readFailed: "Couldn't read champion select",
     idle: {

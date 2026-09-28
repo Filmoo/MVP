@@ -12,7 +12,8 @@ import { champSelectDraft, champSelectLocked, champSelectNoStats } from "./draft
 import { rankEmblemsFixture } from "./emblem-fixtures";
 import { corruptProfile, extremeProfile, newPlayerProfile, profile } from "./fixtures";
 import { flashKept, importAnswer, importFailures } from "./import-fixtures";
-import { liveExtreme, liveFailed, liveGame, liveScouting, searchPlayer } from "./live-fixtures";
+import { liveExtreme, liveFailed, liveGame, liveScouting, otherProfile, searchPlayer } from "./live-fixtures";
+import { detailsFrom, gradesFrom, withGrades } from "./match-fixtures";
 import {
   autoAcceptKilledConfig,
   bannersConfig,
@@ -82,10 +83,19 @@ export interface Scenario {
 
 const connectedIdle: ClientStatus = { connection: "connected", phase: "idle" };
 
+/** The backend answers player pages with every game's grade. */
+const gradedSearch = (args: Commands["search_player"]["args"]) => withGrades(searchPlayer(args));
+/** The games behind Home's and the player pages' rows. */
+const details = detailsFrom([profile, otherProfile]);
+const gameError = (message: string, detail: BackendError) => ({ error: message, detail, delayMs: 200 });
+
 const base: Scenario["responses"] = {
   app_info: { data: { name: "MVP", version: "0.1.0", platform: "web", installId: null } },
   client_status: { data: connectedIdle },
   current_profile: { data: profile },
+  // Your grades come after the list: the core reads each game whole from the client once.
+  match_grades: { handle: gradesFrom([profile]), delayMs: 300 },
+  match_details: { handle: details, delayMs: 250 },
   // Riot's emblems come from the core (downloaded at run time): the preview draws MVP's crests.
   rank_emblems: { data: null },
   draft_state: { data: null },
@@ -95,7 +105,7 @@ const base: Scenario["responses"] = {
   update_settings: { handle: (args) => saveSettings(args.settings), delayMs: 60 },
   view_changed: { data: null },
   // A lookup takes a moment, like the real backend with a warm cache.
-  search_player: { handle: searchPlayer, delayMs: 350 },
+  search_player: { handle: gradedSearch, delayMs: 350 },
   live_game: { data: null },
   retry_scouting: { data: null },
   remote_config: { data: DEFAULT_REMOTE_CONFIG },
@@ -193,8 +203,25 @@ export const scenarios = {
     responses: { ...base, current_profile: { data: corruptProfile } },
   },
   extreme: {
-    description: "Longest names, biggest numbers: layout must not overflow.",
-    responses: { ...base, current_profile: { data: extremeProfile } },
+    description: "Longest names, biggest numbers: layout must not overflow (opened games too: every slot filled, longest names).",
+    responses: {
+      ...base,
+      current_profile: { data: extremeProfile },
+      match_grades: { handle: gradesFrom([extremeProfile], true), delayMs: 300 },
+      match_details: { handle: detailsFrom([extremeProfile], true), delayMs: 250 },
+    },
+  },
+  "match-details-slow": {
+    description: "Opening a game takes 2.5 s: a skeleton the size of the table, then the game in place.",
+    responses: { ...base, match_details: { handle: details, delayMs: 2_500 } },
+  },
+  "match-details-error": {
+    description: "Opening a game fails (MVP's server unreachable): an error in place, with a retry.",
+    responses: { ...base, match_details: gameError("backend unreachable", { kind: "network", message: "couldn't connect" }) },
+  },
+  "match-details-gone": {
+    description: "The game isn't available anymore: says so, no retry.",
+    responses: { ...base, match_details: gameError("not found", { kind: "notFound" }) },
   },
   "settings-custom": {
     description: "Automations on (auto-accept after 4 s), app defaults changed.",
@@ -210,7 +237,7 @@ export const scenarios = {
   },
   "search-slow": {
     description: "Player lookups take 2.5 s: the search bar must not reorder or re-highlight when they land.",
-    responses: { ...base, search_player: { handle: searchPlayer, delayMs: 2_500 } },
+    responses: { ...base, search_player: { handle: gradedSearch, delayMs: 2_500 } },
   },
   live: {
     description: "In game, every card in: rich, unranked, streamer-mode and card-less players.",

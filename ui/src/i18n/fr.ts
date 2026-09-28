@@ -196,6 +196,13 @@ export const fr = {
     empty: { title: "Aucune partie récente", text: "Terminez une partie et elle s’affiche ici, avec vos stats et votre build." },
   },
 
+  grade: {
+    place: (n: number) => (n === 1 ? "1er" : `${n}e`),
+    mvp: "MVP",
+    ace: "ACE",
+    label: (letter: string) => `Note ${letter}`,
+  },
+
   summary: {
     title: (n: number) => `Champions · ${n === 1 ? "dernière partie" : `${n} dernières parties`}`,
     championsTitle: "Champions",

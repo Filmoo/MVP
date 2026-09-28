@@ -191,6 +191,16 @@ export const en = {
     empty: { title: "No recent games", text: "Finish a game and it shows up here, with your stats and build." },
   },
 
+  /** MVP's grade of a game, on each match row (what moved it is in the views' words, `gradeWhy`). */
+  grade: {
+    /** A place among the ten players: `1st`, `2nd`, `10th`. */
+    place: (n: number) => ["1st", "2nd", "3rd"][n - 1] ?? `${n}th`,
+    mvp: "MVP",
+    ace: "ACE",
+    /** The chip for screen readers (the place follows it as text): `Grade A`. */
+    label: (letter: string) => `Grade ${letter}`,
+  },
+
   summary: {
     title: (n: number) => `Champions · last ${n} ${plural(n, "game", "games")}`,
     championsTitle: "Champions",

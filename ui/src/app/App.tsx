@@ -8,6 +8,7 @@ import { loadViewWords, setLanguage, t } from "../i18n";
 import { dismissIssue, issues, notify, reportError } from "../lib/errors";
 import { listenForLockInImports } from "../lib/lock-in-toasts";
 import { Home } from "../views/home/Home";
+import { provideDetails } from "../views/home/RecentMatches";
 import { Planned } from "../views/Planned";
 import styles from "./App.module.css";
 import { followPointerOnGlass } from "./glass";
@@ -24,7 +25,11 @@ const withWords =
 const Settings = lazy(withWords(() => import("../views/settings/Settings")));
 const Draft = lazy(withWords(() => import("../views/draft/Draft")));
 const Live = lazy(withWords(() => import("../views/live/Live")));
-const Player = lazy(withWords(() => import("../views/player/Player")));
+// The player page's chunk also carries an opened match row's code (the whole game, a grade's
+// why), which Home's match history needs too: it loads them from here.
+const playerPage = withWords(() => import("../views/player/Player"));
+const Player = lazy(playerPage);
+provideDetails(playerPage);
 const Champions = lazy(withWords(() => import("../views/champions/Champions")));
 const TierList = lazy(withWords(() => import("../views/tierlist/TierList")));
 // Test-only page of mock builds (the desktop build leaves it out with the mock).

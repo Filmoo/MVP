@@ -1,0 +1,244 @@
+/* An opened game (layout: MatchTable.module.css) and a grade's why. */
+
+.game {
+  position: relative;
+  border-radius: var(--radius-3);
+}
+
+.champ {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+/* The champion with its level over the corner. */
+.portrait {
+  position: relative;
+  flex: none;
+}
+
+.level {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  min-width: 16px;
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-1);
+  background: var(--bg-1);
+  color: var(--text-2);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  line-height: 14px;
+  text-align: center;
+}
+
+/* Spells, then the keystone and the secondary tree, two by two. */
+.pair {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.who,
+.stat {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.riotId {
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  color: var(--text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.unnamed {
+  color: var(--text-3);
+  font-weight: var(--weight-medium);
+}
+
+.tag {
+  color: var(--text-3);
+  font-weight: var(--weight-regular);
+}
+
+.sub {
+  font-size: var(--text-xs);
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stat {
+  font-size: var(--text-md);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+}
+
+.slash {
+  color: var(--text-3);
+  font-weight: var(--weight-regular);
+}
+
+.deaths {
+  color: var(--loss);
+}
+
+/* Damage to champions against the game's best. */
+.bar {
+  height: 4px;
+  margin-top: var(--space-1);
+  border-radius: var(--radius-full);
+  background: var(--bg-4);
+  overflow: hidden;
+}
+
+/* In the team's colour: blue for the winners, rose for the others. */
+.fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: var(--win);
+}
+
+.lost .fill {
+  background: var(--loss);
+}
+
+.items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.grade {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.score {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--text-2);
+}
+
+/* The player whose games these are: the rail's selection mark. */
+.marked {
+  background: var(--accent-soft);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.win {
+  color: var(--win);
+}
+.loss {
+  color: var(--loss);
+}
+
+/* A keystone or rune tree; empty (bots, custom games), it keeps the pair's shape. */
+.rune {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius-full);
+}
+
+/* Narrow games (columns: MatchTable.module.css): the grade without its score, then the champion alone. */
+@container game (max-width: 559px) {
+  .score {
+    display: none;
+  }
+}
+
+@container game (max-width: 419px) {
+  .pair {
+    display: none;
+  }
+}
+
+/* ---- A grade's why: a floating pane next to its chip ---------------------------------------- */
+
+.why {
+  position: fixed;
+  position-anchor: --grade-why;
+  position-area: bottom;
+  /* Centred under the chip; else over it, or to one side of it where the window ends. */
+  position-try-fallbacks:
+    flip-block,
+    bottom span-left,
+    bottom span-right,
+    top span-left,
+    top span-right;
+  position-visibility: anchors-visible;
+  inset: auto;
+  margin: var(--space-2) 0;
+  max-width: min(320px, calc(100vw - var(--space-6)));
+  padding: var(--space-5) var(--space-6);
+  border: 0;
+  border-radius: var(--radius-4);
+  overflow: visible;
+  background: var(--bg-float);
+  backdrop-filter: var(--blur-glass);
+  box-shadow: var(--shadow-float);
+  color: var(--text-1);
+  font-size: var(--text-md);
+  pointer-events: none;
+}
+
+.whyTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  font-weight: var(--weight-semibold);
+}
+
+.whyPlace {
+  margin-top: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-3);
+}
+
+.whyBadge {
+  color: var(--accent);
+}
+
+.factors {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: var(--space-4) 0 0;
+  padding: var(--space-4) 0 0;
+  border-top: 1px solid var(--line-2);
+  list-style: none;
+}
+
+/* Up or down: a mark in the win or loss colour before the fact. */
+.up,
+.down {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+.up::before,
+.down::before {
+  content: "";
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  transform: translateY(-1px);
+}
+
+.up::before {
+  background: var(--win);
+}
+
+.down::before {
+  background: var(--loss);
+}
