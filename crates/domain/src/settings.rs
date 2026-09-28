@@ -1,5 +1,7 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use ts_rs::TS;
+
+use crate::{FlashKey, ImportMode};
 
 /// User preferences, owned and persisted by the core.
 ///
@@ -25,6 +27,37 @@ pub struct Settings {
     pub launch_at_startup: bool,
     /// Closing the window keeps the app running in the tray.
     pub close_to_tray: bool,
+    /// Rune page import: off, one click, or also automatically on lock-in.
+    #[serde(deserialize_with = "or_default")]
+    pub import_runes: ImportMode,
+    /// Item set import: off, one click, or also automatically on lock-in.
+    #[serde(deserialize_with = "or_default")]
+    pub import_item_set: ImportMode,
+    /// Summoner spells import (champion select only): off, one click, or also on lock-in.
+    #[serde(deserialize_with = "or_default")]
+    pub import_spells: ImportMode,
+    /// The key Flash goes on when spells are imported.
+    #[serde(deserialize_with = "or_default")]
+    pub flash_key: FlashKey,
+}
+
+/// A value this version doesn't know (written by a newer one) falls back to the default
+/// instead of failing the whole settings file.
+fn or_default<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de> + Default,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Known<T> {
+        Value(T),
+        Other(serde::de::IgnoredAny),
+    }
+    Ok(match Known::<T>::deserialize(deserializer)? {
+        Known::Value(value) => value,
+        Known::Other(_) => T::default(),
+    })
 }
 
 impl Settings {
@@ -49,6 +82,11 @@ impl Default for Settings {
             auto_switch_view: true,
             launch_at_startup: false,
             close_to_tray: true,
+            // One click is user-triggered; automatic imports are opt-in (docs/policy.md).
+            import_runes: ImportMode::OneClick,
+            import_item_set: ImportMode::OneClick,
+            import_spells: ImportMode::OneClick,
+            flash_key: FlashKey::Auto,
         }
     }
 }
@@ -107,6 +145,38 @@ mod tests {
     #[test]
     fn auto_accept_is_off_by_default() {
         assert!(!Settings::default().auto_accept);
+    }
+
+    #[test]
+    fn imports_are_one_click_by_default() {
+        let settings = Settings::default();
+        for mode in [
+            settings.import_runes,
+            settings.import_item_set,
+            settings.import_spells,
+        ] {
+            assert_eq!(mode, ImportMode::OneClick);
+        }
+        assert_eq!(settings.flash_key, FlashKey::Auto);
+    }
+
+    #[test]
+    fn unknown_values_fall_back_to_defaults() {
+        let settings: Settings = serde_json::from_str(
+            r#"{"autoAccept":true,"importRunes":"onLockIn","importSpells":"someFutureMode","flashKey":7}"#,
+        )
+        .expect("deserializable");
+        assert!(settings.auto_accept);
+        assert_eq!(settings.import_runes, ImportMode::OnLockIn);
+        assert_eq!(settings.import_spells, ImportMode::OneClick);
+        assert_eq!(settings.flash_key, FlashKey::Auto);
+        let json = serde_json::to_string(&Settings {
+            flash_key: FlashKey::F,
+            ..Settings::default()
+        })
+        .expect("serializable");
+        assert!(json.contains(r#""importItemSet":"oneClick""#), "{json}");
+        assert!(json.contains(r#""flashKey":"f""#), "{json}");
     }
 
     #[test]

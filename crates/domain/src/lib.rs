@@ -10,6 +10,7 @@ mod backend;
 mod client;
 mod draft;
 mod game_data;
+mod imports;
 mod live;
 mod player;
 mod remote;
@@ -24,6 +25,10 @@ pub use draft::{
     RoleOdds, Suggestion,
 };
 pub use game_data::{ChampionInfo, GameData, ItemInfo, SpellInfo};
+pub use imports::{
+    FailReason, FlashKey, FlashNote, ImportMode, ImportOutcome, ImportPart, ImportRequest,
+    ImportResult, PartResult, SkipReason, SpellKey,
+};
 pub use live::{LiveGame, LivePlayer, Scouting};
 pub use player::{Division, MatchSummary, PlayerProfile, RankedEntry, RiotId, Role, Tier};
 pub use remote::{
