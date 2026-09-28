@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { LIQUID } from "./liquid";
 import { displacement, type Glass, IOR, lookup, opticsTable, reflectance, rim, surface, surfaceSlope } from "./optics";
 
 const slab: Glass = { profile: "squircle", bezel: 16, thickness: 22 };
@@ -141,5 +142,25 @@ describe("rim of a rounded rectangle", () => {
     const corner = rim(shape, 2, 2);
     expect(corner.nx).toBeCloseTo(-Math.SQRT1_2, 6);
     expect(corner.ny).toBeCloseTo(-Math.SQRT1_2, 6);
+  });
+});
+
+describe("the app's glass", () => {
+  // The owner saw lines in the refraction: a squircle rim moved what is behind 20–28 px between
+  // two neighbouring pixel rows, cutting it into bands. Every pane bends smoothly instead.
+  it("never moves what is behind more than 3 px from one pixel row of a rim to the next", () => {
+    for (const [kind, spec] of Object.entries(LIQUID)) {
+      const glass = spec.glass;
+      if (glass.bezel <= 0) continue;
+      const rows = Array.from({ length: Math.round(glass.bezel) }, (_, px) => displacement(glass, (px + 0.5) / glass.bezel));
+      const jump = Math.max(...rows.slice(1).map((d, i) => Math.abs(d - (rows[i] ?? 0))));
+      expect(jump, kind).toBeLessThan(3);
+    }
+  });
+
+  it("still bends visibly where it floats over content", () => {
+    for (const kind of ["bar", "dock", "panel", "clear"] as const) {
+      expect(opticsTable(LIQUID[kind].glass).max, kind).toBeGreaterThan(10);
+    }
   });
 });

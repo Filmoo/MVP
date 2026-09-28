@@ -346,12 +346,15 @@ the compositor (transform/opacity, GPU filters).
 
 **Optics** (`liquid/optics.ts`, pure, unit-tested): a glass pane floats above the page (its
 `elevation`), seen from above. Its top is flat and curves down to its flat underside across a
-bezel (a squircle profile for panes, a parabola for drops, a circle for card edges). The view ray
+bezel (a parabola for panes and drops, a circle for card edges). The view ray
 refracts where the surface slopes (Snell's law, index 1.5), crosses the glass, refracts again
 leaving the underside and crosses the gap of air to the page, landing further inside: what is
-under the rim is pulled inward and squeezed, and a parabolic drop magnifies evenly like a loupe
-(≈ ×1.3 floating 0.6 of its radius up). Most of the visible bend comes from the gap (a sheet
-lying on the page bends ~10 px at most; floating 10–12 px up, the rim bends 10–40 px). Past a
+under the rim is pulled inward and squeezed. Most of the visible bend comes from the gap (a
+sheet lying on the page bends ~10 px at most; floating 14–20 px up, a pane's rim bends 12–21 px).
+The profile matters more than the strength: a squircle (flat, then a vertical edge) puts nearly
+all of its bend in the rim's last pixels, 20–28 px between two neighbouring rows at these
+heights, which cuts what is behind into bands (the owner saw lines); a parabola spreads it, at
+most ~2.5 px from one row to the next (`optics.test.ts` keeps panes under 3). Past a
 grazing angle the underside would reflect everything back (total internal reflection): capped so
 the rim's last pixel stays finite. The rim reflects more at grazing angles (Fresnel, Schlick).
 The curves are sampled into small tables shared by the two layers below, so they bend light alike.
@@ -389,12 +392,13 @@ functions) → the glass' tint → rim light.
   floating tab bar: 12 px rims, 6 px frost in the middle), `panel` (search results, toasts: 14 px
   rims, 6 px frost in the middle), `clear` (rank pane and champion tier over art: a wide 20 px bent rim, corners
   `--radius-5` to match, a light frost in the middle for their captions), `lens` (rail selection,
-  segment thumbs, held switches: a loupe, tinted with light so a choice reads lit, never as a
-  hole). No colour split over the page (over text it reads as fringing).
-- **Icons and text stay crisp**: a drop sits *behind* the labels of the rail and of segmented
-  controls at rest, and lifts over them (magnifying what it passes) only while it glides
-  (`data-moving`, from the WAAPI glide or the thumb's `transform` transition). A held switch's
-  knob swells into a drop over the track.
+  segment thumbs, held switches: a flat pill whose edge bends what is under it ≈ 3 px, less than
+  the 4 px to a track's border; tinted with light so a choice reads lit, never as a hole; the CSS
+  rim ring is its one edge, no rim light of its own). No colour split over the page (over text it
+  reads as fringing).
+- **Icons and text stay crisp**: a drop always sits *behind* the labels of the rail and of
+  segmented controls, gliding or not, and nothing scales while it glides (the rail's move is a
+  translate only). A held switch's knob swells into a drop over the track.
 - Nothing that carries a lens has an outer box-shadow: Chromium shifts the SVG filter by the
   shadow's reach. Shadows sit on a wrapper; the glass is a layer inside (tested).
 - The page scrolls **under** the title bar (`main` spans both rows, padding-top = bar height),

@@ -44,14 +44,10 @@
   opacity: 0.4;
 }
 
-/* Full effects: tinted glass, lifted over the labels while it glides. */
+/* Full effects: tinted glass, behind the labels (moving or not). */
 :global(:root[data-effects="shader"]) .thumb {
   background: var(--lg-fill, var(--bg-lens-accent));
   backdrop-filter: var(--lg-filter, none);
-}
-
-:global(:root[data-effects="shader"]) .thumb[data-moving] {
-  z-index: 3;
 }
 
 .option {

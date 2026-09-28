@@ -106,6 +106,15 @@ faudrait un gradient plus doux". Design calls:
 - **Full means Full**: the default follows Windows' "Transparency effects" switch (off → Light,
   and Settings says why); a Full the player picks wins over it. On the owner's PC the switch was
   off, so the glass never showed.
+- **Smooth refraction** (owner: "you can see lines in refraction"): rims are parabolic, not
+  squircles. A squircle's bend jumped 20–28 px between two pixel rows at the rim, cutting what is
+  behind into bands; a parabola bends as clearly (12–21 px) but at most ~2.5 px per row.
+- **Drops don't magnify** (owner: the rail's animation "isn't great… how big the icon gets and
+  shrinks, pixelated", "the same everywhere", plus "double contouring"): the selection drops on the
+  rail, segmented controls and choices are flat glass pills that glide behind the labels, with no
+  lift, no loupe and no stretch. The loupe enlarged icons through a displacement filter that
+  doesn't smooth (pixelated), swelled and shrank them as it passed, and drew the control's border
+  again inside the thumb; its own rim light doubled the CSS ring.
 
 ## 2026-09-28 — Rank emblems (owner asked, Claude designed)
 Owner: rank icons "look old/fake". Design calls:
