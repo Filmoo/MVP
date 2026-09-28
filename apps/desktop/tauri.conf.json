@@ -22,6 +22,7 @@
         "minHeight": 560,
         "center": true,
         "decorations": false,
+        "zoomHotkeysEnabled": true,
         "backgroundColor": "#0c0e13"
       }
     ],
