@@ -624,7 +624,9 @@ function kitFor(c: ChampionSeed, role: Role | undefined, queue: Queue): Kit {
 /** The class's pages and their usual variations (one shard swapped), each page once. */
 function pagesFor(c: ChampionSeed, role: Role | undefined): number[][] {
   const templates = role === "support" && c.cls === "T" ? ENGAGE_PAGES : PAGES[c.cls];
-  const [a = [], b = [], d = []] = rotate(templates, c.id % 7 === 0 ? 1 : 0);
+  // Mages in the support role lead with the comet page; a few champions pick their second page.
+  const lead = (role === "support" && c.cls === "M") !== (c.id % 7 === 0) ? 1 : 0;
+  const [a = [], b = [], d = []] = rotate(templates, lead);
   const candidates = [
     a,
     b,
