@@ -41,3 +41,15 @@
   background: var(--bg-3);
   color: var(--text-1);
 }
+
+/* Waiting on something (a check running): visibly not now, same box. */
+.button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+.primary:disabled:hover {
+  background: var(--accent);
+}
+.secondary:disabled:hover {
+  background: var(--bg-3);
+}

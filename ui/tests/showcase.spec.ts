@@ -202,3 +202,33 @@ test("home match accepted toast 1280x800", async ({ page }) => {
   await page.getByTestId("toast").waitFor();
   await capture(page, `${OUT}/home-match-accepted-1280x800.png`, false);
 });
+
+// Notices, updates, crash reports.
+for (const [width, height] of [
+  [1280, 800],
+  [420, 800],
+] as const) {
+  for (const scenario of ["banners", "update-available", "update-required"] as const) {
+    test(`home ${scenario} ${width}x${height}`, async ({ page }) => {
+      await openApp(page, { scenario, width, height });
+      await capture(page, `${OUT}/home-${scenario}-${width}x${height}.png`, false);
+    });
+  }
+}
+
+test("live with banners 1280x800", async ({ page }) => {
+  await openApp(page, { view: "/live", scenario: "banners" });
+  await capture(page, `${OUT}/live-banners-1280x800.png`, false);
+});
+
+for (const scenario of ["crash-reports-on", "update-available", "update-downloading", "auto-accept-paused"] as const) {
+  test(`settings ${scenario} 1280x800`, async ({ page }) => {
+    await openApp(page, { view: "/settings", scenario });
+    await capture(page, `${OUT}/settings-${scenario}-1280x800.png`, false);
+  });
+}
+
+test("settings crash-reports-on 420x800", async ({ page }) => {
+  await openApp(page, { view: "/settings", scenario: "crash-reports-on", width: 420, height: 800 });
+  await capture(page, `${OUT}/settings-crash-reports-on-420x800.png`, true);
+});

@@ -1,8 +1,10 @@
 import { createResource, createSignal, type JSX, Match, onCleanup, Switch } from "solid-js";
 import { useData } from "../../data/context";
 import type { Settings as SettingsData } from "../../data/generated/Settings";
+import { useRemoteConfig, useUpdates } from "../../data/platform";
 import { Card } from "../../design/Card";
 import { ErrorState, Skeleton } from "../../design/States";
+import { reportError } from "../../lib/errors";
 import { Widget } from "../../widgets/Widget";
 import page from "../page.module.css";
 import styles from "./Settings.module.css";
@@ -19,12 +21,12 @@ function SettingsSkeleton(): JSX.Element {
           <Skeleton height="296px" />
         </Card>
         <Card title="App">
-          <Skeleton height="148px" />
+          <Skeleton height="246px" />
         </Card>
       </div>
       <div class={styles.aside}>
         <Card title="About">
-          <Skeleton height="320px" />
+          <Skeleton height="438px" />
         </Card>
       </div>
     </div>
@@ -40,6 +42,13 @@ function SettingsContent(props: { initial: SettingsData }): JSX.Element {
   const [settings, setSettings] = createSignal(props.initial);
   const [errors, setErrors] = createSignal<Partial<Record<Section, string>>>({});
   const [info] = createResource(() => transport.call("app_info").catch(() => undefined));
+  const remote = useRemoteConfig();
+  const updates = useUpdates();
+  const restart = () => {
+    updates.restart().catch((error: unknown) => {
+      reportError(`Couldn't restart into the update: ${error instanceof Error ? error.message : String(error)}`, "update");
+    });
+  };
   // Changed elsewhere (another window, the tray, the core normalizing a value).
   onCleanup(transport.listen("settings", (next) => setSettings(next)));
 
@@ -65,14 +74,19 @@ function SettingsContent(props: { initial: SettingsData }): JSX.Element {
     <div class={styles.grid}>
       <div class={styles.main}>
         <Widget name="settings-automation">
-          <AutomationSettings settings={settings()} onChange={save("automation")} error={errors().automation} />
+          <AutomationSettings
+            settings={settings()}
+            onChange={save("automation")}
+            error={errors().automation}
+            autoAcceptPaused={remote().killSwitches.autoAccept || !remote().features.autoAccept}
+          />
         </Widget>
         <Widget name="settings-app">
-          <AppSettings settings={settings()} onChange={save("app")} error={errors().app} />
+          <AppSettings settings={settings()} onChange={save("app")} error={errors().app} installId={info()?.installId} />
         </Widget>
       </div>
       <Widget name="settings-about" class={styles.aside}>
-        <About info={info()} />
+        <About info={info()} update={updates.status()} onCheckUpdates={() => void updates.check()} onRestart={restart} />
       </Widget>
     </div>
   );

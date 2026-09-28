@@ -51,6 +51,10 @@ const STATE_VIEWS = [
   { view: "/live", scenario: "live-scouting" },
   { view: "/player/euw1/Nobody/404", scenario: "default" },
   { view: "/player/euw1/Busy/429", scenario: "default" },
+  { view: "/settings", scenario: "crash-reports-on" },
+  { view: "/settings", scenario: "update-available" },
+  { view: "/settings", scenario: "auto-accept-paused" },
+  { view: "/live", scenario: "banners" },
 ] as const;
 for (const { view, scenario } of STATE_VIEWS) {
   for (const size of [SIZES[0], SIZES[3], SIZES[6]]) {

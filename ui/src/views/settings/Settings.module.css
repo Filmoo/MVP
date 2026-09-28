@@ -61,6 +61,41 @@
   margin-top: var(--space-1);
 }
 
+/* The server paused an automation (kill switch): informative, not an error. */
+.paused {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  margin-top: var(--space-6);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-3);
+  background: var(--accent-soft);
+  color: var(--text-1);
+  font-size: var(--text-md);
+  overflow-wrap: anywhere;
+}
+
+.pausedIcon {
+  flex: none;
+  margin-top: var(--space-1);
+  color: var(--accent);
+}
+
+.installId {
+  font-size: var(--text-sm);
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+/* About → Updates: the status reads first, its action below it. */
+.update {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-4);
+}
+
 /* About */
 .about {
   display: flex;

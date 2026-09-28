@@ -1,6 +1,8 @@
 import { type JSX, Show } from "solid-js";
 import type { AppInfo } from "../../data/generated/AppInfo";
 import type { Settings } from "../../data/generated/Settings";
+import type { UpdateStatus } from "../../data/generated/UpdateStatus";
+import { Button } from "../../design/Button";
 import { Card } from "../../design/Card";
 import { Icon } from "../../design/Icon";
 import { Mark } from "../../design/Logo";
@@ -8,6 +10,7 @@ import { SettingList, SettingRow } from "../../design/SettingRow";
 import { Slider } from "../../design/Slider";
 import { Toggle } from "../../design/Toggle";
 import { MAX_AUTO_ACCEPT_DELAY } from "../../lib/settings";
+import { aboutLine } from "../../lib/updates";
 import styles from "./Settings.module.css";
 
 export interface SectionProps {
@@ -37,7 +40,7 @@ function SaveError(props: { message: string | undefined }): JSX.Element {
 const seconds = (n: number) => `${n} s`;
 const spokenSeconds = (n: number) => (n === 1 ? "1 second" : `${n} seconds`);
 
-export function AutomationSettings(props: SectionProps): JSX.Element {
+export function AutomationSettings(props: SectionProps & { autoAcceptPaused?: boolean }): JSX.Element {
   return (
     <Card title="Automation">
       <SettingList>
@@ -98,12 +101,21 @@ export function AutomationSettings(props: SectionProps): JSX.Element {
           )}
         </SettingRow>
       </SettingList>
+      <Show when={props.autoAcceptPaused}>
+        <p class={styles.paused} role="status" data-testid="auto-accept-paused">
+          <Icon name="info" size={16} class={styles.pausedIcon} />
+          <span>
+            Auto-accept is paused for everyone while we fix an issue with the League client. Your choice is kept and works again as soon as
+            it's fixed.
+          </span>
+        </p>
+      </Show>
       <SaveError message={props.error} />
     </Card>
   );
 }
 
-export function AppSettings(props: SectionProps): JSX.Element {
+export function AppSettings(props: SectionProps & { installId?: string | null | undefined }): JSX.Element {
   return (
     <Card title="App">
       <SettingList>
@@ -132,6 +144,35 @@ export function AppSettings(props: SectionProps): JSX.Element {
             />
           )}
         </SettingRow>
+        <SettingRow
+          title="Send crash reports"
+          description="When MVP crashes or a panel fails, it sends what went wrong and the app and Windows versions to MVP's server. Player names, IDs and file paths are removed first, and reports are deleted after 30 days."
+        >
+          {(ids) => (
+            <Toggle
+              checked={props.settings.crashReports}
+              onChange={(crashReports) => props.onChange({ crashReports })}
+              labelledBy={ids.label}
+              describedBy={ids.description}
+              testId="setting-crash-reports"
+            />
+          )}
+        </SettingRow>
+        <Show when={props.settings.crashReports && props.installId}>
+          {(id) => (
+            <SettingRow
+              nested
+              title="Report ID"
+              description="Random, and not linked to your Riot account: with it, your reports can be deleted on request."
+            >
+              {() => (
+                <span class={`${styles.installId} num`} data-testid="install-id">
+                  {id()}
+                </span>
+              )}
+            </SettingRow>
+          )}
+        </Show>
       </SettingList>
       <SaveError message={props.error} />
     </Card>
@@ -140,7 +181,38 @@ export function AppSettings(props: SectionProps): JSX.Element {
 
 const PLATFORMS: Record<string, string> = { windows: "Windows", macos: "macOS", linux: "Linux", web: "Browser preview" };
 
-export function About(props: { info: AppInfo | undefined }): JSX.Element {
+/** Settings → About: the app's own update, with the one action that fits. */
+function Updates(props: { update: UpdateStatus; onCheck: () => void; onRestart: () => void }): JSX.Element {
+  const line = () => aboutLine(props.update);
+  return (
+    <section class={styles.note}>
+      <h3 class={styles.noteTitle}>Updates</h3>
+      <div class={styles.update}>
+        <p data-testid="update-status">{line().text}</p>
+        <Show when={line().action}>
+          {(action) => (
+            <Button
+              variant={action() === "restart" ? "primary" : "secondary"}
+              onClick={action() === "restart" ? props.onRestart : props.onCheck}
+              disabled={line().busy}
+              testId={action() === "restart" ? "update-restart-settings" : "update-check"}
+            >
+              {line().label}
+            </Button>
+          )}
+        </Show>
+      </div>
+    </section>
+  );
+}
+
+export function About(props: {
+  info: AppInfo | undefined;
+  /** Omitted: no update section (e.g. before the core answered). */
+  update?: UpdateStatus | undefined;
+  onCheckUpdates?: () => void;
+  onRestart?: () => void;
+}): JSX.Element {
   return (
     <Card title="About">
       <div class={styles.about}>
@@ -161,11 +233,15 @@ export function About(props: { info: AppInfo | undefined }): JSX.Element {
             </span>
           </div>
         </div>
+        <Show when={props.update}>
+          {(update) => <Updates update={update()} onCheck={() => props.onCheckUpdates?.()} onRestart={() => props.onRestart?.()} />}
+        </Show>
         <section class={styles.note}>
           <h3 class={styles.noteTitle}>Your data</h3>
           <p>
-            MVP reads the League client on this computer only, and keeps your settings here. No account, nothing about you is sent anywhere.
-            Game names and icons come from Riot's Data Dragon.
+            MVP reads the League client on this computer and keeps your settings here, with no account. Player searches and loading-screen
+            cards go through MVP's server, which asks Riot. Crash reports are sent only if you turn them on. Game names and icons come from
+            Riot's Data Dragon.
           </p>
         </section>
         <section class={styles.note}>

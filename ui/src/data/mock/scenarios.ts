@@ -1,9 +1,19 @@
 import type { ClientStatus } from "../generated/ClientStatus";
 import type { PlayerProfile } from "../generated/PlayerProfile";
+import { DEFAULT_REMOTE_CONFIG } from "../remote-defaults";
 import type { CommandName, Commands, EventName, Events } from "../transport";
 import { champSelectDraft } from "./draft-fixtures";
 import { corruptProfile, extremeProfile, newPlayerProfile, profile } from "./fixtures";
 import { liveExtreme, liveFailed, liveGame, liveScouting, searchPlayer } from "./live-fixtures";
+import {
+  autoAcceptKilledConfig,
+  bannersConfig,
+  installId,
+  requiredConfig,
+  updateDownloading,
+  updateReady,
+  upToDate,
+} from "./platform-fixtures";
 import { customSettings, defaultSettings, saveSettings } from "./settings-fixtures";
 
 /** Profile captured by `capture-profile`, served by the dev server; falls back to the fixture. */
@@ -50,6 +60,13 @@ const base: Scenario["responses"] = {
   search_player: { handle: searchPlayer, delayMs: 350 },
   live_game: { data: null },
   retry_scouting: { data: null },
+  remote_config: { data: DEFAULT_REMOTE_CONFIG },
+  open_banner_link: { data: null },
+  update_status: { data: upToDate },
+  // A check takes a moment, then MVP is up to date.
+  check_for_updates: { handle: () => upToDate, delayMs: 700 },
+  install_update: { data: null },
+  report_error: { data: null },
 };
 
 const inGame: ClientStatus = { connection: "connected", phase: "inGame" };
@@ -148,6 +165,34 @@ export const scenarios = {
     description: "Auto-accept just accepted a match: a confirmation toast shows.",
     responses: { ...base, get_settings: { data: customSettings } },
     timeline: [{ afterMs: 300, event: "auto-accept", payload: { kind: "accepted" } }],
+  },
+  banners: {
+    description: "Notices from our server: patch day (closable, with a link) and an EUW slowdown (stays while it lasts).",
+    responses: { ...base, remote_config: { data: bannersConfig } },
+  },
+  "update-available": {
+    description: "An update was downloaded: the 'Update ready — Restart' prompt shows (never during a game).",
+    responses: { ...base, update_status: { data: updateReady } },
+  },
+  "update-downloading": {
+    description: "An update is downloading (Settings → About shows its progress).",
+    responses: { ...base, update_status: { data: updateDownloading } },
+  },
+  "update-required": {
+    description: "This version is below the server's minimum: the app waits behind a polite 'update required' card.",
+    responses: { ...base, remote_config: { data: requiredConfig }, update_status: { data: updateReady } },
+  },
+  "auto-accept-paused": {
+    description: "The server's kill switch stopped auto-accept: Settings says so, the player's choice is kept.",
+    responses: { ...base, get_settings: { data: customSettings }, remote_config: { data: autoAcceptKilledConfig } },
+  },
+  "crash-reports-on": {
+    description: "The player opted in to crash reports: UI crashes go to the core, which scrubs and sends them.",
+    responses: {
+      ...base,
+      get_settings: { data: { ...defaultSettings, crashReports: true } },
+      app_info: { data: { name: "MVP", version: "0.1.0", platform: "web", installId } },
+    },
   },
 } satisfies Record<string, Scenario>;
 
