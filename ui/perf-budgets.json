@@ -25,6 +25,14 @@
       "renderMs": 4,
       "domNodes": 120
     },
+    "draft-comps": {
+      "renderMs": 3,
+      "domNodes": 100
+    },
+    "draft-comps-aram": {
+      "renderMs": 2,
+      "domNodes": 70
+    },
     "draft-imports": {
       "renderMs": 2,
       "domNodes": 30

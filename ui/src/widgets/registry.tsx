@@ -1,6 +1,6 @@
 import type { JSX } from "solid-js";
 import { NoticeList, UpdateRequiredDialog } from "../app/notices/Notices";
-import { champSelectDraft } from "../data/mock/draft-fixtures";
+import { aramDraft, champSelectDraft } from "../data/mock/draft-fixtures";
 import { profile } from "../data/mock/fixtures";
 import { liveGame } from "../data/mock/live-fixtures";
 import { outageBanner, patchBanner, requiredConfig, updateReady } from "../data/mock/platform-fixtures";
@@ -15,6 +15,7 @@ import { ChampionGrid } from "../views/champions/ChampionGrid";
 import { ChampionHero } from "../views/champions/ChampionHero";
 import { MatchupsCard } from "../views/champions/Matchups";
 import { RunesCard } from "../views/champions/Runes";
+import { Comps } from "../views/draft/Comps";
 import { ImportPanel } from "../views/draft/ImportBar";
 import { Suggestions } from "../views/draft/Suggestions";
 import { Teams } from "../views/draft/Teams";
@@ -49,7 +50,21 @@ export const widgetRegistry: Record<string, () => JSX.Element> = {
       onSelect={() => {}}
     />
   ),
-  "draft-why": () => <Why suggestion={champSelectDraft.suggestions[0]} teamPercent={champSelectDraft.team?.percent} />,
+  // The pick's terms and your team with it, the switch to the compositions.
+  "draft-why": () => (
+    <Why
+      suggestion={champSelectDraft.suggestions[0]}
+      teamPercent={champSelectDraft.team?.percent}
+      comps={champSelectDraft.comps}
+      data={champSelectDraft.data}
+      tab="pick"
+      onTab={() => {}}
+    />
+  ),
+  // Both teams, every row.
+  "draft-comps": () => <Comps comps={champSelectDraft.comps} data={champSelectDraft.data} aram={false} />,
+  // ARAM: your team only.
+  "draft-comps-aram": () => <Comps comps={aramDraft.comps} data={aramDraft.data} aram />,
   // Every state at once: done, busy, failed.
   "draft-imports": () => (
     <ImportPanel

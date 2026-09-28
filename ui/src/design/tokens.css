@@ -72,6 +72,11 @@
   --role-bottom: #93bcff;
   --role-support: #f5aede;
 
+  /* Damage types (team compositions): physical warm, magic violet, true pale, as in the game. */
+  --dmg-physical: #ffb896;
+  --dmg-magic: #b9a9ff;
+  --dmg-true: #eef0fa;
+
   /* Spacing scale (px). */
   --space-1: 2px;
   --space-2: 4px;

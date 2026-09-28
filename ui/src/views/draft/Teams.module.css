@@ -204,6 +204,16 @@
   outline-offset: var(--space-1);
 }
 
+/* No seats to show yet (ARAM's enemy team): as tall as a row of champions. */
+.unseen {
+  display: grid;
+  place-items: center;
+  min-height: 104px;
+  font-size: var(--text-sm);
+  color: var(--text-3);
+  text-align: center;
+}
+
 .empty {
   width: 48px;
   height: 48px;

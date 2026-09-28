@@ -11,6 +11,7 @@ import { en } from "../src/i18n/en";
 import { enViews } from "../src/i18n/en-views";
 import { fr } from "../src/i18n/fr";
 import { frViews } from "../src/i18n/fr-views";
+import { decimal, integer, percent } from "../src/lib/format";
 import { expect, isFrench, localizedFor, openApp, SIZES, settle, test, trackErrors } from "./app";
 import { auditLayout } from "./layout-rules";
 
@@ -327,4 +328,99 @@ test("the language follows the core's settings event (another window, the tray�
   await page.evaluate((next) => window.__SCOUT_MOCK__?.emit("settings", next), settings);
   await expect(page.getByRole("link", { name: words[other].nav.home.label })).toBeVisible();
   await expect(page.getByTestId("client-status")).toHaveText(words[other].shell.connection.connected);
+});
+
+// ── Draft: team compositions and ARAM ─────────────────────────────────────────────────────────
+
+const whyTab = (page: Page, name: string) => page.getByTestId("why-tabs").getByRole("radio", { name });
+const why = (page: Page) => page.locator("[data-widget=draft-why]");
+const comps = (page: Page) => page.locator("[data-widget=draft-comps]");
+const mainOverflow = (page: Page) => page.locator("main").evaluate((el) => el.scrollHeight - el.clientHeight);
+
+test("draft: the Teams tab puts both compositions side by side, every number with its why", async ({ page, t }) => {
+  const errors = trackErrors(page);
+  await openApp(page, { view: "/draft", scenario: "champ-select", width: 1280, height: 720 });
+  await whyTab(page, t.why.tabs.teams).click();
+  await expect(why(page).getByRole("heading", { level: 2 })).toHaveText(t.why.teamsTitle);
+  const table = comps(page).getByRole("table");
+  const ours = table.getByRole("columnheader").filter({ hasText: t.draft.yourTeam });
+  const theirs = table.getByRole("columnheader").filter({ hasText: t.draft.enemyTeam });
+  // Short neutral readings under each team's name.
+  await expect(ours).toContainText(t.comps.readings.lotsOfCc);
+  await expect(theirs).toContainText(t.comps.readings.littleFrontline);
+  await expect(theirs).toContainText(t.comps.readings.early);
+  // Hovers count, shown as such (your Malphite and Thresh's): dashed.
+  const dashed = await table
+    .getByRole("img")
+    .evaluateAll((icons) =>
+      icons.filter((i) => getComputedStyle(i).outlineStyle === "dashed").map((i) => i.getAttribute("alt") ?? i.getAttribute("aria-label")),
+    );
+  expect(dashed).toEqual(["Malphite", "Thresh"]);
+  const row = (name: string) => table.getByRole("row").filter({ has: page.getByRole("rowheader", { name }) });
+  await expect(row(t.comps.rows.magic)).toContainText(percent(0.61));
+  await expect(row(t.comps.rows.frontline)).toContainText(t.comps.times(decimal(0.82, 2)));
+  // The why: the games behind the numbers, the bracket and the patch.
+  await expect(row(t.comps.rows.games)).toContainText(t.comps.atLeast(integer(61_000)));
+  await expect(comps(page)).toContainText(t.comps.note(t.brackets.emeraldPlus, "26.19"));
+  expect(await mainOverflow(page), "the screen doesn't scroll").toBeLessThanOrEqual(0);
+
+  // Picking a suggestion explains it again, with your team's composition with it.
+  await page.getByTestId("suggestion").filter({ hasText: "Shen" }).click();
+  await expect(whyTab(page, t.why.tabs.pick)).toHaveAttribute("aria-checked", "true");
+  await expect(why(page).getByRole("heading", { level: 2 })).toHaveText(t.why.title("Shen"));
+  await expect(why(page)).toContainText(t.why.withPick("Shen"));
+  await expect(why(page)).toContainText(t.comps.change(t.comps.magicDamage, percent(0.61), percent(0.47)));
+  expect(errors).toEqual([]);
+});
+
+test("aram: your champion and the bench, by your team's chances with each", async ({ page, t }) => {
+  const errors = trackErrors(page);
+  await openApp(page, { view: "/draft", scenario: "aram-champ-select", width: 1280, height: 720 });
+  const list = page.locator("[data-widget=draft-suggestions]");
+  await expect(list.getByRole("heading", { level: 2 })).toHaveText(t.draft.aramPicks);
+  const names = await page.getByTestId("suggestion").evaluateAll((rows) => rows.map((r) => r.textContent ?? ""));
+  expect(names.map((n) => ["Brand", "Lux", "Karthus", "Sion", "Ashe"].find((c) => n.includes(c)))).toEqual([
+    "Brand",
+    "Lux",
+    "Karthus",
+    "Sion",
+    "Ashe",
+  ]);
+  await expect(page.getByTestId("suggestion").filter({ hasText: "Lux" })).toContainText(t.draft.yoursMastery(7));
+  await expect(list).toContainText(t.draft.rerolls(1));
+  await expect(list).toContainText(t.queues[450]);
+  await expect(page.locator("[data-widget=draft-teams]")).toContainText(t.draft.enemiesHidden);
+
+  // Yours is explained first: the team as it is, no change to show.
+  await expect(why(page).getByRole("heading", { level: 2 })).toHaveText(t.why.title("Lux"));
+  await expect(why(page)).toContainText(t.comps.value(t.comps.magicDamage, percent(0.74)));
+  // Another champion: its strength over its games, and how your team changes with it.
+  await page.getByTestId("suggestion").filter({ hasText: "Sion" }).click();
+  await expect(why(page)).toContainText(t.common.games(19_560));
+  await expect(why(page)).toContainText(t.comps.change(t.comps.magicDamage, percent(0.74), percent(0.59)));
+
+  // Only your team's composition: the enemy team is hidden in ARAM.
+  await whyTab(page, t.why.tabs.teams).click();
+  await expect(comps(page).getByRole("columnheader")).toHaveCount(1);
+  await expect(comps(page).getByRole("columnheader")).toContainText(t.comps.readings.mostlyMagic);
+  await expect(comps(page)).toContainText(t.comps.noteAram(t.brackets.emeraldPlus, "26.19"));
+  expect(await mainOverflow(page), "the screen doesn't scroll").toBeLessThanOrEqual(0);
+  expect(errors).toEqual([]);
+});
+
+test("draft: the Teams tab lays out at every size, compositions first on narrow windows", async ({ page, t }) => {
+  const errors = trackErrors(page);
+  for (const size of SIZES) {
+    for (const scenario of ["champ-select", "aram-champ-select"] as const) {
+      await openApp(page, { view: "/draft", scenario, width: size.width, height: size.height });
+      const tab = whyTab(page, t.why.tabs.teams);
+      // Narrow windows stack the panel last and open it on the compositions.
+      if (size.width < 1080) await expect(tab, size.name).toHaveAttribute("aria-checked", "true");
+      else await tab.click();
+      await expect(comps(page).getByRole("table"), `${scenario} ${size.name}`).toBeVisible();
+      await settle(page);
+      expect(await page.evaluate(auditLayout), `${scenario} ${size.name}`).toEqual([]);
+    }
+  }
+  expect(errors).toEqual([]);
 });

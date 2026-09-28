@@ -1,0 +1,149 @@
+/* Team compositions: one column per team, the same rows, every number with its title. */
+.comps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: var(--text-sm);
+}
+
+.table th,
+.table td {
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  vertical-align: middle;
+  overflow-wrap: anywhere;
+}
+
+/* Row labels take a third; the teams share the rest. */
+.table tr > :first-child {
+  width: 34%;
+  padding-left: 0;
+}
+
+.table thead th {
+  vertical-align: top;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.table tbody tr {
+  border-top: 1px solid var(--line-1);
+}
+
+.table tbody th {
+  font-weight: var(--weight-medium);
+  color: var(--text-3);
+  overflow-wrap: normal;
+}
+
+.table td {
+  font-weight: var(--weight-semibold);
+  color: var(--text-1);
+}
+
+.ally {
+  color: var(--win);
+}
+
+.enemy {
+  color: var(--loss);
+}
+
+.muted,
+.table td.muted {
+  color: var(--text-3);
+  font-weight: var(--weight-medium);
+}
+
+.members {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Hovers show as such: dashed, like your hover on the teams card. */
+.hovering > * {
+  outline: 1px dashed var(--accent);
+  outline-offset: var(--space-1);
+  opacity: 0.7;
+}
+
+.bar {
+  display: flex;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--bg-3);
+  overflow: hidden;
+}
+
+.physical {
+  background: var(--dmg-physical);
+}
+
+.magic {
+  background: var(--dmg-magic);
+}
+
+.trueDamage {
+  background: var(--dmg-true);
+}
+
+.readings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  color: var(--text-2);
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.note {
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--line-1);
+  font-size: var(--text-sm);
+  color: var(--text-3);
+}
+
+/* Under a pick's terms: the team with it. */
+.change {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-7);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--line-1);
+}
+
+.changeTitle {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.changeLines {
+  font-size: var(--text-sm);
+  color: var(--text-2);
+}
+
+/* Lines break between parts only. */
+.seg {
+  white-space: nowrap;
+}

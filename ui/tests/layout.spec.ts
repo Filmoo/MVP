@@ -40,6 +40,7 @@ const SCENARIO_VIEWS = [
   { view: "/draft", scenario: "champ-select" },
   { view: "/draft", scenario: "import-lock-in" },
   { view: "/draft", scenario: "draft-no-stats" },
+  { view: "/draft", scenario: "aram-champ-select" },
   { view: "/settings", scenario: "settings-custom" },
   { view: "/settings", scenario: "settings-error" },
   { view: "/live", scenario: "live" },
@@ -57,6 +58,8 @@ const SCENARIO_VIEWS = [
 // Their other states at the extreme sizes.
 const STATE_VIEWS = [
   { view: "/draft", scenario: "imports-off" },
+  { view: "/draft", scenario: "draft-planning" },
+  { view: "/draft", scenario: "draft-no-comps" },
   { view: "/live", scenario: "live-error" },
   { view: "/live", scenario: "live-scouting" },
   { view: "/player/euw1/Nobody/404", scenario: "default" },
@@ -112,12 +115,14 @@ test("resize sweep keeps layout sound", async ({ page }) => {
 });
 
 // Draft interactions: the selected pick is explained beside the list on wide windows and under
-// its own row on narrow ones; both states must lay out cleanly.
+// its own row on narrow ones (the side panel is stacked last there); both states must lay out
+// cleanly.
 test("draft: picking a suggestion updates the explanation at every size", async ({ page, t }) => {
   const errors = trackErrors(page);
   for (const size of SIZES) {
     await openApp(page, { view: "/draft", scenario: "champ-select", width: size.width, height: size.height });
-    const wide = await page.locator("[data-widget=draft-why]").isVisible();
+    // 1080 px: the rail, the page's padding and the 960 px wide layout.
+    const wide = size.width >= 1080;
     const shen = page.getByTestId("suggestion").filter({ hasText: "Shen" });
     await shen.click();
     await expect(shen, size.name).toHaveAttribute("aria-pressed", "true");
@@ -126,6 +131,8 @@ test("draft: picking a suggestion updates the explanation at every size", async 
     } else {
       const terms = page.locator("[data-widget=draft-suggestions] li:has(> button[aria-pressed=true]) ul");
       await expect(terms, size.name).toBeVisible();
+      const teams = page.getByTestId("why-tabs").getByRole("radio", { name: t.why.tabs.teams });
+      await expect(teams, `${size.name}: the panel below keeps the compositions`).toHaveAttribute("aria-checked", "true");
       await settle(page);
       expect(await page.evaluate(auditLayout), `${size.name} expanded`).toEqual([]);
       await shen.click();

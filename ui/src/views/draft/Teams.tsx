@@ -68,9 +68,12 @@ function Team(props: { title: string; slots: DraftSlot[]; bans: number[]; enemy:
           </ul>
         </Show>
       </div>
-      <ol class={styles.slots}>
-        <For each={props.slots}>{(slot) => <Slot slot={slot} enemy={props.enemy} />}</For>
-      </ol>
+      {/* ARAM shows the enemy team only once the game loads. */}
+      <Show when={props.slots.length > 0} fallback={<p class={styles.unseen}>{t().draft.enemiesHidden}</p>}>
+        <ol class={styles.slots}>
+          <For each={props.slots}>{(slot) => <Slot slot={slot} enemy={props.enemy} />}</For>
+        </ol>
+      </Show>
     </section>
   );
 }

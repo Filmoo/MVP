@@ -9,7 +9,14 @@ import type { Settings } from "../generated/Settings";
 import type { TierList } from "../generated/TierList";
 import { DEFAULT_REMOTE_CONFIG } from "../remote-defaults";
 import { CommandError, type CommandName, type Commands, type EventName, type Events } from "../transport";
-import { champSelectDraft, champSelectLocked, champSelectNoStats } from "./draft-fixtures";
+import {
+  aramDraft,
+  champSelectDraft,
+  champSelectLocked,
+  champSelectNoComps,
+  champSelectNoStats,
+  champSelectPlanning,
+} from "./draft-fixtures";
 import { rankEmblemsFixture } from "./emblem-fixtures";
 import { corruptProfile, extremeProfile, newPlayerProfile, profile } from "./fixtures";
 import { flashKept, importAnswer, importFailures } from "./import-fixtures";
@@ -161,6 +168,18 @@ export const scenarios = {
   "draft-no-stats": {
     description: "Champion select before stats exist: no picks, the import buttons say why they wait.",
     responses: { ...champSelect, draft_state: { data: champSelectNoStats } },
+  },
+  "draft-planning": {
+    description: "Planning: nobody has picked or hovered yet, the team compositions wait for picks.",
+    responses: { ...champSelect, draft_state: { data: champSelectPlanning } },
+  },
+  "draft-no-comps": {
+    description: "Stats published before team compositions were: picks and odds, no compositions yet.",
+    responses: { ...champSelect, draft_state: { data: champSelectNoComps } },
+  },
+  "aram-champ-select": {
+    description: "ARAM: you have Lux, four champions on the bench and a reroll; ranked by the team's chance with each.",
+    responses: { ...champSelect, draft_state: { data: aramDraft } },
   },
   "imports-off": {
     description: "Every import turned off in Settings: no import bar in Draft.",

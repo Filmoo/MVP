@@ -14,12 +14,20 @@ import { PhasePill } from "./PhasePill";
 import { Suggestions } from "./Suggestions";
 import { selectedPick } from "./selection";
 import { Teams } from "./Teams";
-import { Why } from "./Why";
+import { Why, type WhyTab } from "./Why";
+
+/** ARAM's stats queue. */
+const ARAM = 450;
+
+/** Narrow windows (the stacked layout): the side panel opens on the compositions there. */
+const narrow = (): boolean => globalThis.matchMedia?.("(max-width: 1079px)").matches ?? false;
 
 export function DraftContent(props: { draft: DraftView }): JSX.Element {
   const [clicked, setClicked] = createSignal<number>();
   // Narrow windows explain a pick under its row; a second tap folds it away again.
   const [expanded, setExpanded] = createSignal<number>();
+  // The side panel explains the pick, or shows both teams' compositions.
+  const [tab, setTab] = createSignal<WhyTab>(narrow() ? "teams" : "pick");
   const selected = () => selectedPick(props.draft, clicked());
   const suggestion = () => props.draft.suggestions.find((s) => s.championId === selected());
   // The screen takes the colors of the pick being explained.
@@ -28,6 +36,8 @@ export function DraftContent(props: { draft: DraftView }): JSX.Element {
   const select = (championId: number) => {
     setClicked(championId);
     setExpanded((open) => (open === championId ? undefined : championId));
+    // Beside the list, the panel explains it; stacked under it, the row does and the panel stays.
+    if (!narrow()) setTab("pick");
   };
   // Imports of your hovered or locked champion's build, unless every part is turned off.
   const modes = useImportModes();
@@ -53,9 +63,18 @@ export function DraftContent(props: { draft: DraftView }): JSX.Element {
       <Widget name="draft-suggestions" class={styles.picks}>
         <Suggestions draft={props.draft} selected={selected()} expanded={expanded()} onSelect={select} />
       </Widget>
-      {/* Hidden on narrow windows, where a tapped pick shows its terms in the list. */}
-      <Widget name="draft-why" class={styles.why} hideable>
-        <Why suggestion={suggestion()} teamPercent={props.draft.team?.percent} />
+      {/* Stacked last on narrow windows, where a tapped pick also explains itself in the list. */}
+      <Widget name="draft-why" class={styles.why}>
+        <Why
+          suggestion={suggestion()}
+          teamPercent={props.draft.team?.percent}
+          comps={props.draft.comps}
+          data={props.draft.data}
+          aram={props.draft.queue === ARAM}
+          mine={me()?.championId}
+          tab={tab()}
+          onTab={setTab}
+        />
       </Widget>
     </div>
   );
