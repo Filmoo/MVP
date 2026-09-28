@@ -128,7 +128,8 @@
   isolation: isolate;
   display: flex;
   align-items: center;
-  gap: var(--space-6);
+  /* The emblem's 4:3 box already leaves air around the crest. */
+  gap: var(--space-4);
   min-width: 0;
   padding: var(--space-5) var(--space-7) var(--space-5) var(--space-5);
   border-radius: var(--radius-4);

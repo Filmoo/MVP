@@ -3,8 +3,11 @@ import { useRankEmblems } from "../data/emblems";
 import type { Tier } from "../data/generated/Tier";
 import styles from "./RankEmblem.module.css";
 
-/** Emblem boxes, 4:3 like Riot's art: the crest in the middle, ornaments of higher tiers wider. */
-const SIZES = { sm: [48, 36], md: [64, 48], lg: [80, 60] } as const;
+/**
+ * Emblem boxes, 4:3 like Riot's art: the crest in the middle, ornaments of higher tiers wider.
+ * `xl` at 2× is exactly the core's 192 × 144 crop.
+ */
+const SIZES = { sm: [48, 36], md: [64, 48], lg: [80, 60], xl: [96, 72] } as const;
 export type EmblemSize = keyof typeof SIZES;
 
 interface Ornaments {
@@ -21,13 +24,13 @@ interface Ornaments {
 }
 
 const ORNAMENTS: Record<Tier, Ornaments> = {
-  iron: { scale: 0.8, crown: 0, blades: 0, wings: 0 },
-  bronze: { scale: 0.84, crown: 1, blades: 0, wings: 0 },
-  silver: { scale: 0.88, crown: 1, blades: 3, wings: 0 },
-  gold: { scale: 0.92, crown: 3, blades: 3, wings: 0 },
-  platinum: { scale: 0.95, crown: 3, blades: 5, wings: 0 },
-  emerald: { scale: 0.97, crown: 3, blades: 6, wings: 0 },
-  diamond: { scale: 1, crown: 5, blades: 7, wings: 0 },
+  iron: { scale: 0.86, crown: 0, blades: 0, wings: 0 },
+  bronze: { scale: 0.88, crown: 1, blades: 0, wings: 0 },
+  silver: { scale: 0.9, crown: 1, blades: 4, wings: 0 },
+  gold: { scale: 0.93, crown: 3, blades: 4, wings: 0 },
+  platinum: { scale: 0.95, crown: 3, blades: 6, wings: 0 },
+  emerald: { scale: 0.97, crown: 5, blades: 6, wings: 0 },
+  diamond: { scale: 1, crown: 5, blades: 8, wings: 0 },
   master: { scale: 1, crown: 5, blades: 0, wings: 0.7 },
   grandmaster: { scale: 1.02, crown: 3, blades: 0, wings: 0.85, horns: true },
   challenger: { scale: 1.05, crown: 5, blades: 0, wings: 1 },
@@ -47,7 +50,6 @@ function wing(k: number): string {
 /** Where the shield's peaked top is at `x` (from 11.5 at its shoulders up to 7 in the middle). */
 const roof = (x: number) => 11.5 - 4.5 * (1 - Math.min(1, Math.abs(x - 32) / 12));
 
-/** Crown points standing on the shield's top edge, the middle one tallest. */
 /** The same path mirrored across the crest's middle (x → 64 − x; absolute commands only). */
 function mirror(path: string): string {
   let x = true;
@@ -58,6 +60,7 @@ function mirror(path: string): string {
   });
 }
 
+/** Crown points standing on the shield's top edge, the middle one tallest. */
 function crown(points: number): string {
   if (points === 0) return "";
   const left = 24;
@@ -100,10 +103,10 @@ const TIERS: readonly Tier[] = [
 ];
 
 /**
- * What every crest shares, defined once for the whole page (a hidden SVG): each tier's metal (a
- * gradient that takes the tier's colour from its class) and the crest's body (shield, bevel, cut
- * gem) drawn from `--rank-metal` / `--rank-edge` and `currentColor`, which each crest sets. A
- * crest is then a handful of nodes: its ornaments and a `<use>` of the body.
+ * What every crest shares, defined once for the whole page (a hidden SVG): each tier's metal and
+ * enamel (gradients that take the tier's colour from their class) and the crest's body (metal
+ * shield, enamel field, cut gem) drawn from `--rank-metal` / `--rank-field` and `currentColor`,
+ * which each crest sets. A crest is then a handful of nodes: its ornaments and a `<use>` of the body.
  */
 function ensureShared(): void {
   if (typeof document === "undefined" || document.querySelector("svg[data-rank-shared]")) return;
@@ -115,34 +118,33 @@ function ensureShared(): void {
   const svg = el("svg", { "data-rank-shared": "", "aria-hidden": "true" });
   svg.style.cssText = "position:absolute;width:0;height:0;overflow:hidden;pointer-events:none";
   const defs = el("defs", {});
-  const gradient = (id: string, tier: Tier, vertical: boolean, stops: Array<[number, string | undefined]>) => {
-    const g = el("linearGradient", { id, class: styles[tier] ?? "", x1: "0", y1: "0", x2: vertical ? "0" : "1", y2: "1" });
+  const gradient = (id: string, tier: Tier, stops: Array<[number, string | undefined]>) => {
+    const g = el("linearGradient", { id, class: styles[tier] ?? "", x1: "0", y1: "0", x2: "0", y2: "1" });
     for (const [offset, cls] of stops) g.appendChild(el("stop", { offset: String(offset), class: cls ?? "" }));
     defs.appendChild(g);
   };
   for (const tier of TIERS) {
-    gradient(`rank-metal-${tier}`, tier, true, [
+    gradient(`rank-metal-${tier}`, tier, [
       [0, styles.light],
-      [0.45, styles.mid],
+      [0.5, styles.mid],
       [1, styles.dark],
     ]);
-    gradient(`rank-edge-${tier}`, tier, false, [
-      [0, styles.shine],
-      [0.5, styles.mid],
-      [1, styles.deep],
+    gradient(`rank-field-${tier}`, tier, [
+      [0, styles.fieldTop],
+      [1, styles.fieldBottom],
     ]);
   }
   const body = el("g", { id: "rank-body" });
   body.append(
     el("path", { d: SHIELD, class: styles.shield ?? "" }),
+    // Enamel inside the metal rim, then the rim's inner edge.
+    el("path", { d: BEVEL, class: styles.field ?? "" }),
     el("path", { d: BEVEL, class: styles.bevel ?? "" }),
-    // The gem: four facets lit from the top left, its edge and a glint.
+    // The gem, the brightest thing in the crest: four facets lit from the top left.
     el("path", { d: "M32 15 38 23 32 23Z", class: styles.facetA ?? "" }),
     el("path", { d: "M32 15 26 23 32 23Z", class: styles.facetB ?? "" }),
     el("path", { d: "M26 23 32 32 32 23Z", class: styles.facetC ?? "" }),
     el("path", { d: "M38 23 32 32 32 23Z", class: styles.facetD ?? "" }),
-    el("path", { d: "M32 15 38 23 32 32 26 23Z", class: styles.gemEdge ?? "" }),
-    el("circle", { cx: "29.6", cy: "19.2", r: "1.1", class: styles.glint ?? "" }),
   );
   defs.appendChild(body);
   svg.appendChild(defs);
@@ -177,9 +179,21 @@ export function TierCrestArt(props: { tier: Tier; width: number; height: number;
   );
 }
 
+/** No rank: an empty slot where the crest would sit (not a dimmed Iron). */
+function UnrankedArt(props: { width: number; height: number }): JSX.Element {
+  return (
+    <svg class={styles.slot} width={props.width} height={props.height} viewBox="0 0 64 48" aria-hidden="true">
+      <g transform="translate(32 24) scale(0.9) translate(-32 -24)">
+        <path d={SHIELD} class={styles.slotShield} />
+        <path d="M32 15 38 23 32 32 26 23Z" class={styles.slotGem} />
+      </g>
+    </svg>
+  );
+}
+
 /**
  * A tier's emblem: Riot's own art once the core has it (downloaded once and cached), else MVP's
- * crest in the same 4:3 box. `unranked` draws a quiet crest.
+ * crest in the same 4:3 box. `unranked` draws an empty slot.
  */
 export function RankEmblem(props: { tier: Tier | "unranked"; size: EmblemSize; class?: string | undefined }): JSX.Element {
   const emblems = useRankEmblems();
@@ -187,14 +201,20 @@ export function RankEmblem(props: { tier: Tier | "unranked"; size: EmblemSize; c
   const url = () => (props.tier === "unranked" ? undefined : emblems().get(props.tier));
   return (
     <span
-      class={`${styles.emblem} ${props.tier === "unranked" ? styles.unranked : ""} ${props.class ?? ""}`}
+      class={`${styles.emblem} ${props.class ?? ""}`}
       style={{ width: `${box()[0]}px`, height: `${box()[1]}px` }}
       data-emblem={url() ? "riot" : "crest"}
       aria-hidden="true"
     >
       <Show
         when={url()}
-        fallback={<TierCrestArt tier={props.tier === "unranked" ? "iron" : props.tier} width={box()[0]} height={box()[1]} />}
+        fallback={
+          props.tier === "unranked" ? (
+            <UnrankedArt width={box()[0]} height={box()[1]} />
+          ) : (
+            <TierCrestArt tier={props.tier} width={box()[0]} height={box()[1]} />
+          )
+        }
       >
         {(src) => <img class={styles.image} src={src()} alt="" width={box()[0]} height={box()[1]} decoding="async" draggable={false} />}
       </Show>

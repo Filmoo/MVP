@@ -13,6 +13,7 @@ export default function EmblemLab(): JSX.Element {
         {(tier) => (
           <div class={styles.emblemCell}>
             <TierCrestArt tier={tier} width={160} height={120} />
+            <RankEmblem tier={tier} size="xl" />
             <RankEmblem tier={tier} size="lg" />
             <RankEmblem tier={tier} size="md" />
             <RankEmblem tier={tier} size="sm" />
@@ -20,6 +21,13 @@ export default function EmblemLab(): JSX.Element {
           </div>
         )}
       </For>
+      <div class={styles.emblemCell}>
+        <RankEmblem tier="unranked" size="xl" />
+        <RankEmblem tier="unranked" size="lg" />
+        <RankEmblem tier="unranked" size="md" />
+        <RankEmblem tier="unranked" size="sm" />
+        <span class={styles.note}>unranked</span>
+      </div>
     </div>
   );
 }

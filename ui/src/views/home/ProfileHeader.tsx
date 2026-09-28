@@ -78,7 +78,7 @@ export function ProfileHeader(props: { profile: PlayerProfile }): JSX.Element {
               when={props.profile.soloQueue}
               fallback={
                 <>
-                  <RankEmblem tier="unranked" size="lg" />
+                  <RankEmblem tier="unranked" size="xl" />
                   <div class={styles.rankText}>
                     <span class={styles.queue}>{t().soloDuo}</span>
                     <span class={styles.unranked}>{t().common.unranked}</span>
@@ -90,7 +90,7 @@ export function ProfileHeader(props: { profile: PlayerProfile }): JSX.Element {
                 const wr = () => winRate(q().wins, q().losses) ?? 0;
                 return (
                   <>
-                    <RankEmblem tier={q().tier} size="lg" />
+                    <RankEmblem tier={q().tier} size="xl" />
                     <div class={styles.rankText}>
                       <span class={styles.queue}>{t().soloDuo}</span>
                       <div class={styles.rankLine}>

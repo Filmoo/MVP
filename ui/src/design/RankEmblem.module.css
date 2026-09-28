@@ -15,130 +15,147 @@
   object-fit: contain;
 }
 
-.unranked {
-  opacity: 0.55;
-  filter: grayscale(1);
-}
-
+/* A contact shadow under every crest; only the apex tiers glow. */
 .art {
   display: block;
   overflow: visible;
-  filter: drop-shadow(0 0 6px color-mix(in oklab, currentColor 40%, transparent));
+  filter: drop-shadow(0 1px 1px var(--line-shade));
+}
+.art.master,
+.art.grandmaster,
+.art.challenger {
+  filter: drop-shadow(0 1px 1px var(--line-shade)) drop-shadow(0 0 5px color-mix(in oklab, currentColor 45%, transparent));
 }
 
-/* Metal and gem, all from currentColor (the tier). */
+/*
+ * All from currentColor (the tier): a bright metal rim, an enamel field in the tier's colour,
+ * and a gem that is the brightest thing in the crest, lit from the top left.
+ */
 .light {
-  stop-color: color-mix(in oklab, currentColor 45%, white);
+  stop-color: color-mix(in oklab, currentColor 65%, white);
 }
 .mid {
   stop-color: currentColor;
 }
 .dark {
-  stop-color: color-mix(in oklab, currentColor 45%, black);
+  stop-color: color-mix(in oklab, currentColor 60%, black);
 }
-.deep {
-  stop-color: color-mix(in oklab, currentColor 25%, black);
+.fieldTop {
+  stop-color: color-mix(in oklab, currentColor 62%, black);
 }
-.shine {
-  stop-color: color-mix(in oklab, currentColor 20%, white);
+.fieldBottom {
+  stop-color: color-mix(in oklab, currentColor 38%, black);
+}
+/* Dark yellow turns olive: the yellow tiers' enamel stays lighter. */
+.gold .fieldTop,
+.challenger .fieldTop {
+  stop-color: color-mix(in oklab, currentColor 75%, black);
+}
+.gold .fieldBottom,
+.challenger .fieldBottom {
+  stop-color: color-mix(in oklab, currentColor 52%, black);
 }
 
 .shield {
   fill: var(--rank-metal);
-  stroke: color-mix(in oklab, currentColor 30%, black);
-  stroke-width: 1;
+  stroke: color-mix(in oklab, currentColor 40%, black);
+  stroke-width: 0.6;
+}
+
+.field {
+  fill: var(--rank-field);
 }
 
 .bevel {
   fill: none;
-  stroke: var(--rank-edge);
-  stroke-width: 1.2;
-  opacity: 0.9;
-}
-
-.ornament {
-  fill: var(--rank-edge);
-  stroke: color-mix(in oklab, currentColor 35%, black);
+  stroke: color-mix(in oklab, currentColor 30%, black);
   stroke-width: 0.6;
 }
 
+.ornament,
 .wings {
   fill: var(--rank-metal);
-  stroke: color-mix(in oklab, currentColor 35%, black);
-  stroke-width: 0.6;
+  stroke: color-mix(in oklab, currentColor 40%, black);
+  stroke-width: 0.5;
 }
 
 .facetA {
-  fill: color-mix(in oklab, currentColor 30%, white);
+  fill: color-mix(in oklab, currentColor 65%, white);
 }
 .facetB {
-  fill: color-mix(in oklab, currentColor 60%, white);
+  fill: color-mix(in oklab, currentColor 20%, white);
 }
 .facetC {
-  fill: color-mix(in oklab, currentColor 80%, black);
+  fill: currentColor;
 }
 .facetD {
-  fill: color-mix(in oklab, currentColor 55%, black);
+  fill: color-mix(in oklab, currentColor 75%, black);
 }
 
-.gemEdge {
+/* No rank: an empty slot. */
+.slot {
+  display: block;
+}
+.slotShield {
+  fill: color-mix(in oklab, var(--text-3) 8%, transparent);
+  stroke: var(--text-3);
+  stroke-width: 1.2;
+  stroke-opacity: 0.55;
+}
+.slotGem {
   fill: none;
-  stroke: color-mix(in oklab, currentColor 25%, black);
-  stroke-width: 0.8;
-}
-
-.glint {
-  fill: white;
-  opacity: 0.85;
+  stroke: var(--text-3);
+  stroke-width: 1;
+  stroke-opacity: 0.55;
 }
 
 .iron {
   --rank-metal: url(#rank-metal-iron);
-  --rank-edge: url(#rank-edge-iron);
+  --rank-field: url(#rank-field-iron);
   color: var(--rank-iron);
 }
 .bronze {
   --rank-metal: url(#rank-metal-bronze);
-  --rank-edge: url(#rank-edge-bronze);
+  --rank-field: url(#rank-field-bronze);
   color: var(--rank-bronze);
 }
 .silver {
   --rank-metal: url(#rank-metal-silver);
-  --rank-edge: url(#rank-edge-silver);
+  --rank-field: url(#rank-field-silver);
   color: var(--rank-silver);
 }
 .gold {
   --rank-metal: url(#rank-metal-gold);
-  --rank-edge: url(#rank-edge-gold);
+  --rank-field: url(#rank-field-gold);
   color: var(--rank-gold);
 }
 .platinum {
   --rank-metal: url(#rank-metal-platinum);
-  --rank-edge: url(#rank-edge-platinum);
+  --rank-field: url(#rank-field-platinum);
   color: var(--rank-platinum);
 }
 .emerald {
   --rank-metal: url(#rank-metal-emerald);
-  --rank-edge: url(#rank-edge-emerald);
+  --rank-field: url(#rank-field-emerald);
   color: var(--rank-emerald);
 }
 .diamond {
   --rank-metal: url(#rank-metal-diamond);
-  --rank-edge: url(#rank-edge-diamond);
+  --rank-field: url(#rank-field-diamond);
   color: var(--rank-diamond);
 }
 .master {
   --rank-metal: url(#rank-metal-master);
-  --rank-edge: url(#rank-edge-master);
+  --rank-field: url(#rank-field-master);
   color: var(--rank-master);
 }
 .grandmaster {
   --rank-metal: url(#rank-metal-grandmaster);
-  --rank-edge: url(#rank-edge-grandmaster);
+  --rank-field: url(#rank-field-grandmaster);
   color: var(--rank-grandmaster);
 }
 .challenger {
   --rank-metal: url(#rank-metal-challenger);
-  --rank-edge: url(#rank-edge-challenger);
+  --rank-field: url(#rank-field-challenger);
   color: var(--rank-challenger);
 }

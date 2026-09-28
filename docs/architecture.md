@@ -343,11 +343,14 @@ fixed, `z-index: -1`, `aria-hidden`, `data-free-style`), drawn **on demand only*
   Bump `CACHE_DIR` to fetch again (new art or another window).
 - The UI gets them as data URLs (`rank_emblems` command, `rank-emblems` event when they arrive;
   `ui/src/data/emblems.ts` asks once per session). The app's CSP already allows `data:` images.
-- **`RankEmblem`** (`tier | "unranked"`, `sm` 48 × 36 · `md` 64 × 48 · `lg` 80 × 60) shows Riot's
-  art when it has it, else MVP's crest in the same box (`data-emblem="riot" | "crest"`), so
-  nothing moves when the art arrives. The crest: shield, bevel and cut gem defined once for the
-  page (a hidden SVG with each tier's metal gradients and `#rank-body`), ornaments per tier
-  (crowns, blades, wings, horns); colours mixed from the tier tokens (`--rank-<tier>`).
+- **`RankEmblem`** (`tier | "unranked"`, `sm` 48 × 36 · `md` 64 × 48 (Live cards) · `lg` 80 × 60 ·
+  `xl` 96 × 72 (Home; the core's 192 × 144 at 2×)) shows Riot's art when it has it, else MVP's
+  crest in the same box (`data-emblem="riot" | "crest"`), so nothing moves when the art arrives.
+  The crest: a metal rim around an enamel field in the tier's colour and a cut gem lit from the
+  top left, the brightest thing in it (defined once for the page: a hidden SVG with each tier's
+  metal and enamel gradients and `#rank-body`); ornaments per tier (crowns, blades, wings,
+  horns); a contact shadow, and a glow only from Master up. Colours are mixed from the tier
+  tokens (`--rank-<tier>`). No rank: an empty slot, not a dimmed Iron.
 - Mock scenarios: none by default (the crest shows), `?scenario=emblems` stands in stylized
   emblems (no Riot art in the repository). Dev lab: `#/__harness?show=emblems` (every tier,
   crest and art, at every size).
