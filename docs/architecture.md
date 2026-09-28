@@ -121,6 +121,39 @@ place. The rows are a pure function of the typed text, so Enter always opens wha
 when it is pressed. Lookups are shared with the player page (2 min in memory, failures not cached).
 Recent searches (max 8) and the region live in `localStorage`.
 
+## Stats pages (`ui/src/views/tierlist`, `ui/src/views/champions`)
+The Tier list and Champions pages read the published stats through the core only (`stats_index`,
+`tier_list`, `champion_stats`, event `stats-index`; see `transport.ts`); failures carry a
+`BackendError` and read as "nothing published yet" (empty state) or an error with a retry.
+- **Scope**: queue (420 ranked solo · 450 ARAM), rank bracket and the tier-list role filter are
+  remembered in `localStorage["mvp.stats-filters.v1"]` (`lib/stats-filters.ts`) and shared by both
+  pages. Links can set them: `#/tier-list?queue=450&role=middle`; on a champion page `role` picks the
+  role tab instead (`#/champions?id=103&role=middle`), falling back to the champion's main role.
+- **Requests**: `lib/query.ts` keeps the last answer on screen while a newer one runs (switching a
+  filter never blanks the page), drops answers to older keys and never triggers the app's
+  Suspense. The `stats-index` event bumps a version in every request key: pages refetch when a new
+  publication lands. No timers, no polling.
+- **Tier list**: rows ranked by score within the role shown (a divider opens each tier), sortable
+  columns (`aria-sort`), 50 rows then "Show all" (keeps the DOM small), each row a link to the
+  champion in that role; win rate is the shrunk one with its games, a footnote explains score and
+  grades.
+- **Champion page**: hero (art, role tabs with their share of the champion's games, tier, win/pick/ban
+  rates with their counts, patch), then for the chosen role: the full rune page (both trees, the
+  chosen runes lit in the tree's color, shards; the next most played pages one click away), spells,
+  skill max order and first points (keycaps), items (starting, core in order, boots, 4th/5th/6th),
+  every option with win rate, games and pick share; matchups best/worst by the shrunk effect `d`
+  (lane, vs jungler, duos; rows open the other champion). ARAM: no roles, no bans, no matchups.
+  `/champions` without an id is a searchable grid with each champion's tier.
+- **Runes** come from `GameData.runes` (Data Dragon `runesReforged.json`, cached with the patch;
+  icons under `artBase/img/…`). Stat shards (5001–5013) aren't in Data Dragon: `lib/runes.ts` names
+  them and `design/RuneIcon.tsx` draws them as glyphs (no Riot art).
+- **Controls**: `design/Segmented.tsx` is the radio group used for every filter and tab (one tab
+  stop, arrow keys, Home/End; the selection is a separate thumb element).
+- **For later**: `views/champions/BuildSummary.tsx` (keystone + secondary tree, spells, max order,
+  core items) is ready for the Live page (the local player's champion and role, the game's queue);
+  an "Import" action (rune page, item set: HANDOFF job 5) belongs in the Runes card header, next to
+  the page's numbers. `#/__harness?show=<widget>` shows any registered widget alone (mock builds).
+
 ## Settings and automations
 - **Settings** (`domain::Settings`) are owned by the core: `companion::settings::SettingsStore` loads
   `settings.json` from the app config dir at start (missing/corrupt → defaults), saves every change
@@ -221,7 +254,7 @@ systemd timer) for crawl + publish; per-platform crawls merged for more volume.
 | `lcu` | League client: discovery, pinned TLS, REST, WAMP events, connector lifecycle |
 | `mock-lcu` | fake League client for tests and development |
 | `companion` | Tauri-free core: client status, champ select → `DraftView`, loading screen → `LiveGame`, settings, automations, backend client |
-| `static-data` | Data Dragon download + per-patch cache + offline fallback |
+| `static-data` | Data Dragon download (champions, items, spells, rune trees) + per-patch cache + offline fallback |
 | `stats` | statistics and the draft model |
 | `aggregate` | stats pipeline core: Match-V5 → facts → mergeable aggregates → published JSON |
 | `riot-api` | Riot Web API client for the backend (rate limits, retries) |

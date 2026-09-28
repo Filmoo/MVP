@@ -36,8 +36,13 @@ except where marked.
    disk per patch, ETag), implement the draft data source feeding `crates/stats` draft
    `evaluate/suggest` (replace the mock DraftView suggestions; pool-first using the player's
    mastery — `/lol-champion-mastery/v1/local-player/champion-mastery` — and recent games), then the
-   **Champions** page (builds: runes, spells, skill order, items, matchups) and **Tier list** page
-   (both are placeholders at `/champions` and `/tier-list`). No ban suggestions (owner's call).
+   **Champions** page (builds: runes, spells, skill order, items, matchups) and **Tier list** page.
+   No ban suggestions (owner's call).
+   *UI part done* against the contract with mock data (architecture.md "Stats pages"): Tier list,
+   champion grid and champion pages, rune trees in `GameData`, the `Segmented` control, mock
+   scenarios `stats-empty` / `stats-offline` / `stats-slow` / `stats-aram-only`. Left for the UI:
+   check the pages against real published files (the mock is synthetic: sizes, option counts,
+   thin Master+ data), embed `BuildSummary` on the Live page, the "Import" action (job 5).
 5. **Imports (LCU writes, declare them in policy.md):** rune page (dedicated "MVP" page, never
    delete the player's pages: `/lol-perks/v1/pages`), item set (`/lol-item-sets/v1/item-sets/{summonerId}/sets`),
    summoner spells (`PATCH /lol-champ-select/v1/session/my-selection`) — with the owner's Flash
@@ -67,7 +72,8 @@ mock-lcu scenario for anything the real client does that the mock didn't.
 
 ## Known issues
 - `tests/search.spec.ts` "local list never waits" can time out under heavy parallel load (passes
-  alone); make it robust rather than skipping it.
+  alone); make it robust rather than skipping it. Same for "the panel lays out at every window
+  size…" (30 s for eight sizes, seen once with several agents building).
 - `/live` first view switch is close to the 120 ms budget on loaded machines (lazy chunk).
 - A dev Riot key is slow: a cold 10-player scout ≈ 230 calls; crawling ≈ 2k games/day. Public use
   needs the production key (register the product; policy.md lists endpoints to declare).
