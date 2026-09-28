@@ -27,6 +27,7 @@ pub struct Core {
     pub client: watch::Receiver<Option<lcu::LcuClient>>,
     pub views: ViewReporter,
     pub imports: Importer,
+    pub matches: companion::matches::MatchInsights,
 }
 
 /// Game data of the current patch in the UI's language (Data Dragon locale), once loaded.
@@ -288,6 +289,7 @@ pub fn start<R: Runtime>(app: &AppHandle<R>, settings: &SettingsStore) {
             client: companion.client.clone(),
             views: companion.views.clone(),
             imports: companion.imports.clone(),
+            matches: companion.matches.clone(),
         });
         forward(&app, companion.draft.clone(), "draft");
         forward(&app, companion.live.clone(), "live");

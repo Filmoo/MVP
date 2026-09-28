@@ -3,9 +3,9 @@
 use companion::settings::SettingsStore;
 use companion::stats::StatsClient;
 use domain::{
-    AppInfo, BackendError, Bracket, ChampionPage, ClientStatus, DraftView, GameData, ImportRequest,
-    ImportResult, Language, LiveGame, PlayerProfile, RankEmblems, RemoteConfig, RiotId, Settings,
-    StatsIndex, TierList, UpdateStatus,
+    AppInfo, BackendError, Bracket, ChampionPage, ClientStatus, DraftView, GameData, GradedMatch,
+    ImportRequest, ImportResult, Language, LiveGame, MatchDetails, PlayerProfile, RankEmblems,
+    RemoteConfig, RiotId, Settings, StatsIndex, TierList, UpdateStatus,
 };
 use tauri::{Emitter as _, Manager as _};
 use tauri_plugin_autostart::ManagerExt as _;
@@ -134,22 +134,71 @@ pub fn client_status(app: tauri::AppHandle) -> ClientStatus {
 }
 
 /// The logged-in player's own profile from the League client; `None` while it isn't running.
+/// Games already read whole carry their grade (`match_grades` reads the others).
 #[tauri::command]
 #[allow(
     clippy::needless_pass_by_value,
     reason = "Tauri injects command arguments by value"
 )]
 pub async fn current_profile(app: tauri::AppHandle) -> Result<Option<PlayerProfile>, String> {
-    let client = app
-        .try_state::<Core>()
-        .and_then(|core| core.client.borrow().clone());
+    let Some(core) = app.try_state::<Core>() else {
+        return Ok(None);
+    };
+    let client = core.client.borrow().clone();
     let Some(client) = client else {
         return Ok(None);
     };
-    companion::profile::local_profile(&client)
+    core.matches
+        .profile(&client)
         .await
         .map(Some)
         .map_err(|error| error.to_string())
+}
+
+/// Your grade in each of your listed games (`current_profile`'s ids): the League client's
+/// whole games are read once, a few at a time, and kept. Other ids, remakes and games without
+/// two teams of five answer no grade.
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub async fn match_grades(app: tauri::AppHandle, match_ids: Vec<String>) -> Vec<GradedMatch> {
+    let core = app.try_state::<Core>();
+    let client = core.as_ref().and_then(|core| core.client.borrow().clone());
+    match (core, client) {
+        (Some(core), Some(client)) => core.matches.grades(&client, &match_ids).await,
+        _ => match_ids
+            .into_iter()
+            .map(|match_id| GradedMatch {
+                match_id,
+                grade: None,
+            })
+            .collect(),
+    }
+}
+
+/// One finished game in full, every player's grade included: yours from the League client,
+/// anyone else's from our backend. Fails with a `BackendError` the UI words.
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub async fn match_details(
+    app: tauri::AppHandle,
+    match_id: String,
+) -> Result<MatchDetails, BackendError> {
+    let core = app
+        .try_state::<Core>()
+        .ok_or_else(|| BackendError::Unavailable {
+            message: "MVP is still starting, try again in a moment".to_owned(),
+        })?;
+    let client = core.client.borrow().clone();
+    let backend = app.try_state::<Backend>().and_then(|b| b.0.clone());
+    core.matches
+        .details(client.as_ref(), backend.as_ref(), match_id.trim())
+        .await
 }
 
 /// Current champion select, `None` outside of it (`draft` events follow changes).

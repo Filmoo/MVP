@@ -12,6 +12,7 @@ pub mod crash;
 pub mod draft;
 pub mod imports;
 pub mod live;
+pub mod matches;
 pub mod profile;
 pub mod remote;
 pub mod settings;
@@ -75,6 +76,8 @@ pub struct Companion {
     pub views: ViewReporter,
     /// Imports builds into the client on request (`import_build`).
     pub imports: Importer,
+    /// Your profile, and every game's grades and details, read once and kept.
+    pub matches: matches::MatchInsights,
     pub task: JoinHandle<()>,
 }
 
@@ -372,6 +375,7 @@ pub fn start_with_services(
         events,
         views: ViewReporter(views_tx),
         imports: importer,
+        matches: matches::MatchInsights::default(),
         task,
     }
 }
