@@ -590,6 +590,8 @@ impl Engine {
     async fn on_view(&mut self, view: Option<DraftView>) {
         let Some(view) = view else {
             if self.view.take().is_some() {
+                // Loads still on their way belong to the champion select that just ended.
+                self.session += 1;
                 self.pool = None;
                 self.data = None;
                 self.model = None;
@@ -1241,5 +1243,46 @@ mod tests {
         let mut view = view(0, false, &[]);
         e.apply(&mut view);
         assert_eq!(view.enemies[0].role, Some(domain::Role::Top));
+    }
+
+    #[tokio::test]
+    async fn loads_of_an_ended_champion_select_are_dropped() {
+        let (out, published) = watch::channel(None);
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let mut engine = Engine {
+            out,
+            lcu: watch::channel(None).1,
+            stats: None,
+            tx,
+            fetches: Arc::new(Semaphore::new(1)),
+            session: 0,
+            load: 0,
+            view: None,
+            pool: None,
+            data: None,
+            model: None,
+            requested: HashSet::new(),
+            version: 0,
+            last: None,
+        };
+        engine.on_view(Some(view(MALPHITE, false, &[]))).await;
+        let started = engine.session;
+        assert!(published.borrow().is_some(), "teams show at once");
+        engine.on_view(None).await;
+        assert!(published.borrow().is_none());
+        let late = Loaded::Pool {
+            session: started,
+            pool: pool(),
+        };
+        assert!(!engine.on_loaded(late));
+        assert!(engine.pool.is_none());
+        // The next champion select takes its own loads.
+        engine.on_view(Some(view(MALPHITE, false, &[]))).await;
+        let fresh = Loaded::Pool {
+            session: engine.session,
+            pool: pool(),
+        };
+        assert!(engine.on_loaded(fresh));
+        assert!(engine.pool.is_some());
     }
 }
