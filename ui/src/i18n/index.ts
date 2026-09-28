@@ -25,11 +25,14 @@ export type Lang = "en" | "fr";
 const STORE = "mvp.language";
 
 // Until the first view besides Home asks for them, the view words are missing (see `loadViewWords`).
-const [messages, setMessages] = createSignal<Messages>(en as Messages);
+// `en` is only read once asked for, never while this module loads: lib/format imports this module
+// and en.ts imports lib/format, so when en.ts loads first (a test importing it, say) `en` isn't
+// initialized yet at that point.
+const [messages, setMessages] = createSignal<Messages>();
 const [current, setCurrent] = createSignal<Lang>("en");
 
 /** The words of the current language. */
-export const t = messages;
+export const t = (): Messages => messages() ?? (en as Messages);
 
 /** The current language. */
 export const lang = current;
@@ -67,10 +70,11 @@ function save(preference: Language): void {
   }
 }
 
-const cores: Partial<Record<Lang, Promise<CoreMessages>>> = { en: Promise.resolve(en) };
+const cores: Partial<Record<Lang, Promise<CoreMessages>>> = {};
 const views: Partial<Record<Lang, Promise<ViewMessages>>> = {};
 
-const coreOf = (language: Lang): Promise<CoreMessages> => (cores[language] ??= import("./fr").then((m) => m.fr));
+const coreOf = (language: Lang): Promise<CoreMessages> =>
+  (cores[language] ??= language === "fr" ? import("./fr").then((m) => m.fr) : Promise.resolve(en));
 const viewsOf = (language: Lang): Promise<ViewMessages> =>
   (views[language] ??= language === "fr" ? import("./fr-views").then((m) => m.frViews) : import("./en-views").then((m) => m.enViews));
 
@@ -123,10 +127,10 @@ export function initLanguage(): Promise<void> {
  */
 export async function loadViewWords(): Promise<void> {
   viewsWanted = true;
-  while (!complete(messages())) {
+  while (!complete(t())) {
     const language = current();
     const words = await wordsOf(language);
-    if (language === current() && !complete(messages())) setMessages(words);
+    if (language === current() && !complete(t())) setMessages(words);
   }
 }
 
