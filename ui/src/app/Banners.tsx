@@ -75,26 +75,31 @@ export default function Banners(props: { status: ClientStatus | undefined }): JS
   };
 
   return (
-    <Suspense>
-      <Show when={config().updateRequired}>
-        <UpdateBlocker
-          message={config().minVersion?.message.en ?? "This version of MVP is no longer supported."}
-          update={updates.status()}
-          inGame={inGame()}
-          onRestart={restart}
-          onCheck={() => void updates.check()}
-        />
-      </Show>
-      <Show when={banners().length > 0 || ready()}>
-        <NoticesStrip
-          banners={banners()}
-          ready={ready()}
-          onDismiss={dismiss}
-          onOpen={open}
-          onRestart={restart}
-          onLater={() => setLater(true)}
-        />
-      </Show>
-    </Suspense>
+    // One boundary each: the strip loading later never hides the card for a frame.
+    <>
+      <Suspense>
+        <Show when={config().updateRequired}>
+          <UpdateBlocker
+            message={config().minVersion?.message.en ?? "This version of MVP is no longer supported."}
+            update={updates.status()}
+            inGame={inGame()}
+            onRestart={restart}
+            onCheck={() => void updates.check()}
+          />
+        </Show>
+      </Suspense>
+      <Suspense>
+        <Show when={banners().length > 0 || ready()}>
+          <NoticesStrip
+            banners={banners()}
+            ready={ready()}
+            onDismiss={dismiss}
+            onOpen={open}
+            onRestart={restart}
+            onLater={() => setLater(true)}
+          />
+        </Show>
+      </Suspense>
+    </>
   );
 }
