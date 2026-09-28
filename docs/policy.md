@@ -40,9 +40,11 @@ detection, composite player scores, live win probability, sending data to third-
 - **Loading-screen scouting (2026-09-27, shipped).** Player cards appear only once the game has
   started (Loading/InGame), when the game itself shows every name; champion select is never read
   for identities. Streamer-mode players (`nameVisibilityType: HIDDEN`) are shown as "Hidden
-  player": their PUUID and name are dropped in the core before any lookup. Tags are positive or
-  neutral only (one-trick, win streak, veteran, main role); no "first time", no MMR, no grades of
-  other players. LCU endpoints: `GET /lol-gameflow/v1/session`, `GET /lol-summoner/v1/current-summoner`,
+  player": their PUUID and name are dropped in the core before any lookup. Visible players are
+  looked up on our backend **by Riot ID** (what the loading screen shows); the client's PUUIDs
+  never leave the app (they aren't our API key's anyway), and the backend stores the Riot ID
+  next to its own PUUID. Tags are positive or neutral only (one-trick, win streak, veteran,
+  main role); no "first time", no MMR, no grades of other players. LCU endpoints: `GET /lol-gameflow/v1/session`, `GET /lol-summoner/v1/current-summoner`,
   `GET /riotclient/region-locale` (declare at product registration).
 - **Window follows the game (not gray, noted for completeness).** Bringing MVP to the front in
   champ select and switching views only moves our own window; both can be turned off, and a view

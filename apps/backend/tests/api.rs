@@ -121,7 +121,21 @@ async fn by_riot_id(Path((name, tag)): Path<(String, String)>) -> Response {
     )
 }
 
+/// A League client PUUID (a UUID): Riot can't decrypt it with our key and answers 400.
+fn undecryptable(puuid: &str) -> Option<Response> {
+    (puuid.len() == 36 && puuid.matches('-').count() == 4).then(|| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "status": { "message": "Bad Request - Exception decrypting", "status_code": 400 } })),
+        )
+            .into_response()
+    })
+}
+
 async fn by_puuid(Path(puuid): Path<String>) -> Response {
+    if let Some(refused) = undecryptable(&puuid) {
+        return refused;
+    }
     found(find(|p| p.puuid == puuid).map(|p| account_json(&p)))
 }
 
@@ -133,6 +147,9 @@ async fn summoner(Path(puuid): Path<String>) -> Response {
 }
 
 async fn entries(Path(puuid): Path<String>) -> Response {
+    if let Some(refused) = undecryptable(&puuid) {
+        return refused;
+    }
     found(find(|p| p.puuid == puuid).map(|p| {
         json!([{
             "queueType": "RANKED_SOLO_5x5", "tier": "EMERALD", "rank": "II", "leaguePoints": 42,
@@ -142,6 +159,9 @@ async fn entries(Path(puuid): Path<String>) -> Response {
 }
 
 async fn match_ids(Path(puuid): Path<String>) -> Response {
+    if let Some(refused) = undecryptable(&puuid) {
+        return refused;
+    }
     found(find(|p| p.puuid == puuid).map(|p| {
         (0..p.games.len())
             .map(|i| format!("EUW1_{}_{i}", p.puuid))
@@ -356,11 +376,14 @@ async fn missing_key_answers_503() {
     assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
     assert_eq!(body["error"], "riotKeyMissing");
 
-    let (status, body) = env
-        .batch(&json!({ "platform": "euw1", "puuids": ["p-otp"] }))
-        .await;
-    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
-    assert_eq!(body["error"], "riotKeyMissing");
+    for request in [
+        json!({ "platform": "euw1", "puuids": ["p-otp"] }),
+        json!({ "platform": "euw1", "players": [{ "gameName": "Foxfire", "tagLine": "EUW" }] }),
+    ] {
+        let (status, body) = env.batch(&request).await;
+        assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(body["error"], "riotKeyMissing");
+    }
     assert_eq!(env.fake.calls(), 0);
 }
 
@@ -460,7 +483,126 @@ async fn batch_validation() {
         .batch(&json!({ "platform": "euw1", "puuids": ["../../etc"] }))
         .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
+
+    // Riot IDs: both parts, bounded, printable; 10 players at most across both lists.
+    let riot_id = |name: &str, tag: &str| json!({ "gameName": name, "tagLine": tag });
+    let six: Vec<Value> = (0..6)
+        .map(|i| riot_id(&format!("Player{i}"), "EUW"))
+        .collect();
+    let five: Vec<String> = (0..5).map(|i| format!("p-{i}")).collect();
+    for bad in [
+        json!({ "platform": "euw1", "players": [riot_id("", "EUW")] }),
+        json!({ "platform": "euw1", "players": [riot_id("Name", " ")] }),
+        json!({ "platform": "euw1", "players": [riot_id("..", "EUW")] }),
+        json!({ "platform": "euw1", "players": [riot_id("Bell\u{7}", "EUW")] }),
+        json!({ "platform": "euw1", "players": [riot_id(&"W".repeat(65), "EUW")] }),
+        json!({ "platform": "euw1", "players": [{ "gameName": "NoTag" }] }),
+        json!({ "platform": "euw1", "players": six, "puuids": five }),
+        json!({ "platform": "euw1", "players": [], "puuids": [] }),
+    ] {
+        let (status, body) = env.batch(&bad).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{bad}");
+        assert_eq!(body["error"], "badRequest", "{bad}");
+    }
     assert_eq!(env.fake.calls(), 0);
+}
+
+#[tokio::test]
+async fn batch_by_riot_id_resolves_each_player() {
+    let env = start(true).await;
+    let request = json!({ "platform": "euw1", "players": [
+        { "gameName": "foxfire", "tagLine": "euw" },
+        { "gameName": "Nobody", "tagLine": "000" },
+        { "gameName": " Allrounder ", "tagLine": "1234" },
+        { "gameName": "FOXFIRE", "tagLine": "EUW" },
+    ] });
+    let (status, body) = env.batch(&request).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let cards = body.as_array().unwrap();
+    assert_eq!(
+        cards.len(),
+        2,
+        "nobody by that name: no card; repeats count once"
+    );
+    assert_eq!(
+        cards[0]["riotId"],
+        json!({ "gameName": "Foxfire", "tagLine": "EUW" }),
+        "the account's own Riot ID, to match back case-insensitively"
+    );
+    assert_eq!(cards[0]["puuid"], "p-otp", "our key's PUUID");
+    assert_eq!(cards[0]["tags"][0]["kind"], "otp");
+    assert_eq!(cards[0]["gamesSampled"], 20);
+    assert_eq!(cards[1]["riotId"]["gameName"], "Allrounder");
+    assert_eq!(
+        env.fake.calls_to("/accounts/by-riot-id/"),
+        3,
+        "one account-v1 lookup per distinct player"
+    );
+    assert_eq!(
+        env.fake.calls_to("/accounts/by-puuid/"),
+        0,
+        "the Riot ID lookup already gave the account"
+    );
+
+    // The same lobby again: accounts (a day) and cards (2 min) come from the caches.
+    let calls = env.fake.calls();
+    let (status, again) = env
+        .batch(&json!({ "platform": "euw1", "players": [
+            { "gameName": "Foxfire", "tagLine": "EUW" },
+            { "gameName": "Allrounder", "tagLine": "1234" },
+        ] }))
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(again, body);
+    assert_eq!(
+        env.fake.calls(),
+        calls,
+        "no Riot call for a lobby seen before"
+    );
+
+    // A card built from a PUUID earlier is shared with the Riot ID path, and the other way.
+    let (status, legacy) = env
+        .batch(&json!({ "platform": "euw1", "puuids": ["p-otp"] }))
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(legacy[0], body[0]);
+    assert_eq!(env.fake.calls(), calls);
+}
+
+#[tokio::test]
+async fn batch_answers_riot_ids_then_puuids() {
+    let env = start(true).await;
+    let (status, body) = env
+        .batch(&json!({
+            "platform": "euw1",
+            "puuids": ["p-flex"],
+            "players": [{ "gameName": "Nightfall", "tagLine": "EUW" }],
+        }))
+        .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let names: Vec<&str> = body
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|c| c["riotId"]["gameName"].as_str().unwrap())
+        .collect();
+    assert_eq!(names, ["Nightfall", "Allrounder"]);
+}
+
+#[tokio::test]
+async fn league_client_puuids_get_no_card_instead_of_failing_the_batch() {
+    // Apps up to 0.1.0 sent the League client's PUUIDs, which our key can't decrypt (400).
+    let env = start(true).await;
+    let (status, body) = env
+        .batch(&json!({ "platform": "euw1", "puuids": [
+            "0f8e2a7c-1b2d-4c3e-9f10-aa11bb22cc33",
+            "p-flex",
+        ] }))
+        .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let cards = body.as_array().unwrap();
+    assert_eq!(cards.len(), 1);
+    assert_eq!(cards[0]["puuid"], "p-flex");
 }
 
 #[tokio::test]

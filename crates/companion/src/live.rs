@@ -4,6 +4,9 @@
 //! Policy (docs/policy.md): read only once the game starts (loading screen, in game), when
 //! every player's name is shown by the game itself — never in champion select. Players hidden
 //! by Riot (streamer mode) stay hidden: their identity fields are never read, never looked up.
+//!
+//! Players are looked up by **Riot ID**: the client's PUUIDs are not the ones our backend's
+//! API key sees (Riot encrypts PUUIDs per key), so they never leave the core.
 
 use domain::{BackendError, LiveGame, LivePlayer, RiotId, Role, ScoutCard, Scouting};
 use lcu::LcuClient;
@@ -63,7 +66,8 @@ fn role(position: &str) -> Option<Role> {
     }
 }
 
-/// A seat as read from the session, with the PUUID kept in the core (never sent to the UI).
+/// A seat as read from the session. The client's PUUID stays in the core: it identifies the
+/// local player and pairs spells, and is never sent anywhere (our backend's key can't read it).
 #[derive(Debug, Clone, PartialEq)]
 pub struct Seat {
     pub player: LivePlayer,
@@ -71,40 +75,52 @@ pub struct Seat {
     pub puuid: Option<String>,
 }
 
-/// A mapped session: the view plus the PUUIDs to scout, seat by seat (allies, then enemies).
+/// Riot IDs are case-insensitive: the backend answers with the account's own spelling.
+pub fn same_riot_id(a: &RiotId, b: &RiotId) -> bool {
+    let norm = |s: &str| s.trim().to_lowercase();
+    norm(&a.game_name) == norm(&b.game_name) && norm(&a.tag_line) == norm(&b.tag_line)
+}
+
+/// A mapped session: the view, plus whom to scout.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Scouted {
     pub game: LiveGame,
-    pub puuids: Vec<Option<String>>,
 }
 
 impl Scouted {
-    /// Distinct PUUIDs to ask the backend about, in seat order.
-    pub fn wanted(&self) -> Vec<String> {
-        let mut out: Vec<String> = Vec::new();
-        for p in self.puuids.iter().flatten() {
-            if !out.contains(p) {
-                out.push(p.clone());
+    fn seats_mut(&mut self) -> impl Iterator<Item = &mut LivePlayer> {
+        self.game
+            .allies
+            .iter_mut()
+            .chain(self.game.enemies.iter_mut())
+    }
+
+    /// Distinct Riot IDs to ask the backend about, in seat order. Hidden players have none
+    /// (their names are never read), neither do bots.
+    pub fn wanted(&self) -> Vec<RiotId> {
+        let mut out: Vec<RiotId> = Vec::new();
+        let seats = self.game.allies.iter().chain(&self.game.enemies);
+        for id in seats
+            .filter(|p| !p.hidden)
+            .filter_map(|p| p.riot_id.as_ref())
+        {
+            if !out.iter().any(|o| same_riot_id(o, id)) {
+                out.push(id.clone());
             }
         }
         out
     }
 
-    /// Fills the cards in (or records why they can't come).
+    /// Fills the cards in, seat by seat by Riot ID (or records why they can't come).
     pub fn apply(&mut self, result: Result<Vec<ScoutCard>, BackendError>) {
         match result {
             Ok(cards) => {
-                let seats = self
-                    .game
-                    .allies
-                    .iter_mut()
-                    .chain(self.game.enemies.iter_mut());
-                for (player, puuid) in seats.zip(&self.puuids) {
-                    let Some(puuid) = puuid else { continue };
-                    if let Some(card) = cards.iter().find(|c| &c.puuid == puuid) {
-                        if player.riot_id.is_none() {
-                            player.riot_id.clone_from(&card.riot_id);
-                        }
+                for player in self.seats_mut().filter(|p| !p.hidden) {
+                    let Some(id) = &player.riot_id else { continue };
+                    let card = cards
+                        .iter()
+                        .find(|c| c.riot_id.as_ref().is_some_and(|c| same_riot_id(c, id)));
+                    if let Some(card) = card {
                         player.card = Some(card.clone());
                     }
                 }
@@ -199,11 +215,6 @@ pub fn map_session(session: &Value, my_puuid: Option<&str>, platform: &str) -> O
     } else {
         (one, two)
     };
-    let puuids = allies
-        .iter()
-        .chain(&enemies)
-        .map(|s| s.puuid.clone())
-        .collect();
     Some(Scouted {
         game: LiveGame {
             game_id,
@@ -216,7 +227,6 @@ pub fn map_session(session: &Value, my_puuid: Option<&str>, platform: &str) -> O
             enemies: enemies.into_iter().map(|s| s.player).collect(),
             scouting: Scouting::Loading,
         },
-        puuids,
     })
 }
 
@@ -337,10 +347,20 @@ mod tests {
         let hidden = &game.enemies[1];
         assert!(hidden.hidden && hidden.riot_id.is_none());
         assert_eq!(hidden.spells, vec![11, 4]);
-        // The hidden enemy's PUUID and name never leave the mapper.
-        assert_eq!(scouted.wanted(), vec!["me", "a2", "e1"]);
+        // Looked up by Riot ID: the hidden enemy's name never leaves the mapper, and a player
+        // without one (a2) can't be looked up.
+        let wanted: Vec<String> = scouted
+            .wanted()
+            .iter()
+            .map(|id| format!("{}#{}", id.game_name, id.tag_line))
+            .collect();
+        assert_eq!(wanted, ["Fillmo#7272", "Enemy#EUW"]);
         let debug = format!("{scouted:?}");
         assert!(!debug.contains("e2-secret") && !debug.contains("Streamer"));
+        assert!(
+            !debug.contains("\"me\""),
+            "client PUUIDs stay out of the view"
+        );
     }
 
     #[test]
@@ -364,17 +384,30 @@ mod tests {
     }
 
     #[test]
-    fn cards_fill_their_seats() {
+    fn cards_fill_their_seats_by_riot_id() {
         let mut scouted = map_session(&ranked_session(), Some("me"), "euw1").expect("game");
-        scouted.apply(Ok(vec![card("e1", "Enemy"), card("a2", "Jungler")]));
+        // The backend spells names the account's way: matched case-insensitively. Its PUUIDs
+        // are its API key's, unrelated to the client's.
+        let mut enemy = card("api-puuid-1", "ENEMY");
+        enemy.riot_id = Some(RiotId {
+            game_name: "enemy".to_owned(),
+            tag_line: "euw".to_owned(),
+        });
+        scouted.apply(Ok(vec![enemy, card("api-puuid-2", "Stranger")]));
         assert_eq!(scouted.game.scouting, Scouting::Done);
-        assert!(scouted.game.enemies[0].card.is_some());
-        assert!(scouted.game.allies[0].card.is_none(), "no card for me");
-        let jungler = &scouted.game.allies[1];
+        let seat = &scouted.game.enemies[0];
         assert_eq!(
-            jungler.riot_id.as_ref().map(|r| r.game_name.as_str()),
-            Some("Jungler")
+            seat.card.as_ref().map(|c| c.puuid.as_str()),
+            Some("api-puuid-1")
         );
+        assert_eq!(
+            seat.riot_id.as_ref().map(|r| r.game_name.as_str()),
+            Some("Enemy"),
+            "the client's spelling stays"
+        );
+        assert!(scouted.game.allies[0].card.is_none(), "no card for me");
+        assert!(scouted.game.allies[1].card.is_none(), "no Riot ID, no card");
+        assert!(scouted.game.enemies[1].card.is_none(), "hidden");
 
         let mut failed = map_session(&ranked_session(), Some("me"), "euw1").expect("game");
         failed.apply(Err(BackendError::RateLimited {

@@ -208,16 +208,18 @@ impl BackendClient {
         receive(self.0.http.get(url).timeout(self.0.timeout).send().await).await
     }
 
-    /// Scouting cards for up to 10 players (`POST /v1/players/batch`). Players the server
-    /// doesn't know get no card.
+    /// Scouting cards for up to 10 players, by Riot ID (`POST /v1/players/batch`). Players the
+    /// server doesn't know get no card; a card's `riot_id` is its account's (match it back
+    /// with [`crate::live::same_riot_id`]).
     pub async fn scout(
         &self,
         platform: &str,
-        puuids: &[String],
+        players: &[RiotId],
     ) -> Result<Vec<ScoutCard>, BackendError> {
         let body = ScoutRequest {
             platform: platform.to_owned(),
-            puuids: puuids.to_vec(),
+            players: players.to_vec(),
+            puuids: Vec::new(),
         };
         let url = self.url(&["v1", "players", "batch"]);
         let request = self

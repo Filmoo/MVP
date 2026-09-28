@@ -14,7 +14,7 @@ JSON, camelCase. Types come from `crates/domain` and are exported to
 | --- | --- |
 | `GET /health` | `Health` `{ ok, version, riotKey }` |
 | `GET /v1/players/{platform}/{gameName}/{tagLine}` | `PlayerProfile` (last 20 games) |
-| `POST /v1/players/batch` `{ platform, puuids: [1–10] }` | `ScoutCard[]`, in request order |
+| `POST /v1/players/batch` `{ platform, players: [{ gameName, tagLine }] }` (1–10; older apps: `puuids`) | `ScoutCard[]`, in request order |
 | `GET /v1/updates/{target}/{arch}/{currentVersion}?channel=&install_id=&lang=` | 204, or the Tauri updater manifest (see [App updates](#app-updates)) |
 | `GET /v1/config?version=&channel=` | `RemoteConfig` + `ETag`; 304 on `If-None-Match` (see [Remote config](#remote-config)) |
 | `POST /v1/reports` (`CrashReport`) | 202 (see [Crash reports](#crash-reports-and-privacy)) |
@@ -31,11 +31,19 @@ with `If-None-Match` rather than refetching a whole patch at once.
 
 - `platform` is a Riot platform id: `euw1`, `eun1`, `na1`, `kr`, `br1`, `jp1`, `la1`, `la2`,
   `me1`, `oc1`, `ru`, `sg2`, `tr1`, `tw2`, `vn2`.
-- Scout cards come from the last 20 ranked solo/duo games: Riot ID (stored next to the PUUID),
-  solo queue rank, top 3 champions (games, wins, KDA), last 10 results, main roles and
+- Scouting batches name players by **Riot ID** (`players`, as the League client shows them):
+  the client's PUUIDs are not our key's (Riot encrypts PUUIDs per API key), so each Riot ID is
+  resolved with account-v1 (cached a day, like every account lookup) and the card is built
+  from our key's PUUID. `puuids` (PUUIDs as *our key* sees them) is what apps up to 0.1.0
+  sent and is still accepted; Riot IDs come first in the answer, then PUUIDs. Repeats count
+  once (Riot IDs compare case-insensitively); at most 10 players across both lists.
+- Scout cards come from the last 20 ranked solo/duo games: Riot ID (the account's own spelling,
+  stored next to our key's PUUID; the app matches it back case-insensitively), solo queue
+  rank, top 3 champions (games, wins, KDA), last 10 results, main roles and
   **positive/neutral tags only**: `otp` (≥ 70 % of ≥ 10 games on one champion), `mainRole`
   (≥ 60 % of ≥ 5 games), `hotStreak` (≥ 4 wins in a row), `veteran` (≥ 100 ranked games this
-  season). PUUIDs our key doesn't know get no card.
+  season). A Riot ID nobody has, or a PUUID our key can't read (Riot answers 400 for another
+  key's or the League client's), gets no card; the rest of the batch still comes.
 - Every request should carry **`X-MVP-Install: <install id>`** (a random UUID the app makes
   once per install): it keys the rate limit and staged rollouts. Answers carry
   `X-Request-Id` (quote it in bug reports; a sane incoming `X-Request-Id` is kept).
@@ -43,7 +51,7 @@ with `If-None-Match` rather than refetching a whole patch at once.
 
 | Status | `error` | When |
 | --- | --- | --- |
-| 400 | `badPlatform` / `badRequest` | unknown platform, malformed body, 0 or > 10 PUUIDs, bad version/channel |
+| 400 | `badPlatform` / `badRequest` | unknown platform, malformed body or Riot ID, 0 or > 10 players, bad version/channel |
 | 404 | `notFound` | no such Riot ID / route |
 | 413 | `badRequest` | body over the limit (16 KB; 40 KB for reports) |
 | 429 | `rateLimited` | Riot's limit, or ours per client; `retryAfter` seconds (also a `Retry-After` header) |
@@ -283,7 +291,7 @@ RIOT_API_KEY=RGAPI-… cargo run -p mvp-backend      # or: pnpm backend
 curl http://127.0.0.1:8787/health
 curl http://127.0.0.1:8787/v1/players/euw1/Name/TAG
 curl -X POST http://127.0.0.1:8787/v1/players/batch \
-  -H 'content-type: application/json' -d '{"platform":"euw1","puuids":["…"]}'
+  -H 'content-type: application/json' -d '{"platform":"euw1","players":[{"gameName":"Name","tagLine":"TAG"}]}'
 curl -i 'http://127.0.0.1:8787/v1/config?version=0.1.0'
 curl -i http://127.0.0.1:8787/v1/updates/windows/x86_64/0.1.0
 cargo run -p mvp-backend -- release list            # admin commands use the same DATA_DIR
