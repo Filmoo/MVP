@@ -2,7 +2,9 @@
 //!
 //! Writes `.cache/mock-lcu/{lockfile,ca.pem}` and loops through a whole game cycle
 //! (lobby → queue → champ select → game → end of game), with a game session from the loading
-//! screen on (loading-screen scouting). Point a debug build of the app at it:
+//! screen on (loading-screen scouting). The local player has champion mastery, recent games and
+//! a pickable-champion list, which the draft helper builds its pool-first picks from. Point a
+//! debug build of the app at it:
 //!   SCOUT_LCU_LOCKFILE=.cache/mock-lcu/lockfile SCOUT_LCU_CA=.cache/mock-lcu/ca.pem pnpm app
 
 use std::path::PathBuf;
@@ -55,8 +57,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             { "gameId": 7_000_000_002_u64, "queueId": 420, "gameCreation": 1_790_490_000_000_i64, "gameDuration": 1935,
               "participants": [{ "championId": 134, "timeline": { "lane": "MIDDLE", "role": "SOLO" },
                 "stats": { "win": false, "kills": 3, "deaths": 6, "assists": 5, "totalMinionsKilled": 190, "neutralMinionsKilled": 8,
-                           "item0": 6655, "item1": 3020, "item2": 3157 } }] }
+                           "item0": 6655, "item1": 3020, "item2": 3157 } }] },
+            { "gameId": 7_000_000_001_u64, "queueId": 420, "gameCreation": 1_790_480_000_000_i64, "gameDuration": 1810,
+              "participants": [{ "championId": 54, "timeline": { "lane": "TOP", "role": "SOLO" },
+                "stats": { "win": true, "kills": 4, "deaths": 3, "assists": 14, "totalMinionsKilled": 201, "neutralMinionsKilled": 4,
+                           "item0": 3068, "item1": 3047, "item2": 3075 } }] },
+            { "gameId": 7_000_000_000_u64, "queueId": 440, "gameCreation": 1_790_470_000_000_i64, "gameDuration": 2011,
+              "participants": [{ "championId": 516, "timeline": { "lane": "TOP", "role": "SOLO" },
+                "stats": { "win": false, "kills": 1, "deaths": 5, "assists": 9, "totalMinionsKilled": 230, "neutralMinionsKilled": 0,
+                           "item0": 3068, "item1": 3111 } }] }
         ] } }),
+    );
+    // The local player's own mastery and what they can pick (the draft helper's pool).
+    mock.set(
+        "/lol-champion-mastery/v1/local-player/champion-mastery",
+        json!([
+            { "championId": 103, "championLevel": 12, "championPoints": 412_300, "lastPlayTime": 1_790_500_000_000_i64 },
+            { "championId": 54, "championLevel": 9, "championPoints": 245_800, "lastPlayTime": 1_790_480_000_000_i64 },
+            { "championId": 516, "championLevel": 7, "championPoints": 98_400, "lastPlayTime": 1_790_470_000_000_i64 },
+            { "championId": 98, "championLevel": 5, "championPoints": 41_200, "lastPlayTime": 1_780_000_000_000_i64 },
+            { "championId": 134, "championLevel": 5, "championPoints": 38_900, "lastPlayTime": 1_790_490_000_000_i64 },
+            { "championId": 412, "championLevel": 4, "championPoints": 21_000, "lastPlayTime": 1_770_000_000_000_i64 }
+        ]),
+    );
+    mock.set(
+        "/lol-champ-select/v1/pickable-champion-ids",
+        json!([
+            1, 3, 12, 22, 24, 51, 53, 54, 57, 58, 64, 75, 78, 86, 98, 99, 103, 111, 122, 134, 145,
+            157, 222, 234, 238, 266, 412, 516, 517, 555, 777, 799, 800, 887, 897, 901, 910
+        ]),
     );
     loop {
         for (phase, seconds) in CYCLE {
