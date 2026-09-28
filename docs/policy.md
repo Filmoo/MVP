@@ -47,3 +47,14 @@ detection, composite player scores, live win probability, sending data to third-
 - **Window follows the game (not gray, noted for completeness).** Bringing MVP to the front in
   champ select and switching views only moves our own window; both can be turned off, and a view
   the player opened themselves is never switched away from.
+- **Draft helper (2026-09-28, shipped; not gray, noted for the endpoint list).** Statistics only:
+  about the other nine players it uses champion-level numbers of what champ select shows (picks,
+  allies' hovers, bans) and never their identities (the session's name/PUUID fields are not even
+  deserialized); the player's pool comes from their own client (mastery, own match history,
+  pickable champions). Picks are ranked options with their reasons, never made for the player;
+  no ban suggestions, no dodge advice. Stats files come from our backend (no Riot key in the app).
+  LCU endpoints (reads): `GET /lol-champ-select/v1/session` (and its events),
+  `GET /lol-champion-mastery/v1/local-player/champion-mastery`,
+  `GET /lol-champ-select/v1/pickable-champion-ids`,
+  `GET /lol-match-history/v1/products/lol/current-summoner/matches` (declare at product
+  registration).

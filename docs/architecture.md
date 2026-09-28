@@ -93,7 +93,8 @@ Run, deploy, data dir layout and privacy: `apps/backend/README.md`.
 
 ## Backend client (`companion::backend`)
 The app reaches the backend **from the core**, never from the webview: the UI calls Tauri commands
-(`search_player`, `live_game`, `retry_scouting`) and the core makes the HTTPS request.
+(`search_player`, `live_game`, `retry_scouting`, the stats commands below) and the core makes the
+HTTPS request.
 - **Base URL**: `MVP_BACKEND_URL` at **build time** (`MVP_BACKEND_URL=https://api… pnpm build:exe`);
   without it, `http://127.0.0.1:8787` (a local `pnpm backend`). **Debug builds** also read
   `MVP_BACKEND_URL` at run time, to point a dev app anywhere without rebuilding:
@@ -214,13 +215,65 @@ atomically on publication; the index is written last.
 (credentials only on the VPS, never in the repo) and point the app at it; a schedule (cron /
 systemd timer) for crawl + publish; per-platform crawls merged for more volume.
 
+## Stats in the app (`companion::stats`, `companion::draft`)
+The core downloads the published files through the backend client (same base URL, install id,
+timeouts and `BackendError`s) and the UI asks the core, never the backend:
+
+| Command / event | Answer |
+| --- | --- |
+| `stats_index` | `StatsIndex \| null`: the index as last fetched (`null`: nothing published, or offline without a cached copy); a stale one is revalidated in the background |
+| `tier_list { queue, bracket }` | `TierList` of the current patch · rejects with a `BackendError` (`notFound` when neither published nor cached) |
+| `champion_stats { championId, queue, bracket }` | `ChampionPage` from `champions.json` (record), `tierlist.json` (its rows, best role first), `builds/{id}.json`, `matchups/{id}.json` (ranked only); an unpublished file leaves its part empty, `notFound` only when the data set doesn't exist |
+| event `stats-index` | `StatsIndex`: a different index arrived (new patch, republication): stats views refetch |
+
+- **Disk cache** under the app cache dir, in the server's layout: `stats/v1/index.json`,
+  `stats/v1/{patch}/{queue}/{bracket}/{file}`, each with its `ETag` in `{file}.etag` (atomic
+  writes). Only the index's current patch and the one before it stay on disk.
+- **When the network is used** (never on a timer): the index at startup (`If-None-Match`), then at
+  most once per its `max-age` (5 min) when something asks for stats, e.g. champion select
+  starting; a stale index answers at once and is revalidated in the background. Data files don't
+  change within a publication and carry its time (`info.updated_at` = the index's
+  `PatchIndex.updatedAt`): a cached file of the current generation is served with no request;
+  otherwise `If-None-Match` (304 → the disk copy), and a 404 is remembered for that generation.
+  Requests for one file are coalesced; a 429 pauses every request for its `Retry-After` (the
+  backend allows 60 at once, 120/min per install, shared with lookups). Parsed files live in a
+  64-file LRU.
+- **Offline or failing**: the cached copy (any generation), else the previous patch's copy,
+  else the error.
+
+**Draft helper** (`companion::draft`, a task of its own next to the core's event loop): the loop
+maps each champ-select session (teams only) and hands it over; the helper re-publishes it at
+once when nothing the model reads changed, else after one evaluation on a blocking thread
+(~1 ms per pick in release). What it adds to `DraftView`: `team` (our win chance: locked picks
+and allies' hovers; your own hover only once you lock in), `suggestions` (≤ 15, tiers of
+statistically tied picks, reasons), `data` (bracket, public patch name, games, updated) and each
+enemy's `role`/`roleOdds` (≥ 5 %).
+- **Data**: ranked solo/duo, Emerald+, current patch. `stats::draft::DraftData` over
+  `champions.json` (base strength = this patch shrunk toward the previous patch's win rate in
+  the role, which is itself shrunk toward 50 % — 47 % off-meta — with 1k games; prior strength
+  `n_prev·k_d/(n_prev+k_d)`, `k_d` = 20k, 1.5k when the win rate moved with |z| > 3) and the
+  published pair priors; pair evidence from the `matchups/{id}.json` of the champions in the
+  draft, both perspectives averaged (a laner's file is the only one with its games against the
+  enemy jungler, so the candidates' files load too once an enemy is locked). Enemy roles from
+  each champion's role shares over every consistent assignment.
+- **Candidates, pool-first**: your hover/pick, your recent Summoner's Rift games in the role
+  (`/lol-match-history/…`), your mastery on champions that play the role (≥ 10 % of their
+  games), then the role's tier list so the list is never empty — only champions you can pick
+  (`/lol-champ-select/v1/pickable-champion-ids`, not banned, not taken). `mine` = your games on
+  the pick in the role, `mastery` = your mastery of it. No ban suggestions.
+- **Loads**: at champ-select start, the pool (3 LCU reads) and the data set (index, champions,
+  tier list); matchups files as champions appear (≤ 4 in flight). Arrivals within 30 ms are
+  evaluated once. Without stats (no backend, nothing published, offline without cache) the draft
+  shows the teams only (`data: null`, no suggestions); without assigned roles (blind, ARAM), no
+  suggestions.
+
 ## Crates
 | Crate | Role |
 | --- | --- |
 | `domain` | UI-facing types (serde + ts-rs) |
 | `lcu` | League client: discovery, pinned TLS, REST, WAMP events, connector lifecycle |
 | `mock-lcu` | fake League client for tests and development |
-| `companion` | Tauri-free core: client status, champ select → `DraftView`, loading screen → `LiveGame`, settings, automations, backend client |
+| `companion` | Tauri-free core: client status, champ select → `DraftView` (+ draft helper), loading screen → `LiveGame`, settings, automations, backend client, stats download + disk cache |
 | `static-data` | Data Dragon download + per-patch cache + offline fallback |
 | `stats` | statistics and the draft model |
 | `aggregate` | stats pipeline core: Match-V5 → facts → mergeable aggregates → published JSON |

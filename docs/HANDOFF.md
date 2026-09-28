@@ -9,7 +9,8 @@ Everything below is merged on `claude/keen-curie-92uuqm` and green on `node scri
 except where marked.
 
 - **Desktop app** (Tauri 2 + SolidJS): Home (own profile from the LCU), Draft (live champ select,
-  stats-only model, mock stats), Live (loading-screen scouting of all 10 players), player search
+  stats-only model on the published stats, pool-first picks), Live (loading-screen scouting of
+  all 10 players), player search
   (title bar, Ctrl+K) + player pages, Settings (auto-accept opt-in, window follows the game, close
   to tray, launch at startup). Glass UI with ambient light sampled from champion art.
 - **Backend** `apps/backend` (`mvp-backend`): player profiles, batch scouting, `/v1/stats/*` file
@@ -32,12 +33,21 @@ except where marked.
 3. **Scouting identity fix:** LCU PUUIDs can differ from the API key's PUUIDs. Make
    `POST /v1/players/batch` accept Riot IDs (the core already reads them from the gameflow session)
    and use them; keep hidden/streamer-mode players out of any lookup.
-4. **Stats in the app:** download `/v1/stats/index` + the current patch files in the core (cache on
-   disk per patch, ETag), implement the draft data source feeding `crates/stats` draft
-   `evaluate/suggest` (replace the mock DraftView suggestions; pool-first using the player's
-   mastery — `/lol-champion-mastery/v1/local-player/champion-mastery` — and recent games), then the
-   **Champions** page (builds: runes, spells, skill order, items, matchups) and **Tier list** page
-   (both are placeholders at `/champions` and `/tier-list`). No ban suggestions (owner's call).
+4. **Stats in the app:** *(core done, see architecture.md "Stats in the app")* `companion::stats`
+   downloads the index + current patch files (disk cache per patch with ETags, offline, pruning),
+   the commands `stats_index` / `tier_list` / `champion_stats` and the `stats-index` event are
+   wired, and `companion::draft` fills `DraftView` (team odds, pool-first picks with reasons,
+   enemy roles) from mastery, own games and pickable champions. No ban suggestions (owner's call).
+   Left:
+   - the **Champions** page (builds: runes, spells, skill order, items, matchups) and **Tier list**
+     page (placeholders at `/champions` and `/tier-list`) on top of those commands; refetch on
+     `stats-index`, word `rateLimited` (browsing many champions quickly spends ~2 requests each);
+   - check against a real client: mastery field names (`championId`, `championLevel`,
+     `championPoints`), whether `pickable-champion-ids` is filled from the planning phase on (an
+     empty list is treated as "unknown", bans/picks are filtered from the session anyway), how
+     many games the match history returns (the "You · N games" record uses them);
+   - later: a bracket setting for the draft (Emerald+ today), ARAM (no roles: no suggestions),
+     calibration of the model (research D §3.14), own games in the estimate (shown, not counted).
 5. **Imports (LCU writes, declare them in policy.md):** rune page (dedicated "MVP" page, never
    delete the player's pages: `/lol-perks/v1/pages`), item set (`/lol-item-sets/v1/item-sets/{summonerId}/sets`),
    summoner spells (`PATCH /lol-champ-select/v1/session/my-selection`) — with the owner's Flash
@@ -60,7 +70,9 @@ pnpm app                                 # or pnpm build:exe and install the NSI
 Checklist: title bar says "League client connected" · Home shows your real rank/LP/games ·
 Settings persist across restarts · auto-accept (turn on, queue) accepts after the delay, never
 after you declined · champ select brings the window up on Draft with the real teams/bans/roles
-(ranked: allies stay anonymous) · loading screen switches to Live and fills 10 cards · search a
+(ranked: allies stay anonymous) and, with published stats (`STATS_DIR`), picks for your role that
+start from your pool (mastery, your games) and only list champions you own · loading screen
+switches to Live and fills 10 cards · search a
 Riot ID · close to tray keeps automations running · launch at startup starts in the tray ·
 RAM/idle CPU stay low (`scripts/windows-footprint.ps1`). Fix what differs from the mock; add a
 mock-lcu scenario for anything the real client does that the mock didn't.
