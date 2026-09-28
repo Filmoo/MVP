@@ -6,8 +6,9 @@ first (rules, layout, commands), then `docs/decisions.md` (the owner's product c
 `claude/upbeat-hamilton-0bms1t`.
 
 ## Summary for the next agent (2026-09-28, end of the third session)
-Branch `claude/upbeat-hamilton-0bms1t`, version 0.2.0, `check.mjs full` green, CI green from run
-41 on (runs 26–40 failed on the crawler image; see "Done").
+Branch `claude/upbeat-hamilton-0bms1t`, version 0.2.0, `check.mjs full` green. CI: runs 26–40 failed
+on the crawler image (fixed), 41–42 green, 43 failed once on a new match test (fixed in c85ceaf);
+check the latest run before building on it.
 
 **Done this session**
 - Features: glass that visibly refracts (floating optics, loupes, frosted cores), Riot's ranked
@@ -22,25 +23,39 @@ Branch `claude/upbeat-hamilton-0bms1t`, version 0.2.0, `check.mjs full` green, C
   total (`ui/scripts/check-bundle.mjs`); release v0.2.0 once the update key exists (below).
 
 **To fix / finish**
-1. **Release v0.2.0 is blocked on the update key** (owner only): `pnpm tauri signer generate`,
+1. **No stats server is deployed, so every CI build is empty wherever stats are needed.** CI and
+   release builds point the app at `http://127.0.0.1:8787` (`MVP_BACKEND_URL` unset at build
+   time): Draft's picks and compositions, the Tier list and Champions pages, builds and imports,
+   player search and loading-screen scouting say the stats service isn't there. Seen in the real
+   desktop app (debug build against mock-lcu, 2026-09-28): Home, grades and opened games work
+   from the League client; Draft shows "Stats not available yet". Deploy `apps/backend` and the
+   crawler timer (apps/crawler/README.md "Scheduled on the VPS"; the Riot key, HTTPS), then give
+   `ci.yml` and `release.yml` `MVP_BACKEND_URL` (a repository variable). Until then the owner sees
+   "nothing changed" in each build.
+2. **A newer MVP started while an older one sits in the tray shows the old one** (single instance,
+   close to tray by default: `window::open` on the running app, the new process exits). The owner
+   ran run 43's exe and saw the old app. Quit from the tray first. Fix: a different executable
+   takes over (the running one hands over and quits), and Settings → About and the diagnostics
+   show the build's commit, so anyone can tell which build runs.
+3. **Release v0.2.0 is blocked on the update key** (owner only): `pnpm tauri signer generate`,
    public key → `apps/desktop/tauri.conf.json` `plugins.updater.pubkey` (committed), private key +
    password → GitHub secrets (apps/backend/README.md, "The signing key pair"). Then tag `v0.2.0`
    on a green commit: `release.yml` builds a signed installer into a draft release. Until then
    `release.yml` stops at its first step and no build updates itself.
-2. **Nothing has run against a real League client or on Windows** beyond CI's build and footprint:
+4. **Nothing has run against a real League client or on Windows** beyond CI's build and footprint:
    the checklists below (client fields, imports, grades, emblems' crop, updates, glass frame times
    on real GPUs) are the next real work, on the owner's machine.
-3. **Design review of the match insights screens**: the agent checked its own screenshots; run
+5. **Design review of the match insights screens**: the agent checked its own screenshots; run
    the screenshots and the `ui-reviewer` agent on them (Home and player page: rows, the opened
    game at 420 → 2560 px, the grade's why, French), fix P0/P1.
-4. Calibrate on crawled data: grades (`crates/stats/src/grade.rs`, each role should average 5),
+6. Calibrate on crawled data: grades (`crates/stats/src/grade.rs`, each role should average 5),
    composition readings and ARAM length buckets (job 9), the draft model (job 4).
-5. Crawl again for `compositions.json` (older games lack the numbers); check real published files
+7. Crawl again for `compositions.json` (older games lack the numbers); check real published files
    against the pages (sizes, thin Master+ data, `n = 0` sections).
-6. Bundle: at 45.1 / 46 KB and 123.1 / 125 KB. Look for savings before the next feature: lazy
+8. Bundle: at 45.1 / 46 KB and 123.1 / 125 KB. Look for savings before the next feature: lazy
    views re-list ~6 startup files in their preload lists; shared startup code splits into a new
    chunk whenever a lazy chunk imports part of it.
-7. Production Riot key: register the product (policy.md lists the endpoints to declare); a dev
+9. Production Riot key: register the product (policy.md lists the endpoints to declare); a dev
    key crawls ~2k games a day.
 
 **To implement next** (none started)
