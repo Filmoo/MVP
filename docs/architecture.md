@@ -203,7 +203,10 @@ The Tier list and Champions pages read the published stats through the core only
   skill max order and first points (keycaps), items (starting, core in order, boots, 4th/5th/6th),
   every option with win rate, games and pick share; matchups best/worst by the shrunk effect `d`
   (lane, vs jungler, duos; rows open the other champion). ARAM: no roles, no bans, no matchups.
-  `/champions` without an id is a searchable grid with each champion's tier.
+  `/champions` without an id is a searchable grid with each champion's tier, built a slice at a
+  time (`lib/progressive.ts`: 40 tiles with the view, 40 more whenever the page is idle, again
+  from the start when a filter changes; `aria-busy` meanwhile): switching to it doesn't wait for
+  ~170 tiles, the first screen shows at once.
 - **Runes** come from `GameData.runes` (Data Dragon `runesReforged.json`, cached with the patch;
   icons under `artBase/img/…`). Stat shards (5001–5013) aren't in Data Dragon: `lib/runes.ts` names
   them and `design/RuneIcon.tsx` draws them as glyphs (no Riot art).

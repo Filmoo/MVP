@@ -204,11 +204,14 @@ update key and the backend on HTTPS):
   eight sizes) and `[layout] /live/banners @ qhd` timed out once with several agents building,
   "draft: one click imports a part…" can miss its 400 ms busy state, and one of companion's
   `with_mock_client` tests (5 s waits on the mock client) failed once at load 14;
-  the perf suite's view switches (budget 120 ms) failed at load 12–15 on 4 cores (`/champions`
-  162 ms) although an A/B against the previous build showed the same CPU per switch and a quiet
-  run switches in ~20 ms. Run perf on a quiet machine (`--workers=1`, as check.mjs does).
-- `settle()` in the UI tests doesn't wait for lazily loaded pages: count rows after they show
-  (see the tier-list tests).
+  the perf suite's view switches (budget 120 ms) are timed on a busy machine too: run perf on a
+  quiet one (`--workers=1`, as check.mjs does). `/champions` was the slow one for a real reason
+  (it built all ~170 tiles before its first frame; CI failed once at 129.5 ms): it now builds 40
+  tiles with the view and the rest when idle (`lib/progressive.ts`; 24 cold switches at load ~20:
+  median 48 ms, max 79 ms).
+- `settle()` waits for lazily loaded views (App's Suspense marks their loading) and settles again
+  if something started loading meanwhile; before, a test could push an event before the view
+  listened (fixed 2026-09-28).
 - A dev Riot key is slow: a cold 10-player scout ≈ 230 calls; crawling ≈ 2k games/day. Public use
   needs the production key (register the product; policy.md lists endpoints to declare).
 - Not yet verified on Windows: window re-creation from tray, autostart, WebView2 glass/blur cost,
