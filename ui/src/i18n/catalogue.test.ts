@@ -170,6 +170,7 @@ const samples = (): Record<string, unknown[][]> => ({
   "tierList.proto.pointLabel": [["Zed", percent(0.526, 1), percent(0.079, 1)]],
   "champions.tiersFrom.after": [["Ranked Solo · Emerald+"]],
   "champions.noMatch": [["zzz"]],
+  "champions.noStats": [["No stats published yet"]],
   "champions.noBuild.text": [
     ["Ahri", "middle"],
     ["Ahri", undefined],
@@ -294,6 +295,8 @@ const SAME = new Set([
   "champions.matchups",
   "champions.duos",
   "champions.tiersFrom.link",
+  "champions.sorts.tier",
+  "champions.sorts.name",
   "champions.summary.runes",
   "settings.about.version",
   "settings.search.shortcut",

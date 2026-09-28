@@ -200,8 +200,8 @@ pub struct TierList {
     pub entries: Vec<TierEntry>,
 }
 
-/// One champion in one role. `score` is the shrunk win rate minus the role's average, in
-/// percentage points: small samples are pulled toward the average, so luck can't top the list.
+/// One champion in one role. `score` is the shrunk win rate minus 50 %, in percentage points:
+/// small samples are pulled toward 50 %, so luck can't top the list.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
