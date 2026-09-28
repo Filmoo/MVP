@@ -141,7 +141,9 @@ test("a banner never makes the live screens scroll: their panels take what's lef
   await settle(page);
   expect(await scrolls(), "live").toBeLessThanOrEqual(0);
   await page.getByRole("link", { name: t.nav.draft.label }).click();
-  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  // Draft's own heading: right after the click, Live (and its heading) is still up until the
+  // hash change lands, and the draft pushed then would reach nobody.
+  await expect(page.getByRole("heading", { level: 1, name: t.nav.draft.label })).toBeVisible();
   await page.evaluate((draft) => window.__SCOUT_MOCK__?.emit("draft", draft), champSelectDraft);
   await expect(page.locator("[data-widget=draft-suggestions]")).toBeVisible();
   await settle(page);
