@@ -1,7 +1,9 @@
-/* Shared page frame: every view uses it so margins and widths never drift. */
+/* Shared page frame: every view uses it so margins and widths never drift. It fills what the
+   banners (if any) leave of the view, and grows with its content. */
 .page {
   container: page / inline-size;
-  min-height: 100%;
+  flex: 1 0 auto;
+  width: 100%;
   max-width: var(--content-max);
   margin: 0 auto;
   padding: var(--space-8) var(--space-8) var(--space-10);
@@ -16,9 +18,11 @@
  * as tall as the view and its panels scroll inside. Short or narrow windows fall back to scrolling.
  */
 @media (min-width: 1080px) and (min-height: 600px) {
-  /* 1080px = rail + page padding + the 960px wide layout of live screens. */
+  /* 1080px = rail + page padding + the 960px wide layout of live screens. Exactly the height
+     left under the banners: a banner never makes the whole screen scroll. */
   .live {
-    height: 100%;
+    flex: 1 1 0;
+    min-height: 0;
   }
 }
 

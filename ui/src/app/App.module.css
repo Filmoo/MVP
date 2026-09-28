@@ -32,10 +32,13 @@
 }
 
 /* From the window's top: the page scrolls under the glass title bar, and starts below it. */
+/* A column: banners (when there are any), then the page, which takes the rest of the height. */
 .main {
   grid-column: main;
   grid-row: titlebar / main;
   position: relative;
+  display: flex;
+  flex-direction: column;
   padding-top: var(--titlebar-h);
   scroll-padding-top: var(--titlebar-h);
   overflow-y: auto;

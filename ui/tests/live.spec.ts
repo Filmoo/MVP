@@ -1,6 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
 // Brings the window.__SCOUT_MOCK__ declaration into scope.
 import type {} from "../src/data/mock";
+import { champSelectDraft } from "../src/data/mock/draft-fixtures";
 import { liveGame, liveScouting } from "../src/data/mock/live-fixtures";
 import { openApp, SIZES, settle, trackErrors } from "./app";
 import { auditLayout } from "./layout-rules";
@@ -118,6 +119,24 @@ test("my build: a link opens it; modes without builds say so", async ({ page }) 
   await expect(page.locator("[data-widget=champion-runes]")).toBeVisible();
   await page.evaluate((game) => window.__SCOUT_MOCK__?.emit("live", { ...game, queueId: 1700 }), liveGame);
   await expect(page.getByTestId("my-build")).toContainText("No builds for this mode");
+});
+
+test("a banner never makes the live screens scroll: their panels take what's left", async ({ page }) => {
+  const errors = trackErrors(page);
+  const scrolls = () => page.locator("main").evaluate((el) => el.scrollHeight - el.clientHeight);
+  await openApp(page, { view: "/live", scenario: "banners", width: 1280, height: 800 });
+  await page.evaluate((game) => window.__SCOUT_MOCK__?.emit("live", game), liveGame);
+  await expect(cards(page)).toHaveCount(10);
+  await expect(page.getByTestId("banner").first()).toBeVisible();
+  await settle(page);
+  expect(await scrolls(), "live").toBeLessThanOrEqual(0);
+  await page.getByRole("link", { name: "Draft" }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  await page.evaluate((draft) => window.__SCOUT_MOCK__?.emit("draft", draft), champSelectDraft);
+  await expect(page.locator("[data-widget=draft-suggestions]")).toBeVisible();
+  await settle(page);
+  expect(await scrolls(), "draft").toBeLessThanOrEqual(0);
+  expect(errors).toEqual([]);
 });
 
 test("the core pushes the game in and out", async ({ page }) => {
