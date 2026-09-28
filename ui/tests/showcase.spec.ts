@@ -1,6 +1,9 @@
 import { resolve } from "node:path";
 import { type Page, test } from "@playwright/test";
+// Brings the window.__SCOUT_MOCK__ declaration into scope.
+import type {} from "../src/data/mock";
 import { FIXTURE_NOW } from "../src/data/mock/fixtures";
+import { lockInImport } from "../src/data/mock/import-fixtures";
 import { openApp, settle, VIEWS } from "./app";
 
 // Screenshots for human/UI-agent review. Not asserted: layout, coherence and
@@ -103,6 +106,7 @@ test("draft import flash 1280x800", async ({ page }) => {
 
 test("draft import lock-in 1280x800", async ({ page }) => {
   await openApp(page, { view: "/draft", scenario: "import-lock-in" });
+  await page.evaluate((result) => window.__SCOUT_MOCK__?.emit("import", result), lockInImport);
   await page.getByTestId("toast").waitFor();
   await settle(page);
   await capture(page, `${OUT}/draft-import-lock-in-1280x800.png`, false);

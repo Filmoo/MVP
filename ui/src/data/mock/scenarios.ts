@@ -3,7 +3,7 @@ import type { PlayerProfile } from "../generated/PlayerProfile";
 import type { CommandName, Commands, EventName, Events } from "../transport";
 import { champSelectDraft, champSelectLocked, champSelectNoStats } from "./draft-fixtures";
 import { corruptProfile, extremeProfile, newPlayerProfile, profile } from "./fixtures";
-import { flashKept, importAnswer, importFailures, lockInImport } from "./import-fixtures";
+import { flashKept, importAnswer, importFailures } from "./import-fixtures";
 import { liveExtreme, liveFailed, liveGame, liveScouting, searchPlayer } from "./live-fixtures";
 import { customSettings, defaultSettings, importsOffSettings, lockInSettings, saveSettings } from "./settings-fixtures";
 
@@ -85,9 +85,9 @@ export const scenarios = {
     responses: { ...champSelect, import_build: { handle: importAnswer(flashKept), delayMs: 300 } },
   },
   "import-lock-in": {
-    description: "Imports on lock-in: you lock Malphite in, everything is imported by itself, a toast says so.",
+    description:
+      "Imports on lock-in: you locked Malphite in with every part set to import by itself. Tests emit the import (`lockInImport`) themselves: a toast only lasts 4 s.",
     responses: { ...champSelect, draft_state: { data: champSelectLocked }, get_settings: { data: lockInSettings } },
-    timeline: [{ afterMs: 600, event: "import", payload: lockInImport }],
   },
   "draft-no-stats": {
     description: "Champion select before stats exist: no picks, the import buttons say why they wait.",

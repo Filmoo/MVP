@@ -1,4 +1,7 @@
 import { expect, test } from "@playwright/test";
+// Brings the window.__SCOUT_MOCK__ declaration into scope.
+import type {} from "../src/data/mock";
+import { lockInImport } from "../src/data/mock/import-fixtures";
 import { scenarioNames } from "../src/data/mock/scenarios";
 import { openApp, VIEWS } from "./app";
 import { auditTokens } from "./coherence-rules";
@@ -25,7 +28,12 @@ test("/draft in champion select only uses design tokens", async ({ page }) => {
 for (const scenario of ["import-lock-in", "draft-no-stats"] as const) {
   test(`/draft/${scenario} only uses design tokens`, async ({ page }) => {
     await openApp(page, { view: "/draft", scenario });
-    if (scenario === "import-lock-in") await page.getByTestId("toast").waitFor();
+    if (scenario === "import-lock-in") {
+      // The import on lock-in: its toast and the marked buttons.
+      await page.evaluate((result) => window.__SCOUT_MOCK__?.emit("import", result), lockInImport);
+      await page.getByTestId("toast").waitFor();
+      await expect(page.getByTestId("import-spells")).toHaveAttribute("data-tone", "warn");
+    }
     expect(await page.evaluate(auditTokens)).toEqual([]);
   });
 }

@@ -5,6 +5,7 @@ import type { Settings } from "../src/data/generated/Settings";
 // Brings the window.__SCOUT_MOCK__ declaration into scope.
 import type {} from "../src/data/mock";
 import { champSelectDraft } from "../src/data/mock/draft-fixtures";
+import { lockInImport } from "../src/data/mock/import-fixtures";
 import { openApp, SIZES, settle, trackErrors } from "./app";
 import { auditLayout } from "./layout-rules";
 
@@ -87,6 +88,7 @@ test("draft: the spells import says when Flash stays on your key", async ({ page
 test("draft: an import on lock-in shows a toast and marks the buttons", async ({ page }) => {
   const errors = trackErrors(page);
   await openApp(page, { view: "/draft", scenario: "import-lock-in" });
+  await page.evaluate((result) => window.__SCOUT_MOCK__?.emit("import", result), lockInImport);
   const toast = page.getByTestId("toast");
   await expect(toast).toHaveText("Imported runes, item set and spells for Malphite. Flash stays on F, your usual key.");
   await expect(toast).toHaveAttribute("data-tone", "success");
@@ -96,6 +98,21 @@ test("draft: an import on lock-in shows a toast and marks the buttons", async ({
   await expect(page.getByTestId("import-runes")).toHaveAttribute("title", "Also imported by itself when you lock in");
   expect(await requests(page), "the core imported by itself").toEqual([]);
   expect(errors).toEqual([]);
+});
+
+test("lock-in: Draft opened after the import still shows it, until champion select ends", async ({ page }) => {
+  await openApp(page, { scenario: "import-lock-in" });
+  await page.evaluate((result) => window.__SCOUT_MOCK__?.emit("import", result), lockInImport);
+  await expect(page.getByTestId("toast")).toBeVisible();
+  await page.getByRole("link", { name: "Draft" }).click();
+  await expect(page.getByTestId("import-runes")).toHaveAttribute("data-tone", "done");
+  await expect(status(page)).toHaveText("Spells set: Teleport on D, Flash on F. Flash stays on F, your usual key.");
+  // Champion select ends: the next one starts afresh.
+  await page.evaluate(() => window.__SCOUT_MOCK__?.emit("client-status", { connection: "connected", phase: "inGame" }));
+  await page.getByRole("link", { name: "Home" }).click();
+  await page.getByRole("link", { name: "Draft" }).click();
+  await expect(bar(page)).toContainText("Malphite · Top · locked in");
+  await expect(page.getByTestId("import-runes")).not.toHaveAttribute("data-tone", /./);
 });
 
 test("lock-in: a failed automatic import is reported, anywhere in the app", async ({ page }) => {
