@@ -345,6 +345,61 @@ for (const scenario of ["stats-empty", "stats-offline"] as const) {
   }
 }
 
+// The champion list, in English and French (`fr-…`): grouped by tier, a role by pick rate, the
+// filter, and without stats (grouped by class, and why).
+for (const lang of ["en", "fr"] as const) {
+  test.describe(lang === "fr" ? "champion list in French" : "champion list states", () => {
+    if (lang === "fr") test.use({ locale: "fr-FR" });
+    const prefix = lang === "fr" ? "fr-" : "";
+    for (const [width, height] of [
+      [420, 800],
+      [1280, 800],
+      [2560, 1440],
+    ] as const) {
+      test(`${prefix}champions by tier ${width}x${height}`, async ({ page }) => {
+        await openApp(page, { view: "/champions", width, height });
+        await capture(page, `${OUT}/${prefix}champions-tier-${width}x${height}.png`, false);
+      });
+      test(`${prefix}champions mid by pick rate ${width}x${height}`, async ({ page, t }) => {
+        await openApp(page, { view: "/champions?role=middle", width, height });
+        await page.getByRole("radiogroup", { name: t.champions.sort }).getByRole("radio", { name: t.champions.sorts.pickRate }).click();
+        await page.mouse.move(0, 0);
+        await settle(page);
+        await animationsDone(page);
+        await capture(page, `${OUT}/${prefix}champions-mid-pick-${width}x${height}.png`, false);
+      });
+      test(`${prefix}champions offline ${width}x${height}`, async ({ page }) => {
+        await openApp(page, { view: "/champions", scenario: "stats-offline", width, height });
+        await capture(page, `${OUT}/${prefix}champions-offline-${width}x${height}.png`, false);
+      });
+    }
+    test(`${prefix}champions filtered 1280x800`, async ({ page }) => {
+      await openApp(page, { view: "/champions" });
+      await page.getByTestId("champion-search").fill("ka");
+      await settle(page);
+      await capture(page, `${OUT}/${prefix}champions-filtered-1280x800.png`, false);
+    });
+    test(`${prefix}champions not published 1280x800`, async ({ page }) => {
+      await openApp(page, { view: "/champions", scenario: "stats-empty" });
+      await capture(page, `${OUT}/${prefix}champions-empty-1280x800.png`, false);
+    });
+    test(`${prefix}champions end of the list 1280x800`, async ({ page }) => {
+      await openApp(page, { view: "/champions" });
+      await page.locator("main").evaluate((main) => main.scrollTo(0, main.scrollHeight));
+      await settle(page);
+      await capture(page, `${OUT}/${prefix}champions-end-1280x800.png`, false);
+    });
+  });
+}
+
+test("champions loading 1280x720", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto("/?scenario=stats-slow#/champions");
+  await page.locator("main [data-state=loading]").first().waitFor();
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: `${OUT}/champions-loading-1280x720.png` });
+});
+
 for (const view of ["/tier-list", "/champions?id=103"]) {
   test(`${view} loading 1280x720`, async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 720 });
@@ -371,6 +426,8 @@ for (const [view, width, height, by] of [
   ["/", 1280, 800, 200],
   ["/", 420, 800, 470],
   ["/tier-list", 420, 800, 300],
+  // Mid-way through the A group: its letter stays in view beside the tiles.
+  ["/champions", 1280, 800, 640],
 ] as const) {
   test(`scrolled ${view} ${width}x${height}`, async ({ page }) => {
     await openApp(page, { view, width, height });

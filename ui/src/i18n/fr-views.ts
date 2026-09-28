@@ -356,6 +356,10 @@ export const frViews = {
     noneYet: "Aucun champion pour l’instant",
     checkSpelling: "Vérifiez l’orthographe, ou effacez la recherche.",
     whenLoaded: "Les champions s’affichent une fois les données du jeu et les stats chargées.",
+    sort: "Trier par",
+    sorts: { tier: "Tier", pickRate: "Popularité", name: "A–Z" },
+    fewGames: "Trop peu de parties",
+    noStats: (reason: string) => `${reason}. Les champions sont groupés par classe en attendant les tiers et les taux de sélection.`,
     noBuild: {
       title: "Pas encore de données de build",
       text: (champion: string, role: Role | undefined) =>

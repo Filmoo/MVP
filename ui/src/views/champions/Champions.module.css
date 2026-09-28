@@ -168,15 +168,148 @@
   gap: var(--space-4) var(--space-6);
 }
 
+/*
+ * "Sort by" (a caption, like the tier list's column heads) and its choices, kept together when the
+ * row wraps; it takes the row's free space, so the scope sits at the end, under the search.
+ */
+.sort {
+  flex-grow: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  transition: opacity var(--dur-1) var(--ease);
+}
+
+.sort > span {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* While the field filters, matches come best first: the sort waits, quieter (it applies again once
+   the field is empty). */
+.indexHead:has(.searchInput:not(:placeholder-shown)) ~ .indexFilters .sort {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/*
+ * The sort reads as words on the page rather than another pill: the same radio group (one tab
+ * stop, arrow keys) without its track, the choice underlined by a short accent bar that glides
+ * under it (the group's thumb, its first child, instead of its glass drop).
+ */
+[role="radiogroup"].sortTabs {
+  padding: 0;
+  border-color: transparent;
+  background: none;
+  box-shadow: none;
+}
+
+.sortTabs > span,
+:global(:root[data-effects]) .sortTabs > span {
+  background: linear-gradient(var(--accent), var(--accent)) 50% 100% / var(--space-6) 2px no-repeat;
+  box-shadow: none;
+}
+
+.sortTabs > button {
+  padding: 0 var(--space-4);
+}
+
 .scope {
   font-size: var(--text-sm);
   color: var(--text-3);
 }
 
-.scope a {
+.scope a,
+.retry {
+  color: var(--text-2);
+  text-decoration: underline;
+}
+
+.scope a:hover,
+.retry:hover {
+  color: var(--text-1);
+}
+
+/*
+ * Without stats: why, in the controls' place (as tall), the icon on the first line, and "Try again"
+ * ending the sentence as a link when asking again can help.
+ */
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  min-height: 36px;
+  padding-top: var(--space-4);
+  font-size: var(--text-md);
   color: var(--text-2);
 }
 
-.scope a:hover {
-  color: var(--text-1);
+.notice p {
+  flex: 1;
+  min-width: 0;
+}
+
+.noticeIcon {
+  flex: none;
+  margin-top: var(--space-1);
+  color: var(--text-3);
+}
+
+.retry {
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+/*
+ * Loading: placeholders on the grid's rhythm, drawn by CSS rather than an element per tile: per
+ * 96 px column the 56 px icon and a name under it, cut out of a --bg-3 fill by a repeating mask
+ * (::after). Sorted by tier (the sort's first choice checked), the tier's column comes first
+ * (::before), as the groups will have it; narrow windows put headings on top, so none there.
+ */
+.ghosts {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  column-gap: var(--space-5);
+  height: 248px;
+  animation: pulse 1.6s var(--ease) infinite;
+}
+
+.ghosts::before,
+.ghosts::after {
+  content: "";
+  background: var(--bg-3);
+}
+
+.ghosts::before {
+  display: none;
+  mask:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='88' height='124'%3E%3Crect x='24' y='12' width='40' height='40' rx='8'/%3E%3Crect x='36' y='60' width='16' height='10' rx='5'/%3E%3C/svg%3E")
+    0 0 / 88px 124px no-repeat;
+}
+
+.ghosts::after {
+  mask:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='124'%3E%3Crect x='20' y='12' width='56' height='56' rx='12'/%3E%3Crect x='18' y='80' width='60' height='10' rx='5'/%3E%3C/svg%3E")
+    0 0 / 96px 124px space;
+}
+
+@container page (min-width: 560px) {
+  .indexFilters:has(.sortTabs > button:first-of-type[aria-checked="true"]) ~ * .ghosts {
+    grid-template-columns: 88px minmax(0, 1fr);
+  }
+  .indexFilters:has(.sortTabs > button:first-of-type[aria-checked="true"]) ~ * .ghosts::before {
+    display: block;
+  }
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.45;
+  }
 }
