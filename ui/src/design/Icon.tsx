@@ -1,6 +1,9 @@
 import type { JSX } from "solid-js";
 
-/** Line icons (24×24 grid, 1.75 stroke). Add new ones here only: one visual family. */
+/**
+ * Line icons (24×24 grid, 1.75 stroke): one visual family. These ship with the first screen;
+ * `Glyph` (design/Glyph.tsx) holds more of the same family that load with the views using them.
+ */
 const paths = {
   home: "M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z",
   draft: "M14.5 17.5 3 6V3h3l11.5 11.5M13 19l6-6M16 16l4 4M19 21l2-2M14.5 6.5 18 3h3v3l-3.5 3.5M5 14l4 4M7 17l-3 3M3 19l2 2",
@@ -37,7 +40,14 @@ const paths = {
 
 export type IconName = keyof typeof paths;
 
-export function Icon(props: { name: IconName; size?: 14 | 16 | 20 | 24; class?: string | undefined; label?: string }): JSX.Element {
+interface LineProps {
+  size?: 14 | 16 | 20 | 24 | undefined;
+  class?: string | undefined;
+  label?: string | undefined;
+}
+
+/** A line icon of this family from its path (`Icon` and `Glyph` draw through it). */
+export function LineIcon(props: LineProps & { d: string }): JSX.Element {
   const size = () => props.size ?? 20;
   return (
     <svg
@@ -55,7 +65,14 @@ export function Icon(props: { name: IconName; size?: 14 | 16 | 20 | 24; class?: 
       aria-hidden={props.label ? undefined : "true"}
       data-free-style
     >
-      <path d={paths[props.name]} />
+      <path d={props.d} />
     </svg>
   );
+}
+
+/** An icon's path, for controls that draw icons of both sets (`glyphPath` for the others). */
+export const iconPath = (name: IconName): string => paths[name];
+
+export function Icon(props: LineProps & { name: IconName }): JSX.Element {
+  return <LineIcon d={paths[props.name]} size={props.size} class={props.class} label={props.label} />;
 }

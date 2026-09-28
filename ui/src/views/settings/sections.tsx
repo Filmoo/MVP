@@ -13,6 +13,7 @@ import { Card } from "../../design/Card";
 import { Choice, type ChoiceOption } from "../../design/Choice";
 import { Icon } from "../../design/Icon";
 import { Mark } from "../../design/Logo";
+import { penguinArt } from "../../design/penguin-preshoot";
 import { SettingList, SettingRow } from "../../design/SettingRow";
 import { Slider } from "../../design/Slider";
 import { Toggle } from "../../design/Toggle";
@@ -412,7 +413,7 @@ export function About(props: {
       <div class={styles.about}>
         <div class={styles.identity}>
           <div class={styles.mark}>
-            <Mark size={32} />
+            {penguinArt({ size: 44, crown: true, label: "MVP" }) ?? <Mark size={32} />}
           </div>
           <div class={styles.identityText}>
             <span class={styles.appName}>MVP</span>

@@ -18,3 +18,12 @@ export const ROLE_ICON: Record<Role, IconName> = {
   bottom: "roleBottom",
   support: "roleSupport",
 };
+
+/** A role's identity colour (tokens.css), for its icon when chosen and in charts. */
+export const ROLE_TONE: Record<Role, string> = {
+  top: "var(--role-top)",
+  jungle: "var(--role-jungle)",
+  middle: "var(--role-middle)",
+  bottom: "var(--role-bottom)",
+  support: "var(--role-support)",
+};

@@ -4,6 +4,7 @@ import { useData } from "../../data/context";
 import type { DataSetInfo } from "../../data/generated/DataSetInfo";
 import type { StatsIndex } from "../../data/generated/StatsIndex";
 import { Card } from "../../design/Card";
+import { penguinArt } from "../../design/penguin-preshoot";
 import { Segmented } from "../../design/Segmented";
 import { EmptyState, ErrorState } from "../../design/States";
 import { t } from "../../i18n";
@@ -95,7 +96,12 @@ export function StatsProblem(props: { error: unknown; onRetry: () => void }): JS
   return (
     <Card>
       <Show when={words().empty} fallback={<ErrorState title={words().title} message={words().text} onRetry={props.onRetry} />}>
-        <EmptyState icon="tiers" title={words().title} text={words().text} />
+        <EmptyState
+          icon="tiers"
+          art={penguinArt({ size: 72 })}
+          title={words().title}
+          text={words().text}
+        />
       </Show>
     </Card>
   );

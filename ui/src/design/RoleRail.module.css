@@ -1,0 +1,241 @@
+/*
+ * A vertical choice rail (RoleRail.tsx). Closed: a slim track of icons, the choice on a drop of
+ * glass. Open (hover, or the keyboard inside): a glass panel beside the icons with names and
+ * counts, a highlight gliding to the row under the pointer. Layers, bottom to top: the track (the
+ * rail's own background), the open panel, the highlight, the choice's drop, the options.
+ * Motion: transforms and opacities only; the panel scales evenly (its corners never stretch).
+ * Opening waits a hair (a pointer passing by doesn't open it); closing waits a little longer
+ * (a pointer slipping off the edge doesn't close it).
+ */
+.rail {
+  --row: 36px;
+  --step: calc(var(--row) + var(--space-1));
+  --open-delay: 60ms;
+  --close-delay: 160ms;
+  position: relative;
+  /* The open panel floats over what is next to the rail, sticky headers included. */
+  z-index: 4;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: var(--rail-w);
+  padding: var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--bg-1);
+  box-shadow:
+    inset 0 1px 2px var(--line-shade),
+    inset 0 0 0 1px var(--line-glass);
+}
+
+/* ——— The open panel ——— */
+.panel {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: var(--rail-open-w);
+  border-radius: var(--radius-5);
+  box-shadow: var(--shadow-float);
+  opacity: 0;
+  visibility: hidden;
+  /* Grows out of the icons' column. */
+  transform: scale(0.94);
+  transform-origin: calc(var(--rail-w) / 2) 50%;
+  transition:
+    opacity var(--dur-1) var(--ease) var(--close-delay),
+    transform var(--dur-2) var(--ease) var(--close-delay),
+    visibility 0s linear calc(var(--close-delay) + var(--dur-2));
+}
+
+.panelGlass {
+  --lg-tint: var(--bg-float);
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--lg-fill, var(--bg-float));
+  backdrop-filter: var(--lg-filter, var(--blur-glass));
+}
+
+/* ——— The row under the pointer or the keyboard's focus ——— */
+.ghost {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+  width: calc(var(--rail-open-w) - 2 * var(--space-2));
+  height: var(--row);
+  border-radius: var(--radius-full);
+  background: var(--bg-highlight);
+  opacity: 0;
+  transform: translateY(calc(var(--hover) * var(--step)));
+  transition:
+    transform var(--dur-glide) var(--ease-glide),
+    opacity var(--dur-1) var(--ease);
+  pointer-events: none;
+}
+
+/* ——— The choice: a drop of neutral glass, so the role's own colour carries it ——— */
+.lens {
+  --lg-tint: var(--bg-highlight);
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+  width: var(--row);
+  height: var(--row);
+  border-radius: var(--radius-full);
+  background: var(--bg-4);
+  transform: translateY(calc(var(--index) * var(--step)));
+  transition: transform var(--dur-glide) var(--ease-glide);
+  pointer-events: none;
+}
+
+:global(:root[data-effects="shader"]) .lens {
+  background: var(--lg-fill, var(--bg-highlight));
+  backdrop-filter: var(--lg-filter, none);
+}
+
+/* ——— Options ——— */
+.option {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: var(--row);
+  height: var(--row);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  transition: color var(--dur-1) var(--ease);
+}
+
+.option:hover {
+  color: var(--text-1);
+}
+
+.option[aria-checked="true"] {
+  color: var(--tone);
+  cursor: default;
+}
+
+/* A press you can feel: the icon (a vector, so it stays sharp) gives a little under the pointer. */
+.icon {
+  transition: transform var(--dur-1) var(--ease);
+}
+
+.option:active .icon {
+  transform: scale(0.9);
+}
+
+/* The choice glows a little in its colour, like the rank badge's gem. */
+.option[aria-checked="true"] .icon {
+  filter: drop-shadow(0 0 6px var(--tone));
+}
+
+.option:focus-visible {
+  outline-offset: 0;
+}
+
+/* A name and a count beside each icon, out of the flow: shown (and clickable) only when open. */
+.label {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--row) + var(--space-4));
+  width: calc(var(--rail-open-w) - var(--row) - var(--space-4) - var(--space-2) - var(--space-5));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateX(calc(-1 * var(--space-4)));
+  transition:
+    opacity var(--dur-1) var(--ease) var(--close-delay),
+    transform var(--dur-1) var(--ease) var(--close-delay),
+    visibility 0s linear calc(var(--close-delay) + var(--dur-1));
+}
+
+.name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-md);
+  font-weight: var(--weight-medium);
+  color: var(--text-2);
+  transition: color var(--dur-1) var(--ease);
+}
+
+.option:hover .name,
+.option:focus-visible .name {
+  color: var(--text-1);
+}
+
+.option[aria-checked="true"] .name {
+  color: var(--text-1);
+  font-weight: var(--weight-semibold);
+}
+
+.detail {
+  flex: none;
+  font-size: var(--text-sm);
+  color: var(--text-3);
+}
+
+/* ——— Open: a pointer that can hover, or the keyboard inside ——— */
+@media (hover: hover) {
+  .rail:hover .panel {
+    opacity: 1;
+    visibility: visible;
+    transform: none;
+    transition:
+      opacity var(--dur-2) var(--ease) var(--open-delay),
+      transform var(--dur-spring) var(--ease-spring) var(--open-delay),
+      visibility 0s linear var(--open-delay);
+  }
+  .rail:hover .label {
+    opacity: 1;
+    visibility: visible;
+    transform: none;
+    /* Names arrive one after the other, top to bottom: the panel pours open. */
+    transition:
+      opacity var(--dur-2) var(--ease) calc(var(--open-delay) + var(--i) * 16ms),
+      transform var(--dur-spring) var(--ease-spring) calc(var(--open-delay) + var(--i) * 16ms),
+      visibility 0s linear var(--open-delay);
+  }
+  .rail[data-hovering]:hover .ghost {
+    opacity: 1;
+  }
+  /* Open, every icon takes its colour: the panel is also the legend of the role badges. */
+  .rail:hover .option {
+    color: var(--tone);
+  }
+}
+
+.rail:has(:focus-visible) .panel {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition:
+    opacity var(--dur-2) var(--ease),
+    transform var(--dur-spring) var(--ease-spring);
+}
+
+.rail:has(:focus-visible) .label {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition:
+    opacity var(--dur-2) var(--ease) calc(var(--i) * 16ms),
+    transform var(--dur-spring) var(--ease-spring) calc(var(--i) * 16ms);
+}
+
+.rail[data-hovering]:has(:focus-visible) .ghost {
+  opacity: 1;
+}
+
+.rail:has(:focus-visible) .option {
+  color: var(--tone);
+}

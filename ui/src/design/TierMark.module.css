@@ -1,0 +1,46 @@
+.mark {
+  flex: none;
+  display: block;
+  overflow: visible;
+}
+
+.shape {
+  fill: var(--tone);
+  stroke: var(--tone);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+.facet {
+  fill: var(--bg-highlight);
+}
+
+.letter {
+  fill: var(--text-on-accent);
+  font-size: 15px;
+  font-weight: var(--weight-bold);
+  letter-spacing: 0;
+}
+
+.S {
+  --tone: var(--tier-s);
+}
+.A {
+  --tone: var(--tier-a);
+}
+.B {
+  --tone: var(--tier-b);
+}
+.C {
+  --tone: var(--tier-c);
+}
+
+/* D: an empty ring, the weakest; its letter stays legible on the page. */
+.D .shape {
+  fill: var(--bg-1);
+  stroke: var(--tier-d);
+  stroke-width: 2;
+}
+.D .letter {
+  fill: var(--text-2);
+}
