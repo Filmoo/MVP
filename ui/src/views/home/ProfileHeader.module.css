@@ -205,11 +205,12 @@
   background: var(--win);
 }
 
-/* Recent form: one pip per game, newest first. */
+/* Recent form: one pip per game, newest first (under its label when the column is narrow). */
 .form {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-4);
+  gap: var(--space-2) var(--space-4);
   margin-top: var(--space-2);
 }
 
