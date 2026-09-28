@@ -112,15 +112,17 @@
   text-overflow: ellipsis;
 }
 
+/* The champion name keeps its room; only alone on too short a line does it give way. */
 .name {
-  flex: 0 1 auto;
+  flex: 0 0 auto;
+  max-width: 100%;
   font-size: var(--text-base);
   font-weight: var(--weight-semibold);
 }
 
 /* Gives way before the champion name does. */
 .mine {
-  flex: 0 3 auto;
+  flex: 0 1 auto;
   font-size: var(--text-sm);
   color: var(--text-3);
 }

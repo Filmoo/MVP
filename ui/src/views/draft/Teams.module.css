@@ -9,8 +9,9 @@
   gap: var(--space-6);
 }
 
+/* The odds column grows past 152px only for a longer phase (French « Finalisation · 0:21 »). */
 .withOdds {
-  grid-template-columns: minmax(0, 1fr) 152px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(152px, max-content) minmax(0, 1fr);
   gap: var(--space-5);
 }
 

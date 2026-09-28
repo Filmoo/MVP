@@ -188,13 +188,8 @@
   color: var(--loss);
 }
 
-@container champion (max-width: 899px) {
-  .stat {
-    padding: var(--space-5) var(--space-7);
-  }
-  .statValue {
-    font-size: var(--text-xl);
-  }
+/* Cells under ~260px: each detail on its own line, where it can wrap (the patch's is the longest). */
+@container champion (max-width: 1099px) {
   .statLabel {
     white-space: normal;
   }
@@ -204,6 +199,15 @@
   }
   .statDetail::before {
     content: none;
+  }
+}
+
+@container champion (max-width: 899px) {
+  .stat {
+    padding: var(--space-5) var(--space-7);
+  }
+  .statValue {
+    font-size: var(--text-xl);
   }
 }
 
