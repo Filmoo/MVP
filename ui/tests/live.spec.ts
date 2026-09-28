@@ -1,8 +1,8 @@
-import { expect, type Page, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
 // Brings the window.__SCOUT_MOCK__ declaration into scope.
 import type {} from "../src/data/mock";
 import { liveGame, liveScouting } from "../src/data/mock/live-fixtures";
-import { openApp, SIZES, settle, trackErrors } from "./app";
+import { expect, openApp, SIZES, settle, test, trackErrors } from "./app";
 import { auditLayout } from "./layout-rules";
 
 const cards = (page: Page) => page.getByTestId("live-card");
@@ -33,36 +33,38 @@ for (const [width, height] of [
   });
 }
 
-test("cards: identity, rank, experience on the champion, form, positive tags; hidden players stay hidden", async ({ page }) => {
+test("cards: identity, rank, experience on the champion, form, positive tags; hidden players stay hidden", async ({ page, t }) => {
   await openApp(page, { view: "/live", scenario: "live" });
   const me = cards(page).filter({ hasText: "Fillmo" });
-  await expect(me).toContainText("You");
-  await expect(me).toContainText("Emerald II");
-  await expect(me).toContainText("67 LP");
-  await expect(me).toContainText("6 games");
-  await expect(me.getByRole("list", { name: /^Last 10: / })).toBeVisible();
+  await expect(me).toContainText(t.common.you);
+  await expect(me).toContainText(`${t.tiers.emerald} II`);
+  await expect(me).toContainText(t.common.lp(67));
+  await expect(me).toContainText(t.common.games(6));
+  const form = liveGame.allies.find((p) => p.isMe)?.card?.recentResults.slice(0, 10) ?? [];
+  await expect(me.getByRole("list", { name: t.common.lastResults(form) })).toBeVisible();
   const quiet = cards(page).filter({ hasText: "Quiet Storm" });
-  await expect(quiet).toContainText("Ahri one-trick");
-  await expect(quiet).toContainText("Veteran");
+  await expect(quiet).toContainText(t.live.otp("Ahri"));
+  await expect(quiet).toContainText(t.live.veteran);
   const hidden = cards(page).and(page.locator("[data-card=hidden]"));
   await expect(hidden).toHaveCount(1);
-  await expect(hidden).toContainText("Hidden player");
-  await expect(cards(page).and(page.locator("[data-card=unavailable]"))).toContainText("No ranked data");
+  await expect(hidden).toContainText(t.live.hidden);
+  await expect(cards(page).and(page.locator("[data-card=unavailable]"))).toContainText(t.live.noRankedData);
   // Spells for everyone, hidden players included (spells aren't identity).
-  await expect(hidden.getByRole("img", { name: /Smite|Spell 11/ })).toHaveCount(1);
+  await expect(hidden.getByRole("img", { name: new RegExp(`Smite|${t.common.spellN(11)}`) })).toHaveCount(1);
   // Main roles have their own line: no duplicate chip.
   const hook = cards(page).filter({ hasText: "Hook City" });
-  await expect(hook).toContainText("Support main");
-  await expect(hook.locator("li", { hasText: "Support main" })).toHaveCount(0);
-  await expect(hook.locator("li", { hasText: "4 wins in a row" })).toHaveCount(1);
+  const main = t.live.mains(t.roles.support);
+  await expect(hook).toContainText(main);
+  await expect(hook.locator("li", { hasText: main })).toHaveCount(0);
+  await expect(hook.locator("li", { hasText: t.live.streak(4) })).toHaveCount(1);
 });
 
-test("cards land in place: nothing moves when scouting finishes", async ({ page }) => {
+test("cards land in place: nothing moves when scouting finishes", async ({ page, t }) => {
   const errors = trackErrors(page);
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto("/?scenario=live-scouting#/live");
   await expect(cards(page)).toHaveCount(10);
-  await expect(page.getByTestId("scouting-status")).toHaveText("Looking players up…");
+  await expect(page.getByTestId("scouting-status")).toHaveText(t.live.lookingUp);
   await expect(cards(page).and(page.locator("[data-card=pending]"))).toHaveCount(9);
   const before = await cardBoxes(page);
   await expect(cards(page).and(page.locator("[data-card=scouted]"))).toHaveCount(8, { timeout: 5_000 });
@@ -83,24 +85,24 @@ test("waiting cards lay out at every window size", async ({ page }) => {
   }
 });
 
-test("scouting failure: the game still shows, Try again asks the core", async ({ page }) => {
+test("scouting failure: the game still shows, Try again asks the core", async ({ page, t }) => {
   await openApp(page, { view: "/live", scenario: "live-failed" });
   const status = page.getByTestId("scouting-status");
-  await expect(status).toContainText("Can't reach MVP's servers");
+  await expect(status).toContainText(t.live.scouting.network);
   await expect(cards(page)).toHaveCount(10);
-  await expect(cards(page).and(page.locator("[data-card=unavailable]")).first()).toContainText("Card unavailable");
-  await status.getByRole("button", { name: "Try again" }).click();
+  await expect(cards(page).and(page.locator("[data-card=unavailable]")).first()).toContainText(t.live.cardUnavailable);
+  await status.getByRole("button", { name: t.common.tryAgain }).click();
   await expect.poll(() => page.evaluate(() => window.__SCOUT_MOCK__?.calls.filter((c) => c === "retry_scouting").length)).toBe(1);
 });
 
-test("my build: the build of my champion and role, for this game's mode", async ({ page }) => {
+test("my build: the build of my champion and role, for this game's mode", async ({ page, t }) => {
   const errors = trackErrors(page);
   await openApp(page, { view: "/live", scenario: "live" });
   await expect(cards(page)).toHaveCount(10);
-  await page.getByTestId("live-tabs").getByRole("radio", { name: "My build" }).click();
+  await page.getByTestId("live-tabs").getByRole("radio", { name: t.live.tabs.build }).click();
   const build = page.getByTestId("my-build");
   const me = liveGame.allies.find((p) => p.isMe);
-  await expect(build).toContainText("most played in Ranked Solo · Emerald+");
+  await expect(build).toContainText(t.imports.mostPlayedIn(420, t.brackets.emeraldPlus));
   await expect(page.locator("[data-widget=champion-runes]")).toBeVisible();
   await expect(page.locator("[data-widget=champion-matchups]")).toBeVisible();
   const asked = await page.evaluate(() => window.__SCOUT_MOCK__?.log.filter((c) => c.command === "champion_stats").map((c) => c.args));
@@ -108,35 +110,35 @@ test("my build: the build of my champion and role, for this game's mode", async 
   await settle(page);
   expect(await page.evaluate(auditLayout)).toEqual([]);
   // Back to the players, as they were.
-  await page.getByTestId("live-tabs").getByRole("radio", { name: "Players" }).click();
+  await page.getByTestId("live-tabs").getByRole("radio", { name: t.live.tabs.players }).click();
   await expect(cards(page)).toHaveCount(10);
   expect(errors).toEqual([]);
 });
 
-test("my build: a link opens it; modes without builds say so", async ({ page }) => {
+test("my build: a link opens it; modes without builds say so", async ({ page, t }) => {
   await openApp(page, { view: "/live?tab=build", scenario: "live" });
   await expect(page.locator("[data-widget=champion-runes]")).toBeVisible();
   await page.evaluate((game) => window.__SCOUT_MOCK__?.emit("live", { ...game, queueId: 1700 }), liveGame);
-  await expect(page.getByTestId("my-build")).toContainText("No builds for this mode");
+  await expect(page.getByTestId("my-build")).toContainText(t.live.build.noMode.title);
 });
 
-test("the core pushes the game in and out", async ({ page }) => {
+test("the core pushes the game in and out", async ({ page, t }) => {
   const errors = trackErrors(page);
   await openApp(page, { view: "/live" });
-  await expect(page.getByText("Not in a game")).toBeVisible();
+  await expect(page.getByText(t.live.idle.title)).toBeVisible();
   await page.evaluate((game) => window.__SCOUT_MOCK__?.emit("live", game), liveGame);
   await expect(cards(page)).toHaveCount(10);
   await settle(page);
   expect(await page.evaluate(auditLayout)).toEqual([]);
   await page.evaluate(() => window.__SCOUT_MOCK__?.emit("live", null));
-  await expect(page.getByText("Not in a game")).toBeVisible();
+  await expect(page.getByText(t.live.idle.title)).toBeVisible();
   expect(errors).toEqual([]);
 });
 
-test("the core can't read the game: error with retry", async ({ page }) => {
+test("the core can't read the game: error with retry", async ({ page, t }) => {
   await openApp(page, { view: "/live", scenario: "live-error" });
   const alert = page.getByRole("alert");
-  await expect(alert).toContainText("Couldn't read the game");
-  await alert.getByRole("button", { name: "Try again" }).click();
+  await expect(alert).toContainText(t.live.readFailed);
+  await alert.getByRole("button", { name: t.common.tryAgain }).click();
   await expect.poll(() => page.evaluate(() => window.__SCOUT_MOCK__?.calls.filter((c) => c === "live_game").length)).toBe(2);
 });

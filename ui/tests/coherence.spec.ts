@@ -1,9 +1,8 @@
-import { expect, test } from "@playwright/test";
 // Brings the window.__SCOUT_MOCK__ declaration into scope.
 import type {} from "../src/data/mock";
 import { lockInImport } from "../src/data/mock/import-fixtures";
 import { scenarioNames } from "../src/data/mock/scenarios";
-import { openApp, VIEWS } from "./app";
+import { expect, openApp, test, VIEWS } from "./app";
 import { auditTokens } from "./coherence-rules";
 
 for (const view of VIEWS) {
@@ -38,19 +37,19 @@ for (const scenario of ["import-lock-in", "draft-no-stats"] as const) {
   });
 }
 
-test("the import bar only uses design tokens in every state", async ({ page }) => {
+test("the import bar only uses design tokens in every state", async ({ page, t }) => {
   // Done and warn (the Flash note), then failed and skipped.
   await openApp(page, { view: "/draft", scenario: "import-flash" });
-  await page.getByRole("button", { name: "Import runes" }).click();
-  await page.getByRole("button", { name: "Import spells" }).click();
+  await page.getByRole("button", { name: t.imports.importPart("runes") }).click();
+  await page.getByRole("button", { name: t.imports.importPart("spells") }).click();
   await expect(page.getByTestId("import-spells")).toHaveAttribute("data-tone", "warn");
   await page.mouse.move(0, 0);
   await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)));
   expect(await page.evaluate(auditTokens), "done, warn").toEqual([]);
 
   await openApp(page, { view: "/draft", scenario: "import-failures" });
-  await page.getByRole("button", { name: "Import runes" }).click();
-  await page.getByRole("button", { name: "Import spells" }).click();
+  await page.getByRole("button", { name: t.imports.importPart("runes") }).click();
+  await page.getByRole("button", { name: t.imports.importPart("spells") }).click();
   await expect(page.getByTestId("import-spells")).toHaveAttribute("data-tone", "skipped");
   await page.mouse.move(0, 0);
   await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)));
@@ -81,14 +80,17 @@ for (const { view, scenario } of [
   });
 }
 
-test("stats pages after switching (all rows, a role, duos, another rune page) only use design tokens", async ({ page }) => {
+test("stats pages after switching (all rows, a role, duos, another rune page) only use design tokens", async ({ page, t }) => {
   await openApp(page, { view: "/tier-list" });
-  await page.getByTestId("role-filter").getByRole("radio", { name: "Bot" }).click();
+  await page.getByTestId("role-filter").getByRole("radio", { name: t.roles.bottom }).click();
   await page.getByTestId("tier-row").first().hover();
   expect(await page.evaluate(auditTokens), "tier list").toEqual([]);
   await openApp(page, { view: "/champions?id=99" });
-  await page.getByTestId("role-tabs").getByRole("radio", { name: /^Mid/ }).click();
-  await page.getByTestId("matchup-kind").getByRole("radio", { name: "Duos" }).click();
+  await page
+    .getByTestId("role-tabs")
+    .getByRole("radio", { name: new RegExp(`^${t.roles.middle}`) })
+    .click();
+  await page.getByTestId("matchup-kind").getByRole("radio", { name: t.champions.duos }).click();
   await page.getByTestId("rune-page").nth(1).click();
   await page.mouse.move(0, 0);
   // Segments and pills glide to their new colors: audit the settled ones.
@@ -102,7 +104,7 @@ test("live cards while scouting only use design tokens", async ({ page }) => {
   expect(await page.evaluate(auditTokens)).toEqual([]);
 });
 
-test("the search panel only uses design tokens (recent, champions, players)", async ({ page }) => {
+test("the search panel only uses design tokens (recent, champions, players)", async ({ page, t }) => {
   await page.addInitScript(() => {
     localStorage.setItem(
       "mvp.recent-searches.v1",
@@ -120,10 +122,16 @@ test("the search panel only uses design tokens (recent, champions, players)", as
   await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)));
   expect(await page.evaluate(auditTokens), "recent").toEqual([]);
   await page.keyboard.type("Ahri#EUW");
-  await page.getByTestId("search-option").filter({ hasText: "Level" }).waitFor();
+  await page
+    .getByTestId("search-option")
+    .filter({ hasText: t.search.level(512, "EUW") })
+    .waitFor();
   expect(await page.evaluate(auditTokens), "resolved").toEqual([]);
   await input.fill("Nobody#404");
-  await page.getByTestId("search-option").filter({ hasText: "No player" }).waitFor();
+  await page
+    .getByTestId("search-option")
+    .filter({ hasText: t.search.noPlayerOn("EUW") })
+    .waitFor();
   expect(await page.evaluate(auditTokens), "not found").toEqual([]);
 });
 
