@@ -272,7 +272,8 @@ export function gameFor(match: MatchSummary, owner: RiotId, extreme = false): Ma
     match.durationSeconds,
   );
   lines.forEach((line, i) => {
-    line.player.grade = grades?.[i] ?? null;
+    // A row that came with its grade (a captured profile's, from the backend) keeps it.
+    line.player.grade = (line.player.isMe ? match.grade : null) ?? grades?.[i] ?? null;
   });
   return {
     matchId: match.matchId,

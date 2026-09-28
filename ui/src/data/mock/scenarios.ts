@@ -51,15 +51,18 @@ const offline = {
   detail: { kind: "network", message: "error sending request for url (http://127.0.0.1:8787/v1/stats/index)" } satisfies BackendError,
 };
 
+/** The captured profile once loaded: its rows open on made-up games around your real line. */
+let captured: PlayerProfile = profile;
+
 /** Profile captured by `capture-profile`, served by the dev server; falls back to the fixture. */
 async function loadCapturedProfile(): Promise<PlayerProfile> {
   try {
     const res = await fetch("/fixtures/profile.json");
-    if (res.ok) return (await res.json()) as PlayerProfile;
+    if (res.ok) captured = (await res.json()) as PlayerProfile;
   } catch {
     // no capture: fall through
   }
-  return profile;
+  return captured;
 }
 
 export type MockResponse<T, A = undefined> =
@@ -138,8 +141,14 @@ export const scenarios = {
     responses: base,
   },
   me: {
-    description: "Your own profile captured from the Riot API (.cache/fixtures/profile.json), else the default one.",
-    responses: { ...base, current_profile: { load: loadCapturedProfile } },
+    description:
+      "Your own profile captured from the Riot API (.cache/fixtures/profile.json), else the default one; its games open on made-up lobbies around your line.",
+    responses: {
+      ...base,
+      current_profile: { load: loadCapturedProfile },
+      match_grades: { handle: (args) => gradesFrom([captured])(args), delayMs: 300 },
+      match_details: { handle: (args) => detailsFrom([captured, otherProfile])(args), delayMs: 250 },
+    },
   },
   "champ-select": {
     description: "Mid-draft: you're picking top against a locked Irelia. Imports work.",
