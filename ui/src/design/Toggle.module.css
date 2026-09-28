@@ -58,9 +58,9 @@
 .toggle[data-pressed]:hover .thumb {
   background: var(--bg-lens);
   backdrop-filter: var(--lg-filter, none);
+  /* Inset only: an outer shadow would shift the lens (see Search.module.css). */
   box-shadow:
-    inset 0 0 0 1px var(--line-rim),
-    inset 0 1px 1px var(--line-rim),
-    0 3px 10px -2px var(--line-shade);
+    inset 1px 1px 0 var(--line-rim),
+    inset -1px -1px 0 var(--line-rim-far);
   transform: translate(var(--travel), -50%) scale(1.5, 1.32);
 }

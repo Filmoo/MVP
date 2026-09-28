@@ -32,7 +32,7 @@
   --bg-field: #07080d8c; /* a field etched into glass (title bar search) */
   --line-rim: #ffffff42; /* specular rim, lit side */
   --line-rim-far: #ffffff12; /* specular rim, far side */
-  --line-glint: #ffffff8c; /* where the rim turns to the pointer */
+  --line-glint: #ffffff5c; /* where the rim turns to the pointer */
   --line-shade: #0000005c; /* thin shade under a floating edge */
   --shadow-float: 0 18px 44px -12px rgb(0 0 0 / 0.6), 0 2px 6px -2px rgb(0 0 0 / 0.4);
 
@@ -149,6 +149,36 @@
     1
   );
   --dur-spring: 350ms;
+  /* The same spring critically damped: no overshoot, for thumbs that must stay in their track
+     (segmented controls). spring({ stiffness: 520, damping: 46, points: 24 }), kept in sync too. */
+  --ease-glide: linear(
+    0,
+    0.0575,
+    0.1803,
+    0.3208,
+    0.4552,
+    0.573,
+    0.6712,
+    0.7502,
+    0.8123,
+    0.8602,
+    0.8966,
+    0.9241,
+    0.9445,
+    0.9597,
+    0.9708,
+    0.9789,
+    0.9848,
+    0.9891,
+    0.9922,
+    0.9944,
+    0.996,
+    0.9972,
+    0.998,
+    0.9986,
+    1
+  );
+  --dur-glide: 405ms;
 }
 
 /* Ranked tier colors (badges, emblems, LP graphs), pastel. */

@@ -29,9 +29,10 @@
 }
 
 /*
- * Liquid glass rim (design/liquid): a 1 px ring of light around floating glass, brightest where
- * it faces the light (top left) with a fainter echo on the far side, the way a polished edge
- * catches it. Static and crisp at any scale; the element needs a position and a radius.
+ * Liquid glass rim (design/liquid): a 1 px ring of light around glass, brightest where it faces
+ * the light (top left) with a fainter echo on the far side, the way a polished edge catches it;
+ * never fully dark, so it is the element's edge (cards need no border of their own). Static and
+ * crisp at any scale; the element needs a position and a radius.
  */
 .glass-rim::after {
   --rx: inherit;
@@ -47,10 +48,10 @@
     linear-gradient(
       150deg,
       var(--line-rim),
-      var(--line-rim-far) 24%,
-      transparent 46%,
-      transparent 58%,
-      var(--line-rim-far) 80%,
+      var(--line-specular) 24%,
+      var(--line-rim-far) 46%,
+      var(--line-rim-far) 58%,
+      var(--line-specular) 80%,
       var(--line-rim)
     );
   mask:

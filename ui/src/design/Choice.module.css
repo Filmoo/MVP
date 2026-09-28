@@ -26,10 +26,7 @@
   display: none;
   border-radius: var(--radius-2);
   background: var(--accent-soft);
-  box-shadow:
-    inset 0 1px 0 var(--line-specular),
-    0 2px 6px -2px var(--line-shade);
-  transition: transform var(--dur-spring) var(--ease-spring);
+  transition: transform var(--dur-glide) var(--ease-glide);
   pointer-events: none;
 }
 
@@ -115,4 +112,12 @@
 .choice:not(:disabled) .option:hover .input:not(:checked) + .label {
   background: var(--bg-4);
   color: var(--text-1);
+}
+
+/* Narrow windows: the options share the whole row. */
+@media (max-width: 559px) {
+  .choice {
+    display: flex;
+    width: 100%;
+  }
 }

@@ -306,7 +306,8 @@ export function Search(): JSX.Element {
         </select>
       </div>
       <Show when={open()}>
-        <div class={`${styles.panel} glass-rim`} id="search-panel" data-testid="search-panel" ref={(el) => liquid(el, "panel")}>
+        <div class={`${styles.panel} glass-rim`} id="search-panel" data-testid="search-panel">
+          <div class={styles.panelGlass} aria-hidden="true" ref={(el) => liquid(el, "panel")} />
           <Show
             when={sections().length > 0}
             fallback={

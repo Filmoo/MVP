@@ -8,7 +8,9 @@
  * moves slices.
  *
  * Only while the WebGL backdrop runs (`data-effects="shader"`: a GPU that draws it cheaply, the
- * Full visual effects level); otherwise the same elements keep their plain CSS blur.
+ * Full visual effects level); otherwise the same elements keep their plain CSS blur. This module
+ * only registers the elements: the optics and the filter builder (lens.ts) load with the first
+ * lens, so Light and Off never download them.
  *
  * Usage: `<div ref={(el) => liquid(el, "panel")}>`. The element's CSS applies the filter with
  * `backdrop-filter: var(--lg-filter, <fallback>)`, on itself or on a pseudo-element (so that
@@ -16,37 +18,38 @@
  * what's behind it from its descendants' glass).
  */
 import { onCleanup } from "solid-js";
-import { glassFor, type LiquidSpec, lensPrimitives, opticalRadius, type Primitive } from "./filter";
-import { type Slice, slicePixels, slices } from "./maps";
-import { type Glass, type OpticsTable, opticsTable } from "./optics";
+import type { LiquidSpec } from "./filter";
+import type { Entry } from "./lens";
 
 export type { LiquidSpec };
 
 /** The kinds of glass the app uses (see docs/architecture.md, "Glass and light"). */
 export const LIQUID = {
   /** Title bar: content scrolls under it; its lower rim bends it, the rest is frosted. */
+  // No colour split anywhere over the page: the glass sits over text, where a split reads as
+  // fringing, not as optics (the backdrop shader keeps its own at card rims, over light only).
   bar: {
     glass: { profile: "squircle", bezel: 12, thickness: 16 },
     rims: "bottom",
-    frost: 4,
-    dispersion: 0.06,
-    saturate: 1.7,
+    frost: 8,
+    dispersion: 0,
+    saturate: 1.4,
     brightness: 1.06,
   },
   /** Floating panels holding text (search results, toasts): frosted, with a lensing rim. */
   panel: {
     glass: { profile: "squircle", bezel: 16, thickness: 22 },
     frost: 8,
-    dispersion: 0.08,
+    dispersion: 0,
     saturate: 1.6,
     brightness: 1.08,
   },
-  /** Clear lenses over controls (rail selection, pressed toggles, slider thumbs): they magnify. */
+  /** Clear lenses over controls (rail selection, pressed toggles, segment thumbs): they magnify. */
   lens: {
     glass: { profile: "circle", bezel: 0, thickness: 0 },
-    dome: 0.6,
+    // A shallow dome: labels under it grow a little and stay crisp.
+    dome: 0.3,
     frost: 0,
-    // No colour split: lenses sit over labels, where it reads as fringing, not as optics.
     dispersion: 0,
     saturate: 1.5,
     brightness: 1.1,
@@ -63,21 +66,29 @@ const SVG_NS = "http://www.w3.org/2000/svg";
  */
 let lensing = false;
 
-interface Entry {
-  el: HTMLElement;
-  spec: LiquidSpec;
-  filter: SVGFilterElement;
-  width: number;
-  height: number;
-  radius: number;
-  /** What the filter was last built for. */
-  built: string;
-}
-
 const entries = new Map<HTMLElement, Entry>();
 let defs: SVGSVGElement | undefined;
 let resizes: ResizeObserver | undefined;
 let nextId = 0;
+
+/** The filter builder, once loaded (the first time something lenses). */
+let lens: typeof import("./lens") | undefined;
+let loading = false;
+
+function load(): void {
+  if (loading) return;
+  loading = true;
+  import("./lens").then(
+    (module) => {
+      lens = module;
+      for (const entry of entries.values()) apply(entry);
+    },
+    () => {
+      // Without it the glass keeps its plain blur; the next lens tries again.
+      loading = false;
+    },
+  );
+}
 
 /** Turns lensing on or off for every glass element (the backdrop decides, see Backdrop.tsx). */
 export function setLensing(on: boolean): void {
@@ -120,67 +131,16 @@ function observer(): ResizeObserver {
   return resizes;
 }
 
-const tables = new Map<string, OpticsTable>();
-function table(glass: Glass): OpticsTable {
-  const key = `${glass.profile}:${glass.bezel.toFixed(2)}:${glass.thickness.toFixed(2)}:${glass.ior ?? ""}`;
-  let t = tables.get(key);
-  if (!t) {
-    t = opticsTable(glass);
-    tables.set(key, t);
-  }
-  return t;
-}
-
-/** Slice images as data URLs (the app's CSP allows `data:` images), shared by every element. */
-const images = new Map<string, string>();
-let canvas: HTMLCanvasElement | undefined;
-function image(slice: Slice, radius: number, glass: Glass, optics: OpticsTable): string {
-  const key = `${slice.name}:${slice.imageWidth}x${slice.imageHeight}:${radius.toFixed(2)}:${glass.profile}:${glass.bezel.toFixed(2)}:${glass.thickness.toFixed(2)}`;
-  const hit = images.get(key);
-  if (hit) return hit;
-  canvas ??= document.createElement("canvas");
-  canvas.width = slice.imageWidth;
-  canvas.height = slice.imageHeight;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return "";
-  const pixels = slicePixels(slice, { radius }, glass, optics);
-  ctx.putImageData(new ImageData(pixels, slice.imageWidth, slice.imageHeight), 0, 0);
-  const url = canvas.toDataURL("image/png");
-  images.set(key, url);
-  return url;
-}
-
-function toSvg(p: Primitive): SVGElement {
-  const el = document.createElementNS(SVG_NS, p.tag);
-  for (const [k, v] of Object.entries(p.attrs)) el.setAttribute(k, String(v));
-  if (p.children) el.append(...p.children.map(toSvg));
-  return el;
-}
-
-/** (Re)builds an element's filter for its current size (only when the size or radius changed). */
-function build(entry: Entry): void {
-  const { spec, width: w, height: h } = entry;
-  const glass = glassFor(spec, w, h);
-  const radius = opticalRadius(spec, glass, w, h, entry.radius);
-  const key = `${w.toFixed(1)}x${h.toFixed(1)}:${radius.toFixed(1)}`;
-  if (entry.built === key) return;
-  entry.built = key;
-  const optics = table(glass);
-  const parts = slices({ width: w, height: h, radius }, glass.bezel, spec.rims).map((slice) => ({
-    slice,
-    href: image(slice, radius, glass, optics),
-  }));
-  const f = entry.filter;
-  for (const [k, v] of Object.entries({ x: 0, y: 0, width: w, height: h })) f.setAttribute(k, String(v));
-  f.replaceChildren(...lensPrimitives(spec, parts, optics.max).map(toSvg));
-}
-
 function apply(entry: Entry): void {
   if (!lensing || entry.width <= 0 || entry.height <= 0) {
     entry.el.style.removeProperty("--lg-filter");
     return;
   }
-  build(entry);
+  if (!lens) {
+    load();
+    return;
+  }
+  lens.build(entry);
   const value = `url(#${entry.filter.id})`;
   if (entry.el.style.getPropertyValue("--lg-filter") !== value) entry.el.style.setProperty("--lg-filter", value);
 }
@@ -191,15 +151,11 @@ function apply(entry: Entry): void {
  */
 export function liquid(el: HTMLElement, kind: LiquidKind | LiquidSpec): void {
   const spec: LiquidSpec = typeof kind === "string" ? LIQUID[kind] : kind;
-  const filter = toSvg({
-    tag: "filter",
-    attrs: {
-      id: `lg-${++nextId}`,
-      filterUnits: "userSpaceOnUse",
-      primitiveUnits: "userSpaceOnUse",
-      "color-interpolation-filters": "sRGB",
-    },
-  }) as SVGFilterElement;
+  const filter = document.createElementNS(SVG_NS, "filter");
+  filter.id = `lg-${++nextId}`;
+  filter.setAttribute("filterUnits", "userSpaceOnUse");
+  filter.setAttribute("primitiveUnits", "userSpaceOnUse");
+  filter.setAttribute("color-interpolation-filters", "sRGB");
   container().appendChild(filter);
   const entry: Entry = { el, spec, filter, width: 0, height: 0, radius: 0, built: "" };
   entries.set(el, entry);

@@ -5,7 +5,8 @@
 .card {
   position: relative;
   background: linear-gradient(180deg, var(--bg-sheen), transparent 120px), var(--bg-card);
-  border: 1px solid var(--line-glass);
+  /* The rim of light (glass-rim) is the edge; the border only keeps the box. */
+  border: 1px solid transparent;
   border-radius: var(--radius-4);
   box-shadow: var(--shadow-glass);
   min-width: 0;

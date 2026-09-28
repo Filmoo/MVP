@@ -27,13 +27,8 @@ function Toasts(): JSX.Element {
     <div class={styles.toasts} aria-live="polite">
       <For each={issues()}>
         {(issue) => (
-          <div
-            class={`${styles.toast} ${styles[issue.tone]} glass-rim`}
-            role="status"
-            data-testid="toast"
-            data-tone={issue.tone}
-            ref={(el) => liquid(el, "panel")}
-          >
+          <div class={`${styles.toast} ${styles[issue.tone]} glass-rim`} role="status" data-testid="toast" data-tone={issue.tone}>
+            <div class={styles.toastGlass} aria-hidden="true" ref={(el) => liquid(el, "panel")} />
             <Icon name={issue.tone === "success" ? "check" : "alert"} size={16} class={styles.toastIcon} />
             <span>{issue.message}</span>
             <button type="button" aria-label="Dismiss" onClick={() => dismissIssue(issue.id)}>

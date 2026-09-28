@@ -1,5 +1,8 @@
 import { expect, type Page, test } from "@playwright/test";
-import { openApp, settle } from "./app";
+// Brings the window.__SCOUT_MOCK__ declaration into scope.
+import type {} from "../src/data/mock";
+import { lockInImport } from "../src/data/mock/import-fixtures";
+import { openApp, settle, trackErrors } from "./app";
 
 // The WebGL backdrop (src/design/backdrop): which level renders, fallbacks, and that it renders
 // on demand only. Render costs and idle silence are budgeted in perf.spec.ts.
@@ -166,10 +169,11 @@ const barGlass = (page: Page) =>
 
 test("liquid glass: the title bar bends the page under its rim with the shader", async ({ page }) => {
   await openApp(page);
+  // The lens builder loads with the first lens.
+  await expect.poll(async () => (await barGlass(page)).filter).toContain("url(");
   const full = await barGlass(page);
-  expect(full.filter).toContain("url(");
-  // Colour split: three displaced copies; the bar only has its lower rim (one slice).
-  expect(full.displacements).toBe(3);
+  // One displaced copy (no colour split over text); the bar only has its lower rim (one slice).
+  expect(full.displacements).toBe(1);
   expect(full.slices).toBe(1);
 });
 
@@ -199,11 +203,71 @@ test("liquid glass: the rail's lens sits on the current section and glides to th
   expect(await page.evaluate(() => document.getAnimations().length)).toBe(0);
 });
 
+/**
+ * Every element that lenses the page right now, with the shadows it carries. An SVG backdrop
+ * filter shares its element with inset shadows only: Chromium shifts the filter by the reach of
+ * an outer one (the lens then bends the wrong part of the page).
+ */
+const lensShadows = (page: Page) =>
+  page.evaluate(() =>
+    [...document.querySelectorAll<HTMLElement>("[data-liquid]")]
+      .filter((el) => getComputedStyle(el).backdropFilter.includes("url("))
+      .map((el) => ({
+        kind: el.dataset.liquid,
+        where: el.parentElement?.dataset.testid ?? el.parentElement?.className ?? "",
+        // One entry per shadow ("none" when there is none).
+        shadows: getComputedStyle(el)
+          .boxShadow.split(/,(?![^(]*\))/)
+          .map((s) => s.trim()),
+      })),
+  );
+
+const outerShadows = (lenses: Awaited<ReturnType<typeof lensShadows>>) =>
+  lenses.flatMap((l) => l.shadows.filter((s) => s !== "none" && !s.includes("inset")).map((s) => `${l.kind} in ${l.where}: ${s}`));
+
+test("liquid glass: nothing that lenses the page carries an outer shadow", async ({ page }) => {
+  const errors = trackErrors(page);
+  await openApp(page);
+  // Title bar, rail lens, rank pane over the art.
+  await expect.poll(async () => (await lensShadows(page)).length).toBeGreaterThanOrEqual(3);
+  expect(outerShadows(await lensShadows(page))).toEqual([]);
+  // The search panel over the page.
+  await page.getByTestId("search-input").click();
+  await page.keyboard.type("ahri");
+  await expect(page.getByTestId("search-panel")).toBeVisible();
+  await expect.poll(async () => (await lensShadows(page)).filter((l) => l.kind === "panel").length).toBeGreaterThanOrEqual(2);
+  expect(outerShadows(await lensShadows(page))).toEqual([]);
+  await page.keyboard.press("Escape");
+  // A toast.
+  await page.evaluate((result) => window.__SCOUT_MOCK__?.emit("import", result), lockInImport);
+  await expect(page.getByTestId("toast")).toBeVisible();
+  expect(outerShadows(await lensShadows(page))).toEqual([]);
+  // Settings: segment thumbs, and a switch held down.
+  await page.getByRole("link", { name: "Settings" }).click();
+  const toggle = page.getByRole("switch", { name: "Close to tray" });
+  await toggle.scrollIntoViewIfNeeded();
+  const box = await toggle.boundingBox();
+  if (!box) throw new Error("no switch");
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await expect(toggle).toHaveAttribute("data-pressed", "");
+  await expect.poll(() => toggle.locator("span").evaluate((el) => getComputedStyle(el).backdropFilter)).toContain("url(");
+  expect(outerShadows(await lensShadows(page))).toEqual([]);
+  await page.mouse.up();
+  // Stats pages: segmented thumbs.
+  await page.getByRole("link", { name: "Tier list" }).click();
+  await expect(page.getByTestId("queue-switch")).toBeVisible();
+  expect(outerShadows(await lensShadows(page))).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
 test("liquid glass: a held switch turns its knob into a lens, released it's solid again", async ({ page }) => {
   await openApp(page, { view: "/settings" });
   const toggle = page.getByRole("switch", { name: "Close to tray" });
   const knobFilter = () => toggle.locator("span").evaluate((el) => getComputedStyle(el).backdropFilter);
   expect(await knobFilter()).toBe("none");
+  // The pointer goes where the switch is on screen.
+  await toggle.scrollIntoViewIfNeeded();
   const box = await toggle.boundingBox();
   if (!box) throw new Error("no switch");
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);

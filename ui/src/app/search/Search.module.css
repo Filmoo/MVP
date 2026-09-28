@@ -112,15 +112,28 @@
   left: 0;
   right: 0;
   z-index: 20;
+  isolation: isolate;
   display: flex;
   flex-direction: column;
   max-height: calc(100vh - var(--titlebar-h) - var(--space-8));
-  /* Liquid glass over the page (design/liquid): frosted, its rim bends what's behind. */
-  background: var(--bg-float);
-  backdrop-filter: var(--lg-filter, var(--blur-glass));
   border-radius: var(--radius-4);
   box-shadow: var(--shadow-float);
   overflow: hidden;
+}
+
+/*
+ * Liquid glass over the page (design/liquid): frosted, its rim bends what's behind. A layer of
+ * its own: an SVG backdrop filter must not share its element with an outer shadow (Chromium
+ * shifts the filter by the shadow's reach).
+ */
+.panelGlass {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--bg-float);
+  backdrop-filter: var(--lg-filter, var(--blur-glass));
+  pointer-events: none;
 }
 
 .list {

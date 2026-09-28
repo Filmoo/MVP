@@ -14,6 +14,7 @@
   gap: var(--space-5);
   height: var(--titlebar-h);
   min-width: 0;
+  box-shadow: 0 1px 0 var(--line-shade);
 }
 
 .glass {
@@ -22,9 +23,7 @@
   z-index: -1;
   background: var(--bg-chrome);
   backdrop-filter: var(--lg-filter, var(--blur-glass));
-  box-shadow:
-    inset 0 -1px 0 var(--line-glass),
-    0 1px 0 var(--line-shade);
+  box-shadow: inset 0 -1px 0 var(--line-glass);
   pointer-events: none;
 }
 
@@ -57,7 +56,7 @@
   align-items: center;
   gap: var(--space-3);
   font-size: var(--text-sm);
-  color: var(--text-3);
+  color: var(--text-2);
   white-space: nowrap;
   overflow: hidden;
   min-width: 0;

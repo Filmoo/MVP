@@ -83,6 +83,8 @@
   top: 0;
   left: 0;
   z-index: 1;
+  border-radius: var(--radius-3);
+  box-shadow: 0 6px 16px -8px var(--line-shade);
   pointer-events: none;
 }
 
@@ -90,15 +92,13 @@
   display: none;
 }
 
+/* Its rim of light is the glass-rim ring; the shadow is the wrapper's (see Search.module.css). */
 .glass {
   position: absolute;
   inset: 0;
-  border-radius: var(--radius-4);
+  border-radius: inherit;
   background: var(--bg-lens);
   backdrop-filter: var(--lg-filter, none);
-  box-shadow:
-    inset 0 1px 1px var(--line-specular),
-    0 6px 16px -8px var(--line-shade);
 }
 
 .active::before {

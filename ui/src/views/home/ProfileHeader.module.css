@@ -125,15 +125,25 @@
 .ranked {
   grid-area: ranked;
   position: relative;
+  isolation: isolate;
   display: flex;
   align-items: center;
   gap: var(--space-6);
   min-width: 0;
   padding: var(--space-5) var(--space-7) var(--space-5) var(--space-5);
   border-radius: var(--radius-4);
+  box-shadow: var(--shadow-float);
+}
+
+/* Glass over the art (design/liquid), a layer away from the outer shadow. */
+.rankedGlass {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
   background: var(--bg-glass);
   backdrop-filter: var(--lg-filter, blur(6px));
-  box-shadow: var(--shadow-float);
+  pointer-events: none;
 }
 
 .rankText {
