@@ -3,6 +3,7 @@
 mod commands;
 mod core;
 mod tray;
+mod updater;
 mod window;
 
 use companion::settings::SettingsStore;
@@ -29,6 +30,8 @@ pub fn run() {
             MacosLauncher::LaunchAgent,
             Some(vec![AUTOSTART_ARG]),
         ))
+        // Driven from the core (`updater.rs`); the webview has no updater permission.
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             let settings = SettingsStore::load(
                 app.path()
@@ -56,22 +59,28 @@ pub fn run() {
             commands::view_changed,
             commands::search_player,
             commands::live_game,
-            commands::retry_scouting
+            commands::retry_scouting,
+            commands::remote_config,
+            commands::update_status,
+            commands::check_for_updates,
+            commands::install_update,
+            commands::report_error
         ])
         .build(tauri::generate_context!())
         .expect("failed to build the Tauri application");
 
     app.run(|app, event| {
-        // The window was closed (not "Quit"): stay in the tray if the player wants that.
-        if let RunEvent::ExitRequested {
-            code: None, api, ..
-        } = event
-        {
-            let to_tray = app
-                .try_state::<SettingsStore>()
-                .is_some_and(|settings| settings.get().close_to_tray);
+        if let RunEvent::ExitRequested { code, api, .. } = event {
+            // The window was closed (not "Quit"): stay in the tray if the player wants that.
+            let to_tray = code.is_none()
+                && app
+                    .try_state::<SettingsStore>()
+                    .is_some_and(|settings| settings.get().close_to_tray);
             if to_tray {
                 api.prevent_exit();
+            } else {
+                // Quitting for real: a downloaded update installs now (never during a game).
+                updater::install_on_quit(app);
             }
         }
     });

@@ -19,6 +19,16 @@ pub const CHECK_EVERY: Duration = Duration::from_secs(6 * 60 * 60);
 /// After a failed check or download.
 pub const RETRY_AFTER_FAILURE: Duration = Duration::from_secs(60 * 60);
 
+/// The updater endpoint on our backend `base`, stable channel. Tauri fills in `{{target}}`,
+/// `{{arch}}` and `{{current_version}}` (e.g. `windows/x86_64/0.1.0`).
+pub fn endpoint(base: &str) -> String {
+    format!(
+        "{}/v1/updates/{{{{target}}}}/{{{{arch}}}}/{{{{current_version}}}}?channel={}",
+        base.trim_end_matches('/'),
+        crate::remote::CHANNEL
+    )
+}
+
 /// The player is about to play or playing: no download, no install.
 pub const fn in_game(phase: GameflowPhase) -> bool {
     matches!(
@@ -275,6 +285,14 @@ mod tests {
         assert_eq!(plan.tick(now + FIRST_CHECK_AFTER), Some(Step::Check));
         let step = plan.checked(Ok(Some(offer())), phase, now + FIRST_CHECK_AFTER);
         (plan, step)
+    }
+
+    #[test]
+    fn asks_our_backend_on_the_stable_channel() {
+        assert_eq!(
+            endpoint("https://api.example.com/"),
+            "https://api.example.com/v1/updates/{{target}}/{{arch}}/{{current_version}}?channel=stable"
+        );
     }
 
     #[test]

@@ -23,6 +23,8 @@ serde_json.workspace = true
 tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-autostart = "2"
 tauri-plugin-single-instance = "2"
+# rustls only (no system proxy crates, no zip: releases ship the NSIS installer itself).
+tauri-plugin-updater = { version = "2.13", default-features = false, features = ["rustls-tls"] }
 tracing.workspace = true
 tokio.workspace = true
 tracing-subscriber.workspace = true

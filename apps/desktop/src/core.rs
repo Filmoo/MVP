@@ -1,9 +1,12 @@
 //! Runs the app core next to the window and bridges it to the UI.
 
-use std::sync::RwLock;
+use std::path::Path;
+use std::sync::{Arc, RwLock};
 
 use companion::automation::CoreEvent;
 use companion::backend::{BackendClient, BackendConfig};
+use companion::crash::{self, CrashReporter};
+use companion::remote::{self, RemoteConfigStore};
 use companion::settings::SettingsStore;
 use companion::{ScoutingHandle, ViewReporter};
 use domain::{ClientStatus, DraftView, GameData, LiveGame};
@@ -29,20 +32,21 @@ pub struct GameDataState(pub RwLock<Option<GameData>>);
 #[derive(Debug)]
 pub struct Backend(pub Option<BackendClient>);
 
-/// Builds the backend client: base URL from the build (see `companion::backend`), install id
-/// from the config directory, next to the settings.
-fn backend<R: Runtime>(app: &AppHandle<R>) -> Option<BackendClient> {
-    let dir = match app.path().app_config_dir() {
-        Ok(dir) => dir,
-        Err(error) => {
-            tracing::error!(%error, "no config directory for the install id");
-            return None;
-        }
-    };
-    let config = BackendConfig::new(
-        companion::backend::base_url(),
-        companion::backend::install_id(&dir),
-    );
+/// The server's remote config (feature flags, kill switches, banners, minimum version).
+#[derive(Debug)]
+pub struct Remote(pub Arc<RemoteConfigStore>);
+
+/// Opt-in crash reports.
+#[derive(Debug)]
+pub struct Crashes(pub Arc<CrashReporter>);
+
+/// This installation's random id (`X-MVP-Install`), shown in Settings for deletion requests.
+#[derive(Debug)]
+pub struct InstallId(pub String);
+
+/// Builds the backend client: base URL from the build (see `companion::backend`).
+fn backend(install_id: &str) -> Option<BackendClient> {
+    let config = BackendConfig::new(companion::backend::base_url(), install_id);
     match BackendClient::new(&config) {
         Ok(client) => {
             tracing::info!(url = client.base_url(), "backend");
@@ -55,12 +59,69 @@ fn backend<R: Runtime>(app: &AppHandle<R>) -> Option<BackendClient> {
     }
 }
 
+/// `windows x86_64, webview 131.0.2903.70`: the OS and the webview, for crash reports.
+fn os_version() -> String {
+    let os = format!("{} {}", std::env::consts::OS, std::env::consts::ARCH);
+    match tauri::webview_version() {
+        Ok(webview) => format!("{os}, webview {webview}"),
+        Err(_) => os,
+    }
+}
+
+/// The remote config (from its last answer on disk, then the server's) and the crash reports,
+/// both kept next to the settings.
+fn platform_services<R: Runtime>(
+    app: &AppHandle<R>,
+    dir: &Path,
+    install_id: &str,
+    backend: Option<&BackendClient>,
+    settings: &SettingsStore,
+) -> Arc<RemoteConfigStore> {
+    let version = app.package_info().version.to_string();
+    let remote = Arc::new(RemoteConfigStore::load(
+        dir.join(remote::FILE_NAME),
+        &version,
+    ));
+    forward(app, remote.subscribe(), "remote-config");
+    if let Some(backend) = backend {
+        tauri::async_runtime::spawn(Arc::clone(&remote).follow(backend.clone()));
+    }
+    app.manage(Remote(Arc::clone(&remote)));
+
+    let crashes = CrashReporter::new(
+        dir.join(crash::DIR_NAME),
+        &version,
+        &os_version(),
+        install_id,
+        backend.cloned(),
+    );
+    crashes.install_panic_hook();
+    tauri::async_runtime::spawn(Arc::clone(&crashes).run(settings.subscribe()));
+    app.manage(Crashes(crashes));
+    remote
+}
+
 /// Starts following the League client and pushes every status change to the UI.
 pub fn start<R: Runtime>(app: &AppHandle<R>, settings: &SettingsStore) {
     app.manage(GameDataState::default());
     load_game_data(app);
-    let backend = backend(app);
+    let dir = app.path().app_config_dir().unwrap_or_else(|error| {
+        tracing::error!(%error, "no config directory, using the temporary one");
+        std::env::temp_dir().join(&app.config().identifier)
+    });
+    let install_id = companion::backend::install_id(&dir);
+    let backend = backend(&install_id);
     app.manage(Backend(backend.clone()));
+    let remote = platform_services(app, &dir, &install_id, backend.as_ref(), settings);
+    // The client status, for the updater: never during a game.
+    let (phase_tx, phase) = watch::channel(ClientStatus::not_running());
+    app.manage(crate::updater::start(
+        app,
+        &install_id,
+        phase,
+        remote.subscribe(),
+    ));
+    app.manage(InstallId(install_id));
 
     let config = match lcu::ConnectorConfig::for_league_client(Vec::new()) {
         Ok(config) => config,
@@ -72,7 +133,7 @@ pub fn start<R: Runtime>(app: &AppHandle<R>, settings: &SettingsStore) {
     let settings = settings.subscribe();
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
-        let companion = companion::start_with(config, settings, backend);
+        let companion = companion::start_full(config, settings, backend, remote.subscribe());
         app.manage(Core {
             status: companion.status.clone(),
             draft: companion.draft.clone(),
@@ -94,6 +155,7 @@ pub fn start<R: Runtime>(app: &AppHandle<R>, settings: &SettingsStore) {
         while status.changed().await.is_ok() {
             let current = status.borrow_and_update().clone();
             tracing::debug!(?current, "client status");
+            phase_tx.send_replace(current.clone());
             if let Err(error) = app.emit("client-status", current) {
                 tracing::warn!(%error, "cannot emit client status");
             }
