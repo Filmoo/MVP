@@ -93,7 +93,7 @@ impl SettingsStore {
 
 /// Writes to a temporary file next to `path`, flushes it to disk, then renames it over `path`:
 /// a crash or power loss leaves either the old or the new file, never a torn one.
-fn write_atomic(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+pub(crate) fn write_atomic(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir)?;
     }

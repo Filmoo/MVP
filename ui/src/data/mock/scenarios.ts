@@ -39,7 +39,7 @@ export interface Scenario {
 const connectedIdle: ClientStatus = { connection: "connected", phase: "idle" };
 
 const base: Scenario["responses"] = {
-  app_info: { data: { name: "MVP", version: "0.1.0", platform: "web" } },
+  app_info: { data: { name: "MVP", version: "0.1.0", platform: "web", installId: null } },
   client_status: { data: connectedIdle },
   current_profile: { data: profile },
   draft_state: { data: null },

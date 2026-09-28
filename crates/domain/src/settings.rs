@@ -25,6 +25,9 @@ pub struct Settings {
     pub launch_at_startup: bool,
     /// Closing the window keeps the app running in the tray.
     pub close_to_tray: bool,
+    /// Send crash reports (opt-in): a crash of the core or an error in the UI goes to our
+    /// server, scrubbed of names, ids and paths first, and is kept 30 days.
+    pub crash_reports: bool,
 }
 
 impl Settings {
@@ -49,6 +52,7 @@ impl Default for Settings {
             auto_switch_view: true,
             launch_at_startup: false,
             close_to_tray: true,
+            crash_reports: false,
         }
     }
 }
@@ -105,8 +109,14 @@ mod tests {
     }
 
     #[test]
-    fn auto_accept_is_off_by_default() {
+    fn opt_ins_are_off_by_default() {
         assert!(!Settings::default().auto_accept);
+        assert!(!Settings::default().crash_reports);
+        let older: Settings = serde_json::from_str(r#"{"closeToTray":false}"#).expect("loads");
+        assert!(
+            !older.crash_reports,
+            "files from before the setting existed"
+        );
     }
 
     #[test]

@@ -231,7 +231,8 @@ pub fn map_session(session: &Value, my_puuid: Option<&str>, platform: &str) -> O
 }
 
 /// Reads the game from the client, publishes it, asks the backend for the cards and publishes
-/// them. Aborted by the core when the game ends.
+/// them. Aborted by the core when the game ends. `backend` is `None` without one, or when the
+/// remote config turned scouting off: the teams still show, without cards.
 pub(crate) async fn scout_game(
     lcu: LcuClient,
     backend: Option<BackendClient>,
@@ -266,7 +267,7 @@ pub(crate) async fn scout_game(
     let result = match backend {
         Some(backend) => backend.scout(platform, &wanted).await,
         None => Err(BackendError::Unavailable {
-            message: "no backend configured".to_owned(),
+            message: "player cards are off (no backend, or turned off remotely)".to_owned(),
         }),
     };
     if let Err(error) = &result {

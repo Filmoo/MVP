@@ -71,8 +71,15 @@ const TOP_KEYS: [&str; 6] = [
     "statsIndexUrl",
     "pollAfterSecs",
 ];
-const BANNER_KEYS: [&str; 7] = [
-    "id", "severity", "text", "link", "startsAt", "endsAt", "channels",
+const BANNER_KEYS: [&str; 8] = [
+    "id",
+    "severity",
+    "text",
+    "link",
+    "startsAt",
+    "endsAt",
+    "dismissible",
+    "channels",
 ];
 
 /// Unknown keys are typos (a misspelled kill switch must not be silently ignored).
@@ -291,7 +298,7 @@ mod tests {
             { "id": "patch-26.19", "severity": "info",
               "text": { "en": "Patch day: stats are warming up", "fr": "Jour de patch : les stats arrivent" },
               "link": null, "startsAt": "2026-09-30T08:00:00Z", "endsAt": "2026-10-01T08:00:00Z" },
-            { "id": "beta-only", "severity": "warn", "channels": ["beta"],
+            { "id": "beta-only", "severity": "warn", "channels": ["beta"], "dismissible": false,
               "text": { "en": "Beta build", "fr": "Version bêta" },
               "link": "https://status.example", "startsAt": null, "endsAt": null }
         ],
@@ -326,6 +333,11 @@ mod tests {
         let ids: Vec<&str> = during.banners.iter().map(|b| b.id.as_str()).collect();
         assert_eq!(ids, ["patch-26.19", "beta-only"]);
         assert_eq!(during.banners[1].severity, BannerSeverity::Warn);
+        assert!(
+            during.banners[0].dismissible,
+            "dismissible unless said otherwise"
+        );
+        assert!(!during.banners[1].dismissible);
 
         let after = file.resolve(None, Channel::Stable, datetime!(2026-10-01 08:00 UTC));
         assert!(after.banners.is_empty(), "the end is exclusive");

@@ -35,5 +35,5 @@ export const widgetRegistry: Record<string, () => JSX.Element> = {
   "settings-app": () => <AppSettings settings={defaultSettings} onChange={() => {}} />,
   "live-team": () => <LiveTeam title="Your team" players={liveGame.allies} enemy={false} scouting="done" />,
   "champion-soon": () => <ChampionSoonHero championId={103} />,
-  "settings-about": () => <About info={{ name: "MVP", version: "0.1.0", platform: "windows" }} />,
+  "settings-about": () => <About info={{ name: "MVP", version: "0.1.0", platform: "windows", installId: null }} />,
 };

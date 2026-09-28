@@ -30,4 +30,9 @@ launchAtStartup: boolean,
 /**
  * Closing the window keeps the app running in the tray.
  */
-closeToTray: boolean, };
+closeToTray: boolean, 
+/**
+ * Send crash reports (opt-in): a crash of the core or an error in the UI goes to our
+ * server, scrubbed of names, ids and paths first, and is kept 30 days.
+ */
+crashReports: boolean, };

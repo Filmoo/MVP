@@ -637,6 +637,8 @@ dependencies = [
  "reqwest",
  "rustls",
  "rustls-platform-verifier",
+ "scrub",
+ "semver",
  "serde",
  "serde_json",
  "tempfile",

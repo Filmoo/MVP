@@ -7,4 +7,10 @@ export type AppInfo = { name: string, version: string,
 /**
  * `windows`, `macos`, `linux` or `web`.
  */
-platform: string, };
+platform: string, 
+/**
+ * This installation's random id (`X-MVP-Install`): not linked to the Riot account, it
+ * files crash reports, so it is what a player quotes to have theirs deleted. `None`
+ * outside the app.
+ */
+installId: string | null, };

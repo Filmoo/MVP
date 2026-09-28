@@ -21,6 +21,7 @@ pub fn app_info(app: tauri::AppHandle) -> AppInfo {
         name: pkg.name.clone(),
         version: pkg.version.to_string(),
         platform: std::env::consts::OS.to_owned(),
+        install_id: None,
     }
 }
 
