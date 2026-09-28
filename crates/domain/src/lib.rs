@@ -20,8 +20,8 @@ mod stats;
 pub use backend::{ApiError, ApiErrorCode, BackendError, Health};
 pub use client::{AppInfo, ClientConnection, ClientStatus, GameflowPhase};
 pub use draft::{
-    DataInfo, DraftPhase, DraftSlot, DraftView, Estimate, PersonalRecord, Reason, ReasonKind,
-    RoleOdds, Suggestion,
+    DataInfo, DraftPhase, DraftSlot, DraftView, Estimate, Mastery, PersonalRecord, Reason,
+    ReasonKind, RoleOdds, Suggestion,
 };
 pub use game_data::{ChampionInfo, GameData, ItemInfo, SpellInfo};
 pub use live::{LiveGame, LivePlayer, Scouting};
