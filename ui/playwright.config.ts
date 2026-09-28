@@ -47,7 +47,9 @@ export default defineConfig({
     { name: "coherence-fr", testMatch: /coherence\.spec\.ts/, use: { locale: "fr-FR" } },
     { name: "errors-fr", testMatch: /errors\.spec\.ts/, use: { locale: "fr-FR" } },
     { name: "interactions-fr", testMatch: /(interactions|search|live|backdrop|imports|stats)\.spec\.ts/, use: { locale: "fr-FR" } },
-    { name: "perf", testMatch: /perf\.spec\.ts/ },
+    // Timed without Playwright's trace: its screencast captures every frame, which slowed the
+    // slowest view switch by half (the numbers are in reports/perf/latest.json anyway).
+    { name: "perf", testMatch: /perf\.spec\.ts/, use: { trace: "off" } },
     { name: "showcase", testMatch: /showcase\.spec\.ts/ },
   ],
 });
