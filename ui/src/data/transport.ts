@@ -28,7 +28,8 @@ export interface Commands {
   /** Your profile from the League client; games already read whole carry their grade. */
   current_profile: { args: undefined; result: PlayerProfile | null };
   /**
-   * Your grade in each of your listed games (`current_profile`'s ids): the core reads each game
+   * Your grade in each of your listed games (`current_profile`'s ids), and the role you played
+   * there as worked out from the whole game (the list only guesses it): the core reads each game
    * whole from the League client once, a few at a time. Remakes, modes without two teams of five
    * and ids that aren't your listed games answer `grade: null` (the last without any read).
    */

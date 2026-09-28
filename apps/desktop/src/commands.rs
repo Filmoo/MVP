@@ -175,6 +175,7 @@ pub async fn match_grades(app: tauri::AppHandle, match_ids: Vec<String>) -> Vec<
             .map(|match_id| GradedMatch {
                 match_id,
                 grade: None,
+                role: None,
             })
             .collect(),
     }

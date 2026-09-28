@@ -291,6 +291,8 @@ pub fn start_with_services(
     let mut connector = lcu::spawn(config);
     let client = connector.client.clone();
     let (tx, status) = watch::channel(ClientStatus::not_running());
+    // Your games' roles are worked out with the champions' published role shares.
+    let insights = matches::MatchInsights::new(stats.clone());
     // Sessions as mapped (teams only) → the draft helper → the UI.
     let helper = draft::spawn(client.clone(), stats, remote.clone(), settings.clone());
     let draft = helper.views.clone();
@@ -374,7 +376,7 @@ pub fn start_with_services(
         events,
         views: ViewReporter(views_tx),
         imports: importer,
-        matches: matches::MatchInsights::default(),
+        matches: insights,
         task,
     }
 }

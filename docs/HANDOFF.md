@@ -278,8 +278,9 @@ Match insights (Home after a few games; a player page with the backend running):
   deaths, assists, `totalMinionsKilled` + `neutralMinionsKilled`, `goldEarned`,
   `totalDamageDealtToChampions`, `totalDamageTaken` + `damageSelfMitigated`, `visionScore`,
   `damageDealtToObjectives`, `champLevel`, `item0`–`item6`, `perk0`, `perkSubStyle`, `win`),
-  `spell1Id`/`spell2Id`, `timeline.lane`/`role` (roles are fixed up from Smite and lane minions:
-  check that each team gets its five roles), `gameDuration` in seconds, `platformId`.
+  `spell1Id`/`spell2Id`, `timeline.lane`/`role` (only evidence: each team's roles are worked out
+  from the champions' role shares, Smite, lane minions and support items; compare with the player
+  page's Match-V5 `teamPosition` for the same games), `gameDuration` in seconds, `platformId`.
 - **Opened games:** yours open instantly the second time (cached); someone else's (player page)
   come from the backend; a streamer-mode player shows "Hidden player" in both; your line (or the
   page owner's) is marked; Escape closes and the row keeps the focus.

@@ -22,6 +22,22 @@ test("matches: your grades follow the list, asked once", async ({ page, t }) => 
   expect(errors).toEqual([]);
 });
 
+test("matches: the main role and the roles bar follow the roles of the whole games", async ({ page, t }) => {
+  const errors = trackErrors(page);
+  // The list guesses five of the mid games as top; the grades come with each game's real role.
+  await openApp(page, { scenario: "roles-guessed" });
+  await expect(page.locator("[data-grade] [data-chip]")).toHaveCount(11);
+  const header = page.locator("[data-widget=profile-header]");
+  await expect(header).toContainText(t.profile.stats.mainRole);
+  await expect(header).toContainText(t.profile.roleShare(9, 11));
+  await expect(header).not.toContainText(t.profile.roleShare(5, 11));
+  // The roles bar says what it draws in its name: `Mid 9, Jungle 1, Support 1`.
+  const roles = page.locator("[data-widget=performance-summary] [role=img]");
+  await expect(roles).toHaveAccessibleName(new RegExp(`^${t.roles.middle} 9`));
+  await expect(roles).not.toHaveAccessibleName(new RegExp(t.roles.top));
+  expect(errors).toEqual([]);
+});
+
 test("matches: other players' games come graded: nothing more to ask", async ({ page }) => {
   await openApp(page, { view: "/player/euw1/Blade%20Dancer/IRE" });
   await expect(page.locator("[data-grade] [data-chip]").first()).toBeVisible();

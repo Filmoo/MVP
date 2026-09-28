@@ -145,6 +145,15 @@ const base: Scenario["responses"] = {
   import_build: { handle: importAnswer(), delayMs: 400 },
 };
 
+/**
+ * The client's list guesses each game's role from your line alone (its legacy lanes): here it
+ * calls five of your mid games top. Their whole games, read for the grades, say mid.
+ */
+const guessedRoles: PlayerProfile = {
+  ...profile,
+  recentMatches: profile.recentMatches.map((m, i) => (i < 5 ? { ...m, role: "top" } : m)),
+};
+
 const inGame: ClientStatus = { connection: "connected", phase: "inGame" };
 
 /** Mid-draft, with imports that work (each takes a moment, like the real client). */
@@ -250,6 +259,11 @@ export const scenarios = {
       match_grades: { handle: gradesFrom([extremeProfile], true), delayMs: 300 },
       match_details: { handle: detailsFrom([extremeProfile], true), delayMs: 250 },
     },
+  },
+  "roles-guessed": {
+    description:
+      "The client's list calls five of your mid games top: the main role and the roles bar follow the whole games (mid) once your grades are in.",
+    responses: { ...base, current_profile: { data: guessedRoles } },
   },
   "match-details-slow": {
     description: "Opening a game takes 2.5 s: a skeleton the size of the table, then the game in place.",

@@ -288,7 +288,8 @@ export function gameFor(match: MatchSummary, owner: RiotId, extreme = false): Ma
   };
 }
 
-const ownerGrade = (game: MatchDetails) => game.teams.flatMap((t) => t.players).find((p) => p.isMe)?.grade ?? null;
+const ownerLine = (game: MatchDetails) => game.teams.flatMap((t) => t.players).find((p) => p.isMe);
+const ownerGrade = (game: MatchDetails) => ownerLine(game)?.grade ?? null;
 
 function lookup(profiles: readonly PlayerProfile[], matchId: string): { match: MatchSummary; owner: RiotId } | undefined {
   for (const p of profiles) {
@@ -307,12 +308,13 @@ export function detailsFrom(profiles: readonly PlayerProfile[], extreme = false)
   };
 }
 
-/** `match_grades` answering for the games of `profiles`. */
+/** `match_grades` answering for the games of `profiles`: your grade and the role you played. */
 export function gradesFrom(profiles: readonly PlayerProfile[], extreme = false): (args: { matchIds: string[] }) => GradedMatch[] {
   return ({ matchIds }) =>
     matchIds.map((matchId) => {
       const found = lookup(profiles, matchId);
-      return { matchId, grade: found ? ownerGrade(gameFor(found.match, found.owner, extreme)) : null };
+      const mine = found && ownerLine(gameFor(found.match, found.owner, extreme));
+      return { matchId, grade: mine?.grade ?? null, role: mine?.role ?? null };
     });
 }
 

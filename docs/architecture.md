@@ -205,9 +205,22 @@ Every finished game in a match history gets a grade, and a match row opens on th
   profile answered: the match list asks `match_grades { matchIds }` for its rows without one and
   the core answers from its cache or reads what's missing; the next `current_profile` fills them
   from the cache. A game the client doesn't return is asked again later, never a finished game
-  twice. LCU roles (`timeline.lane/role`) are fixed up: the Smite holder jungles, of the bottom
-  pair the one with fewer lane minions supports, duplicates are dropped, the last free role goes
-  to the last unknown player; ARAM has none.
+  twice.
+- **Roles of your games** (`companion::matches::roles`): the client's `timeline.lane/role` is
+  Riot's legacy guess (real games: a mid Kennen called TOP, an Ezreal "in the jungle" without
+  Smite, a roaming support called MIDDLE), and a wrong role grades against another role's
+  references. Each Summoner's Rift team gets one of each role: the most likely of all 120
+  assignments, the product per player of the champion's role share (the published ranked
+  `champions.json`, Emerald+, of the index at hand — nothing is requested just for roles — each
+  champion's games shrunk toward a built-in prior of usual roles with 50 pseudo-games; the prior
+  alone without stats, equal shares for a champion it doesn't know, 1 % floor), the client's
+  lane as weak evidence (×3 the lane it names, ×2 the jungle and both bottom roles, ×1.5 the
+  bottom role it names), lane minions and monsters per minute (laners ≥ 4, supports ≤ 2.5,
+  junglers ≥ 3 monsters; ×e⁻¹ per one short or over) and a support item (×20). Smite is a rule:
+  with Smite on the team the jungler holds it. Howling Abyss has no roles. The match list's rows
+  guess from your line alone (`profile::listed_role`) until the whole game is read: then
+  `match_grades` answers each game's role with its grade (`GradedMatch.role`) and the next
+  `current_profile` carries it, so the rows, "Main role" and the roles bar agree with the grades.
 - **Match details**: `match_details { matchId }` → `MatchDetails`: both teams (blue first, lanes
   in order), each player's Riot ID (none when hidden: `nameVisibilityType: HIDDEN` in the client,
   no name in Match-V5), champion and level, role, K/D/A, CS, gold, damage to champions, vision,

@@ -106,9 +106,11 @@ pub fn gradable(history: &Value, platform: &str) -> HashMap<String, bool> {
         .collect()
 }
 
-/// The role of the local player's line in the list. The client's `timeline` lane is a guess,
-/// often wrong (a Kennen with Teleport or an Ezreal with Barrier "in the jungle", seen on real
+/// The role of the local player's line in the list, a first guess. The client's `timeline` lane
+/// is often wrong (a Kennen with Teleport or an Ezreal with Barrier "in the jungle", seen on real
 /// games): Smite says jungle, a jungle without Smite says nothing, and Howling Abyss has none.
+/// Once the whole game is read for its grade, the row takes the role worked out from all ten
+/// players (`matches::MatchInsights`), the one its grade uses.
 fn listed_role(game: &Value, me: &Value) -> Option<Role> {
     if u32_at(game, "mapId") == HOWLING_ABYSS {
         return None;
