@@ -43,6 +43,15 @@
   max-width: 100%;
 }
 
+.footnote {
+  margin-top: var(--space-7);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--line-1);
+  font-size: var(--text-md);
+  color: var(--text-3);
+  overflow-wrap: anywhere;
+}
+
 .saveError {
   display: flex;
   align-items: flex-start;

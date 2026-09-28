@@ -6,9 +6,9 @@ import { ErrorState, Skeleton } from "../../design/States";
 import { Widget } from "../../widgets/Widget";
 import page from "../page.module.css";
 import styles from "./Settings.module.css";
-import { About, AppSettings, AutomationSettings } from "./sections";
+import { About, AppSettings, AutomationSettings, ImportSettings } from "./sections";
 
-type Section = "automation" | "app";
+type Section = "automation" | "imports" | "app";
 
 /** Same boxes as the loaded page, so nothing jumps when settings arrive. */
 function SettingsSkeleton(): JSX.Element {
@@ -17,6 +17,9 @@ function SettingsSkeleton(): JSX.Element {
       <div class={styles.main}>
         <Card title="Automation">
           <Skeleton height="296px" />
+        </Card>
+        <Card title="Imports">
+          <Skeleton height="360px" />
         </Card>
         <Card title="App">
           <Skeleton height="148px" />
@@ -66,6 +69,9 @@ function SettingsContent(props: { initial: SettingsData }): JSX.Element {
       <div class={styles.main}>
         <Widget name="settings-automation">
           <AutomationSettings settings={settings()} onChange={save("automation")} error={errors().automation} />
+        </Widget>
+        <Widget name="settings-imports">
+          <ImportSettings settings={settings()} onChange={save("imports")} error={errors().imports} />
         </Widget>
         <Widget name="settings-app">
           <AppSettings settings={settings()} onChange={save("app")} error={errors().app} />

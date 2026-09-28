@@ -1,0 +1,173 @@
+/* One slim row: who the build is for, a button per part, then what happened last. */
+.card {
+  container: imports / inline-size;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-4) var(--space-6);
+  padding: 0 var(--space-6);
+  min-width: 0;
+}
+
+.who {
+  flex: 0 1 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+.whoText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.title {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.subtitle {
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+  color: var(--text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.noChampion {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-3);
+  border: 1px dashed var(--line-2);
+}
+
+.buttons {
+  flex: none;
+  display: flex;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.part {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  height: 32px;
+  padding: 0 var(--space-5);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-3);
+  background: var(--bg-3);
+  color: var(--text-1);
+  font-size: var(--text-md);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--dur-1) var(--ease),
+    border-color var(--dur-1) var(--ease);
+}
+
+.part:hover:not(:disabled, [aria-busy]) {
+  background: var(--bg-4);
+}
+
+/* Unusable now (no champion, no stats): faded. */
+.part:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+/* Importing: full color, the spinner says it's working. */
+.part[aria-busy] {
+  cursor: progress;
+}
+
+.icon {
+  flex: none;
+  color: var(--text-2);
+}
+
+.part.done .icon {
+  color: var(--good);
+}
+.part.warn .icon {
+  color: var(--warn);
+}
+.part.failed .icon {
+  color: var(--loss);
+}
+.part.skipped .icon {
+  color: var(--text-3);
+}
+
+/* Only while the core imports: something is happening, so it may move. */
+.spinner {
+  flex: none;
+  box-sizing: border-box;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--line-2);
+  border-top-color: var(--accent);
+  border-radius: var(--radius-full);
+  animation: spin 800ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 2400ms;
+  }
+}
+
+/* What happened last, next to the buttons; under them when the bar is narrow. */
+.status {
+  flex: 1 1 240px;
+  min-width: 0;
+  font-size: var(--text-md);
+  color: var(--text-3);
+  overflow-wrap: anywhere;
+}
+
+.status.done {
+  color: var(--good);
+}
+.status.warn {
+  color: var(--warn);
+}
+.status.failed {
+  color: var(--loss);
+}
+.status.skipped,
+.status.hint {
+  color: var(--text-3);
+}
+
+@container imports (max-width: 639px) {
+  .who,
+  .buttons,
+  .status {
+    flex: 1 1 100%;
+  }
+  .part {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0 var(--space-4);
+  }
+}

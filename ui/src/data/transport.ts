@@ -5,6 +5,8 @@ import type { ChampionPage } from "./generated/ChampionPage";
 import type { ClientStatus } from "./generated/ClientStatus";
 import type { DraftView } from "./generated/DraftView";
 import type { GameData } from "./generated/GameData";
+import type { ImportRequest } from "./generated/ImportRequest";
+import type { ImportResult } from "./generated/ImportResult";
 import type { LiveGame } from "./generated/LiveGame";
 import type { PlayerProfile } from "./generated/PlayerProfile";
 import type { RiotId } from "./generated/RiotId";
@@ -54,6 +56,13 @@ export interface Commands {
    * data set at all.
    */
   champion_stats: { args: { championId: number; queue: number; bracket: Bracket }; result: ChampionPage };
+  /**
+   * Imports parts of a build into the League client: MVP's own rune page (made current), its
+   * item set for the champion, the summoner spells (champion select only, Flash on the player's
+   * key, never in the timer's last seconds). Answers what happened to each part; parts turned
+   * off in Settings are skipped.
+   */
+  import_build: { args: { request: ImportRequest }; result: ImportResult };
 }
 
 /** Events pushed by the core. */
@@ -70,6 +79,8 @@ export interface Events {
   live: LiveGame | null;
   /** The core fetched a newer stats index (new patch or republication): stats views refetch. */
   "stats-index": StatsIndex;
+  /** An automatic import on lock-in finished (`automatic: true`). */
+  import: ImportResult;
 }
 
 export type CommandName = keyof Commands;

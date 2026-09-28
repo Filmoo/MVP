@@ -6,23 +6,38 @@
   flex-wrap: wrap;
 }
 
-/* Fills the rest of the live page: the teams take their height, picks and why share the rest. */
+/* Fills the rest of the live page: the teams and the import bar take their height, picks and
+   why share the rest. */
 .grid {
   flex: 1;
   min-height: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(var(--aside-w), 30%);
   /* The lists' row is as tall as its content, yet shrinks (and scrolls inside) on short windows. */
-  grid-template-rows: auto minmax(0, max-content);
+  grid-template-rows: auto auto minmax(0, max-content);
   align-content: start;
   grid-template-areas:
     "teams teams"
+    "imports imports"
     "picks why";
   gap: var(--space-6);
 }
 
+/* Every import turned off in Settings: no bar, no empty row. */
+.noImports {
+  grid-template-rows: auto minmax(0, max-content);
+  grid-template-areas:
+    "teams teams"
+    "picks why";
+}
+
 .teams {
   grid-area: teams;
+  min-width: 0;
+}
+
+.imports {
+  grid-area: imports;
   min-width: 0;
 }
 
@@ -49,12 +64,19 @@
   grid-area: why;
 }
 
-/* Narrow: picks first (the client already shows the teams), the selected pick explains itself inline. */
+/* Narrow: the import bar, then picks (the client already shows the teams); the selected pick
+   explains itself inline. */
 @container page (max-width: 959px) {
   .grid {
     flex: none;
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto;
+    grid-template-areas:
+      "imports"
+      "picks"
+      "teams";
+  }
+  .noImports {
     grid-template-areas:
       "picks"
       "teams";

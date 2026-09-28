@@ -4,6 +4,7 @@ import { profile } from "../data/mock/fixtures";
 import { liveGame } from "../data/mock/live-fixtures";
 import { defaultSettings } from "../data/mock/settings-fixtures";
 import { ChampionSoonHero } from "../views/champions/Champions";
+import { IDLE_HINT, ImportPanel } from "../views/draft/ImportBar";
 import { Suggestions } from "../views/draft/Suggestions";
 import { Teams } from "../views/draft/Teams";
 import { Why } from "../views/draft/Why";
@@ -11,7 +12,7 @@ import { PerformanceSummary } from "../views/home/PerformanceSummary";
 import { ProfileHeader } from "../views/home/ProfileHeader";
 import { RecentMatches } from "../views/home/RecentMatches";
 import { LiveTeam } from "../views/live/LiveTeam";
-import { About, AppSettings, AutomationSettings } from "../views/settings/sections";
+import { About, AppSettings, AutomationSettings, ImportSettings } from "../views/settings/sections";
 
 /**
  * Every widget with representative data, for isolated performance measurement
@@ -31,7 +32,22 @@ export const widgetRegistry: Record<string, () => JSX.Element> = {
     />
   ),
   "draft-why": () => <Why suggestion={champSelectDraft.suggestions[0]} teamPercent={champSelectDraft.team?.percent} />,
+  // Every state at once: done, busy, failed.
+  "draft-imports": () => (
+    <ImportPanel
+      championId={54}
+      subtitle="Malphite · Top · locked in"
+      parts={[
+        { part: "runes", busy: false, outcome: { kind: "saved", name: "MVP · Malphite Top" }, automatic: true },
+        { part: "itemSet", busy: true, automatic: false },
+        { part: "spells", busy: false, outcome: { kind: "failed", reason: { kind: "noBuild" } }, automatic: false },
+      ]}
+      status={{ tone: "hint", text: IDLE_HINT }}
+      onImport={() => {}}
+    />
+  ),
   "settings-automation": () => <AutomationSettings settings={defaultSettings} onChange={() => {}} />,
+  "settings-imports": () => <ImportSettings settings={defaultSettings} onChange={() => {}} />,
   "settings-app": () => <AppSettings settings={defaultSettings} onChange={() => {}} />,
   "live-team": () => <LiveTeam title="Your team" players={liveGame.allies} enemy={false} scouting="done" />,
   "champion-soon": () => <ChampionSoonHero championId={103} />,

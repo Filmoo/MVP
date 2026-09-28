@@ -3,6 +3,7 @@ import { useData } from "../data/context";
 import { Backdrop } from "../design/backdrop";
 import { Icon } from "../design/Icon";
 import { dismissIssue, issues, notify, reportError } from "../lib/errors";
+import { listenForLockInImports } from "../lib/lock-in-toasts";
 import { Home } from "../views/home/Home";
 import { Planned } from "../views/Planned";
 import styles from "./App.module.css";
@@ -37,7 +38,7 @@ function Toasts(): JSX.Element {
 }
 
 export function App(): JSX.Element {
-  const { transport } = useData();
+  const { transport, gameData } = useData();
   const [status, { mutate }] = createResource(() =>
     transport.call("client_status").catch((error: unknown) => {
       reportError(error, "client_status");
@@ -62,6 +63,12 @@ export function App(): JSX.Element {
       if (outcome.kind === "accepted") notify("Match accepted");
       else reportError(`Couldn't accept the match: ${outcome.message}`, "auto-accept");
     }),
+  );
+  onCleanup(
+    listenForLockInImports(transport, () => ({
+      champion: (id) => gameData()?.champions.get(id)?.name,
+      spell: (id) => gameData()?.spells.get(id)?.name,
+    })),
   );
 
   return (

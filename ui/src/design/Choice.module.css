@@ -1,0 +1,86 @@
+/* Options side by side on one track; the chosen one takes the accent, like a switch that's on. */
+.choice {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  min-inline-size: 0;
+  max-width: 100%;
+  margin: 0;
+  padding: var(--space-1);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-3);
+  background: var(--bg-3);
+}
+
+.option {
+  position: relative;
+  flex: 1 0 auto;
+  display: flex;
+  cursor: pointer;
+}
+
+/* The radio itself stays for keyboards and screen readers; the label is what shows. */
+.input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  appearance: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.label {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 0 var(--space-5);
+  border-radius: var(--radius-2);
+  color: var(--text-2);
+  font-size: var(--text-md);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+  transition:
+    background-color var(--dur-1) var(--ease),
+    color var(--dur-1) var(--ease);
+}
+
+.option:hover .label {
+  background: var(--bg-4);
+  color: var(--text-1);
+}
+
+.input:checked + .label {
+  background: var(--accent);
+  color: var(--text-on-accent);
+}
+
+.input:focus-visible + .label {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 1px;
+}
+
+.choice:disabled .option {
+  cursor: default;
+}
+
+.choice:disabled .label {
+  opacity: 0.4;
+}
+
+.choice:disabled .option:hover .label {
+  background: transparent;
+  color: var(--text-2);
+}
+
+.choice:disabled .option:hover .input:checked + .label {
+  background: var(--accent);
+  color: var(--text-on-accent);
+}

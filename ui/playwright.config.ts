@@ -9,7 +9,8 @@ const PORT = Number(process.env.MVP_UI_PORT ?? 4173);
  * - layout:    every view × scenario × window size keeps a sound layout
  * - coherence: rendered styles only use design tokens; views share one frame
  * - errors:    failure scenarios render the right states, nothing crashes
- * - interactions: controls do what they say (settings, core-driven navigation, toasts, search, live)
+ * - interactions: controls do what they say (settings, core-driven navigation, toasts, search, live,
+ *                 build imports)
  * - perf:      per-widget and global budgets (run with --workers=1)
  * - showcase:  screenshots for review (not asserted), written to reports/screenshots
  */
@@ -35,7 +36,7 @@ export default defineConfig({
     { name: "layout", testMatch: /layout\.spec\.ts/ },
     { name: "coherence", testMatch: /coherence\.spec\.ts/ },
     { name: "errors", testMatch: /errors\.spec\.ts/ },
-    { name: "interactions", testMatch: /(interactions|search|live|backdrop)\.spec\.ts/ },
+    { name: "interactions", testMatch: /(interactions|search|live|backdrop|imports)\.spec\.ts/ },
     { name: "perf", testMatch: /perf\.spec\.ts/ },
     { name: "showcase", testMatch: /showcase\.spec\.ts/ },
   ],

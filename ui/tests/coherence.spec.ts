@@ -22,6 +22,33 @@ test("/draft in champion select only uses design tokens", async ({ page }) => {
   expect(await page.evaluate(auditTokens)).toEqual([]);
 });
 
+for (const scenario of ["import-lock-in", "draft-no-stats"] as const) {
+  test(`/draft/${scenario} only uses design tokens`, async ({ page }) => {
+    await openApp(page, { view: "/draft", scenario });
+    if (scenario === "import-lock-in") await page.getByTestId("toast").waitFor();
+    expect(await page.evaluate(auditTokens)).toEqual([]);
+  });
+}
+
+test("the import bar only uses design tokens in every state", async ({ page }) => {
+  // Done and warn (the Flash note), then failed and skipped.
+  await openApp(page, { view: "/draft", scenario: "import-flash" });
+  await page.getByRole("button", { name: "Import runes" }).click();
+  await page.getByRole("button", { name: "Import spells" }).click();
+  await expect(page.getByTestId("import-spells")).toHaveAttribute("data-tone", "warn");
+  await page.mouse.move(0, 0);
+  await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)));
+  expect(await page.evaluate(auditTokens), "done, warn").toEqual([]);
+
+  await openApp(page, { view: "/draft", scenario: "import-failures" });
+  await page.getByRole("button", { name: "Import runes" }).click();
+  await page.getByRole("button", { name: "Import spells" }).click();
+  await expect(page.getByTestId("import-spells")).toHaveAttribute("data-tone", "skipped");
+  await page.mouse.move(0, 0);
+  await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)));
+  expect(await page.evaluate(auditTokens), "failed, skipped").toEqual([]);
+});
+
 for (const { view, scenario } of [
   { view: "/live", scenario: "live" },
   { view: "/live", scenario: "live-extreme" },
