@@ -44,6 +44,14 @@
     "champion-soon": {
       "renderMs": 2,
       "domNodes": 24
+    },
+    "banners": {
+      "renderMs": 2,
+      "domNodes": 32
+    },
+    "update-required": {
+      "renderMs": 3,
+      "domNodes": 16
     }
   },
   "bootMs": 900,
