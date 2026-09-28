@@ -2,7 +2,7 @@ import { expect, type Page, test } from "@playwright/test";
 // Brings the window.__SCOUT_MOCK__ declaration into scope.
 import type {} from "../src/data/mock";
 import { lockInImport } from "../src/data/mock/import-fixtures";
-import { openApp, settle, trackErrors } from "./app";
+import { animationsDone, openApp, settle, trackErrors } from "./app";
 
 // The WebGL backdrop (src/design/backdrop): which level renders, fallbacks, and that it renders
 // on demand only. Render costs and idle silence are budgeted in perf.spec.ts.
@@ -197,7 +197,7 @@ test("liquid glass: the rail's lens sits on the current section and glides to th
   };
   expect(await over("Home")).toBeLessThan(1);
   await page.getByRole("link", { name: "Settings" }).click();
-  await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)));
+  await animationsDone(page);
   expect(await over("Settings")).toBeLessThan(1);
   // At rest again: nothing animates.
   expect(await page.evaluate(() => document.getAnimations().length)).toBe(0);
@@ -235,7 +235,7 @@ test("liquid glass: nothing that lenses the page carries an outer shadow", async
   await page.getByTestId("search-input").click();
   await page.keyboard.type("ahri");
   await expect(page.getByTestId("search-panel")).toBeVisible();
-  await expect.poll(async () => (await lensShadows(page)).filter((l) => l.kind === "panel").length).toBeGreaterThanOrEqual(2);
+  await expect.poll(async () => (await lensShadows(page)).filter((l) => l.kind === "panel").length).toBeGreaterThanOrEqual(1);
   expect(outerShadows(await lensShadows(page))).toEqual([]);
   await page.keyboard.press("Escape");
   // A toast.

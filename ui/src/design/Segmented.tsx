@@ -1,6 +1,6 @@
 import { For, type JSX, Show } from "solid-js";
 import { Icon, type IconName } from "./Icon";
-import { liquid } from "./liquid/liquid";
+import { glideEnds, glideStarts, liquid } from "./liquid/liquid";
 import styles from "./Segmented.module.css";
 import { segmentFor } from "./segmented-keys";
 
@@ -51,7 +51,14 @@ export function Segmented<T extends string | number>(props: {
       onKeyDown={onKeyDown}
       data-testid={props.testId}
     >
-      <span class={`${styles.thumb} glass-rim`} aria-hidden="true" ref={(el) => liquid(el, "lens")} />
+      <span
+        class={`${styles.thumb} glass-rim`}
+        aria-hidden="true"
+        ref={(el) => liquid(el, "lens")}
+        onTransitionRun={glideStarts}
+        onTransitionEnd={glideEnds}
+        onTransitionCancel={glideEnds}
+      />
       <For each={props.options}>
         {(option, i) => {
           const checked = () => i() === selected();

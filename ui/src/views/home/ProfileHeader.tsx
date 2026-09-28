@@ -76,7 +76,7 @@ export function ProfileHeader(props: { profile: PlayerProfile }): JSX.Element {
             </Show>
           </div>
           <div class={`${styles.ranked} glass-rim`}>
-            <div class={styles.rankedGlass} aria-hidden="true" ref={(el) => liquid(el, "panel")} />
+            <div class={styles.rankedGlass} aria-hidden="true" ref={(el) => liquid(el, "clear")} />
             <Show
               when={props.profile.soloQueue}
               fallback={

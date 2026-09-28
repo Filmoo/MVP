@@ -1,4 +1,4 @@
-import { createRoot, getOwner, type JSX, onCleanup } from "solid-js";
+import { createRoot, getOwner, type JSX, lazy, onCleanup } from "solid-js";
 import { queryParam } from "../app/router";
 import page from "../views/page.module.css";
 import type {} from "./harness-types";
@@ -9,10 +9,22 @@ import { Widget } from "./Widget";
  * Test-only page (mock builds, `#/__harness`): mounts one widget at a time, synchronously,
  * inside the app's context (static data loaded), and reports its render cost.
  * `#/__harness?show=<widget>` shows that widget on its own instead (screenshots and layout
- * checks of widgets no page shows yet, such as `build-summary`).
+ * checks of widgets no page shows yet, such as `build-summary`); `?show=glass` the glass lab
+ * (dev server only).
  */
+// Dev server only (`pnpm dev`): production builds leave the lab out.
+const GlassLab = import.meta.env.DEV ? lazy(() => import("./GlassLab")) : undefined;
+
 export default function Harness(): JSX.Element {
   const shown = queryParam("show");
+  // The glass lab: every kind of liquid glass over detailed content, to see how each shape bends it.
+  if (GlassLab && shown === "glass") {
+    return (
+      <div class={page.page} data-harness>
+        <GlassLab />
+      </div>
+    );
+  }
   const show = shown ? widgetRegistry[shown] : undefined;
   if (shown && show) {
     return (

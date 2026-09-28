@@ -127,11 +127,12 @@
  * shifts the filter by the shadow's reach).
  */
 .panelGlass {
+  --lg-tint: var(--bg-float);
   position: absolute;
   inset: 0;
   z-index: -1;
   border-radius: inherit;
-  background: var(--bg-float);
+  background: var(--lg-fill, var(--bg-float));
   backdrop-filter: var(--lg-filter, var(--blur-glass));
   pointer-events: none;
 }

@@ -60,6 +60,20 @@ export async function openApp(page: Page, opts: OpenOptions = {}): Promise<void>
 }
 
 /** Waits for fonts, visible images and pending loading states. */
+/**
+ * Waits until nothing animates. A move restarted mid-way (a thumb sent on to another option)
+ * cancels the running animation and starts a new one: wait for those too.
+ */
+export async function animationsDone(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    for (let round = 0; round < 10; round++) {
+      const running = document.getAnimations();
+      if (running.length === 0) return;
+      await Promise.all(running.map((a) => a.finished.catch(() => undefined)));
+    }
+  });
+}
+
 export async function settle(page: Page): Promise<void> {
   await expect(page.locator("[data-state=loading]")).toHaveCount(0, { timeout: 10_000 });
   await page.evaluate(async () => {

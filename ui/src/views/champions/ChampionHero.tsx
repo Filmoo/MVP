@@ -5,6 +5,7 @@ import type { Role } from "../../data/generated/Role";
 import type { StatsIndex } from "../../data/generated/StatsIndex";
 import { ChampionArt, ChampionIcon } from "../../design/GameIcon";
 import { Icon } from "../../design/Icon";
+import { liquid } from "../../design/liquid/liquid";
 import { Segmented } from "../../design/Segmented";
 import { Skeleton } from "../../design/States";
 import { GradeBadge } from "../../design/TierBadge";
@@ -91,7 +92,8 @@ export function ChampionHero(props: {
           </Switch>
         </div>
         <Show when={props.loading && !props.page}>
-          <div class={styles.grade}>
+          <div class={`${styles.grade} glass-rim`}>
+            <div class={styles.gradeGlass} aria-hidden="true" />
             <Skeleton width="40px" height="40px" />
             <div class={styles.gradeText}>
               <Skeleton width="72px" height="18px" />
@@ -101,7 +103,8 @@ export function ChampionHero(props: {
         </Show>
         <Show when={tier()}>
           {(t) => (
-            <div class={styles.grade} data-testid="champion-tier">
+            <div class={`${styles.grade} glass-rim`} data-testid="champion-tier">
+              <div class={styles.gradeGlass} aria-hidden="true" ref={(el) => liquid(el, "clear")} />
               <GradeBadge grade={t().tier} size="lg" />
               <div class={styles.gradeText}>
                 <span class={styles.gradeTitle}>Tier {t().tier}</span>

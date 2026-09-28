@@ -48,6 +48,43 @@ describe("lens filter", () => {
     expect(lensPrimitives(dome, parts, 10).at(-1)?.attrs.in).toBe("SourceGraphic");
   });
 
+  it("starts from a middle that doesn't bend and is full thickness", () => {
+    expect(lensPrimitives(dome, parts, 10)[0]?.attrs["flood-color"]).toBe("#8080ff");
+  });
+
+  it("tints the glass by the map's blue, over the bent backdrop", () => {
+    const tint = { r: 0.07, g: 0.08, b: 0.12, a: 0.8 };
+    const primitives = lensPrimitives(slab, parts, 10, tint);
+    const matrix = primitives.find((p) => p.attrs.result === "tint");
+    expect(matrix?.attrs.in).toBe("map");
+    // Alpha = 0.8 × blue; colour constant.
+    expect(String(matrix?.attrs.values).split(/\s+/).slice(15)).toEqual(["0", "0", "0.8", "0", "0"]);
+    const over = primitives.find((p) => p.attrs.in === "tint");
+    expect(over?.attrs).toMatchObject({ operator: "over", in2: "lens", result: "lens" });
+    // No tint without a colour (or a transparent one).
+    expect(lensPrimitives(slab, parts, 10, { ...tint, a: 0 }).some((p) => p.attrs.result === "tint")).toBe(false);
+  });
+
+  it("lights the rim facing the light, and a third as much of the far rim, on top of everything", () => {
+    const primitives = lensPrimitives({ ...slab, specular: 0.9 }, parts, 10);
+    const alpha = (result: string) =>
+      String(primitives.find((p) => p.attrs.result === result)?.attrs.values)
+        .split(/\s+/)
+        .slice(15)
+        .map(Number);
+    const [lr, lg, , , lo] = alpha("lit");
+    const [er, eg, , , eo] = alpha("echo");
+    // Light from above and a little to the left: green (vertical pull) weighs most.
+    expect(lg).toBeGreaterThan(lr ?? 0);
+    expect(er).toBeCloseTo(-(lr ?? 0) * 0.35, 3);
+    expect(eg).toBeCloseTo(-(lg ?? 0) * 0.35, 3);
+    expect(eo).toBeCloseTo(-(lo ?? 0) * 0.35, 3);
+    // The neutral middle (128/255 in red and green) catches no light.
+    const neutral = 128 / 255;
+    expect((lr ?? 0) * neutral + (lg ?? 0) * neutral + (lo ?? 0)).toBeLessThan(0.01);
+    expect(primitives.at(-1)?.attrs).toMatchObject({ in: "lens", in2: "shine", result: "lens" });
+  });
+
   it("places every slice where the map says", () => {
     const images = lensPrimitives(slab, parts, 10).filter((p) => p.tag === "feImage");
     expect(images.map((p) => [p.attrs.x, p.attrs.y, p.attrs.width, p.attrs.height])).toEqual(
@@ -58,7 +95,8 @@ describe("lens filter", () => {
 
 describe("glass geometry", () => {
   it("gives a dome its bezel and height from its size", () => {
-    expect(glassFor(dome, 60, 52)).toEqual({ profile: "circle", bezel: 26, thickness: 26 * 0.6 });
+    expect(glassFor(dome, 60, 52)).toEqual({ profile: "circle", bezel: 26, thickness: 26 * 0.6, elevation: 0 });
+    expect(glassFor({ ...dome, lift: 0.5 }, 60, 52).elevation).toBe(13);
     expect(glassFor(slab, 60, 52)).toBe(slab.glass);
   });
 

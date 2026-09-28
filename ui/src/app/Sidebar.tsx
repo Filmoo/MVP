@@ -25,15 +25,17 @@ function NavItem(props: { route: Route }): JSX.Element {
 }
 
 /**
- * The rail. The current section sits under a lens of liquid glass (design/liquid) that glides
- * to the next one like a drop, stretching along the way. Moves run on the compositor; at rest
- * nothing runs.
+ * The rail. The current section sits on a drop of liquid glass (design/liquid) that glides to
+ * the next one, stretching along the way and magnifying what it passes over; at rest it sits
+ * behind the icon and label, which stay crisp. Moves run on the compositor; at rest nothing runs.
  */
 export function Sidebar(): JSX.Element {
   let rail: HTMLElement | undefined;
   let lens: HTMLSpanElement | undefined;
   let glass: HTMLSpanElement | undefined;
   let at: { x: number; y: number; w: number; h: number } | undefined;
+  /** Counts glides: only the last one to finish sets the drop down again. */
+  let glides = 0;
 
   const place = (glide: boolean) => {
     if (!rail || !lens || !glass) return;
@@ -52,7 +54,17 @@ export function Sidebar(): JSX.Element {
     lens.style.height = `${to.h}px`;
     lens.style.transform = move(to);
     if (!glide || !from || (from.x === to.x && from.y === to.y) || reducedMotion()) return;
-    lens.animate([{ transform: move(from) }, { transform: move(to) }], { duration: GLIDE.duration, easing: GLIDE.easing });
+    const moving = lens.animate([{ transform: move(from) }, { transform: move(to) }], {
+      duration: GLIDE.duration,
+      easing: GLIDE.easing,
+    });
+    // Over the items while it moves (it magnifies them), behind them again once it lands.
+    const ticket = ++glides;
+    lens.dataset.moving = "";
+    const land = () => {
+      if (ticket === glides && lens) delete lens.dataset.moving;
+    };
+    moving.finished.then(land, land);
     // Liquid, not solid: it stretches along the move, then gathers itself.
     const vertical = Math.abs(to.y - from.y) >= Math.abs(to.x - from.x);
     const stretch = vertical ? "scale(0.9, 1.16)" : "scale(1.16, 0.9)";
@@ -74,7 +86,7 @@ export function Sidebar(): JSX.Element {
 
   return (
     <nav class={styles.sidebar} aria-label="Main" data-refract="chrome" ref={rail}>
-      <div class={`${styles.frost} glass-rim`} aria-hidden="true" ref={(el) => liquid(el, "panel")} />
+      <div class={`${styles.frost} glass-rim`} aria-hidden="true" ref={(el) => liquid(el, "clear")} />
       <div class={styles.nav}>
         <For each={mainRoutes}>{(route) => <NavItem route={route} />}</For>
       </div>

@@ -1,0 +1,138 @@
+/* Glass lab: detailed content under every kind of liquid glass. */
+.lab {
+  position: relative;
+  height: 620px;
+  overflow: hidden;
+  border-radius: var(--radius-4);
+  background: var(--bg-1);
+  touch-action: none;
+}
+
+.art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.85;
+}
+
+.content {
+  position: absolute;
+  inset: 56px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--space-6);
+}
+
+/* Straight lines show a bend best. */
+.stripes {
+  height: 48px;
+  border-radius: var(--radius-2);
+  background:
+    repeating-linear-gradient(90deg, var(--text-1) 0 2px, transparent 2px 14px),
+    repeating-linear-gradient(0deg, var(--accent) 0 2px, transparent 2px 12px);
+  opacity: 0.7;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  white-space: nowrap;
+}
+
+.text {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  color: var(--text-1);
+}
+
+.piece {
+  position: absolute;
+  top: 0;
+  left: 0;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  box-shadow: var(--shadow-float);
+  cursor: grab;
+  user-select: none;
+}
+
+.glass {
+  --lg-tint: var(--bg-clear);
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--lg-fill, var(--bg-glass));
+  backdrop-filter: var(--lg-filter, var(--blur-glass));
+  pointer-events: none;
+}
+
+.strip {
+  width: 100%;
+  height: 48px;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.strip .glass {
+  --lg-tint: var(--bg-chrome);
+}
+
+.circle {
+  width: 96px;
+  height: 96px;
+  border-radius: var(--radius-full);
+}
+
+.circle .glass,
+.knob .glass {
+  --lg-tint: var(--bg-lens);
+}
+
+/* A switch knob, held: the smallest drop. */
+.knob {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-full);
+}
+
+.button {
+  width: 150px;
+  height: 44px;
+  border-radius: var(--radius-3);
+}
+
+.capsule {
+  width: 260px;
+  height: 64px;
+  border-radius: var(--radius-full);
+}
+
+.panel {
+  width: 300px;
+  height: 200px;
+  border-radius: var(--radius-4);
+}
+
+.panel .glass {
+  --lg-tint: var(--bg-float);
+}
+
+.name {
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  color: var(--text-1);
+}
+
+.note {
+  font-size: var(--text-xs);
+  color: var(--text-2);
+}

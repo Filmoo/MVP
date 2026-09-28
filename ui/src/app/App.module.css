@@ -103,11 +103,12 @@
 
 /* The glass is a layer of its own, away from the outer shadow (see Search.module.css). */
 .toastGlass {
+  --lg-tint: var(--bg-float);
   position: absolute;
   inset: 0;
   z-index: -1;
   border-radius: inherit;
-  background: linear-gradient(100deg, color-mix(in oklab, var(--tone) 23%, transparent), transparent 50%), var(--bg-float);
+  background: linear-gradient(100deg, color-mix(in oklab, var(--tone) 23%, transparent), transparent 50%), var(--lg-fill, var(--bg-float));
   backdrop-filter: var(--lg-filter, var(--blur-glass));
   box-shadow: inset 2px 0 0 var(--tone);
   pointer-events: none;

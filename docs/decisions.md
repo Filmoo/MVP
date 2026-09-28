@@ -74,6 +74,21 @@ burden, not abusive. Design calls:
   Settings, saved by the core.
 - The hex mosaic in the backdrop is dropped: in screenshots it read as compression blocks.
 
+## 2026-09-29 — Refraction you can see (owner asked, Claude designed)
+Owner: more visible distortion on the sides, real distortion that differs by shape, bent
+background widgets visible through the glass, precise and clearly optical, icons and text
+respected. Design calls:
+- **Glass floats**: the optics model the gap between the glass and the page (its elevation),
+  where most of a real floating pane's bend comes from. Rims now bend 10–40 px instead of < 10,
+  and drops are loupes (parabolic, ≈ ×1.3, even) instead of barely-there domes.
+- **Clear where it bends**: tint eases in across the bezel (none at the rim), frost is 1–3 px,
+  so what is behind shows, bent, along every rim; text-heavy panes keep a deep middle.
+- **Light from the surface**: rim light computed from the same normals (brighter where the rim
+  faces the top-left light, a third of it opposite), not a painted gradient only.
+- **Text first**: drops sit behind labels at rest and lift over them only while gliding.
+- Maps at screen density (up to 2×) for a precise bend; a glass lab in the dev server to see
+  every shape bend detailed content.
+
 ## 2026-09-28 — Scouting identity, app side of updates/config/reports (Claude)
 - **Scouting names players by Riot ID.** Client PUUIDs aren't our API key's (Riot encrypts
   PUUIDs per key), so they never leave the core; the backend resolves Riot IDs with account-v1

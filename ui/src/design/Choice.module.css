@@ -1,7 +1,8 @@
 /*
- * Options side by side on one groove (they wrap on narrow cards); the chosen one sits under a
- * thumb that springs over, in the accent like a switch that's on. With Full effects the thumb is
- * a lens of tinted glass over the chosen label (design/liquid, "lens").
+ * Options side by side on one groove (they wrap on narrow cards); the chosen one sits on a thumb
+ * that glides over, in the accent like a switch that's on. With Full effects the thumb is a drop
+ * of tinted glass (design/liquid, "lens"): behind the label at rest, lifted over the labels while
+ * it glides, magnifying them as it passes.
  */
 .choice {
   position: relative;
@@ -19,6 +20,7 @@
 }
 
 .thumb {
+  --lg-tint: var(--bg-lens-accent);
   position: absolute;
   top: 0;
   left: 0;
@@ -42,11 +44,14 @@
   opacity: 0.4;
 }
 
-/* Full effects: the thumb is tinted glass over the chosen label, which it magnifies a little. */
+/* Full effects: tinted glass, lifted over the labels while it glides. */
 :global(:root[data-effects="shader"]) .thumb {
-  z-index: 3;
-  background: var(--bg-lens-accent);
+  background: var(--lg-fill, var(--bg-lens-accent));
   backdrop-filter: var(--lg-filter, none);
+}
+
+:global(:root[data-effects="shader"]) .thumb[data-moving] {
+  z-index: 3;
 }
 
 .option {

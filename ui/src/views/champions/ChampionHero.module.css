@@ -103,17 +103,29 @@
   color: var(--text-1);
 }
 
-/* Tier on a frosted panel so it reads over the art. */
+/* Tier on a pane of clear glass over the art (design/liquid "clear": the art bends at its rim). */
 .grade {
+  position: relative;
+  isolation: isolate;
   display: flex;
   align-items: center;
   gap: var(--space-5);
   min-width: 0;
   padding: var(--space-5) var(--space-7) var(--space-5) var(--space-5);
   border-radius: var(--radius-4);
-  background: var(--bg-glass);
-  border: 1px solid var(--line-2);
-  backdrop-filter: blur(6px);
+  box-shadow: var(--shadow-float);
+}
+
+/* The glass, a layer of its own (an outer shadow would shift its lens). */
+.gradeGlass {
+  --lg-tint: var(--bg-clear);
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--lg-fill, var(--bg-glass));
+  backdrop-filter: var(--lg-filter, blur(6px));
+  pointer-events: none;
 }
 
 .gradeText {

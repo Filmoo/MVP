@@ -13,9 +13,12 @@
  * lens, so Light and Off never download them.
  *
  * Usage: `<div ref={(el) => liquid(el, "panel")}>`. The element's CSS applies the filter with
- * `backdrop-filter: var(--lg-filter, <fallback>)`, on itself or on a pseudo-element (so that
- * glass inside glass still sees the page: an element with its own backdrop-filter would hide
- * what's behind it from its descendants' glass).
+ * `backdrop-filter: var(--lg-filter, <fallback>)` (on a layer of its own: an element with a
+ * backdrop-filter hides the page from its descendants' glass, and an outer shadow on it would
+ * shift the filter). Its tint is declared once, as `--lg-tint: <colour token>` with
+ * `background: var(--lg-fill, <the same token>)`: while the lens runs, the filter takes the tint
+ * over (deeper where the glass is thicker, clearer at the rim) and `--lg-fill` turns the flat
+ * fill off.
  */
 import { onCleanup } from "solid-js";
 import type { LiquidSpec } from "./filter";
@@ -26,33 +29,47 @@ export type { LiquidSpec };
 /** The kinds of glass the app uses (see docs/architecture.md, "Glass and light"). */
 export const LIQUID = {
   /** Title bar: content scrolls under it; its lower rim bends it, the rest is frosted. */
-  // No colour split anywhere over the page: the glass sits over text, where a split reads as
-  // fringing, not as optics (the backdrop shader keeps its own at card rims, over light only).
+  // Glass floats above the page (elevation): the light it bends crosses that gap too, which is
+  // what makes the bend visible. Frost stays light so what is behind stays recognizable; the
+  // tint (from the element's CSS) deepens with the glass' thickness, so the rim is the clearest
+  // part. No colour split over the page: over text it reads as fringing, not as optics.
   bar: {
-    glass: { profile: "squircle", bezel: 12, thickness: 16 },
+    glass: { profile: "squircle", bezel: 16, thickness: 14, elevation: 10 },
     rims: "bottom",
-    frost: 8,
-    dispersion: 0,
-    saturate: 1.4,
-    brightness: 1.06,
+    frost: 1.5,
+    saturate: 1.35,
+    brightness: 1.05,
+    specular: 0.55,
   },
-  /** Floating panels holding text (search results, toasts): frosted, with a lensing rim. */
+  /** Floating panels holding text (search results, toasts): the page bends along a clear rim. */
   panel: {
-    glass: { profile: "squircle", bezel: 16, thickness: 22 },
-    frost: 8,
-    dispersion: 0,
-    saturate: 1.6,
-    brightness: 1.08,
-  },
-  /** Clear lenses over controls (rail selection, pressed toggles, segment thumbs): they magnify. */
-  lens: {
-    glass: { profile: "circle", bezel: 0, thickness: 0 },
-    // A shallow dome: labels under it grow a little and stay crisp.
-    dome: 0.3,
-    frost: 0,
-    dispersion: 0,
+    glass: { profile: "squircle", bezel: 22, thickness: 20, elevation: 12 },
+    frost: 3,
     saturate: 1.5,
-    brightness: 1.1,
+    brightness: 1.06,
+    specular: 0.8,
+  },
+  /** Clear glass over art (the rank pane, a champion's tier, the floating tab bar). */
+  clear: {
+    glass: { profile: "squircle", bezel: 20, thickness: 18, elevation: 12 },
+    frost: 1,
+    saturate: 1.25,
+    brightness: 1.08,
+    specular: 0.9,
+  },
+  /**
+   * Drops of glass on controls (rail selection, segment thumbs, a held switch): a loupe (a
+   * parabolic dome floating 0.6 of its radius up) that magnifies evenly, ≈ ×1.3. Behind labels at
+   * rest (text stays crisp), over them only while they glide.
+   */
+  lens: {
+    glass: { profile: "parabola", bezel: 0, thickness: 0 },
+    dome: 0.3,
+    lift: 0.6,
+    frost: 0,
+    saturate: 1.2,
+    brightness: 1.06,
+    specular: 0.9,
   },
 } as const satisfies Record<string, LiquidSpec>;
 
@@ -123,8 +140,9 @@ function observer(): ResizeObserver {
       if (!entry || !box) continue;
       entry.width = box.inlineSize;
       entry.height = box.blockSize;
-      // Style is clean after layout: a radius changed by a media query is cheap to read here.
+      // Style is clean after layout: a radius or tint changed by a media query is cheap to read here.
       entry.radius = Number.parseFloat(getComputedStyle(entry.el).borderTopLeftRadius) || 0;
+      entry.tint = undefined;
       apply(entry);
     }
   });
@@ -132,17 +150,39 @@ function observer(): ResizeObserver {
 }
 
 function apply(entry: Entry): void {
+  const { el } = entry;
   if (!lensing || entry.width <= 0 || entry.height <= 0) {
-    entry.el.style.removeProperty("--lg-filter");
+    el.style.removeProperty("--lg-filter");
+    el.style.removeProperty("--lg-fill");
     return;
   }
   if (!lens) {
     load();
     return;
   }
+  // The tint the CSS declares, read once (style is clean here: after layout or a frame).
+  entry.tint ??= lens.parseColor(getComputedStyle(el).getPropertyValue("--lg-tint")) ?? null;
   lens.build(entry);
   const value = `url(#${entry.filter.id})`;
-  if (entry.el.style.getPropertyValue("--lg-filter") !== value) entry.el.style.setProperty("--lg-filter", value);
+  if (el.style.getPropertyValue("--lg-filter") !== value) el.style.setProperty("--lg-filter", value);
+  if (entry.tint) el.style.setProperty("--lg-fill", "transparent");
+}
+
+/**
+ * A drop of glass on a control lifts over the labels while its move runs (a CSS transition of
+ * its `transform`), then settles behind them: wire these to the element's transition events.
+ * The element's CSS decides what lifted means (`[data-moving]`).
+ */
+export function glideStarts(event: TransitionEvent): void {
+  if (event.target === event.currentTarget && event.propertyName === "transform") {
+    (event.currentTarget as HTMLElement).dataset.moving = "";
+  }
+}
+
+export function glideEnds(event: TransitionEvent): void {
+  if (event.target === event.currentTarget && event.propertyName === "transform") {
+    delete (event.currentTarget as HTMLElement).dataset.moving;
+  }
 }
 
 /**
@@ -157,7 +197,7 @@ export function liquid(el: HTMLElement, kind: LiquidKind | LiquidSpec): void {
   filter.setAttribute("primitiveUnits", "userSpaceOnUse");
   filter.setAttribute("color-interpolation-filters", "sRGB");
   container().appendChild(filter);
-  const entry: Entry = { el, spec, filter, width: 0, height: 0, radius: 0, built: "" };
+  const entry: Entry = { el, spec, filter, width: 0, height: 0, radius: 0, tint: undefined, built: "" };
   entries.set(el, entry);
   el.dataset.liquid = typeof kind === "string" ? kind : "custom";
   // The radius is read once the element is styled (it's mounted by then, or on the next frame).
@@ -173,5 +213,6 @@ export function liquid(el: HTMLElement, kind: LiquidKind | LiquidSpec): void {
     entries.delete(el);
     filter.remove();
     el.style.removeProperty("--lg-filter");
+    el.style.removeProperty("--lg-fill");
   });
 }

@@ -43,29 +43,34 @@ describe("nine slices", () => {
 
 describe("slice pixels", () => {
   it("look inward: down under the top rim, right under the left rim", () => {
-    const top = slicePixels({ name: "top", imageWidth: 1, imageHeight: 12 }, { radius: 12 }, glass, table);
+    const top = slicePixels({ name: "top", width: 1, height: 12, imageWidth: 1, imageHeight: 12 }, { radius: 12 }, glass, table);
     const [r, g, b, a] = pixel(top, 1, 0, 2);
     expect(r).toBe(128);
     expect(g).toBeGreaterThan(128);
-    expect([b, a]).toEqual([128, 255]);
-    const left = slicePixels({ name: "left", imageWidth: 12, imageHeight: 1 }, { radius: 12 }, glass, table);
+    expect(a).toBe(255);
+    // Blue: the tint eases in from the rim inward.
+    expect(b).toBeGreaterThan(0);
+    expect(b).toBeLessThan(pixel(top, 1, 0, 8)[2] ?? 0);
+    const left = slicePixels({ name: "left", width: 12, height: 1, imageWidth: 12, imageHeight: 1 }, { radius: 12 }, glass, table);
     expect(pixel(left, 12, 2, 0)[0]).toBeGreaterThan(128);
     expect(pixel(left, 12, 2, 0)[1]).toBe(128);
   });
 
   it("stay neutral past the bezel", () => {
     const corner = slicePixels(
-      { name: "tl", imageWidth: 20, imageHeight: 20 },
+      { name: "tl", width: 20, height: 20, imageWidth: 20, imageHeight: 20 },
       { radius: 20 },
       { ...glass, bezel: 8 },
       opticsTable({ ...glass, bezel: 8 }),
     );
-    expect(pixel(corner, 20, 19, 19).slice(0, 2)).toEqual([128, 128]);
+    expect(pixel(corner, 20, 19, 19).slice(0, 3)).toEqual([128, 128, 255]);
+    // Outside the rounded corner there is no glass at all.
+    expect(pixel(corner, 20, 0, 0)[2]).toBe(0);
   });
 
   it("mirror across the corners", () => {
-    const tl = slicePixels({ name: "tl", imageWidth: 12, imageHeight: 12 }, { radius: 12 }, glass, table);
-    const br = slicePixels({ name: "br", imageWidth: 12, imageHeight: 12 }, { radius: 12 }, glass, table);
+    const tl = slicePixels({ name: "tl", width: 12, height: 12, imageWidth: 12, imageHeight: 12 }, { radius: 12 }, glass, table);
+    const br = slicePixels({ name: "br", width: 12, height: 12, imageWidth: 12, imageHeight: 12 }, { radius: 12 }, glass, table);
     for (const [x, y] of [
       [1, 1],
       [3, 7],
@@ -76,6 +81,30 @@ describe("slice pixels", () => {
       expect((r1 ?? 0) - 128).toBe(128 - (r2 ?? 0));
       expect((g1 ?? 0) - 128).toBe(128 - (g2 ?? 0));
     }
+  });
+
+  it("render the same map at twice the density, sharper", () => {
+    const one = slicePixels({ name: "tl", width: 12, height: 12, imageWidth: 12, imageHeight: 12 }, { radius: 12 }, glass, table);
+    const two = slicePixels({ name: "tl", width: 12, height: 12, imageWidth: 24, imageHeight: 24 }, { radius: 12 }, glass, table);
+    // A CSS pixel's center at 1× falls between four pixels at 2×: close to their average.
+    for (const [x, y] of [
+      [3, 7],
+      [6, 2],
+      [8, 8],
+    ] as const) {
+      const [r1, g1, b1] = pixel(one, 12, x, y);
+      const around = [
+        [2 * x, 2 * y],
+        [2 * x + 1, 2 * y],
+        [2 * x, 2 * y + 1],
+        [2 * x + 1, 2 * y + 1],
+      ].map(([i, j]) => pixel(two, 24, i ?? 0, j ?? 0));
+      const mean = (c: number) => around.reduce((sum, p) => sum + (p[c] ?? 0), 0) / 4;
+      expect(Math.abs((r1 ?? 0) - mean(0))).toBeLessThan(6);
+      expect(Math.abs((g1 ?? 0) - mean(1))).toBeLessThan(6);
+      expect(Math.abs((b1 ?? 0) - mean(2))).toBeLessThan(6);
+    }
+    expect(slices({ width: 300, height: 140, radius: 16 }, 16, "all", 2)[0]).toMatchObject({ width: 16, imageWidth: 32 });
   });
 
   it("scale ±127 to ±max px", () => {

@@ -12,6 +12,7 @@
   --bg-3: #1d1f2e; /* raised: hover, inputs */
   --bg-4: #262839; /* active / selected */
   --bg-glass: #161724c7; /* panels floating over art */
+  --bg-clear: #1617248c; /* clear glass over art: the art shows through, bent at the rim (55%) */
 
   /* Glass (iOS-like): translucent fills over the ambient light, specular edges, soft depth.
      Real blur only on surfaces that never scroll (chrome, panels over art). */

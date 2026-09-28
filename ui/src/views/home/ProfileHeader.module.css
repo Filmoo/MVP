@@ -137,11 +137,12 @@
 
 /* Glass over the art (design/liquid), a layer away from the outer shadow. */
 .rankedGlass {
+  --lg-tint: var(--bg-clear);
   position: absolute;
   inset: 0;
   z-index: -1;
   border-radius: inherit;
-  background: var(--bg-glass);
+  background: var(--lg-fill, var(--bg-glass));
   backdrop-filter: var(--lg-filter, blur(6px));
   pointer-events: none;
 }

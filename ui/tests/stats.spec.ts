@@ -100,6 +100,8 @@ test.describe("tier list", () => {
 
   test("a new publication (stats-index event) refreshes the list", async ({ page }) => {
     await openApp(page, { view: "/tier-list" });
+    // Count once the first answer is on screen (a slow machine may still be asking).
+    await expect(rows(page).first()).toBeVisible();
     const before = (await argsOf(page, "tier_list")).length;
     await page.evaluate((index) => window.__SCOUT_MOCK__?.emit("stats-index", index), { ...mockStatsIndex(), updatedAt: Date.now() });
     await expect.poll(async () => (await argsOf(page, "tier_list")).length).toBe(before + 1);

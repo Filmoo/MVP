@@ -4,7 +4,7 @@ import { type Page, test } from "@playwright/test";
 import type {} from "../src/data/mock";
 import { FIXTURE_NOW } from "../src/data/mock/fixtures";
 import { lockInImport } from "../src/data/mock/import-fixtures";
-import { openApp, settle, VIEWS } from "./app";
+import { animationsDone, openApp, settle, VIEWS } from "./app";
 
 // Screenshots for human/UI-agent review. Not asserted: layout, coherence and
 // error specs are the gates. Output: reports/screenshots/<view>-<scenario>-<size>.png
@@ -151,7 +151,7 @@ test("settings save error 1280x800", async ({ page }) => {
   await page.getByRole("switch", { name: "Close to tray" }).click();
   await page.getByRole("alert").waitFor();
   await page.mouse.move(0, 0);
-  await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)));
+  await animationsDone(page);
   await capture(page, `${OUT}/settings-save-error-1280x800.png`, false);
 });
 

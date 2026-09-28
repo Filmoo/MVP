@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 import type {} from "../src/data/mock";
 import { lockInImport } from "../src/data/mock/import-fixtures";
 import { scenarioNames } from "../src/data/mock/scenarios";
-import { openApp, VIEWS } from "./app";
+import { animationsDone, openApp, VIEWS } from "./app";
 import { auditTokens } from "./coherence-rules";
 
 for (const view of VIEWS) {
@@ -45,7 +45,7 @@ test("the import bar only uses design tokens in every state", async ({ page }) =
   await page.getByRole("button", { name: "Import spells" }).click();
   await expect(page.getByTestId("import-spells")).toHaveAttribute("data-tone", "warn");
   await page.mouse.move(0, 0);
-  await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)));
+  await animationsDone(page);
   expect(await page.evaluate(auditTokens), "done, warn").toEqual([]);
 
   await openApp(page, { view: "/draft", scenario: "import-failures" });
@@ -53,7 +53,7 @@ test("the import bar only uses design tokens in every state", async ({ page }) =
   await page.getByRole("button", { name: "Import spells" }).click();
   await expect(page.getByTestId("import-spells")).toHaveAttribute("data-tone", "skipped");
   await page.mouse.move(0, 0);
-  await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)));
+  await animationsDone(page);
   expect(await page.evaluate(auditTokens), "failed, skipped").toEqual([]);
 });
 
@@ -92,7 +92,7 @@ test("stats pages after switching (all rows, a role, duos, another rune page) on
   await page.getByTestId("rune-page").nth(1).click();
   await page.mouse.move(0, 0);
   // Segments and pills glide to their new colors: audit the settled ones.
-  await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)));
+  await animationsDone(page);
   expect(await page.evaluate(auditTokens), "champion page").toEqual([]);
 });
 
@@ -117,7 +117,7 @@ test("the search panel only uses design tokens (recent, champions, players)", as
   await input.click();
   await page.getByTestId("search-panel").waitFor();
   // The field's border glides to the focus color: audit the settled colors.
-  await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)));
+  await animationsDone(page);
   expect(await page.evaluate(auditTokens), "recent").toEqual([]);
   await page.keyboard.type("Ahri#EUW");
   await page.getByTestId("search-option").filter({ hasText: "Level" }).waitFor();
@@ -144,7 +144,7 @@ for (const scenario of [
       await page.getByRole("alert").waitFor();
       // The switch glides back as the alert shows: audit the settled colors.
       await page.mouse.move(0, 0);
-      await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)));
+      await animationsDone(page);
     }
     expect(await page.evaluate(auditTokens)).toEqual([]);
   });

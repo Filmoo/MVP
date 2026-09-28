@@ -230,37 +230,58 @@ Two layers, one budget: **idle means idle** (nothing is scheduled at rest; the p
 0 backdrop renders over 3 s and no script, style or layout work), and every moving part runs on
 the compositor (transform/opacity, GPU filters).
 
-**Optics** (`liquid/optics.ts`, pure, unit-tested): a glass pane lies on the page, seen from above.
-Its top is flat and curves down to the page across a bezel (a squircle profile, or a circle for
-domes). The view ray refracts where the surface slopes (Snell's law, index 1.5) and crosses the
-glass down to the page, landing further inside: what is under the rim is pulled inward and
-squeezed; a dome magnifies. The rim reflects more at grazing angles (Fresnel, Schlick). Both
-curves are sampled into small tables shared by the two layers below, so they bend light alike.
+**Optics** (`liquid/optics.ts`, pure, unit-tested): a glass pane floats above the page (its
+`elevation`), seen from above. Its top is flat and curves down to its flat underside across a
+bezel (a squircle profile for panes, a parabola for drops, a circle for card edges). The view ray
+refracts where the surface slopes (Snell's law, index 1.5), crosses the glass, refracts again
+leaving the underside and crosses the gap of air to the page, landing further inside: what is
+under the rim is pulled inward and squeezed, and a parabolic drop magnifies evenly like a loupe
+(≈ ×1.3 floating 0.6 of its radius up). Most of the visible bend comes from the gap (a sheet
+lying on the page bends ~10 px at most; floating 10–12 px up, the rim bends 10–40 px). Past a
+grazing angle the underside would reflect everything back (total internal reflection): capped so
+the rim's last pixel stays finite. The rim reflects more at grazing angles (Fresnel, Schlick).
+The curves are sampled into small tables shared by the two layers below, so they bend light alike.
 
-**Liquid glass over the page** (`liquid/liquid.ts`, `liquid/maps.ts`): floating chrome and
-controls bend the real page behind them. Each element gets an SVG filter used as its CSS
-`backdrop-filter` (`backdrop-filter: var(--lg-filter, <plain frost>)`): frost (blur) → a
-displacement map → optionally three displaced copies for a slight colour split at the rim (blue
-bends 6–8 % more than green, red less) → vibrancy (saturate, brightness) inside the filter
-(Chromium drops a `url()` backdrop filter chained with CSS filter functions). Maps are nine
-slices (four corners, four one-pixel edges stretched along, a neutral flood) computed once per
-radius and bezel and cached as data-URL images (the CSP allows `data:` images), so resizing only
-moves slices. The optical outline rounds corners at least as much as the bezel is wide (smooth
-normals, no crease along the corner diagonal); a dome is a stadium.
-- Kinds (`LIQUID`): `bar` (title bar: lower rim only, light frost), `panel` (search results,
-  toasts: frosted, lensing rim), `lens` (rail selection, held switches: a clear dome that
-  magnifies ×1.1–1.2, no colour split over labels).
+**Liquid glass over the page** (`liquid/liquid.ts` registers elements; `liquid/lens.ts`, loaded
+with the first lens, builds filters from `liquid/maps.ts` + `liquid/filter.ts`): floating chrome
+and controls bend the real page behind them. Each element gets an SVG filter used as its CSS
+`backdrop-filter` (`backdrop-filter: var(--lg-filter, <plain frost>)`): a light frost → the
+displacement map → vibrancy (saturate, brightness; inside the filter: Chromium drops a `url()`
+backdrop filter chained with CSS filter functions) → the glass' tint → rim light.
+- **The map** (nine slices: four corners, four one-pixel edges stretched along, a flood for the
+  middle; cached data-URL images at the screen's density, up to 2×, so the bend is as precise as
+  the pixels) holds the pull in red/green and, in blue, how much tint the glass shows: none at the
+  rim, easing in across the bezel, so the band where the light bends stays clear.
+- **Tint**: declared once in the element's CSS (`--lg-tint: <token>` with
+  `background: var(--lg-fill, <token>)`); while the lens runs, liquid.ts sets `--lg-fill:
+  transparent` and the filter paints that tint scaled by blue. Text-heavy panes (search, toasts)
+  keep a deep middle for reading; `--bg-clear` panes over art let the art through.
+- **Rim light** comes from the same map: red/green are the outward normal scaled by steepness,
+  so a colour matrix gives `normal · light` (light from the top left, a third of it on the far
+  rim), sharpened with a gamma and added on top. The CSS `glass-rim` ring stays as the crisp edge.
+- The optical outline rounds corners at least as much as the bezel is wide (smooth normals, no
+  crease along the corner diagonal); a drop is a stadium.
+- Kinds (`LIQUID`): `bar` (title bar: lower rim only; content scrolling under it stretches along
+  that rim), `panel` (search results, toasts), `clear` (rank pane and champion tier over art, the
+  floating tab bar), `lens` (rail selection, segment thumbs, held switches: a loupe). No colour
+  split over the page (over text it reads as fringing).
+- **Icons and text stay crisp**: a drop sits *behind* the labels of the rail and of segmented
+  controls at rest, and lifts over them (magnifying what it passes) only while it glides
+  (`data-moving`, from the WAAPI glide or the thumb's `transform` transition). A held switch's
+  knob swells into a drop over the track.
+- Nothing that carries a lens has an outer box-shadow: Chromium shifts the SVG filter by the
+  shadow's reach. Shadows sit on a wrapper; the glass is a layer inside (tested).
 - The page scrolls **under** the title bar (`main` spans both rows, padding-top = bar height),
   which bends it along its lower rim. Sticky side columns stick below the bar.
 - An element with a backdrop filter hides the page from its descendants' glass (backdrop root),
-  so the bar's and the rail's glass are layers inside them, not the elements themselves.
-  (A `::before` layer would do in principle, but Chromium ignored it there.)
-- Motion (`design/motion.ts`): springs sampled into CSS `linear()` easings (`--ease-spring`,
-  kept in sync with the code by a unit test). The rail lens glides to the new section and
-  stretches like a drop (WAAPI on transform); a held switch's knob swells into clear glass and
-  springs across. Reduced motion jumps.
+  so glass is always a layer inside its element, never the element itself.
+- Motion (`design/motion.ts`): springs sampled into CSS `linear()` easings (`--ease-spring`, and
+  `--ease-glide` critically damped for thumbs that must stay in their track; both kept in sync
+  with the code by a unit test). Reduced motion jumps.
 - On only with the shader (`data-effects="shader"`); otherwise the same elements keep a plain
-  CSS blur (`light`) or none (`off`).
+  CSS blur (`light`) or none (`off`), and the lens code is never downloaded.
+- **Glass lab** (dev server only): `pnpm dev` → `#/__harness?show=glass` shows every kind over
+  art, text and straight lines, draggable, to see how each shape bends what is behind it.
 
 **The window backdrop** (`backdrop/`): one WebGL 1 canvas (first child of `[data-ambient-host]`,
 fixed, `z-index: -1`, `aria-hidden`, `data-free-style`), drawn **on demand only**.
@@ -273,11 +294,12 @@ champion, the summoner spells (policy: docs/policy.md, "Build imports"). The UI 
 `skipped { reason }` or `failed { reason }` (structured; the UI words them in
 `ui/src/lib/imports.ts`). The lock-in automation sends the same result as an `import` event
 (`automatic: true`): a toast anywhere, and the Draft bar's buttons.
-- **Builds** come from a `BuildSource` trait: `build(champion, role, queue) -> Option<BuildStats>`
-  (`role: None` = the most played role; queue 420 for every Summoner's Rift mode, 450 for ARAM,
-  from the gameflow session's `gameData.queue.mapId` when the request has none; other maps have
-  no builds). The desktop wires the stats client (`StatsClient` implements it: the current patch's
-  Emerald+ `builds/{id}.json` of the queue) into `companion::Services`;
+- **Builds** come from a `BuildSource` trait: `build(champion, role, queue, bracket) ->
+  Option<BuildStats>` (`role: None` = the most played role; queue 420 for every Summoner's Rift
+  mode, 450 for ARAM, from the gameflow session's `gameData.queue.mapId` when the request has
+  none; other maps have no builds; the request's `bracket`, Emerald+ without one: a champion page
+  imports the bracket it shows). The desktop wires the stats client (`StatsClient` implements it:
+  the current patch's `builds/{id}.json` of the queue and bracket) into `companion::Services`;
   `imports::build_for_role(&BuildsFile, role)` picks the role's build from a published file.
 - **Rune page**: `runes.top[0].ids` = `[primaryStyle, subStyle, 4 + 2 perks, 3 shards]` → a page
   named like `MVP · Ahri Mid` (≤ 25 characters, `ARAM` instead of a role there). MVP's page is the
