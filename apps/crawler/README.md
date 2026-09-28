@@ -12,7 +12,7 @@ cargo run -p mvp-crawler -- status
 STATS_DIR=.cache/crawler/stats pnpm backend  # serve them on http://127.0.0.1:8787/v1/stats/…
 ```
 
-`mvp-crawler --help` lists every option; `CRAWL_DATA_DIR`, `CRAWL_PLATFORM` and
+`mvp-crawler` without arguments prints every option; `CRAWL_DATA_DIR`, `CRAWL_PLATFORM` and
 `CRAWL_MAX_MATCHES` set the defaults from the environment. Every run can stop at any time: the
 next one resumes, and a game is never counted twice.
 
