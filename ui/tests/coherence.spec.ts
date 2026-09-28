@@ -172,6 +172,17 @@ for (const scenario of [
   });
 }
 
+// The settings search: rows marked where they matched, About alone, nothing found.
+test("/settings searched only uses design tokens", async ({ page }) => {
+  await openApp(page, { view: "/settings" });
+  for (const query of ["windows", "logs", "zzzz"]) {
+    await page.getByTestId("settings-search").fill(query);
+    await page.mouse.move(0, 0);
+    await animationsDone(page);
+    expect(await page.evaluate(auditTokens), query).toEqual([]);
+  }
+});
+
 // An opened match row (its game, or why it can't show) with a grade's why over it.
 for (const scenario of ["default", "extreme", "match-details-error"] as const) {
   test(`home/${scenario}: an opened game and a grade's why only use design tokens`, async ({ page }) => {

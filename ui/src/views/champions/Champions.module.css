@@ -130,7 +130,8 @@
 .searchInput {
   width: 100%;
   height: 36px;
-  padding: 0 var(--space-5) 0 var(--space-10);
+  /* Room for the clear button (design/base.css), as in the settings search. */
+  padding: 0 var(--space-4) 0 var(--space-10);
   border: 1px solid var(--line-glass);
   border-radius: var(--radius-3);
   background: var(--bg-1);
@@ -150,6 +151,10 @@
   .search {
     flex-basis: 100%;
   }
+}
+
+.searchInput:hover {
+  border-color: var(--line-2);
 }
 
 .searchInput:focus-visible {

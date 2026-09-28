@@ -535,6 +535,30 @@ export const frViews = {
       legal:
         "MVP n’est pas approuvé par Riot Games et ne reflète pas les opinions de Riot Games ni de quiconque officiellement impliqué dans la production ou la gestion des propriétés de Riot Games. Riot Games et toutes les propriétés associées sont des marques commerciales ou des marques déposées de Riot Games, Inc.",
     },
+    search: {
+      label: "Rechercher un paramètre",
+      shortcut: "Ctrl F",
+      clear: "Effacer la recherche",
+      noMatch: (query: string) => `Aucun paramètre ne correspond à « ${query} »`,
+      tryOther: "Essayez un autre mot, ou moins de mots.",
+      keywords: {
+        autoAccept: "acceptation, file d’attente, queue, ready check",
+        bringToFront: "focus, avant-plan",
+        runes: "rune clé, keystone",
+        itemSet: "items, stuff",
+        spells: "summoners",
+        flashKey: "flash, D, F, raccourci",
+        bracket: "elo, ranked, classé",
+        language: "Français, anglais, English",
+        closeToTray: "tray, systray, arrière-plan",
+        launchAtStartup: "boot, autostart, startup",
+        crashReports: "bug, crash, télémétrie",
+        effects: "flou, transparence, animations",
+        updates: "version, maj, update",
+        data: "confidentialité, vie privée",
+        help: "logs, bug, support, problème",
+      },
+    },
   },
 
   updates: {

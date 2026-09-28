@@ -292,6 +292,19 @@ The Tier list and Champions pages read the published stats through the core only
   webview and, with *close to tray*, the app stays in the tray. A `navigate` event moves the UI; a
   window created for an intent opens directly on its view. *Launch at startup* uses
   tauri-plugin-autostart and starts in the tray (`--autostart`).
+- **Search** (the Settings page's field; `views/settings/search.ts`, pure and unit-tested): every
+  word typed must be found in a setting (its card's title counts for all its rows), folded like
+  the title bar's champion search (`lib/fuzzy`: case, accents, punctuation). Best is as typed at
+  a word's start (words run together too, "autoaccept"; plurals find the singular); only when a
+  word is found nowhere so do matches inside a word, left-out letters (`matchScore`) and one typo
+  (two from 8 letters) count. Words of one or two letters count only alone. Besides the words on
+  screen, a setting is found by what players call it (`settings.search.keywords`, per language)
+  and its control's labels (Emerald+, Light, Open log folder). A setting and the ones nested under
+  it show together; About's sections are its rows; only About found takes the settings' column.
+  The page hides what isn't found (cards stay mounted: nothing resets) and marks what is
+  (`design/Marked`); nothing found says so, with Clear search. Ctrl+F focuses the field on this
+  page only (Ctrl+K stays the title bar's), Escape empties it then leaves it; the query lives
+  with the page. No timers: it all runs on input.
 
 ## Languages (`ui/src/i18n`)
 English and French, for every word the player reads (views, states, toasts, tooltips,

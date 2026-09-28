@@ -29,6 +29,8 @@
   font-size: var(--text-lg);
   font-weight: var(--weight-semibold);
   color: var(--text-1);
+  /* It may quote what was typed: a long word wraps inside the card. */
+  overflow-wrap: anywhere;
 }
 
 .text {
