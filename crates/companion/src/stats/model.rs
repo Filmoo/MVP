@@ -98,6 +98,8 @@ fn strength(r: &ChampionRoleStats, share: f64) -> Base {
 #[derive(Debug, Clone, Default)]
 pub struct DraftStats {
     base: HashMap<ChampRole, Base>,
+    /// ARAM strengths (the file's rows without a role), with this patch's games.
+    aram: HashMap<u32, (Base, u32)>,
     /// Games per champion in each role (index = `Role::index`).
     games: HashMap<u32, [u32; 5]>,
     /// Each file's own view: `(a, b)` → a's games and wins against b.
@@ -120,6 +122,11 @@ impl DraftStats {
                 }
             }
             let total: u32 = games.iter().sum();
+            for r in c.roles.iter().filter(|r| r.role.is_none()) {
+                if r.g > 0 || r.prev.is_some() {
+                    out.aram.insert(c.id, (strength(r, 1.0), r.g));
+                }
+            }
             for r in &c.roles {
                 let Some(domain_role) = r.role else { continue };
                 if r.g == 0 && r.prev.is_none() {
@@ -177,6 +184,12 @@ impl DraftStats {
             }
         }
         self.added.insert(file.id);
+    }
+
+    /// `champion`'s ARAM strength (this patch shrunk toward the previous one) and this patch's
+    /// games, when the file is an ARAM one.
+    pub fn aram(&self, champion: u32) -> Option<(Base, u32)> {
+        self.aram.get(&champion).copied()
     }
 
     /// Whether `champion`'s matchups file was added.
@@ -418,6 +431,31 @@ mod tests {
         let stable = DraftStats::new(&file(Some((40_000, 18_000))));
         let wr = sigmoid(stable.base(cr(MALPHITE, Role::Top)).unwrap().logit);
         assert!((wr - 0.45).abs() < 0.002, "{wr}");
+    }
+
+    #[test]
+    fn aram_rows_have_no_role() {
+        let aram = ChampionsFile {
+            champions: vec![champion(
+                MALPHITE,
+                vec![ChampionRoleStats {
+                    role: None,
+                    g: 5_000,
+                    w: 2_700,
+                    prev: None,
+                }],
+            )],
+            priors: vec![],
+            ..champions()
+        };
+        let data = DraftStats::new(&aram);
+        let (base, games) = data.aram(MALPHITE).unwrap();
+        assert_eq!(games, 5_000);
+        // 54 % over 5k games, pulled toward 50 % by about a thousand pseudo-games.
+        let wr = sigmoid(base.logit);
+        assert!(wr > 0.53 && wr < 0.54, "{wr}");
+        assert!(data.base(cr(MALPHITE, Role::Top)).is_none());
+        assert!(DraftStats::new(&champions()).aram(MALPHITE).is_none());
     }
 
     #[test]

@@ -71,10 +71,11 @@ fn ahri_build(role: Option<Role>) -> BuildStats {
 /// A build asked for: champion, role, queue, bracket.
 type Asked = (u32, Option<Role>, u32, Bracket);
 
-/// Builds for Ahri only; remembers what was asked.
+/// Builds for Ahri only (at every bracket but `unpublished`); remembers what was asked.
 #[derive(Debug, Default)]
 struct FakeBuilds {
     asked: Mutex<Vec<Asked>>,
+    unpublished: Option<Bracket>,
 }
 
 impl BuildSource for FakeBuilds {
@@ -89,8 +90,9 @@ impl BuildSource for FakeBuilds {
             .lock()
             .unwrap()
             .push((champion_id, role, queue, bracket));
+        let published = self.unpublished != Some(bracket);
         Box::pin(std::future::ready(
-            (champion_id == AHRI).then(|| ahri_build(role)),
+            (champion_id == AHRI && published).then(|| ahri_build(role)),
         ))
     }
 }
@@ -186,7 +188,7 @@ fn lcu_client(mock: &MockLcu) -> LcuClient {
 struct Setup {
     importer: Importer,
     builds: Arc<FakeBuilds>,
-    _settings: watch::Sender<Settings>,
+    settings: watch::Sender<Settings>,
     _status: watch::Sender<ClientStatus>,
     remote: watch::Sender<RemoteConfig>,
 }
@@ -197,7 +199,17 @@ fn names() -> imports::ChampionNames {
 
 /// An importer on `mock`, in `phase`, with `settings`.
 fn importer(mock: &MockLcu, phase: GameflowPhase, settings: Settings) -> Setup {
-    let builds = Arc::new(FakeBuilds::default());
+    importer_with(mock, phase, settings, FakeBuilds::default())
+}
+
+/// [`importer`], with these `builds`.
+fn importer_with(
+    mock: &MockLcu,
+    phase: GameflowPhase,
+    settings: Settings,
+    builds: FakeBuilds,
+) -> Setup {
+    let builds = Arc::new(builds);
     let (settings_tx, settings_rx) = watch::channel(settings);
     let (status_tx, status_rx) = watch::channel(ClientStatus {
         connection: ClientConnection::Connected,
@@ -216,7 +228,7 @@ fn importer(mock: &MockLcu, phase: GameflowPhase, settings: Settings) -> Setup {
             watch::channel(Language::En).1,
         ),
         builds,
-        _settings: settings_tx,
+        settings: settings_tx,
         _status: status_tx,
         remote: remote_tx,
     }
@@ -353,6 +365,54 @@ async fn the_champion_pages_queue_and_bracket_are_imported() {
     assert_eq!(
         setup.builds.asked.lock().unwrap().as_slice(),
         [(AHRI, Some(Role::Middle), 420, Bracket::DiamondPlus)]
+    );
+}
+
+#[tokio::test]
+async fn the_players_bracket_is_imported_else_emerald() {
+    let mock = client_with_player_data(3).await;
+    let builds = FakeBuilds {
+        unpublished: Some(Bracket::MasterPlus),
+        ..FakeBuilds::default()
+    };
+    let settings = Settings {
+        stats_bracket: Bracket::DiamondPlus,
+        ..Settings::default()
+    };
+    let setup = importer_with(&mock, GameflowPhase::Idle, settings, builds);
+    let ranked = ImportRequest {
+        queue: Some(420),
+        ..request(&[ImportPart::ItemSet])
+    };
+    setup.importer.import(&ranked, false).await;
+    // Master+ isn't published yet: Emerald+'s build rather than none.
+    setup
+        .settings
+        .send_modify(|s| s.stats_bracket = Bracket::MasterPlus);
+    let result = setup.importer.import(&ranked, false).await;
+    assert!(matches!(
+        outcome(&result, ImportPart::ItemSet),
+        ImportOutcome::Saved { .. }
+    ));
+    // A page's own bracket is taken as it is.
+    let master = ImportRequest {
+        bracket: Some(Bracket::MasterPlus),
+        ..ranked.clone()
+    };
+    let result = setup.importer.import(&master, false).await;
+    assert!(matches!(
+        outcome(&result, ImportPart::ItemSet),
+        ImportOutcome::Failed { .. }
+    ));
+    let middle = Some(Role::Middle);
+    assert_eq!(
+        setup.builds.asked.lock().unwrap().as_slice(),
+        [
+            (AHRI, middle, 420, Bracket::DiamondPlus),
+            (AHRI, middle, 420, Bracket::MasterPlus),
+            (AHRI, middle, 420, Bracket::EmeraldPlus),
+            (AHRI, middle, 420, Bracket::MasterPlus),
+        ]
     );
 }
 

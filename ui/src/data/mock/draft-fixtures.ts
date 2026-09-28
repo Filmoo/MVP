@@ -167,7 +167,11 @@ export const champSelectDraft: DraftView = {
       reasons: [r("lane", -2.6, 5102, 0.9, C.irelia, 0.94), r("base", 0.2, 83_100, 1)],
     },
   ],
-  data: { bracket: "Emerald+", patch: "26.19", games: 1_912_400, updatedAt: FIXTURE_NOW - 3 * 3_600_000 },
+  data: { queue: 420, bracket: "Emerald+", patch: "26.19", games: 1_912_400, updatedAt: FIXTURE_NOW - 3 * 3_600_000 },
+  queue: 420,
+  bench: null,
+  rerolls: null,
+  comps: null,
 };
 
 /** Finalization: you locked Malphite in, the enemy team is complete. */

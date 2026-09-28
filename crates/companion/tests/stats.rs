@@ -20,9 +20,9 @@ use companion::backend::{BackendClient, BackendConfig, INSTALL_HEADER};
 use companion::stats::{ARAM, RANKED, StatsClient};
 use domain::{
     BackendError, Bracket, BuildSection, BuildStats, BuildsFile, ChampionRoleStats, ChampionStats,
-    ChampionsFile, ClientConnection, DataSetIndex, DataSetInfo, DraftView, MatchupEntry,
-    MatchupsFile, PairKind, PairPrior, PatchIndex, ReasonKind, RemoteConfig, Role, RoleMatchups,
-    Settings, StatsIndex, TierEntry, TierGrade, TierList,
+    ChampionsFile, ClientConnection, CompositionStats, CompositionsFile, DataSetIndex, DataSetInfo,
+    DraftView, MatchupEntry, MatchupsFile, PairKind, PairPrior, PatchIndex, ReasonKind,
+    RemoteConfig, Role, RoleMatchups, Settings, StatsIndex, TierEntry, TierGrade, TierList,
 };
 use lcu::ConnectorConfig;
 use lcu::tls::pinned_client_config;
@@ -765,11 +765,26 @@ async fn core_following(
     stats: StatsClient,
     remote: watch::Receiver<RemoteConfig>,
 ) -> Companion {
-    let (_settings, settings_rx) = watch::channel(Settings {
+    let (_settings, settings_rx) = watch::channel(quiet_settings());
+    core_for(mock, stats, remote, settings_rx).await
+}
+
+/// Settings that never move the window (tests run headless).
+fn quiet_settings() -> Settings {
+    Settings {
         auto_switch_view: false,
         bring_to_front_on_champ_select: false,
         ..Settings::default()
-    });
+    }
+}
+
+/// [`core_following`], with the player's `settings`.
+async fn core_for(
+    mock: &MockLcu,
+    stats: StatsClient,
+    remote: watch::Receiver<RemoteConfig>,
+    settings_rx: watch::Receiver<Settings>,
+) -> Companion {
     let core = companion::start_with_services(
         config_for(mock),
         settings_rx,
@@ -931,6 +946,251 @@ async fn without_stats_the_draft_still_shows_the_teams() {
     assert_eq!(view.allies[0].champion_id, Some(MALPHITE));
 }
 
+// ── Compositions, the stats bracket, ARAM ──────────────────────────────────────────────────
+
+/// A compositions file: every champion of `rows` in its first role (none in ARAM), over 4,000
+/// games with an even record, and each role's usual pick.
+fn compositions_file(info: &DataSetInfo, rows: Rows<'_>, aram: bool) -> CompositionsFile {
+    let stats = |id: u32, role: Option<Role>| CompositionStats {
+        id,
+        role,
+        n: 4_000,
+        dmg: [300.0 + f64::from(id % 7) * 50.0, 300.0, 30.0],
+        front: if id == 0 {
+            0.2
+        } else {
+            0.15 + f64::from(id % 5) * 0.03
+        },
+        cc: 20.0,
+        len: if id == 0 {
+            vec![]
+        } else {
+            vec![(1_000, 500), (2_000, 1_000), (1_000, 500)]
+        },
+    };
+    let roles = if aram {
+        vec![None]
+    } else {
+        [
+            Role::Top,
+            Role::Jungle,
+            Role::Middle,
+            Role::Bottom,
+            Role::Support,
+        ]
+        .map(Some)
+        .to_vec()
+    };
+    CompositionsFile {
+        info: info.clone(),
+        lengths: if aram { vec![17, 22] } else { vec![25, 35] },
+        roles: roles.into_iter().map(|role| stats(0, role)).collect(),
+        champions: rows
+            .iter()
+            .map(|(id, roles)| {
+                let role = if aram {
+                    None
+                } else {
+                    roles.first().map(|r| r.0)
+                };
+                stats(*id, role)
+            })
+            .collect(),
+    }
+}
+
+const LUX: u32 = 99;
+const JINX: u32 = 222;
+const BRAND: u32 = 63;
+const SION: u32 = 14;
+
+/// ARAM champions: their rows carry no role.
+fn aram_rows() -> Rows<'static> {
+    &[
+        (LUX, &[]),
+        (JINX, &[]),
+        (MALPHITE, &[]),
+        (THRESH, &[]),
+        (AHRI, &[]),
+        (BRAND, &[]),
+        (SION, &[]),
+    ]
+}
+
+fn aram_champions(info: &DataSetInfo) -> ChampionsFile {
+    let rates = [0.52, 0.5, 0.55, 0.51, 0.5, 0.54, 0.49];
+    ChampionsFile {
+        info: info.clone(),
+        champions: aram_rows()
+            .iter()
+            .zip(rates)
+            .map(|(&(id, _), rate)| ChampionStats {
+                id,
+                g: 20_000,
+                w: wins(20_000, rate),
+                bans: 0,
+                roles: vec![ChampionRoleStats {
+                    role: None,
+                    g: 20_000,
+                    w: wins(20_000, rate),
+                    prev: None,
+                }],
+            })
+            .collect(),
+        priors: vec![],
+    }
+}
+
+/// Ranked at Emerald+ (with compositions) and Diamond+, and ARAM at Emerald+ (with
+/// compositions), for patch 16.19.
+fn publish_every_set(server: &Server) {
+    let mut s = server.lock().unwrap();
+    let mut sets = Vec::new();
+    for (queue, bracket) in [
+        (RANKED, EMERALD),
+        (RANKED, Bracket::DiamondPlus),
+        (ARAM, EMERALD),
+    ] {
+        let info = DataSetInfo {
+            bracket,
+            games: if bracket == EMERALD { 120_000 } else { 30_000 },
+            ..info("16.19", queue, 1_000)
+        };
+        let dir = format!("16.19/{queue}/{}", bracket.slug());
+        let mut put = |file: &str, body: Vec<u8>| s.files.insert(format!("{dir}/{file}"), body);
+        if queue == ARAM {
+            put("champions.json", to_json(&aram_champions(&info)));
+            let comps = compositions_file(&info, aram_rows(), true);
+            put("compositions.json", to_json(&comps));
+        } else {
+            put("champions.json", to_json(&champions_file(&info, world())));
+            put("tierlist.json", to_json(&tier_list(&info, world())));
+            if bracket == EMERALD {
+                let comps = compositions_file(&info, world(), false);
+                put("compositions.json", to_json(&comps));
+            }
+        }
+        sets.push(DataSetIndex {
+            queue,
+            bracket,
+            games: info.games,
+        });
+    }
+    let index = StatsIndex {
+        schema: 1,
+        current: Some("16.19".to_owned()),
+        patches: vec![PatchIndex {
+            patch: "16.19".to_owned(),
+            name: "26.19".to_owned(),
+            sets,
+            updated_at: 1_000,
+        }],
+        updated_at: 1_000,
+    };
+    s.files.insert("index".to_owned(), to_json(&index));
+}
+
+fn bracket_is(view: &DraftView, label: &str) -> bool {
+    view.data.as_ref().is_some_and(|d| d.bracket == label)
+}
+
+#[tokio::test]
+async fn the_draft_follows_the_stats_bracket_at_once() {
+    let (base, server) = fake_backend().await;
+    publish_every_set(&server);
+    let dir = tempfile::tempdir().unwrap();
+    let mock = MockLcu::start().await.unwrap();
+    local_player(&mock);
+    let (settings_tx, settings_rx) = watch::channel(quiet_settings());
+    let remote = watch::channel(RemoteConfig::default()).1;
+    let stats = stats_client(&base, dir.path());
+    let core = core_for(&mock, stats, remote, settings_rx).await;
+    let hovering = session(MALPHITE, &[IRELIA]);
+    mock.set(companion::champ_select::SESSION, hovering);
+    mock.set(lcu::GAMEFLOW_PHASE, json!("ChampSelect"));
+
+    // Emerald+: the numbers and both teams' compositions, hovers shown as such.
+    let view = draft_where(&core, |v| v.comps.is_some() && !v.suggestions.is_empty()).await;
+    assert_eq!(view.queue, Some(RANKED));
+    let data = view.data.clone().unwrap();
+    assert_eq!((data.queue, data.bracket.as_str()), (RANKED, "Emerald+"));
+    let comps = view.comps.unwrap();
+    assert_eq!(comps.lengths, [25, 35]);
+    let malphite = &comps.allies.members[0];
+    assert!(malphite.champion_id == MALPHITE && malphite.hovering);
+    assert_eq!(comps.enemies.counted, 1);
+    assert!(view.suggestions.iter().all(|s| s.comp.is_some()));
+
+    // The player picks Diamond+ in Settings: the draft switches in the middle of the champion
+    // select (no compositions published there yet).
+    settings_tx.send_modify(|s| s.stats_bracket = Bracket::DiamondPlus);
+    let view = draft_where(&core, |v| bracket_is(v, "Diamond+")).await;
+    assert_eq!(view.data.unwrap().games, 30_000);
+    assert!(view.comps.is_none() && !view.suggestions.is_empty());
+
+    // Master+ isn't published: Emerald+, which the data line says.
+    settings_tx.send_modify(|s| s.stats_bracket = Bracket::MasterPlus);
+    draft_where(&core, |v| bracket_is(v, "Emerald+")).await;
+}
+
+/// An ARAM champion select: you have Lux, Sion and Brand are on the bench, one reroll left.
+fn aram_session() -> serde_json::Value {
+    json!({
+        "localPlayerCellId": 0,
+        "myTeam": [
+            { "cellId": 0, "assignedPosition": "", "championId": LUX },
+            { "cellId": 1, "assignedPosition": "", "championId": JINX },
+            { "cellId": 2, "assignedPosition": "", "championId": MALPHITE },
+            { "cellId": 3, "assignedPosition": "", "championId": THRESH },
+            { "cellId": 4, "assignedPosition": "", "championId": AHRI }
+        ],
+        "theirTeam": [],
+        "actions": [],
+        "benchEnabled": true,
+        "benchChampions": [{ "championId": SION }, { "championId": BRAND }],
+        "allowRerolling": true,
+        "rerollsRemaining": 1,
+        "timer": { "phase": "FINALIZATION", "adjustedTimeLeftInPhase": 50_000 }
+    })
+}
+
+#[tokio::test]
+async fn aram_ranks_your_champion_and_the_bench() {
+    let (base, server) = fake_backend().await;
+    publish_every_set(&server);
+    let dir = tempfile::tempdir().unwrap();
+    let mock = MockLcu::start().await.unwrap();
+    local_player(&mock);
+    let core = core_with(&mock, stats_client(&base, dir.path())).await;
+    let game =
+        json!({ "phase": "ChampSelect", "gameData": { "queue": { "id": 450, "mapId": 12 } } });
+    mock.set(companion::imports::GAMEFLOW_SESSION, game);
+    mock.set(companion::champ_select::SESSION, aram_session());
+    mock.set(lcu::GAMEFLOW_PHASE, json!("ChampSelect"));
+    let view = draft_where(&core, |v| !v.suggestions.is_empty()).await;
+    assert_eq!(view.queue, Some(ARAM));
+    assert_eq!(view.data.as_ref().map(|d| d.queue), Some(ARAM));
+    assert_eq!(view.bench, Some(vec![SION, BRAND]));
+    assert_eq!(view.rerolls, Some(1));
+    let order: Vec<u32> = view.suggestions.iter().map(|s| s.champion_id).collect();
+    assert_eq!(order, [BRAND, LUX, SION]);
+    assert!(
+        view.suggestions[1].gain.abs() < 1e-9,
+        "yours: the team as it is"
+    );
+    assert!(view.team.is_some());
+    let comps = view.comps.unwrap();
+    assert_eq!((comps.allies.counted, comps.enemies.counted), (5, 0));
+    assert_eq!(comps.lengths, [17, 22]);
+    let fetched = paths(&server);
+    assert!(
+        fetched
+            .iter()
+            .any(|p| p == "16.19/450/emeraldPlus/champions.json")
+    );
+    assert!(fetched.iter().all(|p| !p.contains("/420/")), "{fetched:?}");
+}
+
 // ── Against the real publisher ─────────────────────────────────────────────────────────────
 
 /// Deterministic pseudo-random numbers (no extra dependency).
@@ -1039,12 +1299,18 @@ async fn reads_what_the_publisher_writes() {
     }
     let data = companion::draft::SessionData {
         info: domain::DataInfo {
+            queue: RANKED,
             bracket: EMERALD.label().to_owned(),
             patch: set.name.clone(),
             games: set.games,
             updated_at: set.generation,
         },
         tiers: restarted.tier_list(&set).await.unwrap(),
+        comps: restarted
+            .compositions(&set)
+            .await
+            .unwrap()
+            .map(|file| Arc::new(companion::stats::comp::CompStats::new(&file))),
         set,
     };
     let view = companion::champ_select::map_session(&json!({

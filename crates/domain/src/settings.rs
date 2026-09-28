@@ -1,7 +1,7 @@
 use serde::{Deserialize, Deserializer, Serialize};
 use ts_rs::TS;
 
-use crate::{FlashKey, ImportMode};
+use crate::{Bracket, FlashKey, ImportMode};
 
 /// User preferences, owned and persisted by the core.
 ///
@@ -45,6 +45,10 @@ pub struct Settings {
     /// The key Flash goes on when spells are imported.
     #[serde(deserialize_with = "or_default")]
     pub flash_key: FlashKey,
+    /// Whose games the stats count: the draft's picks and compositions, imported builds, and
+    /// the Tier list and Champions pages until a bracket is picked there.
+    #[serde(deserialize_with = "or_default")]
+    pub stats_bracket: Bracket,
     /// Send crash reports (opt-in): a crash of the core or an error in the UI goes to our
     /// server, scrubbed of names, ids and paths first, and is kept 30 days.
     pub crash_reports: bool,
@@ -139,6 +143,7 @@ impl Default for Settings {
             import_item_set: ImportMode::OneClick,
             import_spells: ImportMode::OneClick,
             flash_key: FlashKey::Auto,
+            stats_bracket: Bracket::EmeraldPlus,
             crash_reports: false,
         }
     }
@@ -276,6 +281,29 @@ mod tests {
         .expect("serializable");
         assert!(json.contains(r#""importItemSet":"oneClick""#), "{json}");
         assert!(json.contains(r#""flashKey":"f""#), "{json}");
+    }
+
+    #[test]
+    fn stats_count_emerald_and_up_until_chosen() {
+        assert_eq!(Settings::default().stats_bracket, Bracket::EmeraldPlus);
+        let old: Settings = serde_json::from_str(r#"{"closeToTray":false}"#).expect("loads");
+        assert_eq!(
+            old.stats_bracket,
+            Bracket::EmeraldPlus,
+            "files from before the setting"
+        );
+        let chosen: Settings =
+            serde_json::from_str(r#"{"statsBracket":"masterPlus"}"#).expect("loads");
+        assert_eq!(chosen.stats_bracket, Bracket::MasterPlus);
+        let newer: Settings =
+            serde_json::from_str(r#"{"statsBracket":"grandmasterPlus"}"#).expect("loads");
+        assert_eq!(
+            newer.stats_bracket,
+            Bracket::EmeraldPlus,
+            "a bracket this version lacks"
+        );
+        let json = serde_json::to_string(&chosen).expect("serializable");
+        assert!(json.contains(r#""statsBracket":"masterPlus""#), "{json}");
     }
 
     #[test]

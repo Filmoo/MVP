@@ -188,6 +188,7 @@ test("draft: a part turned off has no button", async ({ page, t }) => {
     importItemSet: "oneClick",
     importSpells: "off",
     flashKey: "auto",
+    statsBracket: "emeraldPlus",
     crashReports: false,
   };
   await page.evaluate((next) => window.__SCOUT_MOCK__?.emit("settings", next), settings);

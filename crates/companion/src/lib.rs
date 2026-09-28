@@ -289,9 +289,8 @@ pub fn start_with_services(
     let client = connector.client.clone();
     let (tx, status) = watch::channel(ClientStatus::not_running());
     // Sessions as mapped (teams only) → the draft helper → the UI.
-    let (session_tx, session_rx) = watch::channel(None);
-    let (draft_tx, draft) = watch::channel(None);
-    let helper = draft::spawn(session_rx, draft_tx, client.clone(), stats, remote.clone());
+    let helper = draft::spawn(client.clone(), stats, remote.clone(), settings.clone());
+    let draft = helper.views.clone();
     let (events_tx, events) = mpsc::channel(32);
     let (views_tx, mut views_rx) = mpsc::unbounded_channel::<String>();
     let (live_tx, live) = watch::channel(None);
@@ -328,7 +327,7 @@ pub fn start_with_services(
                     let Some(update) = update else { break };
                     let before = tx.borrow().phase;
                     tx.send_if_modified(|status| apply(status, &update));
-                    if let Some(session) = follow_draft(&update, &tx, &session_tx, &lcu_client).await {
+                    if let Some(session) = follow_draft(&update, &tx, &helper.sessions, &lcu_client).await {
                         lock_in.on_session(&session);
                     }
                     let phase = tx.borrow().phase;
@@ -361,7 +360,7 @@ pub fn start_with_services(
         if let Some(scouting) = game.task {
             scouting.abort();
         }
-        helper.abort();
+        helper.task.abort();
     });
     Companion {
         status,

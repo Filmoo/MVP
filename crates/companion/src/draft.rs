@@ -8,9 +8,16 @@
 //!   taken, `pickable-champion-ids`). No ban suggestions.
 //! - **Team**: locked picks and allies' hovers; the player's own hover isn't a pick yet, so
 //!   before they lock in, every suggestion's gain is measured against the team without them.
-//! - **Data**: ranked solo/duo, Emerald+, current patch (`StatsClient`); the matchups files of
-//!   the champions in the draft are loaded as they appear (and the candidates' once an enemy
-//!   is locked: only a laner's own file has its games against the enemy jungler).
+//! - **Compositions** (`companion::stats::comp`, informational): each team's damage mix,
+//!   frontline, crowd control and game-length lean from its champions — locked picks and
+//!   hovers, marked as such — and your team's with each suggestion in your seat.
+//! - **ARAM** (no roles): your champion and the bench's, by the team's win chance with each
+//!   (champions' ARAM strengths); nothing is ever swapped for you.
+//! - **Data**: the game's queue (ranked data on Summoner's Rift, ARAM's own), the bracket of
+//!   the player's settings (Emerald+ when that one isn't published), current patch
+//!   (`StatsClient`); the matchups files of the champions in the draft are loaded as they
+//!   appear (and the candidates' once an enemy is locked: only a laner's own file has its
+//!   games against the enemy jungler).
 //! - **Privacy**: only champion-level stats about the other players; the local player's own
 //!   mastery, match history and pickable champions come from their client.
 //!
@@ -23,13 +30,14 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use ::stats::draft::{
-    Assignment, ChampRole, Evaluation, Pick, Role, TermKind, assignments, evaluate,
-    role_probabilities, suggest,
+    Base, ChampRole, Evaluation, Pick, Role, TermKind, assignments, evaluate, role_probabilities,
+    suggest,
 };
-use ::stats::sigmoid;
+use ::stats::{logit, sigmoid};
 use domain::{
-    Bracket, ChampionsFile, DataInfo, DraftView, Estimate, Mastery, MatchupsFile, PersonalRecord,
-    Reason, ReasonKind, RemoteConfig, RoleOdds, StatsIndex, Suggestion, TierList,
+    BackendError, Bracket, ChampionsFile, Compositions, DataInfo, DraftView, Estimate, Mastery,
+    MatchupsFile, PersonalRecord, Reason, ReasonKind, RemoteConfig, RoleOdds, Settings, StatsIndex,
+    Suggestion, TierList,
 };
 use lcu::LcuClient;
 use serde_json::Value;
@@ -37,17 +45,19 @@ use tokio::sync::{Semaphore, mpsc, watch};
 use tokio::task::JoinHandle;
 use tokio::time::Instant;
 
+use crate::imports::{GAMEFLOW_SESSION, stats_queue};
 use crate::profile;
+use crate::stats::comp::{CompStats, RoleMix, Seat};
 use crate::stats::model::{domain_role, role};
-use crate::stats::{DataSet, DraftStats, RANKED, StatsClient};
+use crate::stats::{ARAM, DataSet, DraftStats, RANKED, StatsClient};
 
 /// The local player's champion mastery (their own data).
 pub const MASTERY: &str = "/lol-champion-mastery/v1/local-player/champion-mastery";
 /// Champions the local player owns or may play in this champion select.
 pub const PICKABLE: &str = "/lol-champ-select/v1/pickable-champion-ids";
 
-/// The draft reads Emerald+ ranked solo/duo.
-pub const DRAFT_BRACKET: Bracket = Bracket::EmeraldPlus;
+/// The bracket the draft falls back to when the player's isn't published (yet): the widest.
+pub const FALLBACK_BRACKET: Bracket = Bracket::EmeraldPlus;
 /// Picks shown.
 const SUGGESTIONS: usize = 15;
 /// Pool champions among the candidates, at most.
@@ -178,12 +188,15 @@ pub async fn load_pool(lcu: &LcuClient) -> Pool {
     }
 }
 
-/// The stats a champion select reads: which data set, its badge, and its tier list.
-#[derive(Debug, Clone, PartialEq)]
+/// The stats a champion select reads: which data set, its badge, its tier list (ranked) and
+/// what each champion brings to a composition.
+#[derive(Debug, Clone)]
 pub struct SessionData {
     pub set: DataSet,
     pub info: DataInfo,
     pub tiers: Option<Arc<TierList>>,
+    /// `None` when not published (games crawled before those numbers, an older server).
+    pub comps: Option<Arc<CompStats>>,
 }
 
 /// Everything the model adds to a champion-select view.
@@ -194,6 +207,7 @@ pub struct Enrichment {
     pub data: Option<DataInfo>,
     /// Per enemy seat: the likeliest role and the likely ones, most likely first.
     pub enemies: Vec<(Option<domain::Role>, Vec<RoleOdds>)>,
+    pub comps: Option<Compositions>,
 }
 
 impl Enrichment {
@@ -201,6 +215,7 @@ impl Enrichment {
         view.team = self.team;
         view.suggestions.clone_from(&self.suggestions);
         view.data.clone_from(&self.data);
+        view.comps.clone_from(&self.comps);
         for (slot, (role, odds)) in view.enemies.iter_mut().zip(&self.enemies) {
             slot.role = *role;
             slot.role_odds.clone_from(odds);
@@ -236,13 +251,9 @@ fn estimate(e: &Evaluation) -> Estimate {
 }
 
 /// The likeliest roles of each enemy seat, from the champions' role shares over every
-/// consistent assignment.
-fn enemy_roles(
-    view: &DraftView,
-    picks: &[Pick],
-    seatings: &[Assignment],
-) -> Vec<(Option<domain::Role>, Vec<RoleOdds>)> {
-    let mut per_pick = role_probabilities(picks, seatings).into_iter();
+/// consistent assignment (`odds`: per enemy pick, in seat order).
+fn enemy_roles(view: &DraftView, odds: &[[f64; 5]]) -> Vec<(Option<domain::Role>, Vec<RoleOdds>)> {
+    let mut per_pick = odds.iter();
     view.enemies
         .iter()
         .map(|slot| {
@@ -395,13 +406,72 @@ fn reasons(eval: &Evaluation, x: ChampRole) -> Vec<Reason> {
     out
 }
 
-/// Team odds, ranked picks and enemy roles for one champion-select view.
+/// Where a champion plays, for its composition numbers: its seat's role, else its usual roles.
+fn role_mix(model: &DraftStats, champion: u32, role: Option<domain::Role>) -> RoleMix {
+    match role {
+        Some(role) => vec![(Some(role), 1.0)],
+        None => Role::ALL
+            .iter()
+            .map(|&r| (Some(domain_role(r)), model.role_shares(champion)[r.index()]))
+            .collect(),
+    }
+}
+
+/// Our allies' seats (locked picks and hovers, as such), without the local player's when
+/// `without_me`.
+fn ally_seats(view: &DraftView, model: &DraftStats, without_me: bool) -> Vec<Seat> {
+    view.allies
+        .iter()
+        .filter(|s| !(without_me && s.is_me))
+        .filter_map(|s| {
+            Some(Seat {
+                champion: s.champion_id?,
+                hovering: s.hovering,
+                roles: role_mix(model, s.champion_id?, s.role),
+            })
+        })
+        .collect()
+}
+
+/// Both teams' compositions: allies in their seats' roles, enemies over their likely roles.
+fn compositions(
+    view: &DraftView,
+    model: &DraftStats,
+    comps: &CompStats,
+    enemy_odds: &[[f64; 5]],
+) -> Compositions {
+    let enemies: Vec<Seat> = view
+        .enemies
+        .iter()
+        .filter_map(|s| s.champion_id)
+        .zip(enemy_odds)
+        .map(|(champion, odds)| Seat {
+            champion,
+            hovering: false,
+            roles: Role::ALL
+                .iter()
+                .map(|&r| (Some(domain_role(r)), odds[r.index()]))
+                .collect(),
+        })
+        .collect();
+    Compositions {
+        allies: comps.team(&ally_seats(view, model, false), true),
+        enemies: comps.team(&enemies, true),
+        lengths: comps.lengths().to_vec(),
+    }
+}
+
+/// Team odds, ranked picks, enemy roles and both compositions for one champion-select view
+/// (ARAM: [`enrich_aram`]).
 pub fn enrich(
     view: &DraftView,
     model: &DraftStats,
     data: &SessionData,
     pool: Option<&Pool>,
 ) -> Enrichment {
+    if data.set.queue == ARAM {
+        return enrich_aram(view, model, data, pool);
+    }
     let enemies: Vec<Pick> = view
         .enemies
         .iter()
@@ -413,9 +483,14 @@ pub fn enrich(
         })
         .collect();
     let seatings = assignments(&enemies);
+    let odds = role_probabilities(&enemies, &seatings);
     let mut out = Enrichment {
         data: Some(data.info.clone()),
-        enemies: enemy_roles(view, &enemies, &seatings),
+        enemies: enemy_roles(view, &odds),
+        comps: data
+            .comps
+            .as_deref()
+            .map(|comps| compositions(view, model, comps, &odds)),
         ..Enrichment::default()
     };
     let Some(my_role) = view.my_role else {
@@ -449,6 +524,18 @@ pub fn enrich(
     let team_p = now.win_probability();
     out.team = Some(estimate(&now));
     let candidates = candidates(view, my_role, model, data.tiers.as_deref(), pool);
+    // Your team with each pick in your seat (your hover or lock makes way for it).
+    let teammates = ally_seats(view, model, true);
+    let comp_with = |champion: u32| {
+        let comps = data.comps.as_deref()?;
+        let mut seats = teammates.clone();
+        seats.push(Seat {
+            champion,
+            hovering: false,
+            roles: vec![(Some(my_role), 1.0)],
+        });
+        Some(comps.team(&seats, false))
+    };
     out.suggestions = suggest(model, role(my_role), &allies, &enemies, &candidates)
         .into_iter()
         .take(SUGGESTIONS)
@@ -465,22 +552,196 @@ pub fn enrich(
                 mine: pool.and_then(|p| p.record(s.champion, my_role)),
                 mastery: pool.and_then(|p| p.mastery.get(&s.champion).copied()),
                 reasons: reasons(&s.evaluation, x),
+                comp: comp_with(s.champion),
             }
         })
         .collect();
     out
 }
 
-/// The stats a champion select reads, or `None` when there are none (logged).
-async fn session_data(stats: &StatsClient) -> Option<(SessionData, Arc<ChampionsFile>)> {
-    let set = match stats.data_set(RANKED, DRAFT_BRACKET).await {
-        Ok(set) => set,
-        Err(error) => {
-            tracing::info!(%error, "draft: no stats data set");
-            return None;
+/// Strength assumed for an ARAM champion without games: a coin flip, and unsure (±5 pp).
+fn aram_fallback() -> Base {
+    Base {
+        logit: logit(0.5),
+        variance: 0.2 * 0.2,
+        games: 0.0,
+    }
+}
+
+/// An ARAM team's score: its champions' strengths added up (the enemy team is unknown: an
+/// average one).
+fn aram_team(model: &DraftStats, champions: &[u32]) -> Evaluation {
+    let (mut score, mut variance) = (0.0, 0.0);
+    for &c in champions {
+        let base = model.aram(c).map_or_else(aram_fallback, |(base, _)| base);
+        score += base.logit;
+        variance += base.variance;
+    }
+    Evaluation {
+        score,
+        sd: variance.sqrt(),
+        terms: Vec::new(),
+    }
+}
+
+/// ARAM: the team's win chance, your champion and the bench's by the team's chance with each
+/// (tiers of statistically tied ones, as in ranked), each with its composition. No roles, the
+/// enemy team hidden: its composition stays empty.
+pub fn enrich_aram(
+    view: &DraftView,
+    model: &DraftStats,
+    data: &SessionData,
+    pool: Option<&Pool>,
+) -> Enrichment {
+    let aram_seat = |champion: u32, hovering: bool| Seat {
+        champion,
+        hovering,
+        roles: vec![(None, 1.0)],
+    };
+    let mine = view
+        .allies
+        .iter()
+        .find(|s| s.is_me)
+        .and_then(|s| s.champion_id);
+    let others: Vec<u32> = view
+        .allies
+        .iter()
+        .filter(|s| !s.is_me)
+        .filter_map(|s| s.champion_id)
+        .collect();
+    let team_with = |champion: Option<u32>| {
+        let mut team = others.clone();
+        team.extend(champion);
+        team
+    };
+    let now = aram_team(model, &team_with(mine));
+    let now_p = now.win_probability();
+    let comps = data.comps.as_deref();
+    let seats = |champion: Option<u32>| -> Vec<Seat> {
+        view.allies
+            .iter()
+            .filter_map(|s| {
+                let id = if s.is_me { champion } else { s.champion_id }?;
+                Some(aram_seat(id, s.hovering && !s.is_me))
+            })
+            .collect()
+    };
+    let mut out = Enrichment {
+        team: Some(estimate(&now)),
+        data: Some(data.info.clone()),
+        comps: comps.map(|comps| Compositions {
+            allies: comps.team(&seats(mine), true),
+            enemies: comps.team(&[], true),
+            lengths: comps.lengths().to_vec(),
+        }),
+        ..Enrichment::default()
+    };
+    let Some(mine) = mine else {
+        return out;
+    };
+    let bench = view.bench.as_deref().unwrap_or_default();
+    let mut options: Vec<(u32, Evaluation)> = std::iter::once(mine)
+        .chain(
+            bench
+                .iter()
+                .copied()
+                .filter(|c| *c != mine && !others.contains(c)),
+        )
+        .map(|c| (c, aram_team(model, &team_with(Some(c)))))
+        .collect();
+    options.sort_by(|a, b| b.1.score.total_cmp(&a.1.score).then(a.0.cmp(&b.0)));
+    let tiers = tie_tiers(options.iter().map(|(_, e)| (e.score, e.sd)));
+    out.suggestions = options
+        .into_iter()
+        .zip(tiers)
+        .take(SUGGESTIONS)
+        .map(|((champion, evaluation), tier)| {
+            let (base, games) = model.aram(champion).unwrap_or((aram_fallback(), 0));
+            Suggestion {
+                champion_id: champion,
+                estimate: estimate(&evaluation),
+                gain: round((evaluation.win_probability() - now_p) * 100.0, 2),
+                tier,
+                mine: None,
+                mastery: pool.and_then(|p| p.mastery.get(&champion).copied()),
+                reasons: vec![Reason {
+                    kind: ReasonKind::Base,
+                    champion_id: None,
+                    points: round((sigmoid(base.logit) - 0.5) * 100.0, 2),
+                    games,
+                    kept: 1.0,
+                    probability: 1.0,
+                }],
+                comp: comps.map(|comps| comps.team(&seats(Some(champion)), false)),
+            }
+        })
+        .collect();
+    out
+}
+
+/// Tiers of scores sorted best first: one starts where a score is more than one SD (the tier
+/// head's or its own) below the tier's first (as `stats::draft::suggest` does).
+fn tie_tiers(sorted: impl IntoIterator<Item = (f64, f64)>) -> Vec<u32> {
+    let mut tier = 0;
+    let mut head: Option<(f64, f64)> = None;
+    sorted
+        .into_iter()
+        .map(|(score, sd)| {
+            match head {
+                Some((first, first_sd)) if first - score <= first_sd.max(sd) => {}
+                _ => {
+                    if head.is_some() {
+                        tier += 1;
+                    }
+                    head = Some((score, sd));
+                }
+            }
+            tier
+        })
+        .collect()
+}
+
+/// The data set of `queue` at `bracket`, else at [`FALLBACK_BRACKET`] when that one isn't
+/// published (yet): the data line then names the bracket really used.
+async fn data_set(stats: &StatsClient, queue: u32, bracket: Bracket) -> Option<DataSet> {
+    let answer = match stats.data_set(queue, bracket).await {
+        Err(BackendError::NotFound) if bracket != FALLBACK_BRACKET => {
+            tracing::info!(
+                ?bracket,
+                queue,
+                "draft: bracket not published, using Emerald+"
+            );
+            stats.data_set(queue, FALLBACK_BRACKET).await
+        }
+        answer => answer,
+    };
+    answer
+        .map_err(|error| tracing::info!(%error, queue, "draft: no stats data set"))
+        .ok()
+}
+
+/// The stats a champion select of `queue` reads at `bracket`, or `None` when there are none
+/// (logged).
+async fn session_data(
+    stats: &StatsClient,
+    queue: u32,
+    bracket: Bracket,
+) -> Option<(SessionData, Arc<ChampionsFile>)> {
+    let set = data_set(stats, queue, bracket).await?;
+    // ARAM picks no candidates from the tier list.
+    let tiers = async {
+        if queue == RANKED {
+            stats.tier_list(&set).await
+        } else {
+            Ok(None)
         }
     };
-    let (champions, tiers) = tokio::join!(stats.champions(&set), stats.tier_list(&set));
+    let (champions, tiers, comps) =
+        tokio::join!(stats.champions(&set), tiers, stats.compositions(&set));
+    let comps = comps.unwrap_or_else(|error| {
+        tracing::info!(%error, "draft: composition stats unavailable");
+        None
+    });
     let champions = match champions {
         Ok(Some(champions)) => champions,
         Ok(None) => {
@@ -509,12 +770,33 @@ async fn session_data(stats: &StatsClient) -> Option<(SessionData, Arc<Champions
         .filter(|name| !name.is_empty())
         .unwrap_or_else(|| patch.clone());
     let info = DataInfo {
+        queue,
         bracket: set.bracket.label().to_owned(),
         patch: name,
         games: champions.info.games,
         updated_at: champions.info.updated_at,
     };
-    Some((SessionData { set, info, tiers }, champions))
+    let comps = comps.map(|file| Arc::new(CompStats::new(&file)));
+    Some((
+        SessionData {
+            set,
+            info,
+            tiers,
+            comps,
+        },
+        champions,
+    ))
+}
+
+/// The stats queue of the game in champion select: from the client's gameflow session (`game`,
+/// when it could be read), else ARAM for a champion select with a bench, ranked otherwise.
+/// `None` for modes without published stats (Arena…).
+pub fn queue_of(game: Option<&Value>, view: &DraftView) -> Option<u32> {
+    match game {
+        Some(game) => stats_queue(game),
+        None if view.bench.is_some() => Some(ARAM),
+        None => Some(RANKED),
+    }
 }
 
 enum Loaded {
@@ -522,8 +804,15 @@ enum Loaded {
         session: u64,
         pool: Pool,
     },
+    /// The client's gameflow session (`None`: unreadable), for the queue.
+    Game {
+        session: u64,
+        game: Option<Value>,
+    },
     Data {
         session: u64,
+        /// Which data load of the session this answers: only the latest one counts.
+        ticket: u64,
         data: Option<(SessionData, Arc<ChampionsFile>)>,
     },
     Matchups {
@@ -541,6 +830,7 @@ struct Key {
     allies: Vec<(Option<u32>, bool, Option<domain::Role>, bool)>,
     enemies: Vec<Option<u32>>,
     bans: Vec<u32>,
+    bench: Option<Vec<u32>>,
 }
 
 impl Key {
@@ -560,6 +850,7 @@ impl Key {
                 .chain(&view.enemy_bans)
                 .copied()
                 .collect(),
+            bench: view.bench.clone(),
         }
     }
 }
@@ -570,10 +861,16 @@ struct Engine {
     stats: Option<StatsClient>,
     /// The server's `draftHelper` flag: off, the draft shows the teams without numbers.
     enabled: bool,
+    /// The player's stats bracket (Settings).
+    bracket: Bracket,
     tx: mpsc::UnboundedSender<Loaded>,
     fetches: Arc<Semaphore>,
     /// Counts champion selects: loads of an earlier one are ignored.
     session: u64,
+    /// The stats queue of this champion select, once known (`None`: no stats for the mode).
+    queue: Option<u32>,
+    /// Counts data set loads asked for: only the latest one's answer is taken.
+    ticket: u64,
     /// Counts data set loads within the session: matchups of an older one are ignored.
     load: u64,
     /// The latest view mapped from the client.
@@ -589,11 +886,40 @@ struct Engine {
 }
 
 impl Engine {
+    fn new(
+        out: watch::Sender<Option<DraftView>>,
+        lcu: watch::Receiver<Option<LcuClient>>,
+        stats: Option<StatsClient>,
+        tx: mpsc::UnboundedSender<Loaded>,
+    ) -> Self {
+        Self {
+            out,
+            lcu,
+            stats,
+            enabled: true,
+            bracket: FALLBACK_BRACKET,
+            tx,
+            fetches: Arc::new(Semaphore::new(PARALLEL_FETCHES)),
+            session: 0,
+            queue: None,
+            ticket: 0,
+            load: 0,
+            view: None,
+            pool: None,
+            data: None,
+            model: None,
+            requested: HashSet::new(),
+            version: 0,
+            last: None,
+        }
+    }
+
     async fn on_view(&mut self, view: Option<DraftView>) {
         let Some(view) = view else {
             if self.view.take().is_some() {
                 // Loads still on their way belong to the champion select that just ended.
                 self.session += 1;
+                self.queue = None;
                 self.pool = None;
                 self.data = None;
                 self.model = None;
@@ -603,42 +929,73 @@ impl Engine {
             self.out.send_if_modified(|d| d.take().is_some());
             return;
         };
-        if self.view.is_none() {
+        let started = self.view.is_none();
+        self.view = Some(view);
+        if started {
             self.start();
         }
-        self.view = Some(view);
         self.request_matchups();
         self.publish().await;
     }
 
-    /// A champion select starts: read the player's pool and the stats.
+    /// A champion select starts: read the player's pool and the game's queue, then the stats.
     fn start(&mut self) {
         self.session += 1;
         let session = self.session;
         let lcu = self.lcu.borrow().clone();
-        if let Some(lcu) = lcu {
-            let tx = self.tx.clone();
-            tokio::spawn(async move {
-                let pool = load_pool(&lcu).await;
-                let _ = tx.send(Loaded::Pool { session, pool });
+        let Some(lcu) = lcu else {
+            // No client to ask (tests): the view says enough.
+            self.on_game(None);
+            return;
+        };
+        let tx = self.tx.clone();
+        tokio::spawn(async move {
+            let (pool, game) = tokio::join!(load_pool(&lcu), lcu.get::<Value>(GAMEFLOW_SESSION));
+            let _ = tx.send(Loaded::Game {
+                session,
+                game: game.ok(),
             });
-        }
+            let _ = tx.send(Loaded::Pool { session, pool });
+        });
+    }
+
+    /// The game's queue is known: its stats load.
+    fn on_game(&mut self, game: Option<&Value>) {
+        let Some(view) = &self.view else { return };
+        self.queue = queue_of(game, view);
         self.load_data();
     }
 
-    fn load_data(&self) {
-        let Some(stats) = self.stats.clone() else {
+    fn load_data(&mut self) {
+        let (Some(stats), Some(queue)) = (self.stats.clone(), self.queue) else {
             return;
         };
-        let (tx, session) = (self.tx.clone(), self.session);
+        self.ticket += 1;
+        let (tx, session, ticket, bracket) =
+            (self.tx.clone(), self.session, self.ticket, self.bracket);
         tokio::spawn(async move {
-            let data = session_data(&stats).await;
-            let _ = tx.send(Loaded::Data { session, data });
+            let data = session_data(&stats, queue, bracket).await;
+            let _ = tx.send(Loaded::Data {
+                session,
+                ticket,
+                data,
+            });
         });
     }
 
     /// A newer stats index arrived: a running champion select switches to it.
-    fn on_new_index(&self) {
+    fn on_new_index(&mut self) {
+        if self.view.is_some() {
+            self.load_data();
+        }
+    }
+
+    /// The player picked another stats bracket: a running champion select switches to it.
+    fn on_bracket(&mut self, bracket: Bracket) {
+        if bracket == self.bracket {
+            return;
+        }
+        self.bracket = bracket;
         if self.view.is_some() {
             self.load_data();
         }
@@ -653,10 +1010,16 @@ impl Engine {
                 self.request_matchups();
                 true
             }
+            Loaded::Game { session, game } if session == self.session => {
+                self.on_game(game.as_ref());
+                // The queue shows at once (the stats follow).
+                true
+            }
             Loaded::Data {
                 session,
+                ticket,
                 data: Some((data, champions)),
-            } if session == self.session => {
+            } if session == self.session && ticket == self.ticket => {
                 if self.data.as_ref().is_some_and(|d| d.set == data.set) {
                     return false;
                 }
@@ -766,6 +1129,7 @@ impl Engine {
             }
         };
         enrichment.apply(&mut view);
+        view.queue = self.queue;
         self.out.send_if_modified(|current| {
             if current.as_ref() == Some(&view) {
                 return false;
@@ -784,6 +1148,14 @@ async fn flag_changed(remote: &mut watch::Receiver<RemoteConfig>) -> bool {
     remote.borrow_and_update().features.draft_helper
 }
 
+/// Waits for the stats bracket of the settings to change (never, once they're gone).
+async fn bracket_changed(settings: &mut watch::Receiver<Settings>) -> Bracket {
+    if settings.changed().await.is_err() {
+        return std::future::pending().await;
+    }
+    settings.borrow_and_update().stats_bracket
+}
+
 /// Waits for a different index (never, without stats).
 async fn index_changed(rx: &mut Option<watch::Receiver<Option<Arc<StatsIndex>>>>) -> Option<()> {
     let Some(receiver) = rx.as_mut() else {
@@ -796,36 +1168,32 @@ async fn index_changed(rx: &mut Option<watch::Receiver<Option<Arc<StatsIndex>>>>
     None
 }
 
-/// Runs the draft helper: takes the views mapped from the client (`raw`), adds the model's
-/// numbers and publishes them on `out`, until `raw` closes.
+/// The running draft helper's ends.
+pub(crate) struct Helper {
+    /// Where the core sends the champion-select views it maps (teams only; `None` when it ends).
+    pub sessions: watch::Sender<Option<DraftView>>,
+    /// The same views with the model's numbers, for the UI.
+    pub views: watch::Receiver<Option<DraftView>>,
+    pub task: JoinHandle<()>,
+}
+
+/// Runs the draft helper: takes the views mapped from the client, adds the model's numbers and
+/// publishes them, until the core stops sending. The player's `settings` choose the stats
+/// bracket.
 pub(crate) fn spawn(
-    mut raw: watch::Receiver<Option<DraftView>>,
-    out: watch::Sender<Option<DraftView>>,
     lcu: watch::Receiver<Option<LcuClient>>,
     stats: Option<StatsClient>,
     mut remote: watch::Receiver<RemoteConfig>,
-) -> JoinHandle<()> {
-    tokio::spawn(async move {
+    mut settings: watch::Receiver<Settings>,
+) -> Helper {
+    let (sessions, mut raw) = watch::channel(None);
+    let (out, views) = watch::channel(None);
+    let task = tokio::spawn(async move {
         let (tx, mut rx) = mpsc::unbounded_channel();
         let mut index = stats.as_ref().map(StatsClient::subscribe);
-        let enabled = remote.borrow_and_update().features.draft_helper;
-        let mut engine = Engine {
-            out,
-            lcu,
-            stats,
-            enabled,
-            tx,
-            fetches: Arc::new(Semaphore::new(PARALLEL_FETCHES)),
-            session: 0,
-            load: 0,
-            view: None,
-            pool: None,
-            data: None,
-            model: None,
-            requested: HashSet::new(),
-            version: 0,
-            last: None,
-        };
+        let mut engine = Engine::new(out, lcu, stats, tx);
+        engine.enabled = remote.borrow_and_update().features.draft_helper;
+        engine.bracket = settings.borrow_and_update().stats_bracket;
         let mut due: Option<Instant> = None;
         loop {
             tokio::select! {
@@ -852,9 +1220,15 @@ pub(crate) fn spawn(
                         engine.publish().await;
                     }
                 }
+                bracket = bracket_changed(&mut settings) => engine.on_bracket(bracket),
             }
         }
-    })
+    });
+    Helper {
+        sessions,
+        views,
+        task,
+    }
 }
 
 #[cfg(test)]
@@ -863,8 +1237,8 @@ mod tests {
     use super::*;
     use crate::champ_select;
     use domain::{
-        ChampionRoleStats, ChampionStats, DataSetInfo, MatchupEntry, RoleMatchups, TierEntry,
-        TierGrade,
+        ChampionRoleStats, ChampionStats, CompReading, CompositionStats, CompositionsFile,
+        DataSetInfo, MatchupEntry, RoleMatchups, TierEntry, TierGrade,
     };
     use serde_json::json;
 
@@ -986,12 +1360,14 @@ mod tests {
                 previous: None,
             },
             info: DataInfo {
+                queue: RANKED,
                 bracket: "Emerald+".into(),
                 patch: "26.19".into(),
                 games: 200_000,
                 updated_at: 1_790_000_000_000,
             },
             tiers: Some(Arc::new(tiers())),
+            comps: None,
         }
     }
 
@@ -1250,6 +1626,293 @@ mod tests {
         assert!(locked.team.unwrap().percent > hovering.team.unwrap().percent);
     }
 
+    /// `(champion, role, damage per minute, frontline share, crowd control)` rows of a
+    /// compositions file, each over 4,000 games with an even record.
+    type CompRows<'a> = &'a [(u32, Option<domain::Role>, [f64; 3], f64, f64)];
+
+    fn comps_file(queue: u32, lengths: Vec<u32>, rows: CompRows<'_>) -> CompositionsFile {
+        let stats = |id, role, dmg, front, cc, len: Vec<(u32, u32)>| CompositionStats {
+            id,
+            role,
+            n: 4_000,
+            dmg,
+            front,
+            cc,
+            len,
+        };
+        let mut roles: Vec<Option<domain::Role>> = Vec::new();
+        for row in rows {
+            if !roles.contains(&row.1) {
+                roles.push(row.1);
+            }
+        }
+        CompositionsFile {
+            info: DataSetInfo { queue, ..info() },
+            lengths,
+            // Usual picks: a fifth of the team each, 20 s of crowd control.
+            roles: roles
+                .into_iter()
+                .map(|role| stats(0, role, [300.0, 300.0, 30.0], 0.2, 20.0, vec![]))
+                .collect(),
+            champions: rows
+                .iter()
+                .map(|&(id, role, dmg, front, cc)| {
+                    let even = vec![(1_000, 500), (2_000, 1_000), (1_000, 500)];
+                    stats(id, role, dmg, front, cc, even)
+                })
+                .collect(),
+        }
+    }
+
+    fn ranked_comps() -> Arc<CompStats> {
+        use domain::Role::{Jungle, Middle, Support, Top};
+        Arc::new(CompStats::new(&comps_file(
+            RANKED,
+            vec![25, 35],
+            &[
+                (MALPHITE, Some(Top), [100.0, 500.0, 20.0], 0.34, 40.0),
+                (SHEN, Some(Top), [300.0, 200.0, 100.0], 0.33, 30.0),
+                (ORNN, Some(Top), [200.0, 300.0, 50.0], 0.36, 45.0),
+                (LEE_SIN, Some(Jungle), [500.0, 50.0, 60.0], 0.22, 15.0),
+                (AHRI, Some(Middle), [50.0, 700.0, 40.0], 0.15, 18.0),
+                (THRESH, Some(Support), [100.0, 250.0, 30.0], 0.25, 35.0),
+                (IRELIA, Some(Top), [700.0, 20.0, 60.0], 0.28, 12.0),
+                (IRELIA, Some(Middle), [650.0, 20.0, 60.0], 0.22, 12.0),
+                (VIEGO, Some(Jungle), [600.0, 30.0, 70.0], 0.2, 8.0),
+            ],
+        )))
+    }
+
+    #[test]
+    fn composes_both_teams_hovers_as_such() {
+        let model = DraftStats::new(&world());
+        let data = SessionData {
+            comps: Some(ranked_comps()),
+            ..session_data()
+        };
+        let e = enrich(
+            &view(MALPHITE, false, &[IRELIA, VIEGO]),
+            &model,
+            &data,
+            None,
+        );
+        let comps = e.comps.unwrap();
+        assert_eq!(comps.lengths, [25, 35]);
+        // You hover Malphite, Lee Sin and Ahri are locked, Thresh is hovered.
+        let allies: Vec<(u32, bool)> = comps
+            .allies
+            .members
+            .iter()
+            .map(|m| (m.champion_id, m.hovering))
+            .collect();
+        assert_eq!(
+            allies,
+            [
+                (MALPHITE, true),
+                (LEE_SIN, false),
+                (AHRI, false),
+                (THRESH, true)
+            ]
+        );
+        assert_eq!(comps.allies.counted, 4);
+        assert_eq!(comps.allies.games, 4_000);
+        // Enemies over their likely roles: Irelia mostly top (0.28), a bit mid (0.22).
+        assert_eq!(comps.enemies.counted, 2);
+        let irelia = &comps.enemies.members[0];
+        assert!(
+            irelia.frontline > 0.27 && irelia.frontline < 0.28,
+            "{irelia:?}"
+        );
+        assert!(irelia.damage.physical > 0.85);
+        assert!(comps.enemies.readings.is_empty(), "two picks: too early");
+        // Magic-heavy allies: Malphite, Ahri, Thresh.
+        assert!(comps.allies.damage.magic > comps.allies.damage.physical);
+
+        // Each pick's team: your hover makes way for it.
+        let with = |c: u32| {
+            e.suggestions
+                .iter()
+                .find(|s| s.champion_id == c)
+                .and_then(|s| s.comp.clone())
+                .unwrap()
+        };
+        let malphite = with(MALPHITE);
+        assert!(malphite.members.is_empty(), "numbers only");
+        assert_eq!(malphite.counted, 4);
+        assert!((malphite.frontline - comps.allies.frontline).abs() < 1e-9);
+        assert!(with(SHEN).damage.physical > malphite.damage.physical);
+
+        // Without composition stats: no compositions, the rest as before.
+        let bare = enrich(
+            &view(MALPHITE, false, &[IRELIA]),
+            &model,
+            &session_data(),
+            None,
+        );
+        assert!(bare.comps.is_none() && bare.suggestions.iter().all(|s| s.comp.is_none()));
+        assert!(!bare.suggestions.is_empty());
+    }
+
+    const LUX: u32 = 99;
+    const JINX: u32 = 222;
+    const SONA: u32 = 37;
+    const ZIGGS: u32 = 115;
+    const BRAND: u32 = 63;
+    const SION: u32 = 14;
+
+    fn aram_data() -> (DraftStats, SessionData) {
+        let row = |id, g: u32, wr: f64| ChampionStats {
+            id,
+            g,
+            w: count(f64::from(g) * wr),
+            bans: 0,
+            roles: vec![ChampionRoleStats {
+                role: None,
+                g,
+                w: count(f64::from(g) * wr),
+                prev: None,
+            }],
+        };
+        let champions = ChampionsFile {
+            info: DataSetInfo {
+                queue: ARAM,
+                ..info()
+            },
+            champions: vec![
+                row(LUX, 20_000, 0.52),
+                row(JINX, 20_000, 0.50),
+                row(MALPHITE, 20_000, 0.55),
+                row(SONA, 20_000, 0.53),
+                row(ZIGGS, 20_000, 0.51),
+                row(BRAND, 20_000, 0.54),
+                row(SION, 20_000, 0.49),
+            ],
+            priors: vec![],
+        };
+        let comps = comps_file(
+            ARAM,
+            vec![17, 22],
+            &[
+                (LUX, None, [50.0, 900.0, 10.0], 0.12, 30.0),
+                (JINX, None, [700.0, 20.0, 30.0], 0.14, 10.0),
+                (MALPHITE, None, [100.0, 500.0, 10.0], 0.32, 40.0),
+                (SONA, None, [50.0, 400.0, 10.0], 0.13, 20.0),
+                (ZIGGS, None, [30.0, 950.0, 10.0], 0.12, 5.0),
+                (BRAND, None, [40.0, 1_000.0, 50.0], 0.13, 15.0),
+                (SION, None, [500.0, 100.0, 20.0], 0.4, 35.0),
+            ],
+        );
+        let data = SessionData {
+            set: DataSet {
+                queue: ARAM,
+                ..session_data().set
+            },
+            info: DataInfo {
+                queue: ARAM,
+                ..session_data().info
+            },
+            tiers: None,
+            comps: Some(Arc::new(CompStats::new(&comps))),
+        };
+        (DraftStats::new(&champions), data)
+    }
+
+    fn aram_view(bench: &[u32]) -> DraftView {
+        champ_select::map_session(&json!({
+            "localPlayerCellId": 0,
+            "myTeam": [
+                { "cellId": 0, "championId": LUX },
+                { "cellId": 1, "championId": JINX },
+                { "cellId": 2, "championId": MALPHITE },
+                { "cellId": 3, "championId": SONA },
+                { "cellId": 4, "championId": ZIGGS }
+            ],
+            "theirTeam": [],
+            "benchEnabled": true,
+            "benchChampions": bench.iter().map(|c| json!({ "championId": c })).collect::<Vec<_>>(),
+            "allowRerolling": true,
+            "rerollsRemaining": 1,
+            "timer": { "phase": "FINALIZATION", "adjustedTimeLeftInPhase": 50_000 }
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn aram_ranks_your_champion_and_the_bench() {
+        let (model, data) = aram_data();
+        let pool = Pool {
+            mastery: [(
+                BRAND,
+                Mastery {
+                    level: 6,
+                    points: 60_000,
+                },
+            )]
+            .into(),
+            ..Pool::default()
+        };
+        let e = enrich(&aram_view(&[SION, BRAND]), &model, &data, Some(&pool));
+        assert_eq!(e.data.as_ref().map(|d| d.queue), Some(ARAM));
+        let order: Vec<u32> = e.suggestions.iter().map(|s| s.champion_id).collect();
+        assert_eq!(order, [BRAND, LUX, SION], "by the team's chance with each");
+        let brand = &e.suggestions[0];
+        let lux = &e.suggestions[1];
+        assert!(lux.gain.abs() < 1e-9, "yours: the team as it is");
+        assert!((lux.estimate.percent - e.team.unwrap().percent).abs() < 1e-9);
+        assert!(brand.gain > 0.5 && e.suggestions[2].gain < -0.5);
+        assert_eq!(brand.mastery.map(|m| m.level), Some(6));
+        // Why: its own ARAM strength, over its games.
+        let why = &brand.reasons[0];
+        assert_eq!((why.kind, why.games), (ReasonKind::Base, 20_000));
+        assert!(why.points > 3.0 && why.points < 4.0, "{why:?}");
+        assert!(e.suggestions.windows(2).all(|w| w[0].tier <= w[1].tier));
+        // Compositions: yours now, and the team with each.
+        let comps = e.comps.unwrap();
+        assert_eq!(comps.lengths, [17, 22]);
+        assert_eq!(comps.allies.counted, 5);
+        assert_eq!(comps.enemies.counted, 0, "the enemy team is hidden in ARAM");
+        assert!(comps.allies.readings.contains(&CompReading::MostlyMagic));
+        let sion = e.suggestions[2].comp.as_ref().unwrap();
+        assert!(sion.frontline > comps.allies.frontline);
+        assert!(sion.damage.physical > comps.allies.damage.physical);
+        assert!(e.enemies.is_empty());
+    }
+
+    #[test]
+    fn aram_without_a_champion_yet_shows_the_team_only() {
+        let (model, data) = aram_data();
+        let mut view = aram_view(&[BRAND]);
+        view.allies[0].champion_id = None;
+        let e = enrich(&view, &model, &data, None);
+        assert!(e.suggestions.is_empty());
+        assert!(e.team.is_some() && e.comps.is_some());
+    }
+
+    #[test]
+    fn the_queue_comes_from_the_game_else_the_bench() {
+        let ranked = view(MALPHITE, false, &[]);
+        let aram = aram_view(&[]);
+        let game =
+            |id: u64, map: u64| json!({ "gameData": { "queue": { "id": id, "mapId": map } } });
+        assert_eq!(queue_of(Some(&game(450, 12)), &ranked), Some(ARAM));
+        assert_eq!(queue_of(Some(&game(420, 11)), &aram), Some(RANKED));
+        assert_eq!(queue_of(Some(&game(1_700, 30)), &ranked), None, "Arena");
+        assert_eq!(queue_of(None, &ranked), Some(RANKED));
+        assert_eq!(queue_of(None, &aram), Some(ARAM));
+    }
+
+    #[test]
+    fn ties_share_a_tier() {
+        let scores = [
+            (1.0, 0.1),
+            (0.95, 0.1),
+            (0.5, 0.1),
+            (0.45, 0.2),
+            (0.1, 0.05),
+        ];
+        assert_eq!(tie_tiers(scores), [0, 0, 1, 1, 2]);
+    }
+
     #[test]
     fn roles_unknown_means_no_suggestions() {
         let model = DraftStats::new(&world());
@@ -1269,23 +1932,7 @@ mod tests {
     async fn loads_of_an_ended_champion_select_are_dropped() {
         let (out, published) = watch::channel(None);
         let (tx, _rx) = mpsc::unbounded_channel();
-        let mut engine = Engine {
-            out,
-            lcu: watch::channel(None).1,
-            stats: None,
-            enabled: true,
-            tx,
-            fetches: Arc::new(Semaphore::new(1)),
-            session: 0,
-            load: 0,
-            view: None,
-            pool: None,
-            data: None,
-            model: None,
-            requested: HashSet::new(),
-            version: 0,
-            last: None,
-        };
+        let mut engine = Engine::new(out, watch::channel(None).1, None, tx);
         engine.on_view(Some(view(MALPHITE, false, &[]))).await;
         let started = engine.session;
         assert!(published.borrow().is_some(), "teams show at once");

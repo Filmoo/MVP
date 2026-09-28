@@ -22,8 +22,8 @@ mod update;
 pub use backend::{ApiError, ApiErrorCode, BackendError, Health};
 pub use client::{AppInfo, ClientConnection, ClientStatus, GameflowPhase};
 pub use draft::{
-    DataInfo, DraftPhase, DraftSlot, DraftView, Estimate, Mastery, PersonalRecord, Reason,
-    ReasonKind, RoleOdds, Suggestion,
+    CompMember, CompReading, Compositions, DamageMix, DataInfo, DraftPhase, DraftSlot, DraftView,
+    Estimate, Mastery, PersonalRecord, Reason, ReasonKind, RoleOdds, Suggestion, TeamComp,
 };
 pub use game_data::{
     ChampionInfo, GameData, ItemInfo, RankEmblem, RankEmblems, RuneInfo, RuneStyle, SpellInfo,
