@@ -118,7 +118,7 @@ detection, composite player scores, live win probability, sending data to third-
   Riot also publishes these emblems for developers on developer.riotgames.com: before the
   production-key application, check which source Riot prefers and switch if needed
   (`static_data::emblems`, one constant).
-- **Per-game grades (2026-09-28, built; gray: a composite score, the owner can veto it).** Every
+- **Per-game grades (2026-09-28, built; gray: a composite score; the owner kept it the same day).** Every
   finished game in a match history (yours on Home, anyone's on a player page) gets a letter
   (S+ to C), a score out of 10 and a place among the ten; an opened game shows all ten players'.
   Why it stays on the right side: it rates **one finished game's scoreboard, not a player** (no

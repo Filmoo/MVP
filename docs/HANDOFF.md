@@ -1,15 +1,63 @@
 # Handoff — finishing MVP on a machine with a League client
 
-Written 2026-09-27, updated 2026-09-28 at the end of the second cloud session. Read `CLAUDE.md`
+Written 2026-09-27, updated 2026-09-28 at the end of the third cloud session. Read `CLAUDE.md`
 first (rules, layout, commands), then `docs/decisions.md` (the owner's product calls),
 `docs/policy.md` (Riot red lines) and `docs/architecture.md`. Work on branch
 `claude/upbeat-hamilton-0bms1t`.
+
+## Summary for the next agent (2026-09-28, end of the third session)
+Branch `claude/upbeat-hamilton-0bms1t`, version 0.2.0, `check.mjs full` green, CI green from run
+41 on (runs 26–40 failed on the crawler image; see "Done").
+
+**Done this session**
+- Features: glass that visibly refracts (floating optics, loupes, frosted cores), Riot's ranked
+  emblems at run time with MVP's own crest meanwhile, French UI and core words, diagnostics and
+  logs (Settings → About), draft insights (compositions, ARAM bench, stats rank), match insights
+  (a grade per game, the whole game behind each row; job 10).
+- Fixes: CI's crawler image couldn't write `/data` (every run since it was added failed);
+  `/champions` built ~170 tiles before its first frame (now in slices, `lib/progressive.ts`);
+  `settle()` returned before lazily loaded views mounted (tests pushed events to nobody); the perf
+  suite timed Playwright's trace screencast; several test races (`data/follow.ts`).
+- Owner's calls: grades stay (policy.md); bundle budgets raised once, 46 KB startup / 125 KB
+  total (`ui/scripts/check-bundle.mjs`); release v0.2.0 once the update key exists (below).
+
+**To fix / finish**
+1. **Release v0.2.0 is blocked on the update key** (owner only): `pnpm tauri signer generate`,
+   public key → `apps/desktop/tauri.conf.json` `plugins.updater.pubkey` (committed), private key +
+   password → GitHub secrets (apps/backend/README.md, "The signing key pair"). Then tag `v0.2.0`
+   on a green commit: `release.yml` builds a signed installer into a draft release. Until then
+   `release.yml` stops at its first step and no build updates itself.
+2. **Nothing has run against a real League client or on Windows** beyond CI's build and footprint:
+   the checklists below (client fields, imports, grades, emblems' crop, updates, glass frame times
+   on real GPUs) are the next real work, on the owner's machine.
+3. **Design review of the match insights screens**: the agent checked its own screenshots; run
+   the screenshots and the `ui-reviewer` agent on them (Home and player page: rows, the opened
+   game at 420 → 2560 px, the grade's why, French), fix P0/P1.
+4. Calibrate on crawled data: grades (`crates/stats/src/grade.rs`, each role should average 5),
+   composition readings and ARAM length buckets (job 9), the draft model (job 4).
+5. Crawl again for `compositions.json` (older games lack the numbers); check real published files
+   against the pages (sizes, thin Master+ data, `n = 0` sections).
+6. Bundle: at 45.1 / 46 KB and 123.1 / 125 KB. Look for savings before the next feature: lazy
+   views re-list ~6 startup files in their preload lists; shared startup code splits into a new
+   chunk whenever a lazy chunk imports part of it.
+7. Production Riot key: register the product (policy.md lists the endpoints to declare); a dev
+   key crawls ~2k games a day.
+
+**To implement next** (none started)
+- Match history: filters (queue, champion), "load more", LP won/lost per game and a post-game
+  summary card.
+- Tier list trends (this patch against the last: win/pick rate arrows) and champion mastery on
+  the profile.
+- The updater's `requireSignedVersion` once signatures carry the version (job 6).
+- Later, by the owner's earlier calls: an in-game overlay (the architecture is ready for it, not
+  wanted yet); no ban suggestions, no AI picks.
 
 ## State
 Everything below is merged on `claude/upbeat-hamilton-0bms1t` and green on
 `node scripts/check.mjs full`, except where marked.
 
-- **Desktop app** (Tauri 2 + SolidJS): Home (own profile from the LCU), Draft (live champ select,
+- **Desktop app** (Tauri 2 + SolidJS): Home (own profile from the LCU, a grade on every game and
+  the whole game behind each row), Draft (live champ select,
   stats-only model on the published stats, pool-first picks, both teams' compositions, ARAM's
   bench ranked by the team's chances), Live (loading-screen scouting of
   all 10 players), player search (title bar, Ctrl+K) + player pages, build imports (rune page,
@@ -119,8 +167,8 @@ Everything below is merged on `claude/upbeat-hamilton-0bms1t` and green on
    items, spells, runes, every grade; the page owner's line marked). Your games are graded by the
    core from `GET /lol-match-history/v1/games/{gameId}` (each read once, after the profile);
    others' by the backend, which also answers `GET /v1/matches/{platform}/{matchId}`. Left:
-   - **the owner's call on the gray area** (policy.md): grades of all ten players in an opened
-     game, the letters' names and cut-offs, showing the score, MVP/ACE;
+   - *(owner, 2026-09-28: kept)* the gray area (policy.md): grades of all ten players in an
+     opened game, the letters, the score, MVP/ACE;
    - calibrate the references and cut-offs on crawled games (`crates/stats/src/grade.rs`: role
      shares, kill-participation offsets, scales; each role should average 5, S+ should be rare);
    - the backend's match snapshot moved to format 2: the first start after the upgrade begins
@@ -128,9 +176,8 @@ Everything below is merged on `claude/upbeat-hamilton-0bms1t` and green on
    - Match-V5 and streamer mode: we treat a participant without `riotIdGameName` as hidden; check
      what Riot sends for hidden players today (policy.md "Re-identify Streamer Mode players");
    - bundle: the grade chip and the rows' wiring cost the first screen +0.9 KB gzip, the game and
-     the why (in the player page's chunk) and their words +4.7 KB; together with the draft
-     insights this is over the 120 KB total budget: savings to find (chunking) or a deliberate
-     raise.
+     the why (in the player page's chunk) and their words +4.7 KB; the budgets were raised for it
+     with the owner's OK (46 KB startup, 125 KB total).
 
 9. *(built, against mock-lcu and synthetic stats only)* **Draft insights** (architecture.md "Stats
    pipeline" and "Stats in the app"): the crawler keeps each game's length and every player's
