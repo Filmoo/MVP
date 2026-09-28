@@ -3,7 +3,8 @@ import { useData } from "../../data/context";
 import type { PlayerProfile } from "../../data/generated/PlayerProfile";
 import { ChampionArt, ProfileIcon } from "../../design/GameIcon";
 import { liquid } from "../../design/liquid/liquid";
-import { TierBadge, TierCrest } from "../../design/TierBadge";
+import { RankEmblem } from "../../design/RankEmblem";
+import { TierBadge } from "../../design/TierBadge";
 import { duration, kdaRatio, percent, REMAKE_MAX_SECONDS, winRate } from "../../lib/format";
 import { ROLE_LABEL } from "../../lib/roles";
 import styles from "./ProfileHeader.module.css";
@@ -81,7 +82,7 @@ export function ProfileHeader(props: { profile: PlayerProfile }): JSX.Element {
               when={props.profile.soloQueue}
               fallback={
                 <>
-                  <TierCrest tier="iron" size={56} class={styles.unrankedCrest} />
+                  <RankEmblem tier="unranked" size="lg" />
                   <div class={styles.rankText}>
                     <span class={styles.queue}>Ranked Solo/Duo</span>
                     <span class={styles.unranked}>Unranked</span>
@@ -93,7 +94,7 @@ export function ProfileHeader(props: { profile: PlayerProfile }): JSX.Element {
                 const wr = () => winRate(q().wins, q().losses) ?? 0;
                 return (
                   <>
-                    <TierCrest tier={q().tier} size={56} />
+                    <RankEmblem tier={q().tier} size="lg" />
                     <div class={styles.rankText}>
                       <span class={styles.queue}>Ranked Solo/Duo</span>
                       <div class={styles.rankLine}>

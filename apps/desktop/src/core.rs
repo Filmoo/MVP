@@ -11,7 +11,7 @@ use companion::remote::{self, RemoteConfigStore};
 use companion::settings::SettingsStore;
 use companion::stats::StatsClient;
 use companion::{ScoutingHandle, Services, ViewReporter};
-use domain::{ClientStatus, DraftView, GameData, LiveGame, StatsIndex};
+use domain::{ClientStatus, DraftView, GameData, LiveGame, RankEmblem, RankEmblems, StatsIndex};
 use tauri::{AppHandle, Emitter as _, Manager as _, Runtime};
 use tokio::sync::watch;
 
@@ -30,6 +30,10 @@ pub struct Core {
 /// Game data of the current patch, once loaded.
 #[derive(Debug, Default)]
 pub struct GameDataState(pub RwLock<Option<GameData>>);
+
+/// Riot's ranked emblems, once downloaded (or read from the cache).
+#[derive(Debug, Default)]
+pub struct EmblemState(pub RwLock<Option<RankEmblems>>);
 
 /// Our backend (player lookups, scouting), `None` when the client couldn't be built.
 #[derive(Debug)]
@@ -143,6 +147,8 @@ fn platform_services<R: Runtime>(
 pub fn start<R: Runtime>(app: &AppHandle<R>, settings: &SettingsStore) {
     app.manage(GameDataState::default());
     load_game_data(app);
+    app.manage(EmblemState::default());
+    load_rank_emblems(app);
     let dir = app.path().app_config_dir().unwrap_or_else(|error| {
         tracing::error!(%error, "no config directory, using the temporary one");
         std::env::temp_dir().join(&app.config().identifier)
@@ -273,6 +279,53 @@ fn forward<R: Runtime, T: Clone + serde::Serialize + Send + Sync + 'static>(
             if let Err(error) = app.emit(event, current) {
                 tracing::warn!(%error, event, "cannot emit");
             }
+        }
+    });
+}
+
+/// Loads Riot's ranked emblems (downloaded once, cropped and cached) and hands them to the UI.
+fn load_rank_emblems<R: Runtime>(app: &AppHandle<R>) {
+    use base64::Engine as _;
+    let cache = match app.path().app_cache_dir() {
+        Ok(dir) => dir.join("emblems"),
+        Err(error) => {
+            tracing::error!(%error, "no cache directory for ranked emblems");
+            return;
+        }
+    };
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let emblems =
+            match static_data::emblems::RankEmblems::new(static_data::emblems::CDRAGON, cache) {
+                Ok(source) => source.load().await,
+                Err(error) => {
+                    tracing::warn!(%error, "ranked emblems unavailable");
+                    return;
+                }
+            };
+        if emblems.is_empty() {
+            return;
+        }
+        let emblems = RankEmblems {
+            emblems: emblems
+                .into_iter()
+                .map(|(tier, png)| RankEmblem {
+                    tier,
+                    url: format!(
+                        "data:image/png;base64,{}",
+                        base64::engine::general_purpose::STANDARD.encode(png)
+                    ),
+                })
+                .collect(),
+        };
+        tracing::info!(tiers = emblems.emblems.len(), "ranked emblems ready");
+        if let Some(state) = app.try_state::<EmblemState>()
+            && let Ok(mut slot) = state.0.write()
+        {
+            *slot = Some(emblems.clone());
+        }
+        if let Err(error) = app.emit("rank-emblems", emblems) {
+            tracing::warn!(%error, "cannot emit ranked emblems");
         }
     });
 }

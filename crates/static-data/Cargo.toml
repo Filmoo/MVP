@@ -9,6 +9,7 @@ publish.workspace = true
 
 [dependencies]
 domain.workspace = true
+png.workspace = true
 reqwest.workspace = true
 rustls.workspace = true
 rustls-platform-verifier.workspace = true

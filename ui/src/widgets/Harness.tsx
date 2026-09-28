@@ -12,8 +12,9 @@ import { Widget } from "./Widget";
  * checks of widgets no page shows yet, such as `build-summary`); `?show=glass` the glass lab
  * (dev server only).
  */
-// Dev server only (`pnpm dev`): production builds leave the lab out.
+// Dev server only (`pnpm dev`): production builds leave the labs out.
 const GlassLab = import.meta.env.DEV ? lazy(() => import("./GlassLab")) : undefined;
+const EmblemLab = import.meta.env.DEV ? lazy(() => import("./EmblemLab")) : undefined;
 
 export default function Harness(): JSX.Element {
   const shown = queryParam("show");
@@ -22,6 +23,13 @@ export default function Harness(): JSX.Element {
     return (
       <div class={page.page} data-harness>
         <GlassLab />
+      </div>
+    );
+  }
+  if (EmblemLab && shown === "emblems") {
+    return (
+      <div class={page.page} data-harness>
+        <EmblemLab />
       </div>
     );
   }

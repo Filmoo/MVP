@@ -11,6 +11,8 @@ use std::time::Duration;
 use domain::{ChampionInfo, GameData, ItemInfo, RuneInfo, RuneStyle, SpellInfo};
 use serde::Deserialize;
 
+pub mod emblems;
+
 pub const DDRAGON: &str = "https://ddragon.leagueoflegends.com";
 const FILES: [&str; 4] = [
     "champion.json",
@@ -38,6 +40,8 @@ pub enum StaticDataError {
     NothingCached,
     #[error("TLS setup: {0}")]
     Tls(#[from] rustls::Error),
+    #[error("image: {0}")]
+    Image(String),
 }
 
 #[derive(Debug, Clone)]
@@ -216,7 +220,7 @@ impl DataDragon {
 
 /// TLS for public HTTPS: the operating system's certificate store (so corporate or antivirus
 /// roots keep working) with the ring crypto backend.
-fn public_tls() -> Result<rustls::ClientConfig, StaticDataError> {
+pub(crate) fn public_tls() -> Result<rustls::ClientConfig, StaticDataError> {
     use rustls_platform_verifier::BuilderVerifierExt as _;
     let provider = std::sync::Arc::new(rustls::crypto::ring::default_provider());
     Ok(rustls::ClientConfig::builder_with_provider(provider)

@@ -6,7 +6,8 @@ import type { Scouting } from "../../data/generated/Scouting";
 import { useTone } from "../../design/ambient";
 import { ChampionIcon, championIconUrl, SpellIcon } from "../../design/GameIcon";
 import { Icon } from "../../design/Icon";
-import { TierBadge, TierCrest } from "../../design/TierBadge";
+import { RankEmblem } from "../../design/RankEmblem";
+import { TierBadge } from "../../design/TierBadge";
 import { kdaRatio, percent, winRate } from "../../lib/format";
 import { ROLE_LABEL } from "../../lib/roles";
 import styles from "./LiveTeam.module.css";
@@ -36,7 +37,7 @@ function Rank(props: { card: ScoutCard }): JSX.Element {
       when={props.card.soloQueue}
       fallback={
         <div class={styles.rank}>
-          <TierCrest tier="iron" size={40} class={styles.unrankedCrest} />
+          <RankEmblem tier="unranked" size="sm" class={styles.crest} />
           <div class={styles.rankText}>
             <span class={styles.unranked}>Unranked</span>
             <span class={styles.small}>Solo/Duo</span>
@@ -46,7 +47,7 @@ function Rank(props: { card: ScoutCard }): JSX.Element {
     >
       {(q) => (
         <div class={styles.rank}>
-          <TierCrest tier={q().tier} size={40} class={styles.crest} />
+          <RankEmblem tier={q().tier} size="sm" class={styles.crest} />
           <div class={styles.rankText}>
             <TierBadge tier={q().tier} division={q().division} plain class={styles.tier} />
             <span class={`${styles.small} num`}>

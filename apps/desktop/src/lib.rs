@@ -53,6 +53,7 @@ pub fn run() {
             commands::client_status,
             commands::current_profile,
             commands::game_data,
+            commands::rank_emblems,
             commands::draft_state,
             commands::get_settings,
             commands::update_settings,

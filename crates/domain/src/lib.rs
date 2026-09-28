@@ -25,7 +25,9 @@ pub use draft::{
     DataInfo, DraftPhase, DraftSlot, DraftView, Estimate, Mastery, PersonalRecord, Reason,
     ReasonKind, RoleOdds, Suggestion,
 };
-pub use game_data::{ChampionInfo, GameData, ItemInfo, RuneInfo, RuneStyle, SpellInfo};
+pub use game_data::{
+    ChampionInfo, GameData, ItemInfo, RankEmblem, RankEmblems, RuneInfo, RuneStyle, SpellInfo,
+};
 pub use imports::{
     FailReason, FlashKey, FlashNote, ImportMode, ImportOutcome, ImportPart, ImportRequest,
     ImportResult, PartResult, SkipReason, SpellKey,

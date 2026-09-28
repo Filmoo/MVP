@@ -207,13 +207,6 @@
   flex: none;
 }
 
-.unrankedCrest {
-  flex: none;
-  color: var(--text-3);
-  filter: none;
-  opacity: 0.6;
-}
-
 .rankText {
   display: flex;
   flex-direction: column;
@@ -347,8 +340,9 @@
 }
 .skeletonCrest {
   flex: none;
-  width: 40px;
-  height: 40px;
+  /* The emblem's box (RankEmblem "sm"): nothing moves when the card lands. */
+  width: 48px;
+  height: 36px;
   border-radius: var(--radius-full);
 }
 .skeletonLine {
@@ -411,7 +405,6 @@
       "foot foot foot foot";
   }
   .crest,
-  .unrankedCrest,
   .skeletonCrest {
     display: none;
   }

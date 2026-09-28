@@ -241,11 +241,6 @@
   background: var(--loss);
 }
 
-.unrankedCrest {
-  color: var(--text-3);
-  filter: none;
-}
-
 .unranked {
   font-size: var(--text-lg);
   font-weight: var(--weight-semibold);

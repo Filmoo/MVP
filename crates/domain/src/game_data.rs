@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
+use crate::Tier;
+
 /// Static game data for one patch (names and asset ids), from Riot's Data Dragon.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -82,4 +84,23 @@ pub struct RuneInfo {
     pub icon: String,
     /// One-line description as plain text (Data Dragon's markup removed).
     pub short_desc: String,
+}
+
+/// Riot's ranked emblems as the core has them (`rank_emblems`, `rank-emblems` event): each tier's
+/// art cropped to 4:3, as a data URL. Tiers not downloaded yet are missing: the UI draws its own
+/// crest for them.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RankEmblems {
+    pub emblems: Vec<RankEmblem>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RankEmblem {
+    pub tier: Tier,
+    /// `data:image/png;base64,…`
+    pub url: String,
 }

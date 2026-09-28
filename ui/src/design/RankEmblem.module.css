@@ -1,0 +1,144 @@
+/*
+ * Ranked emblems (RankEmblem.tsx): Riot's art when the core has it, else MVP's own crest, both
+ * in the same 4:3 box. The crest's metal is mixed from the tier's colour token.
+ */
+.emblem {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+}
+
+.image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.unranked {
+  opacity: 0.55;
+  filter: grayscale(1);
+}
+
+.art {
+  display: block;
+  overflow: visible;
+  filter: drop-shadow(0 0 6px color-mix(in oklab, currentColor 40%, transparent));
+}
+
+/* Metal and gem, all from currentColor (the tier). */
+.light {
+  stop-color: color-mix(in oklab, currentColor 45%, white);
+}
+.mid {
+  stop-color: currentColor;
+}
+.dark {
+  stop-color: color-mix(in oklab, currentColor 45%, black);
+}
+.deep {
+  stop-color: color-mix(in oklab, currentColor 25%, black);
+}
+.shine {
+  stop-color: color-mix(in oklab, currentColor 20%, white);
+}
+
+.shield {
+  fill: var(--rank-metal);
+  stroke: color-mix(in oklab, currentColor 30%, black);
+  stroke-width: 1;
+}
+
+.bevel {
+  fill: none;
+  stroke: var(--rank-edge);
+  stroke-width: 1.2;
+  opacity: 0.9;
+}
+
+.ornament {
+  fill: var(--rank-edge);
+  stroke: color-mix(in oklab, currentColor 35%, black);
+  stroke-width: 0.6;
+}
+
+.wings {
+  fill: var(--rank-metal);
+  stroke: color-mix(in oklab, currentColor 35%, black);
+  stroke-width: 0.6;
+}
+
+.facetA {
+  fill: color-mix(in oklab, currentColor 30%, white);
+}
+.facetB {
+  fill: color-mix(in oklab, currentColor 60%, white);
+}
+.facetC {
+  fill: color-mix(in oklab, currentColor 80%, black);
+}
+.facetD {
+  fill: color-mix(in oklab, currentColor 55%, black);
+}
+
+.gemEdge {
+  fill: none;
+  stroke: color-mix(in oklab, currentColor 25%, black);
+  stroke-width: 0.8;
+}
+
+.glint {
+  fill: white;
+  opacity: 0.85;
+}
+
+.iron {
+  --rank-metal: url(#rank-metal-iron);
+  --rank-edge: url(#rank-edge-iron);
+  color: var(--rank-iron);
+}
+.bronze {
+  --rank-metal: url(#rank-metal-bronze);
+  --rank-edge: url(#rank-edge-bronze);
+  color: var(--rank-bronze);
+}
+.silver {
+  --rank-metal: url(#rank-metal-silver);
+  --rank-edge: url(#rank-edge-silver);
+  color: var(--rank-silver);
+}
+.gold {
+  --rank-metal: url(#rank-metal-gold);
+  --rank-edge: url(#rank-edge-gold);
+  color: var(--rank-gold);
+}
+.platinum {
+  --rank-metal: url(#rank-metal-platinum);
+  --rank-edge: url(#rank-edge-platinum);
+  color: var(--rank-platinum);
+}
+.emerald {
+  --rank-metal: url(#rank-metal-emerald);
+  --rank-edge: url(#rank-edge-emerald);
+  color: var(--rank-emerald);
+}
+.diamond {
+  --rank-metal: url(#rank-metal-diamond);
+  --rank-edge: url(#rank-edge-diamond);
+  color: var(--rank-diamond);
+}
+.master {
+  --rank-metal: url(#rank-metal-master);
+  --rank-edge: url(#rank-edge-master);
+  color: var(--rank-master);
+}
+.grandmaster {
+  --rank-metal: url(#rank-metal-grandmaster);
+  --rank-edge: url(#rank-edge-grandmaster);
+  color: var(--rank-grandmaster);
+}
+.challenger {
+  --rank-metal: url(#rank-metal-challenger);
+  --rank-edge: url(#rank-edge-challenger);
+  color: var(--rank-challenger);
+}

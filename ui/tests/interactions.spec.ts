@@ -2,6 +2,7 @@ import { expect, type Page, test } from "@playwright/test";
 import type { Settings } from "../src/data/generated/Settings";
 // Brings the window.__SCOUT_MOCK__ declaration into scope.
 import type {} from "../src/data/mock";
+import { rankEmblemsFixture } from "../src/data/mock/emblem-fixtures";
 import { openApp, SIZES, settle, trackErrors } from "./app";
 import { auditLayout } from "./layout-rules";
 
@@ -258,4 +259,18 @@ test("crash reports: opted in, a UI crash goes to the core once", async ({ page 
   await page.evaluate(() => window.__SCOUT_MOCK__?.emit("auto-accept", { kind: "failed", message: "HTTP 500" }));
   await page.waitForTimeout(300);
   expect((await sent(page, "report_error")).length).toBe(1);
+});
+
+test("rank emblems: MVP's crests until the core has Riot's, then Riot's, live", async ({ page }) => {
+  const errors = trackErrors(page);
+  await openApp(page, { view: "/" });
+  const emblem = page.locator("[data-widget=profile-header] [data-emblem]");
+  await expect(emblem).toHaveAttribute("data-emblem", "crest");
+  await page.evaluate((emblems) => window.__SCOUT_MOCK__?.emit("rank-emblems", emblems), rankEmblemsFixture);
+  await expect(emblem).toHaveAttribute("data-emblem", "riot");
+  await expect(emblem.locator("img")).toHaveAttribute("src", /^data:image\//);
+  // Live cards take them too (asked once for the whole app).
+  await openApp(page, { view: "/live", scenario: "emblems" });
+  await expect(page.locator("[data-testid=live-card] [data-emblem=riot]").first()).toBeVisible();
+  expect(errors).toEqual([]);
 });

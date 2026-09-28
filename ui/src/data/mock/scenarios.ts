@@ -8,6 +8,7 @@ import type { TierList } from "../generated/TierList";
 import { DEFAULT_REMOTE_CONFIG } from "../remote-defaults";
 import { CommandError, type CommandName, type Commands, type EventName, type Events } from "../transport";
 import { champSelectDraft, champSelectLocked, champSelectNoStats } from "./draft-fixtures";
+import { rankEmblemsFixture } from "./emblem-fixtures";
 import { corruptProfile, extremeProfile, newPlayerProfile, profile } from "./fixtures";
 import { flashKept, importAnswer, importFailures } from "./import-fixtures";
 import { liveExtreme, liveFailed, liveGame, liveScouting, searchPlayer } from "./live-fixtures";
@@ -84,6 +85,8 @@ const base: Scenario["responses"] = {
   app_info: { data: { name: "MVP", version: "0.1.0", platform: "web", installId: null } },
   client_status: { data: connectedIdle },
   current_profile: { data: profile },
+  // Riot's emblems come from the core (downloaded at run time): the preview draws MVP's crests.
+  rank_emblems: { data: null },
   draft_state: { data: null },
   // The browser preview has no core to persist settings: the effects choice lives in localStorage.
   get_settings: { handle: () => ({ ...defaultSettings, effects: loadEffects() }) },
@@ -260,6 +263,10 @@ export const scenarios = {
       get_settings: { data: { ...defaultSettings, crashReports: true } },
       app_info: { data: { name: "MVP", version: "0.1.0", platform: "web", installId } },
     },
+  },
+  emblems: {
+    description: "The core has Riot's ranked emblems (stand-in images here): Home and Live show them.",
+    responses: { ...base, rank_emblems: { data: rankEmblemsFixture }, client_status: { data: inGame }, live_game: { data: liveGame } },
   },
   "stats-empty": {
     description: "No champion stats published yet: the tier list and champion pages say so.",

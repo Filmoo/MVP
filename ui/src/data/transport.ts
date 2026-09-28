@@ -9,6 +9,7 @@ import type { ImportRequest } from "./generated/ImportRequest";
 import type { ImportResult } from "./generated/ImportResult";
 import type { LiveGame } from "./generated/LiveGame";
 import type { PlayerProfile } from "./generated/PlayerProfile";
+import type { RankEmblems } from "./generated/RankEmblems";
 import type { RemoteConfig } from "./generated/RemoteConfig";
 import type { RiotId } from "./generated/RiotId";
 import type { Settings } from "./generated/Settings";
@@ -24,6 +25,8 @@ export interface Commands {
   current_profile: { args: undefined; result: PlayerProfile | null };
   /** `null` until the core has loaded the current patch (a `game-data` event follows). */
   game_data: { args: undefined; result: GameData | null };
+  /** Riot's ranked emblems, `null` until the core has them (a `rank-emblems` event follows). */
+  rank_emblems: { args: undefined; result: RankEmblems | null };
   /** Current champion select, `null` outside of it (`draft` events follow changes). */
   draft_state: { args: undefined; result: DraftView | null };
   get_settings: { args: undefined; result: Settings };
@@ -89,6 +92,8 @@ export interface Commands {
 export interface Events {
   "client-status": ClientStatus;
   "game-data": GameData;
+  /** Riot's ranked emblems, once the core has them (downloaded once, then from its cache). */
+  "rank-emblems": RankEmblems;
   /** `null` when champion select ends. */
   draft: DraftView | null;
   settings: Settings;

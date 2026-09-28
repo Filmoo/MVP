@@ -289,6 +289,26 @@ backdrop filter chained with CSS filter functions) → the glass' tint → rim l
 **The window backdrop** (`backdrop/`): one WebGL 1 canvas (first child of `[data-ambient-host]`,
 fixed, `z-index: -1`, `aria-hidden`, `data-free-style`), drawn **on demand only**.
 
+## Ranked emblems (`static_data::emblems`, `ui/src/design/RankEmblem.tsx`)
+- **Riot's art, at run time**: at start the desktop core loads the ten tier emblems
+  (`RankEmblems::load`): from its cache (`<app cache>/emblems/v1/emblem-<tier>.png`), else from
+  `CommunityDragon`'s mirror of the League client files (`…/rcp-fe-lol-static-assets/global/default/
+  ranked-emblem/emblem-<tier>.png`; the older `images/ranked-emblem` folder is tried next). The
+  client's 16:9 canvases are cropped to the crest (one window for every tier, x 37–63 %, y 30–65 %,
+  which keeps the client's hierarchy: higher tiers are bigger) and scaled to 192 × 144 (sharp at
+  80 × 60 on a 2× screen), then cached. A tier that fails is left out; offline, the cache serves.
+  Bump `CACHE_DIR` to fetch again (new art or another window).
+- The UI gets them as data URLs (`rank_emblems` command, `rank-emblems` event when they arrive;
+  `ui/src/data/emblems.ts` asks once per session). The app's CSP already allows `data:` images.
+- **`RankEmblem`** (`tier | "unranked"`, `sm` 48 × 36 · `md` 64 × 48 · `lg` 80 × 60) shows Riot's
+  art when it has it, else MVP's crest in the same box (`data-emblem="riot" | "crest"`), so
+  nothing moves when the art arrives. The crest: shield, bevel and cut gem defined once for the
+  page (a hidden SVG with each tier's metal gradients and `#rank-body`), ornaments per tier
+  (crowns, blades, wings, horns); colours mixed from the tier tokens (`--rank-<tier>`).
+- Mock scenarios: none by default (the crest shows), `?scenario=emblems` stands in stylized
+  emblems (no Riot art in the repository). Dev lab: `#/__harness?show=emblems` (every tier,
+  crest and art, at every size).
+
 ## Build imports (`companion::imports`)
 MVP writes a champion's build into the League client: its own rune page, its item set for the
 champion, the summoner spells (policy: docs/policy.md, "Build imports"). The UI asks with

@@ -103,7 +103,10 @@ start from your pool (mastery, your games) and only list champions you own · lo
 switches to Live and fills 10 cards (looked up by Riot ID: if some stay empty, check the
 session's `gameName`/`tagLine` fields) · search a
 Riot ID · close to tray keeps automations running · launch at startup starts in the tray ·
-RAM/idle CPU stay low (`scripts/windows-footprint.ps1`). Fix what differs from the mock; add a
+RAM/idle CPU stay low (`scripts/windows-footprint.ps1`) · after the first start Home and Live show
+Riot's ranked emblems (log "ranked emblems ready"; cache in `%LOCALAPPDATA%\gg.mvp.companion\emblems\v1`):
+the crop frames every tier (Iron's small crest to Challenger's wings) at 100 % and 150 %, and an
+offline first start shows MVP's crests. Fix what differs from the mock; add a
 mock-lcu scenario for anything the real client does that the mock didn't.
 
 Build imports (needs a `BuildSource` with real stats; the logs say "rune page imported", "item set

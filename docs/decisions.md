@@ -74,7 +74,7 @@ burden, not abusive. Design calls:
   Settings, saved by the core.
 - The hex mosaic in the backdrop is dropped: in screenshots it read as compression blocks.
 
-## 2026-09-29 — Refraction you can see (owner asked, Claude designed)
+## 2026-09-28 — Refraction you can see (owner asked, Claude designed)
 Owner: more visible distortion on the sides, real distortion that differs by shape, bent
 background widgets visible through the glass, precise and clearly optical, icons and text
 respected. Design calls:
@@ -88,6 +88,16 @@ respected. Design calls:
 - **Text first**: drops sit behind labels at rest and lift over them only while gliding.
 - Maps at screen density (up to 2×) for a precise bend; a glass lab in the dev server to see
   every shape bend detailed content.
+
+## 2026-09-28 — Rank emblems (owner asked, Claude designed)
+Owner: rank icons "look old/fake". Design calls:
+- **Riot's own emblems** where a player's rank shows (Home, Live cards): the League client's art,
+  downloaded by the core at run time from `CommunityDragon`'s mirror of the client's files,
+  cropped to the crest and cached on disk. Never in the repository (like Data Dragon icons).
+- **Our own crest until then** (first start offline, a download that fails): a metal shield with a
+  bevel and a cut gem in the tier's colour, with ornaments that grow with the tier as in the
+  client (crowns, blades, then wings), in the same 4:3 box so nothing moves when the art arrives.
+  The old flat hexagon is gone.
 
 ## 2026-09-28 — Scouting identity, app side of updates/config/reports (Claude)
 - **Scouting names players by Riot ID.** Client PUUIDs aren't our API key's (Riot encrypts

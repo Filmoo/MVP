@@ -136,3 +136,20 @@
   font-size: var(--text-xs);
   color: var(--text-2);
 }
+
+/* Emblem lab: every tier at every size. */
+.emblems {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--space-6);
+  padding: var(--space-6);
+  border-radius: var(--radius-4);
+  background: var(--bg-1);
+}
+
+.emblemCell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+}

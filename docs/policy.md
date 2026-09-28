@@ -101,6 +101,13 @@ detection, composite player scores, live win probability, sending data to third-
   PUUIDs, user names in paths, e-mails, credentials such as the LCU password, IPs). Kept 30 days,
   erasable per install id (shown in Settings once reports are on). Turning reports off deletes
   the ones not sent yet; nothing is written or sent while off.
+- **Riot's ranked emblems (2026-09-28, built; not gray, noted for the asset rules).** Game art
+  shown as Riot made it, like Data Dragon icons: the app downloads the League client's emblem
+  files (from `CommunityDragon`'s mirror of the client) at run time and caches them; they are
+  never committed or redistributed by us, and the request carries nothing about the player.
+  Riot also publishes these emblems for developers on developer.riotgames.com: before the
+  production-key application, check which source Riot prefers and switch if needed
+  (`static_data::emblems`, one constant).
 - **Remote config and self-updates (2026-09-28, shipped).** The app asks our server for its
   config and for updates with its version and install id only (no Riot data). Kill switches can
   only turn features **off**: they stop our own automations (auto-accept, each build import

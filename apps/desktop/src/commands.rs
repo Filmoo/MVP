@@ -4,13 +4,13 @@ use companion::settings::SettingsStore;
 use companion::stats::StatsClient;
 use domain::{
     AppInfo, BackendError, Bracket, ChampionPage, ClientStatus, DraftView, GameData, ImportRequest,
-    ImportResult, LiveGame, PlayerProfile, RemoteConfig, RiotId, Settings, StatsIndex, TierList,
-    UpdateStatus,
+    ImportResult, LiveGame, PlayerProfile, RankEmblems, RemoteConfig, RiotId, Settings, StatsIndex,
+    TierList, UpdateStatus,
 };
 use tauri::{Emitter as _, Manager as _};
 use tauri_plugin_autostart::ManagerExt as _;
 
-use crate::core::{Backend, Core, Crashes, GameDataState, InstallId, Remote, Stats};
+use crate::core::{Backend, Core, Crashes, EmblemState, GameDataState, InstallId, Remote, Stats};
 use crate::updater::Updates;
 
 #[tauri::command]
@@ -170,6 +170,17 @@ pub fn draft_state(app: tauri::AppHandle) -> Option<DraftView> {
 pub fn game_data(app: tauri::AppHandle) -> Option<GameData> {
     app.try_state::<GameDataState>()
         .and_then(|state| state.0.read().ok().and_then(|data| data.clone()))
+}
+
+/// Riot's ranked emblems, `None` until downloaded or read from the cache (`rank-emblems` follows).
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub fn rank_emblems(app: tauri::AppHandle) -> Option<RankEmblems> {
+    app.try_state::<EmblemState>()
+        .and_then(|state| state.0.read().ok().and_then(|emblems| emblems.clone()))
 }
 
 /// The player's settings.
