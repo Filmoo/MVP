@@ -112,6 +112,11 @@ Everything below is merged on `claude/upbeat-hamilton-0bms1t` and green on
    prefers (policy.md).
 
 ## Verify with the real client (Windows)
+When something doesn't work: Settings → About → **Copy diagnostics** (versions, the client's
+state, MVP's data and settings, the last 200 log lines with personal data removed) and paste it
+into the report; **Open log folder** shows `mvp.log` (this run) and `mvp.previous.log`
+(`%LOCALAPPDATA%\gg.mvp.companion\logs`). A release build has no console: the file is the log.
+
 ```sh
 pnpm install && node scripts/fetch-dev-assets.mjs
 RIOT_API_KEY=… pnpm backend              # 127.0.0.1:8787, the default the app uses

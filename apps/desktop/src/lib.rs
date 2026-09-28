@@ -2,6 +2,8 @@
 
 mod commands;
 mod core;
+mod diagnostics;
+mod logging;
 mod tray;
 mod updater;
 mod window;
@@ -14,13 +16,6 @@ use tauri_plugin_autostart::MacosLauncher;
 const AUTOSTART_ARG: &str = "--autostart";
 
 pub fn run() {
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "info,scout_desktop=debug".into()),
-        )
-        .init();
-
     let app = tauri::Builder::default()
         // A second launch focuses the existing window instead of starting another app.
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
@@ -33,6 +28,9 @@ pub fn run() {
         // Driven from the core (`updater.rs`); the webview has no updater permission.
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
+            // First: a release build has no console, the log file is all there is.
+            let log = logging::init(app.path().app_log_dir().ok().as_deref());
+            app.manage(core::LogFile(log));
             let settings = SettingsStore::load(
                 app.path()
                     .app_config_dir()?
@@ -70,7 +68,9 @@ pub fn run() {
             commands::update_status,
             commands::check_for_updates,
             commands::install_update,
-            commands::report_error
+            commands::report_error,
+            commands::diagnostics,
+            commands::open_logs
         ])
         .build(tauri::generate_context!())
         .expect("failed to build the Tauri application");

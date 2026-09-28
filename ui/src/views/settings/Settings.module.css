@@ -162,6 +162,29 @@
   color: var(--text-2);
 }
 
+.helpActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+
+/* Empty until a copy is tried: no room taken. */
+.helpStatus:empty {
+  display: none;
+}
+
+/* The clipboard fallback's text area: in the page, out of sight. */
+.offscreen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .note p {
   font-size: var(--text-md);
   color: var(--text-3);

@@ -105,6 +105,8 @@ const base: Scenario["responses"] = {
   check_for_updates: { handle: () => upToDate, delayMs: 700 },
   install_update: { data: null },
   report_error: { data: null },
+  diagnostics: { data: "MVP 0.0.0 · browser preview\nLeague client: Connected, phase None\n\n--- no log file ---\n" },
+  open_logs: { data: null },
   // Published champion stats (synthetic, see stats-fixtures.ts), answered from the core's cache.
   stats_index: { data: mockStatsIndex() },
   tier_list: { handle: tierList },

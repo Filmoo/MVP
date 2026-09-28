@@ -398,6 +398,12 @@ export const enViews = {
       updates: "Updates",
       dataTitle: "Your data",
       data: "MVP reads the League client on this computer and keeps your settings here, with no account. Player searches and loading-screen cards go through MVP's server, which asks Riot. Crash reports are sent only if you turn them on. Game names and icons come from Riot's Data Dragon.",
+      helpTitle: "Something not working?",
+      help: "Copy the diagnostics into your report: they tell what MVP and the League client were doing, without your name or account.",
+      copy: "Copy diagnostics",
+      copied: "Copied: paste them into your report.",
+      copyFailed: "Couldn't copy them: the log folder has the same.",
+      openLogs: "Open log folder",
       legalTitle: "Legal",
       legal:
         "MVP isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot Games, and all associated properties are trademarks or registered trademarks of Riot Games, Inc.",

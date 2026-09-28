@@ -343,6 +343,17 @@ functions) → the glass' tint → rim light.
 **The window backdrop** (`backdrop/`): one WebGL 1 canvas (first child of `[data-ambient-host]`,
 fixed, `z-index: -1`, `aria-hidden`, `data-free-style`), drawn **on demand only**.
 
+## Logs and diagnostics (`apps/desktop/src/{logging,diagnostics}.rs`)
+- The desktop app logs to stdout (debug builds) and to `mvp.log` in the app's log folder
+  (`app_log_dir`: `%LOCALAPPDATA%\gg.mvp.companion\logs`): a release build has no console. The
+  previous run's file is kept as `mvp.previous.log`; a run stops writing past 16 MB (one line
+  says so). `RUST_LOG` sets the filter (default `info,scout_desktop=debug`).
+- Settings → About → "Copy diagnostics" (`diagnostics` command): app, OS and webview versions,
+  install id, the League client's state, backend URL, stats patch, game data version and locale,
+  emblems on disk, settings, and the log's last 200 lines passed through `scrub` (Riot IDs,
+  PUUIDs, IP addresses, user folders). The UI copies it (clipboard API, else a text area and
+  `execCommand`). "Open log folder" (`open_logs`) opens the folder in Explorer.
+
 ## Ranked emblems (`static_data::emblems`, `ui/src/design/RankEmblem.tsx`)
 - **Riot's art, at run time**: at start the desktop core loads the ten tier emblems
   (`RankEmblems::load`): from its cache (`<app cache>/emblems/v1/emblem-<tier>.png`), else from

@@ -283,6 +283,18 @@ test("rank emblems: MVP's crests until the core has Riot's, then Riot's, live", 
   expect(errors).toEqual([]);
 });
 
+test("settings: diagnostics go to the clipboard, the log folder opens", async ({ page, t, context }) => {
+  const errors = trackErrors(page);
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await openApp(page, { view: "/settings" });
+  await page.getByTestId("copy-diagnostics").click();
+  await expect(page.getByTestId("copy-status")).toHaveText(t.settings.about.copied);
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toContain("League client: Connected");
+  await page.getByTestId("open-logs").click();
+  await expect.poll(() => page.evaluate(() => window.__SCOUT_MOCK__?.calls.filter((c) => c === "open_logs").length)).toBe(1);
+  expect(errors).toEqual([]);
+});
+
 // ── Language ────────────────────────────────────────────────────────────────────────────────
 
 test("settings: the language changes the whole UI at once, and is kept", async ({ page, t, locale }) => {

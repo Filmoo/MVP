@@ -1,4 +1,4 @@
-import { createEffect, createMemo, type JSX, on, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, type JSX, on, Show } from "solid-js";
 import { useData } from "../../data/context";
 import type { AppInfo } from "../../data/generated/AppInfo";
 import type { Effects } from "../../data/generated/Effects";
@@ -317,6 +317,54 @@ function Updates(props: { update: UpdateStatus; onCheck: () => void; onRestart: 
   );
 }
 
+/** The clipboard, or the old way when the webview refuses it (no secure context, no focus). */
+async function copyText(text: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    const area = document.createElement("textarea");
+    area.value = text;
+    area.setAttribute("readonly", "");
+    area.className = styles.offscreen ?? "";
+    document.body.append(area);
+    area.select();
+    const copied = document.execCommand("copy");
+    area.remove();
+    if (!copied) throw new Error("copy refused");
+  }
+}
+
+/** Settings → About: what to send when something doesn't work. */
+function Help(): JSX.Element {
+  const { transport } = useData();
+  const [copied, setCopied] = createSignal<"no" | "yes" | "failed">("no");
+  const copy = async () => {
+    try {
+      await copyText(await transport.call("diagnostics"));
+      setCopied("yes");
+    } catch {
+      setCopied("failed");
+    }
+  };
+  return (
+    <section class={styles.note}>
+      <h3 class={styles.noteTitle}>{t().settings.about.helpTitle}</h3>
+      <p>{t().settings.about.help}</p>
+      <div class={styles.helpActions}>
+        <Button variant="secondary" onClick={() => void copy()} testId="copy-diagnostics">
+          {t().settings.about.copy}
+        </Button>
+        <Button variant="ghost" onClick={() => void transport.call("open_logs").catch(() => undefined)} testId="open-logs">
+          {t().settings.about.openLogs}
+        </Button>
+      </div>
+      <p role="status" class={styles.helpStatus} data-testid="copy-status">
+        {copied() === "yes" ? t().settings.about.copied : copied() === "failed" ? t().settings.about.copyFailed : ""}
+      </p>
+    </section>
+  );
+}
+
 export function About(props: {
   info: AppInfo | undefined;
   /** Omitted: no update section (e.g. before the core answered). */
@@ -352,6 +400,7 @@ export function About(props: {
           <h3 class={styles.noteTitle}>{t().settings.about.dataTitle}</h3>
           <p>{t().settings.about.data}</p>
         </section>
+        <Help />
         <section class={styles.note}>
           <h3 class={styles.noteTitle}>{t().settings.about.legalTitle}</h3>
           <p>{t().settings.about.legal}</p>

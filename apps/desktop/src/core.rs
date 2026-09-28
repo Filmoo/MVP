@@ -65,6 +65,15 @@ impl GameDataState {
             .map(|(_, data)| data.clone())
     }
 
+    /// The Data Dragon version and locale loaded, if any (for diagnostics).
+    pub fn loaded(&self) -> Option<(String, &'static str)> {
+        self.loaded
+            .read()
+            .ok()?
+            .as_ref()
+            .map(|(locale, data)| (data.version.clone(), *locale))
+    }
+
     /// Whatever is loaded, in any language (champion names for MVP's page and set names).
     fn any(&self) -> Option<GameData> {
         self.loaded
@@ -107,6 +116,10 @@ impl UiLanguage {
         self.0.subscribe()
     }
 }
+
+/// This run's log file (`None` when it couldn't be written): see `logging`.
+#[derive(Debug)]
+pub struct LogFile(pub Option<std::path::PathBuf>);
 
 /// Riot's ranked emblems, once downloaded (or read from the cache).
 #[derive(Debug, Default)]
@@ -177,7 +190,7 @@ fn champion_names<R: Runtime>(app: &AppHandle<R>) -> ChampionNames {
 }
 
 /// `windows x86_64, webview 131.0.2903.70`: the OS and the webview, for crash reports.
-fn os_version() -> String {
+pub fn os_version() -> String {
     let os = format!("{} {}", std::env::consts::OS, std::env::consts::ARCH);
     match tauri::webview_version() {
         Ok(webview) => format!("{os}, webview {webview}"),

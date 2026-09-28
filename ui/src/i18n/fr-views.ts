@@ -433,6 +433,12 @@ export const frViews = {
       updates: "Mises à jour",
       dataTitle: "Vos données",
       data: "MVP lit le client League sur cet ordinateur et garde vos paramètres ici, sans compte. Les recherches de joueurs et les cartes de l’écran de chargement passent par le serveur de MVP, qui interroge Riot. Les rapports de plantage ne sont envoyés que si vous les activez. Les noms et icônes du jeu viennent du Data Dragon de Riot.",
+      helpTitle: "Un souci\u00A0?",
+      help: "Copiez le diagnostic dans votre message\u00A0: il dit ce que faisaient MVP et le client League, sans votre nom ni votre compte.",
+      copy: "Copier le diagnostic",
+      copied: "Copié\u00A0: collez-le dans votre message.",
+      copyFailed: "Copie impossible\u00A0: le dossier des journaux contient la même chose.",
+      openLogs: "Ouvrir le dossier des journaux",
       legalTitle: "Mentions légales",
       legal:
         "MVP n’est pas approuvé par Riot Games et ne reflète pas les opinions de Riot Games ni de quiconque officiellement impliqué dans la production ou la gestion des propriétés de Riot Games. Riot Games et toutes les propriétés associées sont des marques commerciales ou des marques déposées de Riot Games, Inc.",

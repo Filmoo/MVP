@@ -91,6 +91,10 @@ export interface Commands {
   install_update: { args: undefined; result: null };
   /** A UI crash, for the opt-in crash reports (the core drops it unless the player opted in). */
   report_error: { args: { message: string; stack: string | null }; result: null };
+  /** A plain-text report for bug reports: versions, client state, data, settings, the log's end (scrubbed). */
+  diagnostics: { args: undefined; result: string };
+  /** Opens the folder of MVP's log files. */
+  open_logs: { args: undefined; result: null };
 }
 
 /** Events pushed by the core. */

@@ -11,9 +11,11 @@ use tauri::{Emitter as _, Manager as _};
 use tauri_plugin_autostart::ManagerExt as _;
 
 use crate::core::{
-    Backend, Core, Crashes, EmblemState, GameDataState, InstallId, Remote, Stats, UiLanguage,
+    Backend, Core, Crashes, EmblemState, GameDataState, InstallId, LogFile, Remote, Stats,
+    UiLanguage,
 };
 use crate::updater::Updates;
+use crate::{diagnostics, logging};
 
 #[tauri::command]
 #[allow(
@@ -377,4 +379,73 @@ pub async fn import_build(
         .map(|core| core.imports.clone())
         .ok_or_else(|| "MVP is still starting, try again in a moment".to_owned())?;
     Ok(importer.import(&request, false).await)
+}
+
+/// A plain-text report for bug reports (Settings → About → "Copy diagnostics"): versions, the
+/// League client's state, MVP's data and settings, and the end of the log, scrubbed.
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub fn diagnostics(app: tauri::AppHandle) -> String {
+    let version = app.package_info().version.to_string();
+    let system = crate::core::os_version();
+    let install_id = app.try_state::<InstallId>().map(|id| id.0.clone());
+    let client = client_status(app.clone());
+    let backend = app
+        .try_state::<Backend>()
+        .and_then(|backend| backend.0.as_ref().map(|b| b.base_url().to_owned()));
+    let stats_patch = app
+        .try_state::<Stats>()
+        .and_then(|stats| stats.0.as_ref().and_then(StatsClient::cached_index))
+        .and_then(|index| index.current.clone());
+    let game_data = app.try_state::<GameDataState>().and_then(|g| g.loaded());
+    let emblems = app
+        .try_state::<EmblemState>()
+        .and_then(|state| {
+            state
+                .0
+                .read()
+                .ok()
+                .map(|e| e.as_ref().map_or(0, |e| e.emblems.len()))
+        })
+        .unwrap_or(0);
+    let settings = app
+        .try_state::<SettingsStore>()
+        .map(|store| store.get())
+        .unwrap_or_default();
+    let log_path = app.try_state::<LogFile>().and_then(|log| log.0.clone());
+    let lines = log_path
+        .as_deref()
+        .and_then(|path| logging::tail(path, diagnostics::LOG_LINES).ok())
+        .unwrap_or_default();
+    let shown = log_path.as_ref().map(|path| path.display().to_string());
+    diagnostics::report(&diagnostics::Facts {
+        version: &version,
+        system: &system,
+        install_id: install_id.as_deref(),
+        client: &client,
+        backend: backend.as_deref(),
+        stats_patch: stats_patch.as_deref(),
+        game_data: game_data.as_ref().map(|(v, locale)| (v.as_str(), *locale)),
+        emblems,
+        settings: &settings,
+        log: shown.as_deref().map(|path| (path, lines.as_slice())),
+    })
+}
+
+/// Opens the folder holding MVP's log files (Settings → About).
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub fn open_logs(app: tauri::AppHandle) -> Result<(), String> {
+    let dir = app
+        .path()
+        .app_log_dir()
+        .map_err(|error| error.to_string())?;
+    std::fs::create_dir_all(&dir).map_err(|error| error.to_string())?;
+    open::that_detached(&dir).map_err(|error| format!("couldn't open the folder: {error}"))
 }

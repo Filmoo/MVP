@@ -3831,6 +3831,7 @@ dependencies = [
  "domain",
  "lcu",
  "open",
+ "scrub",
  "serde",
  "serde_json",
  "static-data",
