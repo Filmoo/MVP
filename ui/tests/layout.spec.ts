@@ -101,6 +101,8 @@ for (const { view, scenario } of SCENARIO_VIEWS) {
 // An opened match row at every size, and a grade's why over it: a popover, which the audit
 // leaves out (fixed), so it is held inside the window here.
 test("home: an opened game and a grade's why lay out at every size", async ({ page, locale }) => {
+  // Eight sizes, each settled, audited and hovered twice: more than 30 s on a busy machine.
+  test.slow();
   const errors = trackErrors(page);
   await openApp(page);
   await page.locator("[data-testid=match-row] > button").first().click();
