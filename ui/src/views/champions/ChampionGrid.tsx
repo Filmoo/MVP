@@ -9,8 +9,12 @@ import { EmptyState } from "../../design/States";
 import { GradeBadge } from "../../design/TierBadge";
 import { t } from "../../i18n";
 import { bestMatches } from "../../lib/fuzzy";
+import { createProgressive } from "../../lib/progressive";
 import type { RoleFilter } from "../../lib/stats-filters";
 import styles from "./ChampionGrid.module.css";
+
+/** Tiles built with the view; the rest follow while the page is idle (a first screen holds 12 to 156). */
+const FIRST_TILES = 40;
 
 interface Tile {
   champion: ChampionInfo;
@@ -38,6 +42,7 @@ export function ChampionGrid(props: { list: TierList | undefined; roleFilter: Ro
     });
     return props.roleFilter === "all" ? tiles : tiles.filter((t) => t.entry !== undefined);
   });
+  const { shown, complete } = createProgressive(tiles, FIRST_TILES);
   return (
     <Card>
       <Show
@@ -50,9 +55,10 @@ export function ChampionGrid(props: { list: TierList | undefined; roleFilter: Ro
           />
         }
       >
-        {/* Links straight in the grid (no list items): about 170 tiles, four nodes each. */}
-        <div class={styles.grid}>
-          <For each={tiles()}>
+        {/* Links straight in the grid (no list items): about 170 tiles, four nodes each. It says it's
+            busy while the tiles below the first ones are still being built. */}
+        <div class={styles.grid} aria-busy={complete() ? undefined : "true"} data-state={complete() ? undefined : "loading"}>
+          <For each={shown()}>
             {(t) => (
               <a
                 class={styles.tile}
