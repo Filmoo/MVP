@@ -151,7 +151,8 @@
     right: var(--space-4);
     bottom: var(--space-4);
     left: var(--space-4);
-    z-index: 15;
+    /* Over the page, under the update-required blocker (9), toasts (10) and the title bar. */
+    z-index: 8;
     flex-direction: row;
     justify-content: space-around;
     padding: var(--space-2) var(--space-4);
