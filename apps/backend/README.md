@@ -43,7 +43,8 @@ with `If-None-Match` rather than refetching a whole patch at once.
   **positive/neutral tags only**: `otp` (≥ 70 % of ≥ 10 games on one champion), `mainRole`
   (≥ 60 % of ≥ 5 games), `hotStreak` (≥ 4 wins in a row), `veteran` (≥ 100 ranked games this
   season). A Riot ID nobody has, or a PUUID our key can't read (Riot answers 400 for another
-  key's or the League client's), gets no card; the rest of the batch still comes.
+  key's), gets no card; the rest of the batch still comes. League client PUUIDs (UUIDs, what
+  0.1.0 apps sent) can never be read with our key and cost no Riot call.
 - Every request should carry **`X-MVP-Install: <install id>`** (a random UUID the app makes
   once per install): it keys the rate limit and staged rollouts. Answers carry
   `X-Request-Id` (quote it in bug reports; a sane incoming `X-Request-Id` is kept).

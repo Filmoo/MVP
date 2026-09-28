@@ -121,9 +121,12 @@ async fn by_riot_id(Path((name, tag)): Path<(String, String)>) -> Response {
     )
 }
 
-/// A League client PUUID (a UUID): Riot can't decrypt it with our key and answers 400.
+/// A PUUID of another API key (or the League client's): Riot can't decrypt it with ours and
+/// answers 400.
 fn undecryptable(puuid: &str) -> Option<Response> {
-    (puuid.len() == 36 && puuid.matches('-').count() == 4).then(|| {
+    let foreign = puuid.starts_with("other-key-");
+    let client = puuid.len() == 36 && puuid.matches('-').count() == 4;
+    (foreign || client).then(|| {
         (
             StatusCode::BAD_REQUEST,
             Json(json!({ "status": { "message": "Bad Request - Exception decrypting", "status_code": 400 } })),
@@ -590,12 +593,15 @@ async fn batch_answers_riot_ids_then_puuids() {
 }
 
 #[tokio::test]
-async fn league_client_puuids_get_no_card_instead_of_failing_the_batch() {
-    // Apps up to 0.1.0 sent the League client's PUUIDs, which our key can't decrypt (400).
+async fn unreadable_puuids_get_no_card_instead_of_failing_the_batch() {
     let env = start(true).await;
     let (status, body) = env
         .batch(&json!({ "platform": "euw1", "puuids": [
+            // What apps up to 0.1.0 sent: the League client's PUUID (a UUID). Never readable
+            // with our key, so it isn't even asked.
             "0f8e2a7c-1b2d-4c3e-9f10-aa11bb22cc33",
+            // Another key's PUUID: Riot answers 400.
+            "other-key-puuid",
             "p-flex",
         ] }))
         .await;
@@ -603,6 +609,12 @@ async fn league_client_puuids_get_no_card_instead_of_failing_the_batch() {
     let cards = body.as_array().unwrap();
     assert_eq!(cards.len(), 1);
     assert_eq!(cards[0]["puuid"], "p-flex");
+    assert_eq!(
+        env.fake.calls_to("0f8e2a7c"),
+        0,
+        "no Riot call for a client PUUID"
+    );
+    assert!(env.fake.calls_to("other-key-puuid") > 0);
 }
 
 #[tokio::test]

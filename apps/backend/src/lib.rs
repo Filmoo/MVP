@@ -265,6 +265,19 @@ fn valid_puuid(p: &str) -> bool {
             .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
 }
 
+/// The League client's PUUID format, a UUID (what apps up to 0.1.0 sent). Our key's PUUIDs
+/// are 78 characters of base64url, so Riot can never read one of these: no call is spent.
+fn client_puuid(p: &str) -> bool {
+    p.len() == 36
+        && p.bytes().enumerate().all(|(i, b)| {
+            if matches!(i, 8 | 13 | 18 | 23) {
+                b == b'-'
+            } else {
+                b.is_ascii_hexdigit()
+            }
+        })
+}
+
 /// A Riot ID part we can put in a Riot API path: not empty, bounded, printable, not `.`/`..`.
 fn valid_riot_id_part(part: &str, max_bytes: usize) -> bool {
     !part.is_empty()
@@ -325,6 +338,7 @@ async fn scout_one(
     wanted: &Wanted,
 ) -> Result<Option<ScoutCard>, RiotError> {
     let card = match wanted {
+        Wanted::Puuid(puuid) if client_puuid(puuid) => return Ok(None),
         Wanted::Puuid(puuid) => {
             state
                 .0
