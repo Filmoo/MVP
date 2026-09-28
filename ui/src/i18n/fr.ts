@@ -4,7 +4,7 @@
  *
  * Typography: a no-break space (U+00A0) before `:` and `%` and inside « », a narrow one
  * (U+202F) before `;`, `!` and `?`, the typographic apostrophe ’. Riot's own French terms where
- * they exist (Classée Solo/Duo, sorts d’invocateur, voie, clé de voûte, PL…).
+ * they exist (Classé en solo/duo, sorts d’invocateur, voie, clé de voûte, PL…).
  */
 import type { Role } from "../data/generated/Role";
 import { games } from "../lib/format";
@@ -99,21 +99,30 @@ export const fr = {
   >,
 
   queues: {
-    400: "Sélection alternée",
-    420: "Classée Solo/Duo",
-    430: "Sélection aveugle",
-    440: "Classée Flexible",
+    400: "Mode Draft",
+    420: "Classé solo/duo",
+    430: "Mode Aveugle",
+    440: "Classé flexible",
     450: "ARAM",
-    480: "Partie rapide",
-    490: "Jeu rapide",
+    480: "Partie accélérée",
+    490: "Partie rapide",
     700: "Clash",
+    720: "Clash ARAM",
+    870: "Coop vs IA",
+    880: "Coop vs IA",
+    890: "Coop vs IA",
     900: "ARURF",
     1700: "Arena",
+    1750: "Arena",
     1900: "URF",
+    2400: "ARAM du chaos",
+    4210: "Bots du chaos",
+    4310: "Classic",
+    4320: "Classic (Coop vs IA)",
     custom: "Personnalisée",
   },
 
-  soloDuo: "Classée Solo/Duo",
+  soloDuo: "Classé en solo/duo",
 
   nav: {
     main: "Principale",

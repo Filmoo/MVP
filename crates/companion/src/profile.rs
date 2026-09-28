@@ -15,8 +15,12 @@ use crate::matches::Me;
 pub const CURRENT_SUMMONER: &str = "/lol-summoner/v1/current-summoner";
 pub const RANKED: &str = "/lol-ranked/v1/current-ranked-stats";
 pub const REGION: &str = "/riotclient/region-locale";
+/// The last 20 games (`endIndex` is inclusive: 0 to 20 would be 21).
 pub const MATCHES: &str =
-    "/lol-match-history/v1/products/lol/current-summoner/matches?begIndex=0&endIndex=20";
+    "/lol-match-history/v1/products/lol/current-summoner/matches?begIndex=0&endIndex=19";
+
+const SMITE: u32 = 11;
+const HOWLING_ABYSS: u32 = 12;
 
 fn u32_at(v: &Value, key: &str) -> u32 {
     v.get(key)
@@ -102,6 +106,28 @@ pub fn gradable(history: &Value, platform: &str) -> HashMap<String, bool> {
         .collect()
 }
 
+/// The role of the local player's line in the list. The client's `timeline` lane is a guess,
+/// often wrong (a Kennen with Teleport or an Ezreal with Barrier "in the jungle", seen on real
+/// games): Smite says jungle, a jungle without Smite says nothing, and Howling Abyss has none.
+fn listed_role(game: &Value, me: &Value) -> Option<Role> {
+    if u32_at(game, "mapId") == HOWLING_ABYSS {
+        return None;
+    }
+    let smite = [u32_at(me, "spell1Id"), u32_at(me, "spell2Id")].contains(&SMITE);
+    if smite {
+        return Some(Role::Jungle);
+    }
+    let lane = me.get("timeline").and_then(|t| str_at(t, "lane"));
+    let role_hint = me.get("timeline").and_then(|t| str_at(t, "role"));
+    match (lane, role_hint) {
+        (Some("TOP"), _) => Some(Role::Top),
+        (Some("MIDDLE" | "MID"), _) => Some(Role::Middle),
+        (Some("BOTTOM" | "BOT"), Some("SUPPORT" | "DUO_SUPPORT")) => Some(Role::Support),
+        (Some("BOTTOM" | "BOT"), _) => Some(Role::Bottom),
+        _ => None,
+    }
+}
+
 /// Games from the client's own match history (the local player is `participants[0]`).
 pub fn map_matches(history: &Value, platform: &str) -> Vec<MatchSummary> {
     listed(history)
@@ -111,16 +137,7 @@ pub fn map_matches(history: &Value, platform: &str) -> Vec<MatchSummary> {
             let stats = me.get("stats")?;
             let duration = u32_at(game, "gameDuration");
             let started = game.get("gameCreation")?.as_i64()?;
-            let lane = me.get("timeline").and_then(|t| str_at(t, "lane"));
-            let role_hint = me.get("timeline").and_then(|t| str_at(t, "role"));
-            let role = match (lane, role_hint) {
-                (Some("TOP"), _) => Some(Role::Top),
-                (Some("JUNGLE"), _) => Some(Role::Jungle),
-                (Some("MIDDLE" | "MID"), _) => Some(Role::Middle),
-                (Some("BOTTOM" | "BOT"), Some("SUPPORT" | "DUO_SUPPORT")) => Some(Role::Support),
-                (Some("BOTTOM" | "BOT"), _) => Some(Role::Bottom),
-                _ => None,
-            };
+            let role = listed_role(game, me);
             Some(MatchSummary {
                 match_id: match_id(game, platform)?,
                 queue_id: u32_at(game, "queueId"),
@@ -249,6 +266,46 @@ mod tests {
         assert!(
             games.iter().all(|g| g.grade.is_none()),
             "the list has one side only"
+        );
+    }
+
+    /// Lines seen in a real client's list (2026-09-28): the lane is a guess the spells overrule.
+    #[test]
+    fn roles_the_client_guesses_wrong_are_left_out() {
+        let line = |map: u32, spells: [u32; 2], lane: &str, role: &str| {
+            json!({ "games": { "games": [{ "gameId": 1, "queueId": 420, "mapId": map, "gameCreation": 0,
+                "gameDuration": 1800, "participants": [{ "championId": 85, "spell1Id": spells[0],
+                "spell2Id": spells[1], "stats": {}, "timeline": { "lane": lane, "role": role } }] }] } })
+        };
+        let role = |h: Value| map_matches(&h, "EUW1")[0].role;
+        assert_eq!(
+            role(line(11, [4, 12], "JUNGLE", "NONE")),
+            None,
+            "Flash + Teleport isn't a jungler"
+        );
+        assert_eq!(
+            role(line(11, [4, 21], "JUNGLE", "NONE")),
+            None,
+            "neither is Flash + Barrier"
+        );
+        assert_eq!(
+            role(line(11, [11, 4], "NONE", "NONE")),
+            Some(Role::Jungle),
+            "Smite is"
+        );
+        assert_eq!(
+            role(line(12, [4, 32], "TOP", "SUPPORT")),
+            None,
+            "ARAM: Mayhem has no roles"
+        );
+        assert_eq!(role(line(11, [4, 14], "TOP", "SOLO")), Some(Role::Top));
+        assert_eq!(
+            role(line(11, [4, 7], "BOTTOM", "SUPPORT")),
+            Some(Role::Support)
+        );
+        assert_eq!(
+            role(line(11, [4, 21], "BOTTOM", "CARRY")),
+            Some(Role::Bottom)
         );
     }
 

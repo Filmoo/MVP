@@ -64,6 +64,7 @@ describe("format", () => {
 
   it("names queues", () => {
     expect(queueName(420)).toBe("Ranked Solo");
+    expect(queueName(2400)).toBe("ARAM: Mayhem");
     expect(queueName(123_456)).toBe("Custom");
   });
 });
@@ -114,7 +115,8 @@ describe("format in French", () => {
   });
 
   it("names queues and joins lists in French", () => {
-    expect(queueName(420)).toBe("Classée Solo/Duo");
+    expect(queueName(420)).toBe("Classé solo/duo");
+    expect(queueName(2400)).toBe("ARAM du chaos");
     expect(queueName(123_456)).toBe("Personnalisée");
     expect(listOf(["runes", "set d’objets", "sorts"])).toBe("runes, set d’objets et sorts");
   });
