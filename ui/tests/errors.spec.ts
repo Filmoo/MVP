@@ -119,7 +119,70 @@ test("player page: skeleton first, then the profile without layout jumps", async
   expect(cls, "cumulative layout shift").toBeLessThan(0.1);
 });
 
-test("champion page for an unknown id: the champions placeholder", async ({ page }) => {
+test("champion page for an unknown id: the champion list", async ({ page }) => {
   await openApp(page, { view: "/champions?id=999999" });
   await expect(page.getByRole("heading", { level: 1, name: "Champions" })).toBeVisible();
+  await expect(page.getByTestId("champion-tile").first()).toBeVisible();
+});
+
+// Stats pages: nothing published is an empty state (no retry), failures say why and retry.
+test("stats not published yet: the pages say so, champions still show", async ({ page }) => {
+  const errors = trackErrors(page);
+  await openApp(page, { view: "/tier-list", scenario: "stats-empty" });
+  await expect(page.locator("main")).toContainText("No stats published yet");
+  await expect(page.getByRole("button", { name: "Try again" })).toHaveCount(0);
+  await openApp(page, { view: "/champions?id=103", scenario: "stats-empty" });
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Ahri");
+  await expect(page.locator("main")).toContainText("No stats published yet");
+  await openApp(page, { view: "/champions", scenario: "stats-empty" });
+  expect(await page.getByTestId("champion-tile").count(), "the list needs no stats").toBeGreaterThan(160);
+  await expect(page.getByTestId("role-filter")).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+for (const { view, command } of [
+  { view: "/tier-list", command: "tier_list" },
+  { view: "/champions?id=103", command: "champion_stats" },
+] as const) {
+  test(`stats offline on ${view}: an error with a retry that asks again`, async ({ page }) => {
+    const errors = trackErrors(page);
+    await openApp(page, { view, scenario: "stats-offline" });
+    const alert = page.getByRole("alert");
+    await expect(alert).toContainText("Can't reach MVP's servers");
+    const calls = () => page.evaluate((c) => window.__SCOUT_MOCK__?.calls.filter((name) => name === c).length, command);
+    const before = await calls();
+    await alert.getByRole("button", { name: "Try again" }).click();
+    await expect.poll(calls).toBe((before ?? 0) + 1);
+    expect(errors).toEqual([]);
+  });
+}
+
+for (const view of ["/tier-list", "/champions?id=103"]) {
+  test(`slow stats on ${view}: skeletons first, then the numbers without layout jumps`, async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.addInitScript(() => {
+      (window as unknown as { __cls: number }).__cls = 0;
+      new PerformanceObserver((list) => {
+        for (const entry of list.getEntries() as Array<PerformanceEntry & { value: number; hadRecentInput: boolean }>) {
+          if (!entry.hadRecentInput) (window as unknown as { __cls: number }).__cls += entry.value;
+        }
+      }).observe({ type: "layout-shift", buffered: true });
+    });
+    await page.goto(`/?scenario=stats-slow#${view}`);
+    await expect(page.locator("main [data-state=loading]").first()).toBeVisible();
+    await settle(page);
+    await expect(page.locator("[data-widget=tier-list], [data-widget=champion-runes]").first()).toBeVisible();
+    const cls = await page.evaluate(() => (window as unknown as { __cls: number }).__cls);
+    expect(cls, "cumulative layout shift").toBeLessThan(0.1);
+  });
+}
+
+test("only ARAM published: ranked says so, ARAM shows its tier list", async ({ page }) => {
+  const errors = trackErrors(page);
+  await openApp(page, { view: "/tier-list", scenario: "stats-aram-only" });
+  await expect(page.locator("main")).toContainText("No stats published yet");
+  await page.getByTestId("queue-switch").getByRole("radio", { name: "ARAM" }).click();
+  await expect(page.getByTestId("tier-row").first()).toBeVisible();
+  await expect(page.locator("main")).not.toContainText("No stats published yet");
+  expect(errors).toEqual([]);
 });

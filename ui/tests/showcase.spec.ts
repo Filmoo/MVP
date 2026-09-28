@@ -192,10 +192,71 @@ test("player loading 1280x720", async ({ page }) => {
   await page.screenshot({ path: `${OUT}/player-loading-1280x720.png` });
 });
 
-test("champion soon 1280x720", async ({ page }) => {
-  await openApp(page, { view: "/champions?id=103", width: 1280, height: 720 });
-  await capture(page, `${OUT}/champion-soon-1280x720.png`, false);
-});
+// Stats pages: tier list, champion page, champion list, and their states.
+for (const [width, height] of [
+  [1280, 800],
+  [1920, 1080],
+  [820, 760],
+  [420, 800],
+] as const) {
+  test(`tier list ${width}x${height}`, async ({ page }) => {
+    await openApp(page, { view: "/tier-list", width, height });
+    await capture(page, `${OUT}/tierlist-default-${width}x${height}.png`, width < 900);
+  });
+
+  test(`champion page ${width}x${height}`, async ({ page }) => {
+    await openApp(page, { view: "/champions?id=103", width, height });
+    await capture(page, `${OUT}/champion-ahri-${width}x${height}.png`, true);
+  });
+
+  test(`champion list ${width}x${height}`, async ({ page }) => {
+    await openApp(page, { view: "/champions", width, height });
+    await capture(page, `${OUT}/champions-list-${width}x${height}.png`, false);
+  });
+}
+
+for (const { name, view } of [
+  { name: "tierlist-aram", view: "/tier-list?queue=450" },
+  { name: "tierlist-support", view: "/tier-list?queue=420&role=support" },
+  { name: "champion-lux-support", view: "/champions?id=99" },
+  { name: "champion-thresh", view: "/champions?id=412" },
+  { name: "champion-lux-aram", view: "/champions?id=99&queue=450" },
+  { name: "champion-no-games", view: "/champions?id=904" },
+] as const) {
+  test(`${name} 1280x800`, async ({ page }) => {
+    await openApp(page, { view, width: 1280, height: 800 });
+    await capture(page, `${OUT}/${name}-1280x800.png`, true);
+  });
+}
+
+for (const scenario of ["stats-empty", "stats-offline"] as const) {
+  for (const view of ["/tier-list", "/champions?id=103"]) {
+    test(`${view} ${scenario} 1280x720`, async ({ page }) => {
+      await openApp(page, { view, scenario, width: 1280, height: 720 });
+      await capture(page, `${OUT}/${view.includes("tier") ? "tierlist" : "champion"}-${scenario}-1280x720.png`, false);
+    });
+  }
+}
+
+for (const view of ["/tier-list", "/champions?id=103"]) {
+  test(`${view} loading 1280x720`, async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.goto(`/?scenario=stats-slow#${view}`);
+    await page.locator("main [data-state=loading]").first().waitFor();
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: `${OUT}/${view.includes("tier") ? "tierlist" : "champion"}-loading-1280x720.png` });
+  });
+}
+
+for (const [width, height] of [
+  [1280, 400],
+  [420, 400],
+] as const) {
+  test(`build summary ${width}x${height}`, async ({ page }) => {
+    await openApp(page, { view: "/__harness?show=build-summary", width, height });
+    await capture(page, `${OUT}/build-summary-${width}x${height}.png`, false);
+  });
+}
 
 test("home match accepted toast 1280x800", async ({ page }) => {
   await openApp(page, { scenario: "match-accepted" });
