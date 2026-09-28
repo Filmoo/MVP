@@ -2,7 +2,8 @@
  * The whole game under an opened match row (MatchDetails.tsx): one grid per line, fixed line
  * heights. The table is always 540 px tall, the height of the skeleton the row shows while it
  * loads (RecentMatches.tsx): 8 + 2 teams × (24 + 5 × 44 + 5 × 2) + 12 + 12. Columns give way
- * as the list narrows.
+ * as the list narrows. Widths hold Windows' text too (Inter renders a few px wider there than on
+ * Linux: "101 / 14 / 129" needs 91 px).
  */
 .table {
   container: game / inline-size;
@@ -24,7 +25,7 @@
 .head,
 .player {
   display: grid;
-  grid-template-columns: 68px minmax(0, 1fr) 88px 80px 48px 40px 40px 152px 56px;
+  grid-template-columns: 68px minmax(0, 1fr) 96px 76px 52px 40px 46px 152px 56px;
   column-gap: var(--space-4);
   align-items: center;
   padding: 0 var(--space-4);
@@ -83,7 +84,7 @@
 @container game (max-width: 739px) {
   .head,
   .player {
-    grid-template-columns: 68px minmax(0, 1fr) 88px 80px 86px 56px;
+    grid-template-columns: 68px minmax(0, 1fr) 96px 80px 86px 56px;
   }
   .gold,
   .cs,
@@ -95,7 +96,7 @@
 @container game (max-width: 559px) {
   .head,
   .player {
-    grid-template-columns: 68px minmax(0, 1fr) 88px 72px 44px;
+    grid-template-columns: 68px minmax(0, 1fr) 96px 72px 44px;
   }
   .items {
     display: none;
@@ -105,7 +106,7 @@
 @container game (max-width: 419px) {
   .head,
   .player {
-    grid-template-columns: 32px minmax(0, 1fr) 88px 44px;
+    grid-template-columns: 32px minmax(0, 1fr) 96px 44px;
   }
   .damage {
     display: none;
