@@ -1,0 +1,898 @@
+//! Published stats in the app against a small fake backend: download, disk cache (`ETag`, 304,
+//! restart, offline, pruning), coalescing, rate limits, the Champions page, and the draft helper
+//! end to end (fake League client in champion select + fake backend). No network.
+#![allow(clippy::unwrap_used, reason = "tests")]
+
+use std::collections::HashMap;
+use std::hash::{DefaultHasher, Hash as _, Hasher as _};
+use std::path::Path;
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
+
+use axum::Router;
+use axum::extract::State;
+use axum::http::header::{CACHE_CONTROL, ETAG, IF_NONE_MATCH, RETRY_AFTER};
+use axum::http::{HeaderMap, StatusCode, Uri};
+use axum::response::{IntoResponse, Response};
+use axum::routing::get;
+use companion::Companion;
+use companion::backend::{BackendClient, BackendConfig, INSTALL_HEADER};
+use companion::stats::{ARAM, RANKED, StatsClient};
+use domain::{
+    BackendError, Bracket, BuildSection, BuildStats, BuildsFile, ChampionRoleStats, ChampionStats,
+    ChampionsFile, ClientConnection, DataSetIndex, DataSetInfo, DraftView, MatchupEntry,
+    MatchupsFile, PairKind, PairPrior, PatchIndex, ReasonKind, Role, RoleMatchups, Settings,
+    StatsIndex, TierEntry, TierGrade, TierList,
+};
+use lcu::ConnectorConfig;
+use lcu::tls::pinned_client_config;
+use mock_lcu::MockLcu;
+use serde_json::json;
+use tokio::sync::watch;
+
+const INSTALL: &str = "0123456789abcdef0123456789abcdef";
+const EMERALD: Bracket = Bracket::EmeraldPlus;
+
+const MALPHITE: u32 = 54;
+const ORNN: u32 = 516;
+const SHEN: u32 = 98;
+const CAMILLE: u32 = 164;
+const IRELIA: u32 = 39;
+const LEE_SIN: u32 = 64;
+const AHRI: u32 = 103;
+const THRESH: u32 = 412;
+const YUUMI: u32 = 350;
+
+// ── A fake backend serving published files ─────────────────────────────────────────────────
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Request {
+    path: String,
+    if_none_match: Option<String>,
+    install: Option<String>,
+    status: u16,
+}
+
+#[derive(Default)]
+struct Published {
+    /// Path under `/v1/stats/` (`index`, `16.19/420/emeraldPlus/tierlist.json`) → body.
+    files: HashMap<String, Vec<u8>>,
+    requests: Vec<Request>,
+    /// Answered 429 (with `Retry-After`).
+    limited: Vec<String>,
+    /// Answered after a pause.
+    slow: Vec<String>,
+}
+
+type Server = Arc<Mutex<Published>>;
+
+fn etag(body: &[u8]) -> String {
+    let mut h = DefaultHasher::new();
+    body.hash(&mut h);
+    format!("\"{:016x}\"", h.finish())
+}
+
+async fn serve(State(server): State<Server>, uri: Uri, headers: HeaderMap) -> Response {
+    let path = uri.path().trim_start_matches("/v1/stats/").to_owned();
+    let header = |name| {
+        headers
+            .get(name)
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_owned)
+    };
+    let slow = server.lock().unwrap().slow.contains(&path);
+    if slow {
+        tokio::time::sleep(Duration::from_millis(300)).await;
+    }
+    let mut server = server.lock().unwrap();
+    let limited = server.limited.contains(&path);
+    let body = server.files.get(&path).cloned();
+    let if_none_match = header(IF_NONE_MATCH);
+    let max_age = if path == "index" { "300" } else { "3600" };
+    let response = match body {
+        _ if limited => (
+            StatusCode::TOO_MANY_REQUESTS,
+            [(RETRY_AFTER, "7")],
+            axum::Json(json!({ "error": "rateLimited", "message": "slow down", "retryAfter": 7 })),
+        )
+            .into_response(),
+        None => (
+            StatusCode::NOT_FOUND,
+            axum::Json(json!({ "error": "notFound", "message": "not found" })),
+        )
+            .into_response(),
+        Some(body) => {
+            let tag = etag(&body);
+            let cache = format!("public, max-age={max_age}");
+            if if_none_match.as_deref() == Some(tag.as_str()) {
+                (
+                    StatusCode::NOT_MODIFIED,
+                    [(ETAG, tag), (CACHE_CONTROL, cache)],
+                )
+                    .into_response()
+            } else {
+                ([(ETAG, tag), (CACHE_CONTROL, cache)], body).into_response()
+            }
+        }
+    };
+    server.requests.push(Request {
+        path,
+        if_none_match,
+        install: header(INSTALL_HEADER.parse().unwrap()),
+        status: response.status().as_u16(),
+    });
+    response
+}
+
+async fn fake_backend() -> (String, Server) {
+    let server = Server::default();
+    let app = Router::new()
+        .route("/v1/stats/{*rest}", get(serve))
+        .with_state(Arc::clone(&server));
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let base = format!("http://{}", listener.local_addr().unwrap());
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    (base, server)
+}
+
+/// A base URL nobody listens on.
+async fn dead_backend() -> String {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let base = format!("http://{}", listener.local_addr().unwrap());
+    drop(listener);
+    base
+}
+
+fn stats_client(base: &str, dir: &Path) -> StatsClient {
+    let mut config = BackendConfig::new(base, INSTALL);
+    config.timeout = Duration::from_secs(2);
+    StatsClient::new(BackendClient::new(&config).unwrap(), dir)
+}
+
+fn paths(server: &Server) -> Vec<String> {
+    server
+        .lock()
+        .unwrap()
+        .requests
+        .iter()
+        .map(|r| r.path.clone())
+        .collect()
+}
+
+fn requests(server: &Server) -> Vec<Request> {
+    server.lock().unwrap().requests.clone()
+}
+
+fn forget_requests(server: &Server) {
+    server.lock().unwrap().requests.clear();
+}
+
+// ── Published data ─────────────────────────────────────────────────────────────────────────
+
+fn info(patch: &str, queue: u32, updated_at: i64) -> DataSetInfo {
+    DataSetInfo {
+        schema: 1,
+        patch: patch.to_owned(),
+        queue,
+        bracket: EMERALD,
+        games: 120_000,
+        updated_at,
+    }
+}
+
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "small positive test numbers"
+)]
+fn wins(games: u32, rate: f64) -> u32 {
+    (f64::from(games) * rate).round() as u32
+}
+
+/// `(champion, [(role, games, win rate)])` rows of a champions file.
+type Rows<'a> = &'a [(u32, &'a [(Role, u32, f64)])];
+
+fn world() -> Rows<'static> {
+    use Role::{Jungle, Middle, Support, Top};
+    &[
+        (MALPHITE, &[(Top, 30_000, 0.51)]),
+        (ORNN, &[(Top, 20_000, 0.505)]),
+        (SHEN, &[(Top, 20_000, 0.50), (Support, 4_000, 0.50)]),
+        (CAMILLE, &[(Top, 25_000, 0.52)]),
+        (IRELIA, &[(Top, 27_000, 0.49), (Middle, 3_000, 0.48)]),
+        (LEE_SIN, &[(Jungle, 40_000, 0.49)]),
+        (AHRI, &[(Middle, 35_000, 0.51)]),
+        (THRESH, &[(Support, 30_000, 0.50)]),
+        (YUUMI, &[(Support, 15_000, 0.48)]),
+    ]
+}
+
+fn champions_file(info: &DataSetInfo, rows: Rows<'_>) -> ChampionsFile {
+    ChampionsFile {
+        info: info.clone(),
+        champions: rows
+            .iter()
+            .map(|(id, roles)| {
+                let roles: Vec<ChampionRoleStats> = roles
+                    .iter()
+                    .map(|&(role, g, wr)| ChampionRoleStats {
+                        role: Some(role),
+                        g,
+                        w: wins(g, wr),
+                        prev: None,
+                    })
+                    .collect();
+                ChampionStats {
+                    id: *id,
+                    g: roles.iter().map(|r| r.g).sum(),
+                    w: roles.iter().map(|r| r.w).sum(),
+                    bans: 100,
+                    roles,
+                }
+            })
+            .collect(),
+        priors: vec![PairPrior {
+            kind: PairKind::Lane,
+            roles: vec![Role::Top, Role::Top],
+            tau: 0.0209,
+            k: 572.3,
+            pairs: 900,
+        }],
+    }
+}
+
+fn tier_list(info: &DataSetInfo, rows: Rows<'_>) -> TierList {
+    let mut entries: Vec<TierEntry> = rows
+        .iter()
+        .flat_map(|(id, roles)| {
+            roles.iter().map(move |&(role, g, wr)| TierEntry {
+                id: *id,
+                role: Some(role),
+                tier: TierGrade::B,
+                score: (wr - 0.5) * 100.0,
+                g,
+                w: wins(g, wr),
+                win_rate: wr,
+                pick_rate: 0.1,
+                ban_rate: 0.01,
+            })
+        })
+        .collect();
+    entries.sort_by(|a, b| b.score.total_cmp(&a.score));
+    TierList {
+        info: info.clone(),
+        entries,
+    }
+}
+
+fn matchups_file(
+    info: &DataSetInfo,
+    id: u32,
+    role: Role,
+    lane: &[(u32, Role, u32, u32)],
+) -> MatchupsFile {
+    MatchupsFile {
+        info: info.clone(),
+        id,
+        roles: vec![RoleMatchups {
+            role,
+            g: 20_000,
+            w: 10_000,
+            lane: lane
+                .iter()
+                .map(|&(id, role, g, w)| MatchupEntry {
+                    id,
+                    role,
+                    g,
+                    w,
+                    d: 0.0,
+                })
+                .collect(),
+            jungle: vec![],
+            duos: vec![],
+        }],
+    }
+}
+
+fn builds_file(info: &DataSetInfo, id: u32) -> BuildsFile {
+    let section = BuildSection { n: 0, top: vec![] };
+    BuildsFile {
+        info: info.clone(),
+        id,
+        roles: vec![BuildStats {
+            role: Some(Role::Top),
+            g: 1,
+            w: 1,
+            runes: section.clone(),
+            keystones: section.clone(),
+            spells: section.clone(),
+            skills: section.clone(),
+            skill_start: section.clone(),
+            starts: section.clone(),
+            core: section.clone(),
+            boots: section.clone(),
+            item4: section.clone(),
+            item5: section.clone(),
+            item6: section,
+        }],
+    }
+}
+
+fn to_json(value: &impl serde::Serialize) -> Vec<u8> {
+    serde_json::to_vec(value).unwrap()
+}
+
+/// Publishes a patch like `mvp-crawler publish`: its files (ranked; ARAM tier list only),
+/// then the index with `current` and every patch in `listed` (newest first).
+fn publish(server: &Server, patch: &str, updated_at: i64, current: &str, listed: &[(&str, i64)]) {
+    let ranked = info(patch, RANKED, updated_at);
+    let dir = format!("{patch}/420/emeraldPlus");
+    let mut s = server.lock().unwrap();
+    s.files.insert(
+        format!("{dir}/champions.json"),
+        to_json(&champions_file(&ranked, world())),
+    );
+    s.files.insert(
+        format!("{dir}/tierlist.json"),
+        to_json(&tier_list(&ranked, world())),
+    );
+    s.files.insert(
+        format!("{dir}/builds/{MALPHITE}.json"),
+        to_json(&builds_file(&ranked, MALPHITE)),
+    );
+    s.files.insert(
+        format!("{dir}/matchups/{MALPHITE}.json"),
+        to_json(&matchups_file(
+            &ranked,
+            MALPHITE,
+            Role::Top,
+            &[(IRELIA, Role::Top, 3_000, 1_700)],
+        )),
+    );
+    s.files.insert(
+        format!("{dir}/matchups/{ORNN}.json"),
+        to_json(&matchups_file(
+            &ranked,
+            ORNN,
+            Role::Top,
+            &[(IRELIA, Role::Top, 2_000, 900)],
+        )),
+    );
+    let aram = info(patch, ARAM, updated_at);
+    s.files.insert(
+        format!("{patch}/450/emeraldPlus/tierlist.json"),
+        to_json(&tier_list(&aram, &[(MALPHITE, &[])])),
+    );
+    let index = StatsIndex {
+        schema: 1,
+        current: Some(current.to_owned()),
+        patches: listed
+            .iter()
+            .map(|&(patch, updated_at)| PatchIndex {
+                patch: patch.to_owned(),
+                name: format!("2{}", patch.trim_start_matches('1')),
+                sets: vec![
+                    DataSetIndex {
+                        queue: RANKED,
+                        bracket: EMERALD,
+                        games: 120_000,
+                    },
+                    DataSetIndex {
+                        queue: ARAM,
+                        bracket: EMERALD,
+                        games: 40_000,
+                    },
+                ],
+                updated_at,
+            })
+            .collect(),
+        updated_at,
+    };
+    s.files.insert("index".to_owned(), to_json(&index));
+}
+
+// ── The stats client ───────────────────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn downloads_caches_and_revalidates() {
+    let (base, server) = fake_backend().await;
+    publish(&server, "16.19", 1_000, "16.19", &[("16.19", 1_000)]);
+    let dir = tempfile::tempdir().unwrap();
+    let stats = stats_client(&base, dir.path());
+    assert!(stats.cached_index().is_none());
+
+    let list = stats.current_tier_list(RANKED, EMERALD).await.unwrap();
+    assert_eq!(list.info.patch, "16.19");
+    assert_eq!(list.entries[0].id, CAMILLE, "best first");
+    assert_eq!(
+        paths(&server),
+        ["index", "16.19/420/emeraldPlus/tierlist.json"]
+    );
+    assert!(
+        requests(&server)
+            .iter()
+            .all(|r| r.install.as_deref() == Some(INSTALL) && r.if_none_match.is_none())
+    );
+    let cached = dir.path().join("v1/16.19/420/emeraldPlus/tierlist.json");
+    assert!(
+        cached.exists()
+            && dir
+                .path()
+                .join("v1/16.19/420/emeraldPlus/tierlist.json.etag")
+                .exists()
+    );
+    assert!(dir.path().join("v1/index.json.etag").exists());
+
+    // Asked again: from memory.
+    stats.current_tier_list(RANKED, EMERALD).await.unwrap();
+    assert_eq!(paths(&server).len(), 2);
+
+    // A restart: the index comes from disk, is revalidated (304), and the file of the same
+    // publication is read from disk without a request.
+    forget_requests(&server);
+    let stats = stats_client(&base, dir.path());
+    assert_eq!(
+        stats
+            .cached_index()
+            .and_then(|i| i.current.clone())
+            .as_deref(),
+        Some("16.19")
+    );
+    let mut announced = stats.subscribe();
+    stats.refresh_index().await.unwrap();
+    assert!(
+        !announced.has_changed().unwrap(),
+        "same index: nothing to announce"
+    );
+    let again = stats.current_tier_list(RANKED, EMERALD).await.unwrap();
+    assert_eq!(again, list);
+    let seen = requests(&server);
+    assert_eq!(seen.len(), 1);
+    assert_eq!((seen[0].path.as_str(), seen[0].status), ("index", 304));
+    assert!(seen[0].if_none_match.is_some());
+
+    // A republication: the new index is announced; the file is revalidated with its ETag.
+    publish(&server, "16.19", 2_000, "16.19", &[("16.19", 2_000)]);
+    forget_requests(&server);
+    stats.refresh_index().await.unwrap();
+    assert!(announced.has_changed().unwrap());
+    let fresh = announced.borrow_and_update().clone().unwrap();
+    assert_eq!(fresh.updated_at, 2_000);
+    let list = stats.current_tier_list(RANKED, EMERALD).await.unwrap();
+    assert_eq!(list.info.updated_at, 2_000);
+    let seen = requests(&server);
+    assert_eq!(seen[1].path, "16.19/420/emeraldPlus/tierlist.json");
+    assert!(seen[1].if_none_match.is_some() && seen[1].status == 200);
+
+    // An index-only change (same files): the file answers 304 and the disk copy is used.
+    {
+        let mut s = server.lock().unwrap();
+        let mut index: StatsIndex = serde_json::from_slice(&s.files["index"]).unwrap();
+        index.patches[0].updated_at = 3_000;
+        index.updated_at = 3_000;
+        s.files.insert("index".to_owned(), to_json(&index));
+    }
+    forget_requests(&server);
+    stats.refresh_index().await.unwrap();
+    assert_eq!(
+        stats.current_tier_list(RANKED, EMERALD).await.unwrap(),
+        list
+    );
+    let seen = requests(&server);
+    assert_eq!(
+        seen.iter().map(|r| r.status).collect::<Vec<_>>(),
+        [200, 304]
+    );
+    // … and then stands without asking again.
+    stats.current_tier_list(RANKED, EMERALD).await.unwrap();
+    assert_eq!(requests(&server).len(), 2);
+}
+
+#[tokio::test]
+async fn answers_offline_from_disk() {
+    let (base, server) = fake_backend().await;
+    publish(&server, "16.19", 1_000, "16.19", &[("16.19", 1_000)]);
+    let dir = tempfile::tempdir().unwrap();
+    let online = stats_client(&base, dir.path());
+    let page = online
+        .champion_page(MALPHITE, RANKED, EMERALD)
+        .await
+        .unwrap();
+    assert!(page.stats.is_some() && page.builds.is_some() && page.matchups.is_some());
+
+    // Offline, after a restart: everything seen before still answers.
+    let offline = stats_client(&dead_backend().await, dir.path());
+    assert_eq!(
+        offline
+            .champion_page(MALPHITE, RANKED, EMERALD)
+            .await
+            .unwrap(),
+        page
+    );
+    assert!(offline.current_tier_list(RANKED, EMERALD).await.is_ok());
+    // What was never downloaded can't be answered.
+    assert!(matches!(
+        offline.champion_page(ORNN, RANKED, EMERALD).await,
+        Err(BackendError::Network { .. })
+    ));
+    // Nothing cached at all: no index.
+    let empty = tempfile::tempdir().unwrap();
+    let nothing = stats_client(&dead_backend().await, empty.path());
+    assert!(matches!(
+        nothing.index().await,
+        Err(BackendError::Network { .. })
+    ));
+}
+
+#[tokio::test]
+async fn keeps_two_patches_and_falls_back_to_the_previous_one() {
+    let (base, server) = fake_backend().await;
+    let dir = tempfile::tempdir().unwrap();
+    let stats = stats_client(&base, dir.path());
+    publish(&server, "16.18", 1_000, "16.18", &[("16.18", 1_000)]);
+    stats.current_tier_list(RANKED, EMERALD).await.unwrap();
+    publish(
+        &server,
+        "16.19",
+        2_000,
+        "16.19",
+        &[("16.19", 2_000), ("16.18", 1_000)],
+    );
+    stats.refresh_index().await.unwrap();
+    stats.current_tier_list(RANKED, EMERALD).await.unwrap();
+    let v1 = dir.path().join("v1");
+    assert!(v1.join("16.18").exists() && v1.join("16.19").exists());
+
+    // 16.20 becomes current: 16.18 goes, 16.19 (the previous patch) stays.
+    publish(
+        &server,
+        "16.20",
+        3_000,
+        "16.20",
+        &[("16.20", 3_000), ("16.19", 2_000), ("16.18", 1_000)],
+    );
+    stats.refresh_index().await.unwrap();
+    assert!(!v1.join("16.18").exists(), "older patches are pruned");
+    assert!(v1.join("16.19").exists());
+
+    // Offline before 16.20's files were downloaded: 16.19's copy stands in.
+    let offline = stats_client(&dead_backend().await, dir.path());
+    let list = offline.current_tier_list(RANKED, EMERALD).await.unwrap();
+    assert_eq!(list.info.patch, "16.19");
+}
+
+#[tokio::test]
+async fn one_request_per_file_at_a_time() {
+    let (base, server) = fake_backend().await;
+    publish(&server, "16.19", 1_000, "16.19", &[("16.19", 1_000)]);
+    server
+        .lock()
+        .unwrap()
+        .slow
+        .push("16.19/420/emeraldPlus/tierlist.json".to_owned());
+    let dir = tempfile::tempdir().unwrap();
+    let stats = stats_client(&base, dir.path());
+    let calls: Vec<_> = (0..6)
+        .map(|_| {
+            let stats = stats.clone();
+            tokio::spawn(async move { stats.current_tier_list(RANKED, EMERALD).await })
+        })
+        .collect();
+    for call in calls {
+        assert!(call.await.unwrap().is_ok());
+    }
+    assert_eq!(
+        paths(&server),
+        ["index", "16.19/420/emeraldPlus/tierlist.json"]
+    );
+}
+
+#[tokio::test]
+async fn champion_pages_leave_missing_parts_empty() {
+    let (base, server) = fake_backend().await;
+    publish(&server, "16.19", 1_000, "16.19", &[("16.19", 1_000)]);
+    let dir = tempfile::tempdir().unwrap();
+    let stats = stats_client(&base, dir.path());
+
+    let page = stats
+        .champion_page(MALPHITE, RANKED, EMERALD)
+        .await
+        .unwrap();
+    assert_eq!(page.info.patch, "16.19");
+    assert_eq!(page.stats.as_ref().map(|s| s.id), Some(MALPHITE));
+    assert_eq!(page.tiers.len(), 1);
+    assert_eq!(page.builds.as_ref().map(|b| b.id), Some(MALPHITE));
+    assert_eq!(page.matchups.as_ref().map(|m| m.id), Some(MALPHITE));
+
+    // Shen: no builds or matchups published → empty parts; best role first.
+    let shen = stats.champion_page(SHEN, RANKED, EMERALD).await.unwrap();
+    assert!(shen.builds.is_none() && shen.matchups.is_none());
+    assert_eq!(shen.tiers.len(), 2);
+    assert!(shen.tiers[0].score >= shen.tiers[1].score);
+    // Asked again: the misses are remembered for this publication.
+    forget_requests(&server);
+    stats.champion_page(SHEN, RANKED, EMERALD).await.unwrap();
+    assert!(paths(&server).is_empty(), "{:?}", paths(&server));
+
+    // A champion without games: no builds/matchups requests at all.
+    stats.champion_page(999, RANKED, EMERALD).await.unwrap();
+    assert!(paths(&server).is_empty());
+
+    // ARAM: only the tier list is published here, and matchups are never asked for.
+    let aram = stats.champion_page(MALPHITE, ARAM, EMERALD).await.unwrap();
+    assert_eq!(aram.info.queue, ARAM);
+    assert!(aram.stats.is_none() && aram.matchups.is_none());
+    assert!(
+        !paths(&server)
+            .iter()
+            .any(|p| p.contains("450/emeraldPlus/matchups"))
+    );
+
+    // Data sets that aren't published.
+    assert_eq!(
+        stats
+            .champion_page(MALPHITE, RANKED, Bracket::MasterPlus)
+            .await
+            .unwrap_err(),
+        BackendError::NotFound
+    );
+    assert_eq!(
+        stats.current_tier_list(440, EMERALD).await.unwrap_err(),
+        BackendError::NotFound
+    );
+    server.lock().unwrap().files.retain(|k, _| k == "index");
+    let empty = tempfile::tempdir().unwrap();
+    let fresh = stats_client(&base, empty.path());
+    assert_eq!(
+        fresh
+            .champion_page(MALPHITE, RANKED, EMERALD)
+            .await
+            .unwrap_err(),
+        BackendError::NotFound,
+        "listed but gone"
+    );
+}
+
+#[tokio::test]
+async fn a_rate_limit_pauses_requests() {
+    let (base, server) = fake_backend().await;
+    publish(&server, "16.19", 1_000, "16.19", &[("16.19", 1_000)]);
+    server
+        .lock()
+        .unwrap()
+        .limited
+        .push("16.19/420/emeraldPlus/tierlist.json".to_owned());
+    let dir = tempfile::tempdir().unwrap();
+    let stats = stats_client(&base, dir.path());
+    assert_eq!(
+        stats.current_tier_list(RANKED, EMERALD).await.unwrap_err(),
+        BackendError::RateLimited {
+            retry_after: Some(7)
+        }
+    );
+    forget_requests(&server);
+    // Paused: nothing is sent, the wait is passed on.
+    assert!(matches!(
+        stats.champion_page(MALPHITE, RANKED, EMERALD).await,
+        Err(BackendError::RateLimited {
+            retry_after: Some(1..=7)
+        })
+    ));
+    assert!(paths(&server).is_empty());
+}
+
+#[tokio::test]
+async fn nothing_published_means_no_index() {
+    let (base, _server) = fake_backend().await;
+    let dir = tempfile::tempdir().unwrap();
+    let stats = stats_client(&base, dir.path());
+    assert_eq!(stats.index().await.unwrap_err(), BackendError::NotFound);
+    assert!(stats.cached_index().is_none());
+}
+
+// ── The draft helper, end to end ───────────────────────────────────────────────────────────
+
+fn config_for(mock: &MockLcu) -> ConnectorConfig {
+    let lockfile = mock.lockfile();
+    ConnectorConfig {
+        discover: Box::new(move || {
+            lcu::Lockfile::parse(&lockfile)
+                .ok()
+                .map(|l| l.credentials())
+        }),
+        tls: pinned_client_config(mock.ca_pem().as_bytes()).unwrap(),
+        paths: vec![],
+        poll_interval: Duration::from_millis(50),
+        startup_grace: Duration::from_secs(1),
+    }
+}
+
+/// You (top) hover `hover`; Lee Sin and Ahri are locked, Thresh hovered; the enemy has
+/// `enemies` locked.
+fn session(hover: u32, enemies: &[u32]) -> serde_json::Value {
+    let their: Vec<_> = (0..5)
+        .map(|i| json!({ "cellId": 5 + i, "championId": enemies.get(i).copied().unwrap_or(0) }))
+        .collect();
+    json!({
+        "localPlayerCellId": 0,
+        "myTeam": [
+            { "cellId": 0, "assignedPosition": "top", "championId": 0, "championPickIntent": hover },
+            { "cellId": 1, "assignedPosition": "jungle", "championId": LEE_SIN },
+            { "cellId": 2, "assignedPosition": "middle", "championId": AHRI },
+            { "cellId": 3, "assignedPosition": "bottom", "championId": 0 },
+            { "cellId": 4, "assignedPosition": "utility", "championId": 0, "championPickIntent": THRESH }
+        ],
+        "theirTeam": their,
+        "actions": [[{ "actorCellId": 0, "isInProgress": true, "type": "pick" }]],
+        "bans": { "myTeamBans": [], "theirTeamBans": [] },
+        "timer": { "phase": "BAN_PICK", "adjustedTimeLeftInPhase": 25_000 }
+    })
+}
+
+/// The local player's own data in their client: mastery, recent games, what they can pick.
+fn local_player(mock: &MockLcu) {
+    mock.set(
+        companion::draft::MASTERY,
+        json!([
+            { "championId": YUUMI, "championLevel": 9, "championPoints": 900_000 },
+            { "championId": ORNN, "championLevel": 7, "championPoints": 250_000 },
+            { "championId": MALPHITE, "championLevel": 5, "championPoints": 40_000 }
+        ]),
+    );
+    mock.set(
+        companion::draft::PICKABLE,
+        json!([MALPHITE, ORNN, SHEN, IRELIA, YUUMI, THRESH, AHRI, LEE_SIN]),
+    );
+    mock.set(
+        "/lol-match-history/v1/products/lol/current-summoner/matches",
+        json!({ "games": { "games": [
+            { "gameId": 1, "queueId": 420, "gameCreation": 1,
+              "participants": [{ "championId": SHEN, "stats": { "win": true }, "timeline": { "lane": "TOP" } }] },
+            { "gameId": 2, "queueId": 420, "gameCreation": 2,
+              "participants": [{ "championId": SHEN, "stats": { "win": false }, "timeline": { "lane": "TOP" } }] }
+        ] } }),
+    );
+}
+
+/// A core reading `stats`, connected to `mock` (event subscriptions in place).
+async fn core_with(mock: &MockLcu, stats: StatsClient) -> Companion {
+    let (_settings, settings_rx) = watch::channel(Settings {
+        auto_switch_view: false,
+        bring_to_front_on_champ_select: false,
+        ..Settings::default()
+    });
+    let core = companion::start_services(
+        config_for(mock),
+        settings_rx,
+        companion::Services {
+            backend: None,
+            stats: Some(stats),
+        },
+    );
+    let mut client = core.status.clone();
+    tokio::time::timeout(
+        Duration::from_secs(5),
+        client.wait_for(|s| s.connection == ClientConnection::Connected),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    core
+}
+
+/// The first draft view that is `ready`.
+async fn draft_where(core: &Companion, ready: impl Fn(&DraftView) -> bool) -> DraftView {
+    let mut draft = core.draft.clone();
+    tokio::time::timeout(
+        Duration::from_secs(5),
+        draft.wait_for(|d| d.as_ref().is_some_and(&ready)),
+    )
+    .await
+    .unwrap()
+    .unwrap()
+    .clone()
+    .unwrap()
+}
+
+#[tokio::test]
+async fn champion_select_gets_pool_first_suggestions() {
+    let (base, server) = fake_backend().await;
+    publish(&server, "16.19", 1_000, "16.19", &[("16.19", 1_000)]);
+    let dir = tempfile::tempdir().unwrap();
+    let mock = MockLcu::start().await.unwrap();
+    local_player(&mock);
+    let core = core_with(&mock, stats_client(&base, dir.path())).await;
+
+    mock.set(companion::champ_select::SESSION, session(0, &[]));
+    mock.set(lcu::GAMEFLOW_PHASE, json!("ChampSelect"));
+    let blind = draft_where(&core, |v| {
+        v.data.is_some() && v.suggestions.iter().any(|s| s.mine.is_some())
+    })
+    .await;
+    let data = blind.data.clone().unwrap();
+    assert_eq!(
+        (data.bracket.as_str(), data.patch.as_str()),
+        ("Emerald+", "26.19")
+    );
+    assert!(blind.team.is_some());
+    let picks: Vec<u32> = blind.suggestions.iter().map(|s| s.champion_id).collect();
+    assert!(picks.contains(&ORNN) && picks.contains(&MALPHITE) && picks.contains(&SHEN));
+    assert!(!picks.contains(&CAMILLE), "not pickable: {picks:?}");
+    assert!(!picks.contains(&YUUMI), "not a top laner: {picks:?}");
+    let shen = blind
+        .suggestions
+        .iter()
+        .find(|s| s.champion_id == SHEN)
+        .unwrap();
+    assert_eq!(shen.mine.map(|m| (m.games, m.wins)), Some((2, 1)));
+    let ornn = blind
+        .suggestions
+        .iter()
+        .find(|s| s.champion_id == ORNN)
+        .unwrap();
+    assert_eq!(ornn.mastery.map(|m| m.level), Some(7));
+
+    // Irelia locks top: the lane matchups are loaded and explain the ranking.
+    mock.set(
+        companion::champ_select::SESSION,
+        session(MALPHITE, &[IRELIA]),
+    );
+    let view = draft_where(&core, |v| {
+        v.suggestions.first().is_some_and(|s| {
+            s.reasons
+                .iter()
+                .any(|r| r.kind == ReasonKind::Lane && r.champion_id == Some(IRELIA))
+        })
+    })
+    .await;
+    assert_eq!(view.suggestions[0].champion_id, MALPHITE);
+    assert_eq!(view.enemies[0].role, Some(Role::Top));
+    assert!(view.enemies[0].role_odds[0].probability > 0.85);
+    assert_eq!(
+        view.allies[0].champion_id,
+        Some(MALPHITE),
+        "the teams stay as mapped"
+    );
+    let fetched = paths(&server);
+    for file in [
+        "16.19/420/emeraldPlus/champions.json",
+        "16.19/420/emeraldPlus/tierlist.json",
+        "16.19/420/emeraldPlus/matchups/54.json",
+        "16.19/420/emeraldPlus/matchups/39.json",
+    ] {
+        assert_eq!(
+            fetched.iter().filter(|p| *p == file).count(),
+            1,
+            "{file} once: {fetched:?}"
+        );
+    }
+
+    // Champion select ends: the view goes away.
+    mock.set(lcu::GAMEFLOW_PHASE, json!("InProgress"));
+    let mut draft = core.draft.clone();
+    tokio::time::timeout(Duration::from_secs(5), draft.wait_for(Option::is_none))
+        .await
+        .unwrap()
+        .unwrap();
+}
+
+#[tokio::test]
+async fn without_stats_the_draft_still_shows_the_teams() {
+    let mock = MockLcu::start().await.unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let offline = stats_client(&dead_backend().await, dir.path());
+    let core = core_with(&mock, offline).await;
+    mock.set(
+        companion::champ_select::SESSION,
+        session(MALPHITE, &[IRELIA]),
+    );
+    mock.set(lcu::GAMEFLOW_PHASE, json!("ChampSelect"));
+    let view = draft_where(&core, |_| true).await;
+    assert_eq!(view.enemies[0].champion_id, Some(IRELIA));
+    // Give the (failing) stats load time to come back: still teams only.
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    let view = core.draft.borrow().clone().unwrap();
+    assert!(view.suggestions.is_empty() && view.data.is_none() && view.team.is_none());
+    assert_eq!(view.allies[0].champion_id, Some(MALPHITE));
+}
