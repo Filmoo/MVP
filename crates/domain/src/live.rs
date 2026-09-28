@@ -60,6 +60,49 @@ pub struct LivePlayer {
     pub card: Option<ScoutCard>,
 }
 
+/// `GET /v1/live/{platform}/{gameName}/{tagLine}?gameId=`: the game a player is in, as Riot
+/// shows it to apps (Spectator-V5, which keeps players in streamer mode anonymous), with the
+/// cards of its visible players. The app asks it for the local player only, once their game
+/// has started. 404 `notFound` when Riot lists no game for them (or another game than
+/// `gameId`), 404 `filtered` when Riot doesn't share live games of that queue with apps.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ActiveGame {
+    #[ts(type = "number")]
+    pub game_id: u64,
+    pub queue_id: u32,
+    /// As Riot lists them (blue side first, usually).
+    pub participants: Vec<ActiveParticipant>,
+    /// Every visible player's card was asked for (those without one are unknown to our key);
+    /// `false` when some weren't ready in time: ask `POST /v1/players/batch` for the rest.
+    pub cards_complete: bool,
+}
+
+/// One player of an [`ActiveGame`]. Neither a Riot ID nor a bot: anonymous (streamer mode).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ActiveParticipant {
+    /// 100 (blue side) or 200 (red side).
+    pub team_id: u32,
+    pub champion_id: u32,
+    /// `None` for players Riot keeps anonymous (streamer mode) and for bots.
+    pub riot_id: Option<RiotId>,
+    pub bot: bool,
+    /// Summoner spell ids, empty when unknown.
+    pub spells: Vec<u32>,
+    /// Scouting card of a visible player our key knows.
+    pub card: Option<ScoutCard>,
+}
+
+impl ActiveParticipant {
+    /// Riot keeps this player anonymous (streamer mode).
+    pub const fn hidden(&self) -> bool {
+        !self.bot && self.riot_id.is_none()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -71,5 +114,24 @@ mod tests {
         })
         .expect("serializable");
         assert_eq!(json, r#"{"state":"failed","error":{"kind":"notFound"}}"#);
+    }
+
+    #[test]
+    fn participants_without_a_name_are_hidden_unless_bots() {
+        let participant = |riot_id: Option<RiotId>, bot| ActiveParticipant {
+            team_id: 100,
+            champion_id: 1,
+            riot_id,
+            bot,
+            spells: Vec::new(),
+            card: None,
+        };
+        let named = RiotId {
+            game_name: "Quiet Storm".to_owned(),
+            tag_line: "0412".to_owned(),
+        };
+        assert!(participant(None, false).hidden());
+        assert!(!participant(None, true).hidden());
+        assert!(!participant(Some(named), false).hidden());
     }
 }
