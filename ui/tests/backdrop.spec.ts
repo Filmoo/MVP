@@ -146,3 +146,68 @@ test("a lost GPU context falls back to the CSS light, and comes back", async ({ 
   await expect.poll(() => effects(page)).toBe("shader");
   expect(await fallback(page)).toBeUndefined();
 });
+
+// Liquid glass over the page (src/design/liquid): SVG lenses as backdrop filters, only with the shader.
+
+/** The title bar's glass layer: its backdrop filter, and the lens it points to (if any). */
+const barGlass = (page: Page) =>
+  page.locator("header > [aria-hidden=true]").first().evaluate((el) => {
+    const id = /url\("?#([\w-]+)"?\)/.exec(getComputedStyle(el).backdropFilter)?.[1];
+    const lens = id ? document.getElementById(id) : null;
+    return {
+      filter: getComputedStyle(el).backdropFilter,
+      displacements: lens ? lens.querySelectorAll("feDisplacementMap").length : 0,
+      slices: lens ? lens.querySelectorAll("feImage").length : 0,
+    };
+  });
+
+test("liquid glass: the title bar bends the page under its rim with the shader", async ({ page }) => {
+  await openApp(page);
+  const full = await barGlass(page);
+  expect(full.filter).toContain("url(");
+  // Colour split: three displaced copies; the bar only has its lower rim (one slice).
+  expect(full.displacements).toBe(3);
+  expect(full.slices).toBe(1);
+});
+
+for (const [name, options, expected] of [
+  ["light", { effects: "light" }, /^blur\(/],
+  ["off", { effects: "off" }, /^none$/],
+  ["no WebGL", { webgl: "missing" }, /^blur\(/],
+] as const) {
+  test(`liquid glass: ${name} keeps the title bar's plain frost`, async ({ page }) => {
+    await openApp(page, options);
+    expect((await barGlass(page)).filter).toMatch(expected);
+  });
+}
+
+test("liquid glass: the rail's lens sits on the current section and glides to the next", async ({ page }) => {
+  await openApp(page, { freezeClock: false });
+  const lens = page.getByTestId("rail-lens");
+  const over = async (label: string) => {
+    const [l, i] = await Promise.all([lens.boundingBox(), page.getByRole("link", { name: label }).boundingBox()]);
+    return l && i ? Math.hypot(l.x - i.x, l.y - i.y) : Number.POSITIVE_INFINITY;
+  };
+  expect(await over("Home")).toBeLessThan(1);
+  await page.getByRole("link", { name: "Settings" }).click();
+  await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)));
+  expect(await over("Settings")).toBeLessThan(1);
+  // At rest again: nothing animates.
+  expect(await page.evaluate(() => document.getAnimations().length)).toBe(0);
+});
+
+test("liquid glass: a held switch turns its knob into a lens, released it's solid again", async ({ page }) => {
+  await openApp(page, { view: "/settings" });
+  const toggle = page.getByRole("switch", { name: "Close to tray" });
+  const knobFilter = () => toggle.locator("span").evaluate((el) => getComputedStyle(el).backdropFilter);
+  expect(await knobFilter()).toBe("none");
+  const box = await toggle.boundingBox();
+  if (!box) throw new Error("no switch");
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await expect(toggle).toHaveAttribute("data-pressed", "");
+  expect(await knobFilter()).toContain("url(");
+  await page.mouse.up();
+  await expect(toggle).not.toHaveAttribute("data-pressed");
+  expect(await knobFilter()).toBe("none");
+});

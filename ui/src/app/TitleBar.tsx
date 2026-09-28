@@ -2,6 +2,7 @@ import { type JSX, Show } from "solid-js";
 import type { ClientStatus } from "../data/generated/ClientStatus";
 import { Icon } from "../design/Icon";
 import { Wordmark } from "../design/Logo";
+import { liquid } from "../design/liquid/liquid";
 import { Search } from "./search/Search";
 import styles from "./TitleBar.module.css";
 
@@ -19,7 +20,8 @@ async function windowAction(action: "minimize" | "toggleMaximize" | "close") {
 export function TitleBar(props: { status: ClientStatus | undefined; native: boolean }): JSX.Element {
   const connection = () => props.status?.connection ?? "notRunning";
   return (
-    <header class={styles.bar} data-tauri-drag-region data-refract="chrome">
+    <header class={styles.bar} data-tauri-drag-region>
+      <div class={styles.glass} aria-hidden="true" ref={(el) => liquid(el, "bar")} />
       <div class={styles.brand}>
         <Wordmark height={24} />
       </div>

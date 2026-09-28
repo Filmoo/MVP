@@ -1,4 +1,5 @@
 import { createSignal } from "solid-js";
+import { setLensing } from "../liquid/liquid";
 import { glideAt } from "./glide";
 import { type Effects, loadEffects, type Rendering, SLOW_FIRST_RENDER_MS, saveEffects } from "./quality";
 import { Renderer } from "./renderer";
@@ -29,12 +30,20 @@ export function setEffects(next: Effects): void {
   setEffectsSignal(next);
 }
 
+const [rendered, setRendered] = createSignal<{ rendering: Rendering; reason: string | undefined }>({ rendering: "css", reason: undefined });
+
+/** What is drawn right now, and why when it isn't what was asked (for Settings). */
+export { rendered };
+
 /** What is drawn right now, on <html data-effects>: the CSS keys off it. `reason` explains a fallback. */
 export function setRendering(rendering: Rendering, reason?: string): void {
+  setRendered({ rendering, reason });
   const root = document.documentElement;
   if (root.dataset.effects !== rendering) root.dataset.effects = rendering;
   if (reason) root.dataset.effectsFallback = reason;
   else delete root.dataset.effectsFallback;
+  // Glass that bends the page runs on the same GPU budget: only with the shader.
+  setLensing(rendering === "shader");
 }
 
 /**

@@ -1,4 +1,5 @@
-import { FRAGMENT_LIGHT, FRAGMENT_PANE, FRAGMENT_PATTERN, FRAGMENT_SHOW, PATTERN_SIZE, VERTEX_FULL, VERTEX_PANE } from "./shader";
+import { opticsTable } from "../liquid/optics";
+import { CARD_GLASS, FRAGMENT_LIGHT, FRAGMENT_PANE, FRAGMENT_SHOW, OPTICS_SIZE, VERTEX_FULL, VERTEX_PANE } from "./shader";
 import { type Frame, type Light, PANE_STRIDE, sameLight } from "./uniforms";
 
 interface Program {
@@ -17,7 +18,9 @@ export class Renderer {
   private full: WebGLBuffer | null = null;
   private panes: WebGLBuffer | null = null;
   private texture: WebGLTexture | null = null;
-  private pattern: WebGLTexture | null = null;
+  private optics: WebGLTexture | null = null;
+  /** CSS px of the largest displacement the optics texture stands for. */
+  private bend = 0;
   private framebuffer: WebGLFramebuffer | null = null;
   private textureSize = { width: 0, height: 0 };
   private drawnLight: Light | undefined;
@@ -102,18 +105,19 @@ export class Renderer {
     };
     this.framebuffer = gl.createFramebuffer();
 
-    // The mosaic tile, drawn once on the GPU (unit 1 for good).
-    const patternProgram = compile(VERTEX_FULL, FRAGMENT_PATTERN, ["a_pos"]);
-    if (!patternProgram) return false;
+    // The glass optics across a card's bevel (unit 1 for good): r = inward displacement,
+    // g = reflectance. The same curves as the liquid glass over the page (design/liquid).
+    const table = opticsTable(CARD_GLASS, OPTICS_SIZE);
+    this.bend = table.max;
+    const texels = new Uint8Array(OPTICS_SIZE * 4);
+    for (let i = 0; i < OPTICS_SIZE; i++) {
+      texels[i * 4] = Math.round((255 * (table.displacement[i] ?? 0)) / Math.max(1e-6, table.max));
+      texels[i * 4 + 1] = Math.round(255 * (table.reflectance[i] ?? 0));
+      texels[i * 4 + 3] = 255;
+    }
     gl.activeTexture(gl.TEXTURE1);
-    this.pattern = texture(gl.REPEAT);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, PATTERN_SIZE, PATTERN_SIZE, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.pattern, 0);
-    gl.viewport(0, 0, PATTERN_SIZE, PATTERN_SIZE);
-    gl.useProgram(patternProgram.program);
-    this.drawFull();
-    gl.deleteProgram(patternProgram.program);
+    this.optics = texture(gl.CLAMP_TO_EDGE);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, OPTICS_SIZE, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, texels);
 
     // The light texture (unit 0), sized on the first draw.
     gl.activeTexture(gl.TEXTURE0);
@@ -168,9 +172,7 @@ export class Renderer {
     const surface = (p: Program) => {
       gl.useProgram(p.program);
       gl.uniform1i(p.uniform("u_tex"), 0);
-      gl.uniform1i(p.uniform("u_pattern"), 1);
       gl.uniform2f(p.uniform("u_view"), view.width, view.height);
-      gl.uniform3fv(p.uniform("u_bg"), frame.light.background);
     };
     surface(show);
     gl.uniform2f(show.uniform("u_res"), canvas.width, canvas.height);
@@ -178,7 +180,11 @@ export class Renderer {
 
     if (frame.vertexCount > 0) {
       surface(pane);
+      gl.uniform1i(pane.uniform("u_optics"), 1);
+      gl.uniform1f(pane.uniform("u_bend"), this.bend);
+      gl.uniform3fv(pane.uniform("u_bg"), frame.light.background);
       gl.uniform3fv(pane.uniform("u_a"), frame.light.glowA);
+      gl.uniform2f(pane.uniform("u_lightAt"), frame.light.origin[0] * view.width, frame.light.origin[1] * view.height);
       gl.bindBuffer(gl.ARRAY_BUFFER, this.panes);
       gl.bufferData(gl.ARRAY_BUFFER, frame.panes.subarray(0, frame.vertexCount * PANE_STRIDE), gl.DYNAMIC_DRAW);
       const bytes = PANE_STRIDE * 4;
@@ -220,7 +226,7 @@ export class Renderer {
       gl.deleteBuffer(this.full);
       gl.deleteBuffer(this.panes);
       gl.deleteTexture(this.texture);
-      gl.deleteTexture(this.pattern);
+      gl.deleteTexture(this.optics);
       gl.deleteFramebuffer(this.framebuffer);
     }
     this.light = null;

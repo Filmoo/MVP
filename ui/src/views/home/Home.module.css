@@ -31,7 +31,8 @@
   grid-area: summary;
   min-width: 0;
   position: sticky;
-  top: var(--space-8);
+  /* The page scrolls under the title bar: stick below it. */
+  top: calc(var(--titlebar-h) + var(--space-8));
 }
 
 @container page (max-width: 959px) {

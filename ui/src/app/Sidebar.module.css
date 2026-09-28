@@ -1,16 +1,29 @@
-/* Icon rail: every section one click away, labels under icons, minimal width. */
+/*
+ * Icon rail: every section one click away, labels under icons, minimal width. Frosted glass,
+ * drawn by a layer inside it so the lens still sees through to the page (an element with its
+ * own backdrop-filter would hide it from its children's glass).
+ */
 .sidebar {
   grid-area: sidebar;
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-4) 0;
-  background: var(--bg-chrome);
-  backdrop-filter: var(--blur-glass);
-  border-right: 1px solid var(--line-glass);
   min-height: 0;
   overflow: hidden;
+}
+
+.frost {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--bg-chrome);
+  backdrop-filter: var(--blur-glass);
+  box-shadow: inset -1px 0 0 var(--line-glass);
+  pointer-events: none;
 }
 
 .nav {
@@ -47,13 +60,38 @@
   color: var(--text-1);
 }
 
+/* The lens (below) is the active item's surface. */
 .active,
 .active:hover {
-  background: var(--accent-soft);
+  background: transparent;
   color: var(--accent-strong);
+}
+
+/*
+ * Liquid glass lens over the current section (design/liquid, "lens"): it magnifies the icon
+ * a little, bends it at the rim and glides between sections (Sidebar.tsx). Placed by JS.
+ */
+.lens {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.lens[data-hidden] {
+  display: none;
+}
+
+.glass {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-4);
+  background: var(--bg-lens);
+  backdrop-filter: var(--lg-filter, none);
   box-shadow:
-    inset 0 1px 0 var(--line-specular),
-    inset 0 0 0 1px var(--line-glass);
+    inset 0 1px 1px var(--line-specular),
+    0 6px 16px -8px var(--line-shade);
 }
 
 .active::before {

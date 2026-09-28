@@ -1,11 +1,13 @@
-/* Glass card: translucent fill with a top sheen, lit top edge, soft shadow. */
+/*
+ * Glass card: translucent fill with a top sheen over the backdrop, whose shader draws the thick
+ * glass edge under it (design/backdrop); a crisp rim of light on top (design/glass.css).
+ */
 .card {
+  position: relative;
   background: linear-gradient(180deg, var(--bg-sheen), transparent 120px), var(--bg-card);
   border: 1px solid var(--line-glass);
   border-radius: var(--radius-4);
-  box-shadow:
-    inset 0 1px 0 var(--line-specular),
-    var(--shadow-glass);
+  box-shadow: var(--shadow-glass);
   min-width: 0;
   display: flex;
   flex-direction: column;

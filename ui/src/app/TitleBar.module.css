@@ -1,16 +1,31 @@
+/*
+ * Liquid glass over the page: the content scrolls under the bar, which frosts it and bends it
+ * along its lower rim (design/liquid). The glass is a layer inside the bar, not the bar itself:
+ * an element with a backdrop-filter hides the page from the glass of its descendants, and the
+ * search panel is glass too. (A ::before layer would do, but Chromium ignores backdrop-filter
+ * on this one.)
+ */
 .bar {
-  grid-area: titlebar;
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 20;
   display: flex;
   align-items: center;
   gap: var(--space-5);
   height: var(--titlebar-h);
-  background: var(--bg-chrome);
-  backdrop-filter: var(--blur-glass);
-  border-bottom: 1px solid var(--line-glass);
-  /* The blur makes the bar its own stacking context: lift it so its search panel stays above the page. */
-  position: relative;
-  z-index: 20;
   min-width: 0;
+}
+
+.glass {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--bg-chrome);
+  backdrop-filter: var(--lg-filter, var(--blur-glass));
+  box-shadow:
+    inset 0 -1px 0 var(--line-glass),
+    0 1px 0 var(--line-shade);
+  pointer-events: none;
 }
 
 /* Centered over the rail. */

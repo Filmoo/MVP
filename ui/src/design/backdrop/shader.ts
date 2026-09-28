@@ -2,17 +2,21 @@
  * GLSL (WebGL 1 / ES 2.0) for the window backdrop, in two cheap passes:
  *
  * 1. LIGHT, into a tiny texture (1/8 of CSS px), only when the colors or the window size change:
- *    three soft glows (the page light), bent by low-frequency noise, with a faint satin pattern
+ *    three soft glows (the page light), bent by low-frequency noise, with a faint satin sheen
  *    that only lives in the light. Alpha stores how much light there is.
  * 2. Per render (also on scroll), into the half-resolution canvas:
- *    SHOW upscales the texture (bilinear) with a fine texture and a dither; PANE draws one quad
- *    per glass element, sampling both at bent coordinates (lens + bevel) with a faint rim light.
+ *    SHOW upscales the texture (bilinear) with a dither; PANE draws one quad per glass card,
+ *    seen through thick glass: its rim bends the light (Snell's law through a curved bezel, the
+ *    same optics as the liquid glass over the page, design/liquid/optics.ts, read from a small
+ *    lookup texture), splits it a little by colour, and catches it where it faces the light.
  *
- * The fine texture is a soft hex mosaic (a nod to hextech), a 128² tile rendered ONCE by PATTERN.
- * It only scales the light's difference from the background, so dark areas never carry it.
- *
- * Per render: no loops, two texture fetches per pixel; the noise lives in pass 1 only.
+ * Per render: no loops; one texture fetch per pixel outside panes, four inside their rim.
  */
+
+import type { Glass } from "../liquid/optics";
+
+/** The thick glass of cards: a squircle rim 18 CSS px wide, 24 px thick (see design/liquid). */
+export const CARD_GLASS: Glass = { profile: "squircle", bezel: 18, thickness: 24 };
 
 const PRECISION = `
 #ifdef GL_FRAGMENT_PRECISION_HIGH
@@ -84,56 +88,16 @@ void main() {
 }
 `;
 
-/** Size of the pattern tile, texels (power of two: it repeats). */
-export const PATTERN_SIZE = 128;
-
-/** Rendered once: a soft mosaic of staggered (hex-like) cells, each a random shade, tiling. */
-export const FRAGMENT_PATTERN = `${PRECISION}
-const float N = ${PATTERN_SIZE}.0;
-const float CELL = 8.0; // texels between cell centers; N / CELL rows is even, so it tiles
-
-float hash(vec2 p) {
-  vec3 p3 = fract(vec3(p.xyx) * 0.1031);
-  p3 += dot(p3, p3.yzx + 33.33);
-  return fract((p3.x + p3.y) * p3.z);
-}
-
-void main() {
-  vec2 t = gl_FragCoord.xy;
-  vec2 base = floor(t / CELL);
-  float d1 = 1e9;
-  float d2 = 1e9;
-  float v1 = 0.5;
-  float v2 = 0.5;
-  for (int j = -1; j <= 1; j++) {
-    for (int i = -1; i <= 1; i++) {
-      vec2 c = base + vec2(float(i), float(j));
-      vec2 center = (c + vec2(0.5 + 0.5 * mod(c.y, 2.0), 0.5)) * CELL;
-      float d = length((t - center) * vec2(1.0, 1.15));
-      float v = hash(mod(c, N / CELL) + 0.37);
-      if (d < d1) { d2 = d1; v2 = v1; d1 = d; v1 = v; }
-      else if (d < d2) { d2 = d; v2 = v; }
-    }
-  }
-  // Soft seams: neighbouring shades blend, so no outline (no lines) is ever drawn.
-  float v = mix((v1 + v2) * 0.5, v1, smoothstep(0.0, 3.0, d2 - d1));
-  gl_FragColor = vec4(v, v, v, 1.0);
-}
-`;
+/** Size of the optics lookup texture (see design/liquid/optics.ts `opticsTable`). */
+export const OPTICS_SIZE = 64;
 
 const SURFACE = `
-uniform sampler2D u_tex;     // the light (pass 1)
-uniform sampler2D u_pattern; // the mosaic tile
+uniform sampler2D u_tex; // the light (pass 1)
 uniform vec2 u_view;
-uniform vec3 u_bg;
-const float PATTERN_PX = 2.0; // CSS px per pattern texel: cells of about 16 CSS px
-const float GRAIN = 0.2;      // mosaic depth: +-10% of the light = about 1-2% luminance at most
 
-// The backdrop at a point (CSS px): the light with the mosaic in it. a = how much light is there.
+// The backdrop at a point (CSS px): the light. a = how much light is there.
 vec4 surface(vec2 px) {
-  vec4 light = texture2D(u_tex, px / u_view);
-  float cell = texture2D(u_pattern, px / (${PATTERN_SIZE}.0 * PATTERN_PX)).r - 0.5;
-  return vec4(u_bg + (light.rgb - u_bg) * (1.0 + cell * GRAIN), light.a);
+  return texture2D(u_tex, px / u_view);
 }
 
 // Triangular dither (+-1 step): hides 8-bit banding in the long dark gradients.
@@ -169,41 +133,54 @@ void main() {
 
 export const FRAGMENT_PANE = `${PRECISION}
 ${SURFACE}
+uniform sampler2D u_optics; // r = inward displacement / u_bend, g = reflectance, across the bezel
+uniform float u_bend;       // CSS px of the largest displacement
+uniform vec3 u_bg;
 uniform vec3 u_a;
+uniform vec2 u_lightAt;     // where the page light comes from, CSS px
 varying vec2 v_px;
 varying vec4 v_rect;
 varying vec2 v_shape;
 
-const float BEVEL = 22.0; // CSS px of the glass edge that bends the light
-const float BEND = 26.0;  // CSS px of displacement at the very edge
-const float LENS = 0.035; // magnification across a pane
-const float RIM = 0.05;   // rim light at the edge
-const float GATHER = 0.55; // light gathered in the bevel, as a share of the light there
+const float BEVEL = ${CARD_GLASS.bezel.toFixed(1)}; // CSS px of the glass edge that bends the light
+const float SPLIT = 0.12;   // colour split at the rim: blue bends 12% more than green, red 12% less
+const float GATHER = 0.5;   // light gathered by the rim, as a share of the light behind it
+const float SHEEN = 0.06;   // rim light where the edge faces the page light
 
 void main() {
   vec2 p = v_px - v_rect.xy;
   float radius = v_shape.x;
   float strength = v_shape.y;
-  // Rounded-rect distance (negative inside) and its outward normal.
-  vec2 q = abs(p) - v_rect.zw + radius;
-  float d = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - radius;
-  if (d > 0.0) discard; // outside the rounded corners: the plain backdrop stays
+  // The pane's outline: outside its rounded corners the plain backdrop stays.
+  vec2 qa = abs(p) - v_rect.zw + radius;
+  if (length(max(qa, 0.0)) + min(max(qa.x, qa.y), 0.0) - radius > 0.0) discard;
+
+  // The optical outline: corners rounded at least as much as the bevel is wide, so the rim's
+  // normal turns smoothly instead of creasing along the corner's diagonal.
+  float bevel = min(BEVEL, min(v_rect.z, v_rect.w));
+  float r = min(min(v_rect.z, v_rect.w), max(radius, bevel));
+  vec2 q = abs(p) - v_rect.zw + r;
+  float d = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
   vec2 nq = (q.x > 0.0 && q.y > 0.0) ? normalize(q) : (q.x > q.y ? vec2(1.0, 0.0) : vec2(0.0, 1.0));
-  vec2 normal = nq * sign(p);
+  vec2 normal = nq * vec2(p.x < 0.0 ? -1.0 : 1.0, p.y < 0.0 ? -1.0 : 1.0);
 
-  // Lens: a slight magnification across the pane, and the light pulled in from beyond the edge
-  // through the bevel, like thick glass.
-  float bevel = min(BEVEL, min(v_rect.z, v_rect.w) * 0.5);
-  float edge = 1.0 - smoothstep(0.0, bevel, -d);
-  float e2 = edge * edge;
-  vec2 at = v_rect.xy + p * (1.0 - LENS * strength) + normal * e2 * BEND * strength;
-  vec4 light = surface(at);
+  // Across the bevel (t = 0 at the rim, 1 where the top is flat): how far inward the light seen
+  // here comes from, and how much the surface reflects.
+  float t = clamp(-d / bevel, 0.0, 1.0);
+  vec2 optics = texture2D(u_optics, vec2((t * ${OPTICS_SIZE - 1}.0 + 0.5) / ${OPTICS_SIZE}.0, 0.5)).rg;
+  vec2 bend = -normal * optics.r * u_bend * strength;
+  vec4 green = surface(v_px + bend);
+  vec3 col = vec3(surface(v_px + bend * (1.0 - SPLIT)).r, green.g, surface(v_px + bend * (1.0 + SPLIT)).b);
 
-  // The bevel gathers the light it bends (only where there is light), and a faint rim catches
-  // it, stronger on top (lit from above).
-  vec3 col = light.rgb + (light.rgb - u_bg) * e2 * GATHER * strength;
-  float rim = (1.0 - smoothstep(0.0, 3.0, -d)) * (0.55 - 0.45 * normal.y);
-  col += rim * RIM * strength * (u_a * light.a * 0.5 + 0.35);
+  // The rim gathers the light it bends (only where there is light), and catches the page light
+  // on the side facing it: a thick, polished edge.
+  float edge = 1.0 - t;
+  float band = edge * edge * edge;
+  col += (col - u_bg) * band * GATHER * strength;
+  vec2 toLight = normalize(u_lightAt - v_rect.xy + vec2(0.0, 0.001));
+  float facing = smoothstep(-0.35, 1.0, dot(normal, toLight));
+  float rim = max(optics.g, band * band) * facing;
+  col += rim * SHEEN * strength * (u_a * (0.4 + green.a) + 0.35);
   gl_FragColor = vec4(col + dither(gl_FragCoord.xy), 1.0);
 }
 `;

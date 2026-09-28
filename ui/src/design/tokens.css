@@ -24,6 +24,15 @@
   --shadow-glass: 0 14px 36px -18px rgb(0 0 0 / 0.7);
   --blur-glass: blur(22px) saturate(150%);
 
+  /* Liquid glass (design/liquid): floating glass that bends the page behind it. Its rim catches
+     the light (brightest top left, a fainter echo bottom right) and casts a thin shade. */
+  --bg-float: #13141ecc; /* panels floating over the page: search, toasts (80%) */
+  --bg-lens: #b9a9ff14; /* clear lens over controls, a breath of the accent */
+  --line-rim: #ffffff42; /* specular rim, lit side */
+  --line-rim-far: #ffffff12; /* specular rim, far side */
+  --line-shade: #0000005c; /* thin shade under a floating edge */
+  --shadow-float: 0 18px 44px -12px rgb(0 0 0 / 0.6), 0 2px 6px -2px rgb(0 0 0 / 0.4);
+
   --line-1: #1e2030; /* hairlines inside cards */
   --line-2: #2a2d42; /* card borders, dividers */
 
@@ -106,6 +115,36 @@
   --ease: cubic-bezier(0.2, 0, 0, 1);
   --dur-1: 120ms;
   --dur-2: 200ms;
+  /* A spring that overshoots a hair and settles, for things that move like liquid (design/motion.ts:
+     spring({ stiffness: 520, damping: 34, points: 24 }); a unit test keeps them in sync). */
+  --ease-spring: linear(
+    0,
+    0.0468,
+    0.1576,
+    0.2979,
+    0.444,
+    0.581,
+    0.7007,
+    0.7994,
+    0.8769,
+    0.9347,
+    0.9756,
+    1.0026,
+    1.0188,
+    1.027,
+    1.0297,
+    1.0288,
+    1.0257,
+    1.0217,
+    1.0173,
+    1.0132,
+    1.0095,
+    1.0064,
+    1.004,
+    1.0022,
+    1
+  );
+  --dur-spring: 350ms;
 }
 
 /* Ranked tier colors (badges, emblems, LP graphs), pastel. */

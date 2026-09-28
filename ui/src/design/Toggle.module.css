@@ -17,6 +17,7 @@
 }
 
 .thumb {
+  --travel: 0px;
   position: absolute;
   top: 50%;
   left: var(--space-1);
@@ -24,10 +25,12 @@
   height: var(--thumb);
   border-radius: var(--radius-full);
   background: var(--text-2);
-  transform: translateY(-50%);
+  box-shadow: 0 1px 3px var(--line-shade);
+  transform: translate(var(--travel), -50%);
   transition:
-    transform var(--dur-2) var(--ease),
-    background-color var(--dur-2) var(--ease);
+    transform var(--dur-spring) var(--ease-spring),
+    background-color var(--dur-2) var(--ease),
+    box-shadow var(--dur-2) var(--ease);
 }
 
 .toggle:hover .thumb {
@@ -41,11 +44,23 @@
 
 /* Travel = track − borders − thumb − both insets. */
 .toggle[aria-checked="true"] .thumb {
+  --travel: calc(var(--toggle-w) - 2px - var(--thumb) - 2 * var(--space-1));
   background: var(--text-on-accent);
-  transform: translate(calc(var(--toggle-w) - 2px - var(--thumb) - 2 * var(--space-1)), -50%);
 }
 
 .toggle:disabled {
   cursor: default;
   opacity: 0.4;
+}
+
+/* Held: the knob swells into clear glass that bends the track under it (design/liquid, "lens"). */
+.toggle[data-pressed] .thumb,
+.toggle[data-pressed]:hover .thumb {
+  background: var(--bg-lens);
+  backdrop-filter: var(--lg-filter, none);
+  box-shadow:
+    inset 0 0 0 1px var(--line-rim),
+    inset 0 1px 1px var(--line-rim),
+    0 3px 10px -2px var(--line-shade);
+  transform: translate(var(--travel), -50%) scale(1.5, 1.32);
 }

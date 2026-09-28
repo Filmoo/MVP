@@ -27,9 +27,39 @@
 }
 
 /*
+ * Liquid glass rim (design/liquid): a 1 px ring of light around floating glass, brightest where
+ * it faces the light (top left) with a fainter echo on the far side, the way a polished edge
+ * catches it. Static and crisp at any scale; the element needs a position and a radius.
+ */
+.glass-rim::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    150deg,
+    var(--line-rim),
+    var(--line-rim-far) 24%,
+    transparent 46%,
+    transparent 58%,
+    var(--line-rim-far) 80%,
+    var(--line-rim)
+  );
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+
+/*
  * Visual effects levels (design/backdrop), on <html data-effects>: "shader" (WebGL backdrop with
- * refraction under glass), "css" (static gradients), "flat" (no light, no blur).
+ * refraction under glass, liquid glass over the page), "css" (static gradients and plain blur),
+ * "flat" (no light, no blur).
  */
 :root[data-effects="flat"] {
   --blur-glass: none;
+  /* Without blur, floating panels stay opaque so what's behind never competes with them. */
+  --bg-float: var(--bg-2);
 }

@@ -4,6 +4,7 @@ import type { BackendError } from "../../data/generated/BackendError";
 import type { PlayerProfile } from "../../data/generated/PlayerProfile";
 import { ChampionIcon, ProfileIcon } from "../../design/GameIcon";
 import { Icon } from "../../design/Icon";
+import { liquid } from "../../design/liquid/liquid";
 import { TierBadge } from "../../design/TierBadge";
 import { backendError, lookupPlayer } from "../../lib/players";
 import { clearRecent, recent, remember } from "../../lib/recent";
@@ -305,7 +306,7 @@ export function Search(): JSX.Element {
         </select>
       </div>
       <Show when={open()}>
-        <div class={styles.panel} id="search-panel" data-testid="search-panel">
+        <div class={`${styles.panel} glass-rim`} id="search-panel" data-testid="search-panel" ref={(el) => liquid(el, "panel")}>
           <Show
             when={sections().length > 0}
             fallback={

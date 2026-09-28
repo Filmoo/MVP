@@ -31,14 +31,15 @@
   font-weight: var(--weight-bold);
 }
 
+/* Over the pick's art: a step brighter than captions elsewhere, so they stay ≥ 4.5:1 on it. */
 .pm {
   font-size: var(--text-md);
-  color: var(--text-3);
+  color: var(--text-2);
 }
 
 .delta {
   font-size: var(--text-md);
-  color: var(--text-3);
+  color: var(--text-2);
 }
 
 .delta b {
