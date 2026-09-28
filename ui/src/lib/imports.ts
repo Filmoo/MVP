@@ -45,6 +45,8 @@ export function skipText(reason: SkipReason): string {
   switch (reason.kind) {
     case "off":
       return "Turned off in Settings.";
+    case "paused":
+      return "Paused by MVP for now, while it's fixed for the latest League client.";
     case "notInChampSelect":
       return "Spells can only change during champion select.";
     case "tooLate":

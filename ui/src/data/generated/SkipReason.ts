@@ -3,4 +3,4 @@
 /**
  * Why a part wasn't imported (nothing is wrong).
  */
-export type SkipReason = { "kind": "off" } | { "kind": "notInChampSelect" } | { "kind": "tooLate", secondsLeft: number, };
+export type SkipReason = { "kind": "off" } | { "kind": "paused" } | { "kind": "notInChampSelect" } | { "kind": "tooLate", secondsLeft: number, };

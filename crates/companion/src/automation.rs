@@ -6,7 +6,7 @@
 
 use std::time::Duration;
 
-use domain::{AutoAcceptEvent, GameflowPhase, ImportResult, Settings, ViewRoute};
+use domain::{AutoAcceptEvent, GameflowPhase, ImportResult, RemoteConfig, Settings, ViewRoute};
 use lcu::{LcuClient, LcuError};
 use serde::Deserialize;
 use tokio::sync::{mpsc, watch};
@@ -122,16 +122,17 @@ pub async fn accept_ready_check(client: &LcuClient) -> Result<bool, LcuError> {
     Ok(true)
 }
 
-/// Waits the delay the player chose, then accepts (if still enabled). Aborted by the core when
-/// the phase leaves the ready check.
+/// Waits the delay the player chose, then accepts (if still enabled, and not killed by the
+/// remote config). Aborted by the core when the phase leaves the ready check.
 pub(crate) async fn accept_after_delay(
     client: watch::Receiver<Option<LcuClient>>,
     settings: watch::Receiver<Settings>,
+    remote: watch::Receiver<RemoteConfig>,
     events: mpsc::Sender<CoreEvent>,
 ) {
     let delay = settings.borrow().auto_accept_delay_seconds;
     tokio::time::sleep(Duration::from_secs(delay.into())).await;
-    if !settings.borrow().auto_accept {
+    if !settings.borrow().auto_accept || !crate::remote::auto_accept_allowed(&remote.borrow()) {
         return;
     }
     let Some(lcu) = client.borrow().clone() else {

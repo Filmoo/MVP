@@ -1,5 +1,6 @@
-//! Client of our backend (`apps/backend`): player lookups, loading-screen scouting and the
-//! published stats files (conditional GETs, cached by [`crate::stats`]).
+//! Client of our backend (`apps/backend`): player lookups, loading-screen scouting, the
+//! published stats files (conditional GETs, cached by [`crate::stats`]), the remote config and
+//! (opt-in) crash reports. App updates go through the Tauri updater in the shell.
 //!
 //! The Riot API key lives on the server only; the app sends an anonymous install id
 //! (`X-MVP-Install`, random, persisted next to the settings) so the server can rate-limit per
@@ -17,7 +18,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use domain::{
-    ApiError, ApiErrorCode, BackendError, PlayerProfile, RiotId, ScoutCard, ScoutRequest,
+    ApiError, ApiErrorCode, BackendError, CrashReport, PlayerProfile, RemoteConfig, RiotId,
+    ScoutCard, ScoutRequest,
 };
 use reqwest::header::{CACHE_CONTROL, ETAG, HeaderMap, HeaderValue, IF_NONE_MATCH, RETRY_AFTER};
 use reqwest::{StatusCode, Url};
@@ -209,16 +211,18 @@ impl BackendClient {
         receive(self.0.http.get(url).timeout(self.0.timeout).send().await).await
     }
 
-    /// Scouting cards for up to 10 players (`POST /v1/players/batch`). Players the server
-    /// doesn't know get no card.
+    /// Scouting cards for up to 10 players, by Riot ID (`POST /v1/players/batch`). Players the
+    /// server doesn't know get no card; a card's `riot_id` is its account's (match it back
+    /// with [`crate::live::same_riot_id`]).
     pub async fn scout(
         &self,
         platform: &str,
-        puuids: &[String],
+        players: &[RiotId],
     ) -> Result<Vec<ScoutCard>, BackendError> {
         let body = ScoutRequest {
             platform: platform.to_owned(),
-            puuids: puuids.to_vec(),
+            players: players.to_vec(),
+            puuids: Vec::new(),
         };
         let url = self.url(&["v1", "players", "batch"]);
         let request = self
@@ -269,6 +273,70 @@ impl BackendClient {
         let body: Option<ApiError> = serde_json::from_slice(&bytes).ok();
         Err(map_failure(status, body, retry_header))
     }
+
+    /// The remote config for this app `version` and `channel` (`GET /v1/config`), revalidated
+    /// with the `etag` of the last answer.
+    pub async fn remote_config(
+        &self,
+        version: &str,
+        channel: &str,
+        etag: Option<&str>,
+    ) -> Result<ConfigFetch, BackendError> {
+        let mut url = self.url(&["v1", "config"]);
+        url.query_pairs_mut()
+            .append_pair("version", version)
+            .append_pair("channel", channel);
+        let mut request = self.0.http.get(url).timeout(self.0.timeout);
+        if let Some(etag) = etag {
+            request = request.header(IF_NONE_MATCH, etag);
+        }
+        let response = request.send().await.map_err(|e| network(&e))?;
+        if response.status() == StatusCode::NOT_MODIFIED {
+            return Ok(ConfigFetch::NotModified);
+        }
+        let etag = response
+            .headers()
+            .get(ETAG)
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_owned);
+        let config = receive_response(response).await?;
+        Ok(ConfigFetch::Modified { config, etag })
+    }
+
+    /// Sends one crash report (`POST /v1/reports`; only ever called when the player opted in).
+    pub async fn report(&self, report: &CrashReport) -> Result<(), ReportRefused> {
+        let url = self.url(&["v1", "reports"]);
+        let sent = self
+            .0
+            .http
+            .post(url)
+            .json(report)
+            .timeout(self.0.timeout)
+            .send()
+            .await;
+        let response = sent.map_err(|e| ReportRefused::Later(network(&e)))?;
+        let status = response.status();
+        if status.is_success() {
+            return Ok(());
+        }
+        let retry_header = response
+            .headers()
+            .get(RETRY_AFTER)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.trim().parse::<u32>().ok());
+        let body: Option<ApiError> = response
+            .bytes()
+            .await
+            .ok()
+            .and_then(|bytes| serde_json::from_slice(&bytes).ok());
+        let error = map_failure(status, body, retry_header);
+        // Too many or a server problem: try again later. Anything else won't ever be accepted.
+        if status == StatusCode::TOO_MANY_REQUESTS || status.is_server_error() {
+            Err(ReportRefused::Later(error))
+        } else {
+            Err(ReportRefused::Rejected(error))
+        }
+    }
 }
 
 /// The answer to [`BackendClient::get_file`].
@@ -296,6 +364,27 @@ fn max_age(cache_control: &str) -> Option<Duration> {
     })
 }
 
+/// Answer of [`BackendClient::remote_config`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ConfigFetch {
+    /// A new config, with the `ETag` to revalidate it next time.
+    Modified {
+        config: RemoteConfig,
+        etag: Option<String>,
+    },
+    /// `304`: the config we have is current.
+    NotModified,
+}
+
+/// Why a crash report wasn't taken.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ReportRefused {
+    /// The server will never take this one (malformed, too big): drop it.
+    Rejected(BackendError),
+    /// Offline, rate limited or a server problem: keep it for later.
+    Later(BackendError),
+}
+
 fn network(error: &reqwest::Error) -> BackendError {
     let message = if error.is_timeout() {
         "the request timed out".to_owned()
@@ -310,7 +399,12 @@ fn network(error: &reqwest::Error) -> BackendError {
 async fn receive<T: DeserializeOwned>(
     sent: Result<reqwest::Response, reqwest::Error>,
 ) -> Result<T, BackendError> {
-    let response = sent.map_err(|e| network(&e))?;
+    receive_response(sent.map_err(|e| network(&e))?).await
+}
+
+async fn receive_response<T: DeserializeOwned>(
+    response: reqwest::Response,
+) -> Result<T, BackendError> {
     let status = response.status();
     let retry_header = response
         .headers()

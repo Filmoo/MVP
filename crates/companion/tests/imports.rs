@@ -11,7 +11,7 @@ use companion::imports::{
 use domain::{
     BuildOption, BuildSection, BuildStats, ClientConnection, ClientStatus, FailReason, FlashKey,
     FlashNote, GameflowPhase, ImportMode, ImportOutcome, ImportPart, ImportRequest, ImportResult,
-    Role, Settings, SkipReason, SpellKey,
+    RemoteConfig, Role, Settings, SkipReason, SpellKey,
 };
 use lcu::tls::pinned_client_config;
 use lcu::{ConnectorConfig, LcuClient};
@@ -176,6 +176,7 @@ struct Setup {
     builds: Arc<FakeBuilds>,
     _settings: watch::Sender<Settings>,
     _status: watch::Sender<ClientStatus>,
+    remote: watch::Sender<RemoteConfig>,
 }
 
 fn names() -> imports::ChampionNames {
@@ -191,11 +192,20 @@ fn importer(mock: &MockLcu, phase: GameflowPhase, settings: Settings) -> Setup {
         phase,
     });
     let (_client_tx, client_rx) = watch::channel(Some(lcu_client(mock)));
+    let (remote_tx, remote_rx) = watch::channel(RemoteConfig::default());
     Setup {
-        importer: Importer::new(client_rx, status_rx, settings_rx, builds.clone(), names()),
+        importer: Importer::new(
+            client_rx,
+            status_rx,
+            settings_rx,
+            remote_rx,
+            builds.clone(),
+            names(),
+        ),
         builds,
         _settings: settings_tx,
         _status: status_tx,
+        remote: remote_tx,
     }
 }
 
@@ -660,6 +670,34 @@ async fn parts_turned_off_are_never_written() {
 }
 
 #[tokio::test]
+async fn parts_paused_by_the_server_are_never_written() {
+    let mock = client_with_player_data(3).await;
+    mock.set(SESSION, champ_select(AHRI, true, "BAN_PICK", 25_000));
+    let setup = importer(&mock, GameflowPhase::ChampSelect, Settings::default());
+    // A kill switch for rune pages, the spells feature turned off.
+    setup.remote.send_modify(|config| {
+        config.kill_switches.rune_import = true;
+        config.features.summoner_spells = false;
+    });
+    let result = setup
+        .importer
+        .import(&request(&ImportPart::ALL), false)
+        .await;
+    let paused = ImportOutcome::Skipped {
+        reason: SkipReason::Paused,
+    };
+    assert_eq!(outcome(&result, ImportPart::Runes), paused);
+    assert_eq!(outcome(&result, ImportPart::Spells), paused);
+    assert!(matches!(
+        outcome(&result, ImportPart::ItemSet),
+        ImportOutcome::Saved { .. }
+    ));
+    assert_eq!(mock.count("POST", PAGES), 0);
+    assert_eq!(mock.count("PUT", CURRENT_PAGE), 0);
+    assert_eq!(mock.count("PATCH", MY_SELECTION), 0);
+}
+
+#[tokio::test]
 async fn without_a_build_nothing_is_written() {
     let mock = client_with_player_data(3).await;
     mock.set(SESSION, champ_select(99, true, "BAN_PICK", 25_000));
@@ -730,10 +768,12 @@ async fn without_a_client_every_part_says_so() {
     let (_settings_tx, settings) = watch::channel(Settings::default());
     let (_status_tx, status) = watch::channel(ClientStatus::not_running());
     let (_client_tx, client) = watch::channel(None);
+    let (_remote_tx, remote) = watch::channel(RemoteConfig::default());
     let importer = Importer::new(
         client,
         status,
         settings,
+        remote,
         Arc::new(FakeBuilds::default()),
         names(),
     );
@@ -786,12 +826,26 @@ async fn in_champ_select(
     watch::Sender<Settings>,
     Arc<FakeBuilds>,
 ) {
+    in_champ_select_with(mock, settings, watch::channel(RemoteConfig::default()).1).await
+}
+
+/// [`in_champ_select`] following the server's `remote` config.
+async fn in_champ_select_with(
+    mock: &MockLcu,
+    settings: Settings,
+    remote: watch::Receiver<RemoteConfig>,
+) -> (
+    companion::Companion,
+    watch::Sender<Settings>,
+    Arc<FakeBuilds>,
+) {
     let builds = Arc::new(FakeBuilds::default());
     let (settings_tx, settings_rx) = watch::channel(settings);
     let companion = companion::start_with_services(
         config_for(mock),
         settings_rx,
         companion::Services {
+            remote,
             builds: builds.clone(),
             names: names(),
             ..companion::Services::default()
@@ -877,6 +931,24 @@ async fn imports_once_per_lock() {
     assert_eq!(mock.count("POST", PAGES), 1);
     assert_eq!(mock.count("PUT", &sets_path()), 1);
     assert_eq!(mock.count("PATCH", MY_SELECTION), 1);
+    assert_player_pages_untouched(&mock);
+}
+
+#[tokio::test]
+async fn a_kill_switch_stops_the_lock_in_import_at_once() {
+    let mock = client_with_player_data(3).await;
+    let (remote_tx, remote_rx) = watch::channel(RemoteConfig::default());
+    let (mut companion, _settings, _builds) =
+        in_champ_select_with(&mock, on_lock_in(), remote_rx).await;
+    // Switched on in the middle of the champion select: the next lock leaves rune pages alone.
+    remote_tx.send_modify(|config| config.kill_switches.rune_import = true);
+    mock.set(SESSION, champ_select(AHRI, true, "BAN_PICK", 20_000));
+    let result = next_import(&mut companion).await;
+    let parts: Vec<ImportPart> = result.parts.iter().map(|p| p.part).collect();
+    assert_eq!(parts, vec![ImportPart::ItemSet, ImportPart::Spells]);
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    assert_eq!(mock.count("POST", PAGES), 0);
+    assert_eq!(mock.count("PUT", CURRENT_PAGE), 0);
     assert_player_pages_untouched(&mock);
 }
 

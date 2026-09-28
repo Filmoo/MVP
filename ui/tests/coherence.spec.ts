@@ -103,7 +103,15 @@ test("the search panel only uses design tokens (recent, champions, players)", as
   expect(await page.evaluate(auditTokens), "not found").toEqual([]);
 });
 
-for (const scenario of ["settings-custom", "settings-error", "settings-save-error"] as const) {
+for (const scenario of [
+  "settings-custom",
+  "settings-error",
+  "settings-save-error",
+  "crash-reports-on",
+  "update-available",
+  "update-downloading",
+  "auto-accept-paused",
+] as const) {
   test(`/settings/${scenario} only uses design tokens`, async ({ page }) => {
     await openApp(page, { view: "/settings", scenario });
     if (scenario === "settings-save-error") {

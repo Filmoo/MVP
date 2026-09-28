@@ -122,6 +122,14 @@ pub struct Banner {
     /// RFC 3339; the server only sends banners whose window contains "now".
     pub starts_at: Option<String>,
     pub ends_at: Option<String>,
+    /// The player may close it (remembered by `id`). Default `true`; `false` keeps it up
+    /// while it lasts (e.g. an outage).
+    #[serde(default = "yes")]
+    pub dismissible: bool,
+}
+
+const fn yes() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -177,6 +185,20 @@ mod tests {
         assert!(!config.kill_switches.rune_import);
         assert!(config.features.scouting);
         assert_eq!(config.poll_after_secs, 6 * 60 * 60);
+    }
+
+    #[test]
+    fn banners_are_dismissible_unless_said_otherwise() {
+        let banner: Banner = serde_json::from_str(
+            r#"{"id":"a","severity":"info","text":{"en":"x","fr":"y"},"link":null,"startsAt":null,"endsAt":null}"#,
+        )
+        .expect("parses");
+        assert!(banner.dismissible);
+        let pinned: Banner = serde_json::from_str(
+            r#"{"id":"b","severity":"warn","text":{"en":"x","fr":"y"},"link":null,"startsAt":null,"endsAt":null,"dismissible":false}"#,
+        )
+        .expect("parses");
+        assert!(!pinned.dismissible);
     }
 
     #[test]

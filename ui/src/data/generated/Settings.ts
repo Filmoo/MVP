@@ -53,4 +53,9 @@ importSpells: ImportMode,
 /**
  * The key Flash goes on when spells are imported.
  */
-flashKey: FlashKey, };
+flashKey: FlashKey, 
+/**
+ * Send crash reports (opt-in): a crash of the core or an error in the UI goes to our
+ * server, scrubbed of names, ids and paths first, and is kept 30 days.
+ */
+crashReports: boolean, };

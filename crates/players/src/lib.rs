@@ -9,7 +9,7 @@ use futures_util::future::join_all;
 use riot_api::{LeagueEntry, MatchQuery, Platform, RiotError};
 use serde_json::Value;
 
-pub use scout::{SCOUT_GAMES, fetch_scout_card, scout_card};
+pub use scout::{SCOUT_GAMES, fetch_scout_card, fetch_scout_card_for, scout_card};
 pub use source::RiotSource;
 
 /// Ranked solo/duo standing from League-V4 entries.

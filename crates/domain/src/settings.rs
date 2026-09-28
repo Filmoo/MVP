@@ -42,6 +42,9 @@ pub struct Settings {
     /// The key Flash goes on when spells are imported.
     #[serde(deserialize_with = "or_default")]
     pub flash_key: FlashKey,
+    /// Send crash reports (opt-in): a crash of the core or an error in the UI goes to our
+    /// server, scrubbed of names, ids and paths first, and is kept 30 days.
+    pub crash_reports: bool,
 }
 
 /// Visual effects level. The UI keeps a copy in `localStorage` so the first frame already
@@ -107,6 +110,7 @@ impl Default for Settings {
             import_item_set: ImportMode::OneClick,
             import_spells: ImportMode::OneClick,
             flash_key: FlashKey::Auto,
+            crash_reports: false,
         }
     }
 }
@@ -175,8 +179,14 @@ mod tests {
     }
 
     #[test]
-    fn auto_accept_is_off_by_default() {
+    fn opt_ins_are_off_by_default() {
         assert!(!Settings::default().auto_accept);
+        assert!(!Settings::default().crash_reports);
+        let older: Settings = serde_json::from_str(r#"{"closeToTray":false}"#).expect("loads");
+        assert!(
+            !older.crash_reports,
+            "files from before the setting existed"
+        );
     }
 
     #[test]

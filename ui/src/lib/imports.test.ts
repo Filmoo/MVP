@@ -50,6 +50,11 @@ describe("import words", () => {
     ).toEqual({ tone: "failed", text: "The League client refused: Busy (HTTP 503)" });
     // Parts turned off aren't news.
     expect(statusOf([{ part: "spells", outcome: { kind: "skipped", reason: { kind: "off" } } }], spell)).toBeUndefined();
+    // A part MVP paused for everyone is: the button did nothing, and the player should know why.
+    expect(statusOf([{ part: "runes", outcome: { kind: "skipped", reason: { kind: "paused" } } }], spell)).toEqual({
+      tone: "skipped",
+      text: "Paused by MVP for now, while it's fixed for the latest League client.",
+    });
   });
 
   it("toasts a lock-in import once, and each failure on its own", () => {

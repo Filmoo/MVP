@@ -23,6 +23,8 @@ const paths = {
   enter: "M20 5v7a3 3 0 0 1-3 3H5M9 11l-4 4 4 4",
   sparkles: "M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z",
   import: "M12 3v11M7.5 9.5 12 14l4.5-4.5M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4",
+  info: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 16v-5M12 8h.01",
+  download: "M12 4v11M7 10.5l5 5 5-5M5 20h14",
 } as const;
 
 export type IconName = keyof typeof paths;

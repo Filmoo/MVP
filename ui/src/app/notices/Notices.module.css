@@ -1,0 +1,175 @@
+/*
+ * Notices from our server and the "Update ready" prompt: a strip at the top of the page, on
+ * the page frame (same width and left edge as every view). Glass like the cards; the icon
+ * carries the severity.
+ */
+.strip {
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-8) 0;
+  min-width: 0;
+}
+
+@media (max-width: 559px) {
+  .strip {
+    padding: var(--space-5) var(--space-6) 0;
+  }
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  min-height: var(--space-10);
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-6);
+  border-radius: var(--radius-4);
+  background: linear-gradient(180deg, var(--bg-sheen), transparent), var(--bg-card);
+  border: 1px solid var(--line-glass);
+  box-shadow:
+    inset 0 1px 0 var(--line-specular),
+    var(--shadow-glass);
+  color: var(--text-1);
+  font-size: var(--text-md);
+  min-width: 0;
+}
+
+.icon {
+  flex: none;
+  color: var(--accent);
+}
+
+.warn .icon {
+  color: var(--warn);
+}
+
+.update .icon {
+  color: var(--good);
+}
+
+.text {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-3) 0;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.strong {
+  font-weight: var(--weight-semibold);
+}
+
+.link,
+.close {
+  flex: none;
+  height: var(--space-9);
+  border: 0;
+  border-radius: var(--radius-3);
+  background: transparent;
+  cursor: pointer;
+  transition:
+    background-color var(--dur-1) var(--ease),
+    color var(--dur-1) var(--ease);
+}
+
+.link {
+  padding: 0 var(--space-4);
+  color: var(--accent);
+  font-size: var(--text-md);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+}
+
+.close {
+  display: grid;
+  place-items: center;
+  width: var(--space-9);
+  padding: 0;
+  color: var(--text-3);
+}
+
+.link:hover,
+.close:hover {
+  background: var(--bg-3);
+}
+
+.close:hover {
+  color: var(--text-1);
+}
+
+/*
+ * Update required: the whole window below the title bar waits behind a calm, centered card.
+ * Under the toasts (z 10 is theirs: a failed restart must still be read) and the title bar.
+ */
+.blocker {
+  position: fixed;
+  inset: var(--titlebar-h) 0 0 0;
+  z-index: 9;
+  display: grid;
+  place-items: center;
+  padding: var(--space-6);
+  background: var(--bg-glass);
+  overflow-y: auto;
+}
+
+.dialog {
+  width: min(100%, 440px);
+  min-width: 0;
+}
+
+/* Solid, unlike the page's glass cards: nothing behind it may show through its text. */
+.dialog .dialogCard {
+  background: linear-gradient(180deg, var(--bg-sheen), transparent 120px), var(--bg-2);
+}
+
+.dialogBody {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-6) var(--space-4) var(--space-4);
+  text-align: center;
+  min-width: 0;
+}
+
+.dialogIcon {
+  display: grid;
+  place-items: center;
+  width: var(--space-11);
+  height: var(--space-11);
+  margin-bottom: var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.dialogTitle {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  color: var(--text-1);
+}
+
+.dialogText {
+  max-width: 360px;
+  font-size: var(--text-md);
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+
+.dialogStatus {
+  font-size: var(--text-md);
+  color: var(--text-3);
+  overflow-wrap: anywhere;
+}
+
+.dialogAction {
+  margin-top: var(--space-4);
+}

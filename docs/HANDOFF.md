@@ -17,6 +17,10 @@ except where marked.
 - **Backend** `apps/backend` (`mvp-backend`): player profiles, batch scouting, `/v1/stats/*` file
   serving, caches. **Crawler** `apps/crawler` (`mvp-crawler crawl|publish|status`) + `crates/aggregate`:
   Emerald+ ranked/ARAM aggregates → per-patch JSON (tier list, builds, matchups, priors).
+- **Platform services in the app** (architecture.md, "Remote config, app updates and crash
+  reports"): remote config followed by the core (kill switches applied at once, banners, update
+  required), self-updates with tauri-plugin-updater (never during a game, restart on request or
+  install on quit), opt-in scrubbed crash reports (Settings → App).
 - Everything was tested against `mock-lcu` and fake Riot/backend servers, **never against a real
   League client or on Windows** (CI builds the .exe and measures RAM/CPU only).
 
@@ -36,9 +40,13 @@ except where marked.
      and while the rail lens glides (DevTools → Rendering → Frame rendering stats), at 100 % and
      150 % scaling, on an iGPU; the speed probe keeps "Full" off where the backdrop is slow;
    - the lenses are Chromium-only by design (WebView2): a future web build falls back to blur.
-3. **Scouting identity fix:** LCU PUUIDs can differ from the API key's PUUIDs. Make
-   `POST /v1/players/batch` accept Riot IDs (the core already reads them from the gameflow session)
-   and use them; keep hidden/streamer-mode players out of any lookup.
+3. *(done)* **Scouting identity fix:** `POST /v1/players/batch` takes `players` (Riot IDs); the
+   server resolves them with account-v1 (cached a day) and the core matches cards back to seats by
+   Riot ID. Client PUUIDs never leave the core; streamer-mode players are still dropped before
+   anything (tested on the request body). `puuids` stays accepted for 0.1.0 apps, and a PUUID Riot
+   can't decrypt (400) now gets no card instead of failing the batch. **Verify on the real
+   client** that `/lol-gameflow/v1/session` team entries carry `gameName`/`tagLine` for every
+   visible player: a player without them gets no card (see the checklist).
 4. **Stats in the app:** *(core done, see architecture.md "Stats in the app")* `companion::stats`
    downloads the index + current patch files (disk cache per patch with ETags, offline, pruning),
    the commands `stats_index` / `tier_list` / `champion_stats` and the `stats-index` event are
@@ -60,14 +68,23 @@ except where marked.
    select (Flash on the player's key from their games or Settings, never with ≤ 5 s left). Per
    part: off / one click (default, Draft's import bar) / on lock-in (once per lock, toast), plus
    the Flash key (auto/D/F) in Settings → Imports. The stats client is the
-   `BuildSource` (`Services.builds`, wired in `apps/desktop/src/core.rs`). **Left:** the Champions
+   `BuildSource` (`Services.builds`, wired in `apps/desktop/src/core.rs`); the remote config can
+   pause each part for everyone (`SkipReason::Paused`). **Left:** the Champions
    page import action can reuse `ImportBar` (`ui/src/views/draft/ImportBar.tsx`, props: champion, role,
    queue, `inChampSelect`); verify on a real client (checklist below).
-6. **Desktop side of updates/config** (after 1): `tauri-plugin-updater` (pubkey, endpoint
-   `https://<api>/v1/updates/{{target}}/{{arch}}/{{current_version}}?channel=stable`), send
-   `X-MVP-Install` (already stored as `install-id` next to `settings.json`), never update during a
-   game; RemoteConfig fetch at start + `pollAfterSecs`, kill switches applied immediately, banners,
-   `updateRequired`; opt-in crash reports toggle in Settings.
+6. *(done)* **Desktop side of updates/config/reports**: updater (plan in `companion::updates`,
+   shell in `apps/desktop/src/updater.rs`), remote config (`companion::remote`, kill switches in
+   `companion::Services.remote`), crash reports (`companion::crash`, `crates/scrub`), UI banners /
+   update prompt / update-required card (`ui/src/app/Banners.tsx`, `app/notices/`), Settings →
+   About update row and App → "Send crash reports". **Left:**
+   - **Generate the update key pair** (backend README, "The signing key pair"): paste the public
+     key in `apps/desktop/tauri.conf.json` `plugins.updater.pubkey`, the private key + password in
+     the GitHub secrets. Until then no build updates itself and `release.yml` refuses to run.
+   - The `draftHelper` flag hides the draft helper's numbers at once (teams stay); the import
+     kill switches and flags pause each part (`remote::import_allowed`), also mid champ select.
+   - French banner/`minVersion` texts are served but the UI shows `en` (job 7).
+   - Consider `plugins.updater.requireSignedVersion: true` once the CLI's signatures carry the
+     version (the plugin then rejects a manifest pairing a new version with an older installer).
 7. **French** UI strings (owner wants EN + FR), after the screens settle.
 
 ## Verify with the real client (Windows)
@@ -81,7 +98,8 @@ Settings persist across restarts · auto-accept (turn on, queue) accepts after t
 after you declined · champ select brings the window up on Draft with the real teams/bans/roles
 (ranked: allies stay anonymous) and, with published stats (`STATS_DIR`), picks for your role that
 start from your pool (mastery, your games) and only list champions you own · loading screen
-switches to Live and fills 10 cards · search a
+switches to Live and fills 10 cards (looked up by Riot ID: if some stay empty, check the
+session's `gameName`/`tagLine` fields) · search a
 Riot ID · close to tray keeps automations running · launch at startup starts in the tray ·
 RAM/idle CPU stay low (`scripts/windows-footprint.ps1`). Fix what differs from the mock; add a
 mock-lcu scenario for anything the real client does that the mock didn't.
@@ -103,13 +121,35 @@ imported", "summoner spells imported", "automatic import on lock-in"):
   ARAM imports on the given champion and after rerolls/bench swaps; blind pick and ARAM (no
   `assignedPosition`) use the most played role.
 
+Platform services (a `config.json` in the backend's data dir drives the config; config and
+crash reports work with a local backend and `pnpm app`, updates need a release build with the
+update key and the backend on HTTPS):
+- a banner in `config.json` shows within `pollAfterSecs` (or at the next start), "More info" opens
+  the browser, a dismissible one stays closed after a restart;
+- `"killSwitches": { "autoAccept": true }` stops auto-accept even mid-delay, and Settings says so;
+- `minVersion` above the running version: the update-required card, "Restart to update" works;
+- `mvp-backend release add` a newer build: Settings → About → "Check for updates" downloads it
+  (not in champ select or game: start a game mid-download, it must stop), the "Update ready —
+  Restart" prompt restarts into the passive NSIS installer and reopens MVP (if started with
+  `--autostart` it reopens in the tray: the plugin passes the launch arguments on), or Quit from
+  the tray installs it without reopening;
+- crash reports: turn them on, crash the UI (devtools: `throw` in a timeout) → a line in
+  `reports/` on the server, scrubbed; turn them off → `crash-reports/` next to the settings is empty.
+
 ## Known issues
 - `tests/search.spec.ts` "local list never waits" can time out under heavy parallel load (passes
   alone); make it robust rather than skipping it.
 - `/live` first view switch is close to the 120 ms budget on loaded machines (lazy chunk).
 - A dev Riot key is slow: a cold 10-player scout ≈ 230 calls; crawling ≈ 2k games/day. Public use
   needs the production key (register the product; policy.md lists endpoints to declare).
-- Not yet verified on Windows: window re-creation from tray, autostart, WebView2 glass/blur cost.
+- Not yet verified on Windows: window re-creation from tray, autostart, WebView2 glass/blur cost,
+  the updater's install (passive NSIS, relaunch), `open_banner_link` (ShellExecute), the panic
+  hook's report surviving `panic = "abort"`, the OS/webview version string in reports.
+- While a banner shows, the live screens (Draft, Live) scroll by the banner's height (the strip
+  sits above the page); dismissible banners go away with ×.
+- `CARGO_TARGET_DIR` shared between worktrees: workspace crates of two checkouts hash to the same
+  artifacts, so a build can pick up the other checkout's crate as "fresh". Touch your crates'
+  `src/lib.rs` (or build in your own target dir) before trusting a result.
 
 ## Working rules (from CLAUDE.md, the ones that bite)
 Design tokens only; every block in `<Widget name>` with a perf budget; budget raises in their own

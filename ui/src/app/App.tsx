@@ -19,6 +19,7 @@ const Live = lazy(() => import("../views/live/Live"));
 const Player = lazy(() => import("../views/player/Player"));
 const Champions = lazy(() => import("../views/champions/Champions"));
 const Harness = lazy(() => import("../widgets/Harness"));
+const Banners = lazy(() => import("./Banners"));
 
 function Toasts(): JSX.Element {
   return (
@@ -97,6 +98,7 @@ export function App(): JSX.Element {
       <TitleBar status={status()} native={transport.kind === "tauri"} />
       <Sidebar />
       <main class={styles.main} data-view={path()}>
+        <Banners status={status()} />
         <Suspense>
           <Switch
             fallback={

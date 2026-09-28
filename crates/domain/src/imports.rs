@@ -143,6 +143,8 @@ impl ImportOutcome {
 pub enum SkipReason {
     /// Turned off in Settings.
     Off,
+    /// Paused for everyone by MVP (remote config), e.g. while a League client update breaks it.
+    Paused,
     /// Summoner spells can only change during champion select.
     NotInChampSelect,
     /// Too close to the end of the champion select timer to change spells safely.

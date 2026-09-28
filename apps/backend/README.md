@@ -14,7 +14,7 @@ JSON, camelCase. Types come from `crates/domain` and are exported to
 | --- | --- |
 | `GET /health` | `Health` `{ ok, version, riotKey }` |
 | `GET /v1/players/{platform}/{gameName}/{tagLine}` | `PlayerProfile` (last 20 games) |
-| `POST /v1/players/batch` `{ platform, puuids: [1–10] }` | `ScoutCard[]`, in request order |
+| `POST /v1/players/batch` `{ platform, players: [{ gameName, tagLine }] }` (1–10; older apps: `puuids`) | `ScoutCard[]`, in request order |
 | `GET /v1/updates/{target}/{arch}/{currentVersion}?channel=&install_id=&lang=` | 204, or the Tauri updater manifest (see [App updates](#app-updates)) |
 | `GET /v1/config?version=&channel=` | `RemoteConfig` + `ETag`; 304 on `If-None-Match` (see [Remote config](#remote-config)) |
 | `POST /v1/reports` (`CrashReport`) | 202 (see [Crash reports](#crash-reports-and-privacy)) |
@@ -31,11 +31,20 @@ with `If-None-Match` rather than refetching a whole patch at once.
 
 - `platform` is a Riot platform id: `euw1`, `eun1`, `na1`, `kr`, `br1`, `jp1`, `la1`, `la2`,
   `me1`, `oc1`, `ru`, `sg2`, `tr1`, `tw2`, `vn2`.
-- Scout cards come from the last 20 ranked solo/duo games: Riot ID (stored next to the PUUID),
-  solo queue rank, top 3 champions (games, wins, KDA), last 10 results, main roles and
+- Scouting batches name players by **Riot ID** (`players`, as the League client shows them):
+  the client's PUUIDs are not our key's (Riot encrypts PUUIDs per API key), so each Riot ID is
+  resolved with account-v1 (cached a day, like every account lookup) and the card is built
+  from our key's PUUID. `puuids` (PUUIDs as *our key* sees them) is what apps up to 0.1.0
+  sent and is still accepted; Riot IDs come first in the answer, then PUUIDs. Repeats count
+  once (Riot IDs compare case-insensitively); at most 10 players across both lists.
+- Scout cards come from the last 20 ranked solo/duo games: Riot ID (the account's own spelling,
+  stored next to our key's PUUID; the app matches it back case-insensitively), solo queue
+  rank, top 3 champions (games, wins, KDA), last 10 results, main roles and
   **positive/neutral tags only**: `otp` (≥ 70 % of ≥ 10 games on one champion), `mainRole`
   (≥ 60 % of ≥ 5 games), `hotStreak` (≥ 4 wins in a row), `veteran` (≥ 100 ranked games this
-  season). PUUIDs our key doesn't know get no card.
+  season). A Riot ID nobody has, or a PUUID our key can't read (Riot answers 400 for another
+  key's), gets no card; the rest of the batch still comes. League client PUUIDs (UUIDs, what
+  0.1.0 apps sent) can never be read with our key and cost no Riot call.
 - Every request should carry **`X-MVP-Install: <install id>`** (a random UUID the app makes
   once per install): it keys the rate limit and staged rollouts. Answers carry
   `X-Request-Id` (quote it in bug reports; a sane incoming `X-Request-Id` is kept).
@@ -43,7 +52,7 @@ with `If-None-Match` rather than refetching a whole patch at once.
 
 | Status | `error` | When |
 | --- | --- | --- |
-| 400 | `badPlatform` / `badRequest` | unknown platform, malformed body, 0 or > 10 PUUIDs, bad version/channel |
+| 400 | `badPlatform` / `badRequest` | unknown platform, malformed body or Riot ID, 0 or > 10 players, bad version/channel |
 | 404 | `notFound` | no such Riot ID / route |
 | 413 | `badRequest` | body over the limit (16 KB; 40 KB for reports) |
 | 429 | `rateLimited` | Riot's limit, or ours per client; `retryAfter` seconds (also a `Retry-After` header) |
@@ -157,25 +166,38 @@ runs with `createUpdaterArtifacts` and the `TAURI_SIGNING_PRIVATE_KEY` /
 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` repository secrets, so the bundler writes
 `MVP_<version>_x64-setup.exe.sig` next to the NSIS installer; both go to a draft GitHub
 release and the job summary prints the `release add` command (URL + signature filled in).
-Publish the draft, then run the command. The key pair comes from
-`pnpm tauri signer generate -w ~/.tauri/mvp.key`; the private key and its password live only
-in the owner's password manager and the repository secrets (**never committed**; losing it
-means installed apps can't be updated any more), the public key goes in the app config.
+Publish the draft, then run the command.
 
-**Desktop app side** (apps/desktop, not done here): add `tauri-plugin-updater`, and in
-`tauri.conf.json`:
+**The signing key pair (once, by the owner).** Until it exists, builds don't update themselves
+(Settings says "doesn't update itself (no update key in this build)") and the release workflow
+refuses to run.
+
+1. `pnpm tauri signer generate -w ~/.tauri/mvp.key` (pick a password). It writes the private
+   key `~/.tauri/mvp.key` and the public key `~/.tauri/mvp.key.pub`.
+2. **Private half** — never committed, never on the VPS: the contents of `mvp.key` go in the
+   repository secret `TAURI_SIGNING_PRIVATE_KEY`, the password in
+   `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (GitHub → Settings → Secrets and variables → Actions),
+   and both in the owner's password manager. Losing them means installed apps can never be
+   updated again (they only accept updates signed by this key).
+3. **Public half** — committed: paste the contents of `mvp.key.pub` (one base64 line) as
+   `plugins.updater.pubkey` in `apps/desktop/tauri.conf.json`. That is the one place the app
+   reads it from; every build made after that verifies updates with it.
+
+**Desktop app side** (`apps/desktop/src/updater.rs`, following `companion::updates::UpdatePlan`):
+tauri-plugin-updater with the endpoint set at run time from the build's backend URL,
+`{MVP_BACKEND_URL}/v1/updates/{{target}}/{{arch}}/{{current_version}}?channel=stable`, and
+`X-MVP-Install`. It checks 30 s after start and every 6 h (at once when the config says
+`updateRequired`, or from Settings → About), downloads only while no ready check, champ select or
+game is running (and stops if one starts), then asks the player ("Update ready — Restart");
+otherwise the update installs when MVP quits, never during a game. `mandatory` makes the prompt
+stay. Debug builds and plain-HTTP backends never update. `tauri.conf.json`:
 
 ```json
 "plugins": { "updater": {
   "pubkey": "<contents of mvp.key.pub>",
-  "endpoints": ["https://api.example.com/v1/updates/{{target}}/{{arch}}/{{current_version}}?channel=stable"],
   "windows": { "installMode": "passive" }
 } }
 ```
-
-and check with `app.updater_builder().header("X-MVP-Install", id)?` (and
-`.endpoints(…channel=beta…)` for beta testers) → `.build()?.check().await`. Check at startup
-and when the config's `pollAfterSecs` elapses, never while a game or champ select is running.
 
 ## Remote config
 
@@ -207,18 +229,26 @@ empty or > 300-character texts, non-`https` links, `startsAt ≥ endsAt`, and a 
 Answers carry a strong `ETag` (hash of the bytes) and `Cache-Control: no-cache`; send it back in
 `If-None-Match` to get a bodiless 304.
 
-**Desktop app side:** fetch at startup and every `pollAfterSecs` (one timer in the Rust core,
-not the UI — idle stays idle), with `X-MVP-Install` and `If-None-Match`; keep the last answer on
-disk and start from it (or `RemoteConfig::default()`) when offline. A kill switch wins over the
-user's setting immediately; a disabled feature hides its entry points; `updateRequired`
-shows `minVersion.message` in the user's language with the update button; banners are
-dismissible by `id`.
+A banner may also say `"dismissible": false` (default `true`) to stay up while it lasts, e.g.
+during an outage.
+
+**Desktop app side** (`companion::remote`, done): fetched at startup and after every
+`pollAfterSecs` (one timer in the Rust core, not the UI — idle stays idle), with `X-MVP-Install`
+and `If-None-Match`; the last answer is kept on disk (`remote-config.json`) and applies from the
+next start, offline included. A kill switch wins over the user's setting immediately (auto-accept
+stops even mid-delay); `scouting` and `playerSearch` turn those lookups off; `updateRequired`
+blocks the UI behind `minVersion.message` (English for now) with the update button; banners
+show at the top of the page and close by `id` when dismissible; their `link` opens in the
+browser.
 
 ## Crash reports and privacy
 
 `POST /v1/reports` with a `CrashReport`:
 `{ appVersion, osVersion, kind: "panic" | "js" | "lcu", message, stack?, installId }` → 202.
-**Only sent when the user opted in** (off by default, in Settings).
+**Only sent when the user opted in** (off by default, Settings → App → "Send crash reports").
+The app (`companion::crash`) scrubs each report itself with the same rules (`crates/scrub`)
+before it leaves, sends panics saved by its panic hook at the next start (5 at most per start)
+and UI crashes once each per session; turning the setting off deletes reports not sent yet.
 
 - **Limits:** body ≤ 40 KB (413 above), `message` ≤ 2 KB, `stack` ≤ 16 KB, `osVersion` ≤ 64
   printable characters, `appVersion` semver, `installId` 8–64 of `[A-Za-z0-9-]`; per install a
@@ -233,7 +263,8 @@ dismissible by `id`.
   stack. **Not** the IP address, the Riot account, or anything else about the player.
 - **Retention:** 30 days. Day files older than that are deleted at startup and daily, or with
   `mvp-backend reports prune [--days N]`.
-- **Deletion (GDPR):** the app shows its install id in Settings; on request run
+- **Deletion (GDPR):** the app shows its install id in Settings ("Report ID", under the
+  crash-reports switch once it's on); on request run
   `mvp-backend reports forget --install-id <id>` (rewrites the day files without that id's
   lines; a report arriving during the rewrite may be lost). Uninstalling the app removes the id.
 - Logs keep method, route, status and duration per request, never bodies or the install id.
@@ -283,7 +314,7 @@ RIOT_API_KEY=RGAPI-… cargo run -p mvp-backend      # or: pnpm backend
 curl http://127.0.0.1:8787/health
 curl http://127.0.0.1:8787/v1/players/euw1/Name/TAG
 curl -X POST http://127.0.0.1:8787/v1/players/batch \
-  -H 'content-type: application/json' -d '{"platform":"euw1","puuids":["…"]}'
+  -H 'content-type: application/json' -d '{"platform":"euw1","players":[{"gameName":"Name","tagLine":"TAG"}]}'
 curl -i 'http://127.0.0.1:8787/v1/config?version=0.1.0'
 curl -i http://127.0.0.1:8787/v1/updates/windows/x86_64/0.1.0
 cargo run -p mvp-backend -- release list            # admin commands use the same DATA_DIR

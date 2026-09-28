@@ -59,14 +59,24 @@ pub enum ScoutTag {
     Veteran { games: u32 },
 }
 
-/// Body of `POST /v1/players/batch`.
+/// Body of `POST /v1/players/batch`: the players of one game, 1–10 in all.
+///
+/// The app names players by **Riot ID**: the League client's PUUIDs are not the ones our API
+/// key sees (Riot encrypts PUUIDs per key), so the server resolves each Riot ID itself. The
+/// answer lists cards in request order (`players`, then `puuids`); players the server can't
+/// find get none, and a card for a Riot ID carries the account's current Riot ID in `riotId`,
+/// to match back case-insensitively. Hidden (streamer mode) players are never sent.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct ScoutRequest {
     /// Platform id, e.g. `euw1`.
     pub platform: String,
-    /// 1–10 PUUIDs (as seen by our API key).
+    /// Players by Riot ID, as the League client shows them.
+    #[serde(default)]
+    pub players: Vec<RiotId>,
+    /// Players by PUUID as seen by our API key: what apps up to 0.1.0 sent, still accepted.
+    #[serde(default)]
     pub puuids: Vec<String>,
 }
 
@@ -84,5 +94,19 @@ mod tests {
         assert_eq!(json, r#"{"kind":"otp","championId":103,"share":0.8}"#);
         let json = serde_json::to_string(&ScoutTag::MainRole { role: Role::Jungle }).expect("ok");
         assert_eq!(json, r#"{"kind":"mainRole","role":"jungle"}"#);
+    }
+
+    #[test]
+    fn requests_take_riot_ids_or_the_older_puuids() {
+        let legacy: ScoutRequest =
+            serde_json::from_str(r#"{"platform":"euw1","puuids":["p1"]}"#).expect("parses");
+        assert!(legacy.players.is_empty());
+        assert_eq!(legacy.puuids, vec!["p1"]);
+        let current: ScoutRequest = serde_json::from_str(
+            r#"{"platform":"euw1","players":[{"gameName":"Fillmo","tagLine":"7272"}]}"#,
+        )
+        .expect("parses");
+        assert_eq!(current.players[0].game_name, "Fillmo");
+        assert!(current.puuids.is_empty());
     }
 }

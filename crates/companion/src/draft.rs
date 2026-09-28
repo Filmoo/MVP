@@ -29,7 +29,7 @@ use ::stats::draft::{
 use ::stats::sigmoid;
 use domain::{
     Bracket, ChampionsFile, DataInfo, DraftView, Estimate, Mastery, MatchupsFile, PersonalRecord,
-    Reason, ReasonKind, RoleOdds, StatsIndex, Suggestion, TierList,
+    Reason, ReasonKind, RemoteConfig, RoleOdds, StatsIndex, Suggestion, TierList,
 };
 use lcu::LcuClient;
 use serde_json::Value;
@@ -568,6 +568,8 @@ struct Engine {
     out: watch::Sender<Option<DraftView>>,
     lcu: watch::Receiver<Option<LcuClient>>,
     stats: Option<StatsClient>,
+    /// The server's `draftHelper` flag: off, the draft shows the teams without numbers.
+    enabled: bool,
     tx: mpsc::UnboundedSender<Loaded>,
     fetches: Arc<Semaphore>,
     /// Counts champion selects: loads of an earlier one are ignored.
@@ -755,6 +757,7 @@ impl Engine {
         };
         let key = Key::of(&view, self.version);
         let enrichment = match &self.last {
+            _ if !self.enabled => Enrichment::default(),
             Some((last, enrichment)) if *last == key => enrichment.clone(),
             _ => {
                 let enrichment = self.compute(&view).await;
@@ -771,6 +774,14 @@ impl Engine {
             true
         });
     }
+}
+
+/// Waits for the `draftHelper` flag to change (never, once the config's sender is gone).
+async fn flag_changed(remote: &mut watch::Receiver<RemoteConfig>) -> bool {
+    if remote.changed().await.is_err() {
+        return std::future::pending().await;
+    }
+    remote.borrow_and_update().features.draft_helper
 }
 
 /// Waits for a different index (never, without stats).
@@ -792,14 +803,17 @@ pub(crate) fn spawn(
     out: watch::Sender<Option<DraftView>>,
     lcu: watch::Receiver<Option<LcuClient>>,
     stats: Option<StatsClient>,
+    mut remote: watch::Receiver<RemoteConfig>,
 ) -> JoinHandle<()> {
     tokio::spawn(async move {
         let (tx, mut rx) = mpsc::unbounded_channel();
         let mut index = stats.as_ref().map(StatsClient::subscribe);
+        let enabled = remote.borrow_and_update().features.draft_helper;
         let mut engine = Engine {
             out,
             lcu,
             stats,
+            enabled,
             tx,
             fetches: Arc::new(Semaphore::new(PARALLEL_FETCHES)),
             session: 0,
@@ -832,6 +846,12 @@ pub(crate) fn spawn(
                     engine.publish().await;
                 }
                 Some(()) = index_changed(&mut index) => engine.on_new_index(),
+                enabled = flag_changed(&mut remote) => {
+                    if enabled != engine.enabled {
+                        engine.enabled = enabled;
+                        engine.publish().await;
+                    }
+                }
             }
         }
     })
@@ -1253,6 +1273,7 @@ mod tests {
             out,
             lcu: watch::channel(None).1,
             stats: None,
+            enabled: true,
             tx,
             fetches: Arc::new(Semaphore::new(1)),
             session: 0,

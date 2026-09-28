@@ -10,6 +10,11 @@ pub struct AppInfo {
     pub version: String,
     /// `windows`, `macos`, `linux` or `web`.
     pub platform: String,
+    /// This installation's random id (`X-MVP-Install`): not linked to the Riot account, it
+    /// files crash reports, so it is what a player quotes to have theirs deleted. `None`
+    /// outside the app.
+    #[serde(default)]
+    pub install_id: Option<String>,
 }
 
 /// Connection state between the app and the local League client.

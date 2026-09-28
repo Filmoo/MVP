@@ -21,8 +21,8 @@ use companion::stats::{ARAM, RANKED, StatsClient};
 use domain::{
     BackendError, Bracket, BuildSection, BuildStats, BuildsFile, ChampionRoleStats, ChampionStats,
     ChampionsFile, ClientConnection, DataSetIndex, DataSetInfo, DraftView, MatchupEntry,
-    MatchupsFile, PairKind, PairPrior, PatchIndex, ReasonKind, Role, RoleMatchups, Settings,
-    StatsIndex, TierEntry, TierGrade, TierList,
+    MatchupsFile, PairKind, PairPrior, PatchIndex, ReasonKind, RemoteConfig, Role, RoleMatchups,
+    Settings, StatsIndex, TierEntry, TierGrade, TierList,
 };
 use lcu::ConnectorConfig;
 use lcu::tls::pinned_client_config;
@@ -756,6 +756,15 @@ fn local_player(mock: &MockLcu) {
 
 /// A core reading `stats`, connected to `mock` (event subscriptions in place).
 async fn core_with(mock: &MockLcu, stats: StatsClient) -> Companion {
+    core_following(mock, stats, watch::channel(RemoteConfig::default()).1).await
+}
+
+/// [`core_with`], following the server's `remote` config.
+async fn core_following(
+    mock: &MockLcu,
+    stats: StatsClient,
+    remote: watch::Receiver<RemoteConfig>,
+) -> Companion {
     let (_settings, settings_rx) = watch::channel(Settings {
         auto_switch_view: false,
         bring_to_front_on_champ_select: false,
@@ -765,6 +774,7 @@ async fn core_with(mock: &MockLcu, stats: StatsClient) -> Companion {
         config_for(mock),
         settings_rx,
         companion::Services {
+            remote,
             stats: Some(stats),
             ..companion::Services::default()
         },
@@ -793,6 +803,30 @@ async fn draft_where(core: &Companion, ready: impl Fn(&DraftView) -> bool) -> Dr
     .unwrap()
     .clone()
     .unwrap()
+}
+
+#[tokio::test]
+async fn the_draft_helper_flag_takes_the_numbers_away_at_once() {
+    let (base, server) = fake_backend().await;
+    publish(&server, "16.19", 1_000, "16.19", &[("16.19", 1_000)]);
+    let dir = tempfile::tempdir().unwrap();
+    let mock = MockLcu::start().await.unwrap();
+    local_player(&mock);
+    let (remote_tx, remote_rx) = watch::channel(RemoteConfig::default());
+    let core = core_following(&mock, stats_client(&base, dir.path()), remote_rx).await;
+    mock.set(companion::champ_select::SESSION, session(0, &[]));
+    mock.set(lcu::GAMEFLOW_PHASE, json!("ChampSelect"));
+    draft_where(&core, |v| v.data.is_some() && !v.suggestions.is_empty()).await;
+
+    // Turned off by the server in the middle of the champion select: the teams stay.
+    remote_tx.send_modify(|config| config.features.draft_helper = false);
+    let teams = draft_where(&core, |v| v.data.is_none()).await;
+    assert!(teams.suggestions.is_empty() && teams.team.is_none());
+    assert_eq!(teams.allies.len(), 5);
+
+    // And back.
+    remote_tx.send_modify(|config| config.features.draft_helper = true);
+    draft_where(&core, |v| v.data.is_some() && !v.suggestions.is_empty()).await;
 }
 
 #[tokio::test]

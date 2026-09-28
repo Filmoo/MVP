@@ -4,12 +4,14 @@ use companion::settings::SettingsStore;
 use companion::stats::StatsClient;
 use domain::{
     AppInfo, BackendError, Bracket, ChampionPage, ClientStatus, DraftView, GameData, ImportRequest,
-    ImportResult, LiveGame, PlayerProfile, RiotId, Settings, StatsIndex, TierList,
+    ImportResult, LiveGame, PlayerProfile, RemoteConfig, RiotId, Settings, StatsIndex, TierList,
+    UpdateStatus,
 };
 use tauri::{Emitter as _, Manager as _};
 use tauri_plugin_autostart::ManagerExt as _;
 
-use crate::core::{Backend, Core, GameDataState, Stats};
+use crate::core::{Backend, Core, Crashes, GameDataState, InstallId, Remote, Stats};
+use crate::updater::Updates;
 
 #[tauri::command]
 #[allow(
@@ -22,6 +24,98 @@ pub fn app_info(app: tauri::AppHandle) -> AppInfo {
         name: pkg.name.clone(),
         version: pkg.version.to_string(),
         platform: std::env::consts::OS.to_owned(),
+        install_id: app.try_state::<InstallId>().map(|id| id.0.clone()),
+    }
+}
+
+/// The server's remote config as last received (feature flags, kill switches, banners,
+/// `updateRequired`); `remote-config` events follow changes.
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub fn remote_config(app: tauri::AppHandle) -> RemoteConfig {
+    app.try_state::<Remote>()
+        .map_or_else(RemoteConfig::default, |remote| remote.0.get())
+}
+
+/// Opens a banner's "More info" link in the default browser. The webview only names the
+/// banner: the link is the one our server sent, and only `https://` links open.
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub fn open_banner_link(app: tauri::AppHandle, id: String) -> Result<(), String> {
+    let config = app
+        .try_state::<Remote>()
+        .map_or_else(RemoteConfig::default, |remote| remote.0.get());
+    let link = config
+        .banners
+        .iter()
+        .find(|banner| banner.id == id)
+        .and_then(|banner| banner.link.as_deref())
+        .ok_or("this notice has no link")?;
+    let url = tauri::Url::parse(link)
+        .ok()
+        .filter(|url| url.scheme() == "https")
+        .ok_or("only https links open")?;
+    open::that_detached(url.as_str()).map_err(|error| format!("couldn't open the browser: {error}"))
+}
+
+/// Where the app's own update stands; `app-update` events follow changes.
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub fn update_status(app: tauri::AppHandle) -> UpdateStatus {
+    app.try_state::<Updates>()
+        .map_or(UpdateStatus::Idle, |u| u.status())
+}
+
+/// Checks for an update now (the download waits for the end of a game); answers the status
+/// right after, `app-update` events follow.
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub async fn check_for_updates(app: tauri::AppHandle) -> UpdateStatus {
+    match app.try_state::<Updates>() {
+        Some(updates) => updates.check().await,
+        None => UpdateStatus::Idle,
+    }
+}
+
+/// Restarts MVP into the downloaded update. Refused (with the reason) during champion select
+/// or a game, or when nothing is downloaded.
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub async fn install_update(app: tauri::AppHandle) -> Result<(), String> {
+    match app.try_state::<Updates>() {
+        Some(updates) => updates.install().await,
+        None => Err("the updater isn't running".to_owned()),
+    }
+}
+
+/// An error in the UI, for the opt-in crash reports: dropped unless the player turned them on,
+/// scrubbed before it leaves.
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub async fn report_error(app: tauri::AppHandle, message: String, stack: Option<String>) {
+    let reporter = app
+        .try_state::<Crashes>()
+        .map(|c| std::sync::Arc::clone(&c.0));
+    if let Some(reporter) = reporter {
+        reporter.report_ui_error(&message, stack.as_deref()).await;
     }
 }
 
@@ -147,6 +241,14 @@ pub async fn search_player(
             message: "no backend configured".to_owned(),
         });
     };
+    let searchable = app
+        .try_state::<Remote>()
+        .is_none_or(|remote| remote.0.get().features.player_search);
+    if !searchable {
+        return Err(BackendError::Unavailable {
+            message: "player search is turned off for now".to_owned(),
+        });
+    }
     let riot_id = RiotId {
         game_name: riot_id.game_name.trim().to_owned(),
         tag_line: riot_id.tag_line.trim().trim_start_matches('#').to_owned(),

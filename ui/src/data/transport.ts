@@ -9,10 +9,12 @@ import type { ImportRequest } from "./generated/ImportRequest";
 import type { ImportResult } from "./generated/ImportResult";
 import type { LiveGame } from "./generated/LiveGame";
 import type { PlayerProfile } from "./generated/PlayerProfile";
+import type { RemoteConfig } from "./generated/RemoteConfig";
 import type { RiotId } from "./generated/RiotId";
 import type { Settings } from "./generated/Settings";
 import type { StatsIndex } from "./generated/StatsIndex";
 import type { TierList } from "./generated/TierList";
+import type { UpdateStatus } from "./generated/UpdateStatus";
 import type { ViewRoute } from "./generated/ViewRoute";
 
 /** Commands answered by the core. Keep in sync with `apps/desktop/src/commands.rs`. */
@@ -63,6 +65,24 @@ export interface Commands {
    * off in Settings are skipped.
    */
   import_build: { args: { request: ImportRequest }; result: ImportResult };
+  /**
+   * The server's remote config as the core last received it (banners, feature flags, kill
+   * switches, `updateRequired`); defaults when it never answered. `remote-config` events follow.
+   */
+  remote_config: { args: undefined; result: RemoteConfig };
+  /** Opens a banner's "More info" link in the browser (the core looks the link up by banner id). */
+  open_banner_link: { args: { id: string }; result: null };
+  /** Where the app's own update stands (`app-update` events follow). */
+  update_status: { args: undefined; result: UpdateStatus };
+  /** Checks for an update now; answers the status right after (events follow). */
+  check_for_updates: { args: undefined; result: UpdateStatus };
+  /**
+   * Restarts MVP into the downloaded update. Rejects with the reason during champion select or
+   * a game, or when nothing is downloaded.
+   */
+  install_update: { args: undefined; result: null };
+  /** A UI crash, for the opt-in crash reports (the core drops it unless the player opted in). */
+  report_error: { args: { message: string; stack: string | null }; result: null };
 }
 
 /** Events pushed by the core. */
@@ -81,6 +101,9 @@ export interface Events {
   "stats-index": StatsIndex;
   /** An automatic import on lock-in finished (`automatic: true`). */
   import: ImportResult;
+  /** A new remote config arrived: banners, flags and `updateRequired` apply at once. */
+  "remote-config": RemoteConfig;
+  "app-update": UpdateStatus;
 }
 
 export type CommandName = keyof Commands;

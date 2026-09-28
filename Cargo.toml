@@ -18,6 +18,7 @@ lcu = { path = "crates/lcu" }
 mock-lcu = { path = "crates/mock-lcu" }
 players = { path = "crates/players" }
 riot-api = { path = "crates/riot-api" }
+scrub = { path = "crates/scrub" }
 static-data = { path = "crates/static-data" }
 stats = { path = "crates/stats" }
 

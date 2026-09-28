@@ -21,6 +21,7 @@ futures-util.workspace = true
 players.workspace = true
 regex.workspace = true
 riot-api.workspace = true
+scrub.workspace = true
 semver.workspace = true
 serde.workspace = true
 serde_json.workspace = true

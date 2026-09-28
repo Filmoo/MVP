@@ -10,6 +10,9 @@
 //! - summoner spells: during champion select only, never in its last seconds
 //!   ([`LAST_SECONDS`]), Flash on the player's key.
 //!
+//! The server can pause each part for everyone (feature flag or kill switch, see
+//! [`crate::remote`]): a paused part is skipped at once, even in the middle of a champion select.
+//!
 //! Builds come from a [`BuildSource`]: the published stats in the app, a fake in tests.
 
 mod item_sets;
@@ -24,7 +27,7 @@ use std::sync::Arc;
 
 use domain::{
     BuildStats, BuildsFile, ClientStatus, FailReason, GameflowPhase, ImportMode, ImportOutcome,
-    ImportPart, ImportRequest, ImportResult, PartResult, Role, Settings, SkipReason,
+    ImportPart, ImportRequest, ImportResult, PartResult, RemoteConfig, Role, Settings, SkipReason,
 };
 use lcu::{LcuClient, LcuError};
 use serde_json::Value;
@@ -205,6 +208,7 @@ pub struct Importer {
     client: watch::Receiver<Option<LcuClient>>,
     status: watch::Receiver<ClientStatus>,
     settings: watch::Receiver<Settings>,
+    remote: watch::Receiver<RemoteConfig>,
     builds: Arc<dyn BuildSource>,
     names: ChampionNames,
 }
@@ -220,6 +224,7 @@ impl Importer {
         client: watch::Receiver<Option<LcuClient>>,
         status: watch::Receiver<ClientStatus>,
         settings: watch::Receiver<Settings>,
+        remote: watch::Receiver<RemoteConfig>,
         builds: Arc<dyn BuildSource>,
         names: ChampionNames,
     ) -> Self {
@@ -227,6 +232,7 @@ impl Importer {
             client,
             status,
             settings,
+            remote,
             builds,
             names,
         }
@@ -234,6 +240,11 @@ impl Importer {
 
     pub(crate) fn settings(&self) -> Settings {
         self.settings.borrow().clone()
+    }
+
+    /// Whether the server lets `part` run right now.
+    pub(crate) fn allowed(&self, part: ImportPart) -> bool {
+        crate::remote::import_allowed(&self.remote.borrow(), part)
     }
 
     /// Imports the requested parts, in order, and says what happened to each. Parts turned off
@@ -260,6 +271,11 @@ impl Importer {
             if mode(&settings, part) == ImportMode::Off {
                 return Some(ImportOutcome::Skipped {
                     reason: SkipReason::Off,
+                });
+            }
+            if !self.allowed(part) {
+                return Some(ImportOutcome::Skipped {
+                    reason: SkipReason::Paused,
                 });
             }
             if lcu.is_none() {

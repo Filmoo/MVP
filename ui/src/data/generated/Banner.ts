@@ -17,4 +17,9 @@ link: string | null,
 /**
  * RFC 3339; the server only sends banners whose window contains "now".
  */
-startsAt: string | null, endsAt: string | null, };
+startsAt: string | null, endsAt: string | null, 
+/**
+ * The player may close it (remembered by `id`). Default `true`; `false` keeps it up
+ * while it lasts (e.g. an outage).
+ */
+dismissible: boolean, };

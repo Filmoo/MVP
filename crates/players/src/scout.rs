@@ -3,7 +3,7 @@
 //! Tags are positive or neutral only (docs/policy.md): no negative labels, no "first time".
 
 use domain::{ChampionRecord, MatchSummary, RankedEntry, RiotId, Role, ScoutCard, ScoutTag};
-use riot_api::{MatchQuery, Platform, RiotError};
+use riot_api::{Account, LeagueEntry, MatchQuery, Platform, RiotError};
 
 use crate::{RiotSource, match_summaries, solo_queue};
 
@@ -29,31 +29,69 @@ const ROLES: [Role; 5] = [
     Role::Support,
 ];
 
-/// Fetches what a card needs: account (Riot ID), league entries, last ranked games.
+/// Fetches what a card needs for a PUUID (as our key sees it): account (Riot ID), league
+/// entries, last ranked games.
 pub async fn fetch_scout_card<S: RiotSource>(
     source: &S,
     platform: Platform,
     puuid: &str,
 ) -> Result<ScoutCard, RiotError> {
+    let (account, (entries, games)) = tokio::try_join!(
+        source.account_by_puuid(platform, puuid),
+        ranked_sample(source, platform, puuid),
+    )?;
+    Ok(scout_card(
+        puuid,
+        riot_id(account),
+        solo_queue(&entries),
+        &games,
+    ))
+}
+
+/// Like [`fetch_scout_card`] for an account already looked up (by Riot ID): no second
+/// account call, and the card carries that account's Riot ID.
+pub async fn fetch_scout_card_for<S: RiotSource>(
+    source: &S,
+    platform: Platform,
+    account: Account,
+) -> Result<ScoutCard, RiotError> {
+    let (entries, games) = ranked_sample(source, platform, &account.puuid).await?;
+    let puuid = account.puuid.clone();
+    Ok(scout_card(
+        &puuid,
+        riot_id(account),
+        solo_queue(&entries),
+        &games,
+    ))
+}
+
+/// League entries and the last ranked solo/duo games, newest first.
+async fn ranked_sample<S: RiotSource>(
+    source: &S,
+    platform: Platform,
+    puuid: &str,
+) -> Result<(Vec<LeagueEntry>, Vec<MatchSummary>), RiotError> {
     let query = MatchQuery {
         queue: Some(RANKED_SOLO_QUEUE),
         count: SCOUT_GAMES,
         ..MatchQuery::default()
     };
-    let (account, entries, ids) = tokio::try_join!(
-        source.account_by_puuid(platform, puuid),
+    let (entries, ids) = tokio::try_join!(
         source.league_entries_by_puuid(platform, puuid),
         source.match_ids(platform, puuid, &query),
     )?;
     let games = match_summaries(source, platform, &ids, puuid).await?;
-    let riot_id = match (account.game_name, account.tag_line) {
+    Ok((entries, games))
+}
+
+fn riot_id(account: Account) -> Option<RiotId> {
+    match (account.game_name, account.tag_line) {
         (Some(game_name), Some(tag_line)) => Some(RiotId {
             game_name,
             tag_line,
         }),
         _ => None,
-    };
-    Ok(scout_card(puuid, riot_id, solo_queue(&entries), &games))
+    }
 }
 
 fn percent_at_least(part: usize, whole: usize, percent: usize) -> bool {

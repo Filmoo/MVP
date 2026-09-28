@@ -3,7 +3,8 @@
 //! Routes (JSON, camelCase, types from `crates/domain`):
 //! - `GET /health` → `Health`
 //! - `GET /v1/players/{platform}/{gameName}/{tagLine}` → `PlayerProfile`
-//! - `POST /v1/players/batch` (`ScoutRequest`) → `ScoutCard[]` for loading-screen scouting
+//! - `POST /v1/players/batch` (`ScoutRequest`: Riot IDs, or the older PUUIDs) → `ScoutCard[]`
+//!   for loading-screen scouting
 //! - `GET /v1/stats/index` → `StatsIndex`; `GET /v1/stats/{patch}/{queue}/{file…}` → the
 //!   published stats files (from `STATS_DIR`, written by `mvp-crawler publish`)
 //!
@@ -24,7 +25,6 @@ mod config;
 mod limits;
 mod ops;
 mod reports;
-mod scrub;
 mod store;
 mod telemetry;
 mod updates;
@@ -60,6 +60,7 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use domain::{Health, PlayerProfile, RiotId, ScoutCard, ScoutRequest};
 use futures_util::future::join_all;
+use players::RiotSource as _;
 use riot_api::{ApiKey, Config, Platform, RiotClient, RiotError};
 use tower_http::cors::{AllowOrigin, CorsLayer};
 
@@ -264,43 +265,128 @@ fn valid_puuid(p: &str) -> bool {
             .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
 }
 
-async fn scout_batch(
-    State(state): State<AppState>,
-    body: Result<Json<ScoutRequest>, JsonRejection>,
-) -> Result<Json<Vec<ScoutCard>>, Failure> {
-    let Json(request) = body.map_err(|e| Failure::bad_request(e.body_text()))?;
-    let platform = platform(&request.platform)?;
-    let mut puuids: Vec<String> = Vec::with_capacity(request.puuids.len());
+/// The League client's PUUID format, a UUID (what apps up to 0.1.0 sent). Our key's PUUIDs
+/// are 78 characters of base64url, so Riot can never read one of these: no call is spent.
+fn client_puuid(p: &str) -> bool {
+    p.len() == 36
+        && p.bytes().enumerate().all(|(i, b)| {
+            if matches!(i, 8 | 13 | 18 | 23) {
+                b == b'-'
+            } else {
+                b.is_ascii_hexdigit()
+            }
+        })
+}
+
+/// A Riot ID part we can put in a Riot API path: not empty, bounded, printable, not `.`/`..`.
+fn valid_riot_id_part(part: &str, max_bytes: usize) -> bool {
+    !part.is_empty()
+        && part.len() <= max_bytes
+        && part != "."
+        && part != ".."
+        && !part.chars().any(char::is_control)
+}
+
+/// One player of a scouting batch.
+enum Wanted {
+    /// By Riot ID (the app): resolved to our key's PUUID with account-v1.
+    RiotId(RiotId),
+    /// By PUUID as our key sees it (apps up to 0.1.0).
+    Puuid(String),
+}
+
+/// The players of a batch, validated and without repeats (Riot IDs compare case-insensitively),
+/// Riot IDs first.
+fn wanted(request: ScoutRequest) -> Result<Vec<Wanted>, Failure> {
+    let mut out = Vec::with_capacity(request.players.len() + request.puuids.len());
+    let mut seen: Vec<(String, String)> = Vec::new();
+    for id in request.players {
+        let (name, tag) = (id.game_name.trim(), id.tag_line.trim());
+        if !valid_riot_id_part(name, 64) || !valid_riot_id_part(tag, 16) {
+            return Err(Failure::bad_request("malformed Riot ID"));
+        }
+        let key = (name.to_lowercase(), tag.to_lowercase());
+        if !seen.contains(&key) {
+            seen.push(key);
+            out.push(Wanted::RiotId(RiotId {
+                game_name: name.to_owned(),
+                tag_line: tag.to_owned(),
+            }));
+        }
+    }
     for p in request.puuids {
         if !valid_puuid(&p) {
             return Err(Failure::bad_request("malformed PUUID"));
         }
-        if !puuids.contains(&p) {
-            puuids.push(p);
+        if !out.iter().any(|w| matches!(w, Wanted::Puuid(q) if *q == p)) {
+            out.push(Wanted::Puuid(p));
         }
     }
-    if puuids.is_empty() || puuids.len() > MAX_BATCH {
+    if out.is_empty() || out.len() > MAX_BATCH {
         return Err(Failure::bad_request(format!(
-            "send 1 to {MAX_BATCH} PUUIDs"
+            "send 1 to {MAX_BATCH} players"
         )));
     }
-    let riot = state.riot()?;
-    let cards = with_timeout(async {
-        let results = join_all(puuids.iter().map(|puuid| {
+    Ok(out)
+}
+
+/// One player's card; `None` when our key doesn't know them.
+async fn scout_one(
+    state: &AppState,
+    riot: &CachedRiot,
+    platform: Platform,
+    wanted: &Wanted,
+) -> Result<Option<ScoutCard>, RiotError> {
+    let card = match wanted {
+        Wanted::Puuid(puuid) if client_puuid(puuid) => return Ok(None),
+        Wanted::Puuid(puuid) => {
             state
                 .0
                 .cards
                 .get_or_try_insert((platform, puuid.clone()), || {
                     players::fetch_scout_card(riot, platform, puuid)
                 })
-        }))
-        .await;
+                .await
+        }
+        Wanted::RiotId(id) => match riot
+            .account_by_riot_id(platform, &id.game_name, &id.tag_line)
+            .await
+        {
+            Ok(account) => {
+                state
+                    .0
+                    .cards
+                    .get_or_try_insert((platform, account.puuid.clone()), || {
+                        players::fetch_scout_card_for(riot, platform, account)
+                    })
+                    .await
+            }
+            Err(e) => Err(e),
+        },
+    };
+    match card {
+        Ok(card) => Ok(Some(card)),
+        // Nobody by that Riot ID, or a PUUID our key can't read (another key's, or the League
+        // client's: Riot answers 400 when it can't decrypt it). No card, the others still come.
+        Err(RiotError::NotFound | RiotError::Unavailable(400)) => Ok(None),
+        Err(e) => Err(e),
+    }
+}
+
+async fn scout_batch(
+    State(state): State<AppState>,
+    body: Result<Json<ScoutRequest>, JsonRejection>,
+) -> Result<Json<Vec<ScoutCard>>, Failure> {
+    let Json(request) = body.map_err(|e| Failure::bad_request(e.body_text()))?;
+    let platform = platform(&request.platform)?;
+    let wanted = wanted(request)?;
+    let riot = state.riot()?;
+    let cards = with_timeout(async {
+        let results = join_all(wanted.iter().map(|w| scout_one(&state, riot, platform, w))).await;
         let mut cards = Vec::with_capacity(results.len());
         for result in results {
             match result {
-                Ok(card) => cards.push(card),
-                // Unknown to our key (e.g. a PUUID from another key): no card for it.
-                Err(RiotError::NotFound) => {}
+                Ok(card) => cards.extend(card),
                 Err(e) => return Err(e),
             }
         }

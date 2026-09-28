@@ -40,9 +40,11 @@ detection, composite player scores, live win probability, sending data to third-
 - **Loading-screen scouting (2026-09-27, shipped).** Player cards appear only once the game has
   started (Loading/InGame), when the game itself shows every name; champion select is never read
   for identities. Streamer-mode players (`nameVisibilityType: HIDDEN`) are shown as "Hidden
-  player": their PUUID and name are dropped in the core before any lookup. Tags are positive or
-  neutral only (one-trick, win streak, veteran, main role); no "first time", no MMR, no grades of
-  other players. LCU endpoints: `GET /lol-gameflow/v1/session`, `GET /lol-summoner/v1/current-summoner`,
+  player": their PUUID and name are dropped in the core before any lookup. Visible players are
+  looked up on our backend **by Riot ID** (what the loading screen shows); the client's PUUIDs
+  never leave the app (they aren't our API key's anyway), and the backend stores the Riot ID
+  next to its own PUUID. Tags are positive or neutral only (one-trick, win streak, veteran,
+  main role); no "first time", no MMR, no grades of other players. LCU endpoints: `GET /lol-gameflow/v1/session`, `GET /lol-summoner/v1/current-summoner`,
   `GET /riotclient/region-locale` (declare at product registration).
 - **Window follows the game (not gray, noted for completeness).** Bringing MVP to the front in
   champ select and switching views only moves our own window; both can be turned off, and a view
@@ -77,6 +79,8 @@ detection, composite player scores, live win probability, sending data to third-
     before the write; Flash goes on the player's key (their setting, else the key it sat on in
     most recent games, else where it is now) and the player is told when that differs from the
     build, or had to be guessed.
+  - **The server can pause each part for everyone** (feature flag or kill switch in the remote
+    config): a paused part is skipped at once, also in the middle of a champion select.
   - **On lock-in means once per lock-in**: not on hovers or pick intents, not again on later
     session events (a trade or an ARAM swap is a new lock). Spells of a lock in a turn's last
     seconds wait for time on the clock. A toast confirms every automatic import, and the Draft
@@ -89,3 +93,18 @@ detection, composite player scores, live win probability, sending data to third-
   writes `POST /lol-perks/v1/pages` (MVP's page only), `PUT /lol-perks/v1/pages/{id}` (MVP's page
   only), `PUT /lol-perks/v1/currentpage`, `PUT /lol-item-sets/v1/item-sets/{summonerId}/sets`,
   `PATCH /lol-champ-select/v1/session/my-selection` (`spell1Id`, `spell2Id`).
+- **Crash reports (2026-09-28, shipped): data leaving the machine, opt-in only.** Off by default
+  (Settings → App → "Send crash reports", with the wording of what is sent). A report holds the
+  error (message, stack), the app and OS/webview versions and the random install id, which is not
+  linked to the Riot account; never LCU payloads, game data or the Riot account. Scrubbed twice:
+  in the app before it leaves and on the server before it's stored (`crates/scrub`: Riot IDs,
+  PUUIDs, user names in paths, e-mails, credentials such as the LCU password, IPs). Kept 30 days,
+  erasable per install id (shown in Settings once reports are on). Turning reports off deletes
+  the ones not sent yet; nothing is written or sent while off.
+- **Remote config and self-updates (2026-09-28, shipped).** The app asks our server for its
+  config and for updates with its version and install id only (no Riot data). Kill switches can
+  only turn features **off**: they stop our own automations (auto-accept, each build import
+  part; feature flags also hide the draft helper's numbers) when a client change makes them
+  misbehave. Updates never download or install during a ready
+  check, champ select or a game, and never restart the app without the player's click (else
+  they install when MVP quits).

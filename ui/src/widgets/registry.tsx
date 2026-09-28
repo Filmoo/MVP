@@ -1,7 +1,9 @@
 import type { JSX } from "solid-js";
+import { NoticeList, UpdateRequiredDialog } from "../app/notices/Notices";
 import { champSelectDraft } from "../data/mock/draft-fixtures";
 import { profile } from "../data/mock/fixtures";
 import { liveGame } from "../data/mock/live-fixtures";
+import { outageBanner, patchBanner, requiredConfig, updateReady } from "../data/mock/platform-fixtures";
 import { defaultSettings } from "../data/mock/settings-fixtures";
 import { ChampionSoonHero } from "../views/champions/Champions";
 import { IDLE_HINT, ImportPanel } from "../views/draft/ImportBar";
@@ -51,5 +53,24 @@ export const widgetRegistry: Record<string, () => JSX.Element> = {
   "settings-app": () => <AppSettings settings={defaultSettings} onChange={() => {}} />,
   "live-team": () => <LiveTeam title="Your team" players={liveGame.allies} enemy={false} scouting="done" />,
   "champion-soon": () => <ChampionSoonHero championId={103} />,
-  "settings-about": () => <About info={{ name: "MVP", version: "0.1.0", platform: "windows" }} />,
+  "settings-about": () => <About info={{ name: "MVP", version: "0.1.0", platform: "windows", installId: null }} update={updateReady} />,
+  banners: () => (
+    <NoticeList
+      banners={[patchBanner, outageBanner]}
+      ready={updateReady}
+      onDismiss={() => {}}
+      onOpen={() => {}}
+      onRestart={() => {}}
+      onLater={() => {}}
+    />
+  ),
+  "update-required": () => (
+    <UpdateRequiredDialog
+      message={requiredConfig.minVersion?.message.en ?? ""}
+      update={updateReady}
+      inGame={false}
+      onRestart={() => {}}
+      onCheck={() => {}}
+    />
+  ),
 };

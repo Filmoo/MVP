@@ -17,6 +17,7 @@ mod remote;
 mod scout;
 mod settings;
 mod stats;
+mod update;
 
 pub use backend::{ApiError, ApiErrorCode, BackendError, Health};
 pub use client::{AppInfo, ClientConnection, ClientStatus, GameflowPhase};
@@ -43,3 +44,4 @@ pub use stats::{
     PairKind, PairPrior, PatchIndex, RoleMatchups, STATS_SCHEMA, StatsIndex, TierEntry, TierGrade,
     TierList,
 };
+pub use update::UpdateStatus;

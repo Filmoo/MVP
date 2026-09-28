@@ -7,7 +7,8 @@ name: Release
 # Secrets (repository settings → Secrets and variables → Actions; never committed):
 #   TAURI_SIGNING_PRIVATE_KEY           contents of the key made by `pnpm tauri signer generate`
 #   TAURI_SIGNING_PRIVATE_KEY_PASSWORD  its password
-# The matching public key goes in the app's updater config (plugins.updater.pubkey).
+# The matching public key is committed in apps/desktop/tauri.conf.json (plugins.updater.pubkey):
+# installed apps verify every update with it, and a build without it never updates itself.
 on:
   push:
     tags: ["v*"]
@@ -27,6 +28,11 @@ jobs:
         run: |
           if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
             echo "::error::TAURI_SIGNING_PRIVATE_KEY is not set: installed apps could not verify this update."
+            exit 1
+          fi
+          pubkey=$(node -e 'const c = require("./apps/desktop/tauri.conf.json"); process.stdout.write(c.plugins?.updater?.pubkey ?? "")')
+          if [ -z "$pubkey" ]; then
+            echo "::error::plugins.updater.pubkey is empty in apps/desktop/tauri.conf.json: this build could never update itself."
             exit 1
           fi
       - name: Rust toolchain (from rust-toolchain.toml)

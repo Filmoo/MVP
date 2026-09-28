@@ -8,18 +8,23 @@
 pub mod automation;
 pub mod backend;
 pub mod champ_select;
+pub mod crash;
 pub mod draft;
 pub mod imports;
 pub mod live;
 pub mod profile;
+pub mod remote;
 pub mod settings;
 pub mod stats;
+pub mod updates;
 
 use std::sync::Arc;
 
 use automation::{Autopilot, CoreEvent};
 use backend::BackendClient;
-use domain::{ClientConnection, ClientStatus, DraftView, GameflowPhase, LiveGame, Settings};
+use domain::{
+    ClientConnection, ClientStatus, DraftView, GameflowPhase, LiveGame, RemoteConfig, Settings,
+};
 use imports::{BuildSource, ChampionNames, Importer, LockIn, NoBuilds};
 use lcu::{ConnectionState, ConnectorConfig, ConnectorUpdate, EventKind, LcuClient};
 use tokio::sync::{mpsc, watch};
@@ -76,6 +81,9 @@ pub struct Companion {
 pub struct Services {
     /// Our backend, for the loading-screen scouting cards (`None`: no cards).
     pub backend: Option<BackendClient>,
+    /// The server's remote config: kill switches and feature flags apply as soon as they
+    /// change (default: everything on, for good).
+    pub remote: watch::Receiver<RemoteConfig>,
     /// Published champion stats: the draft helper's numbers (without them the draft shows the
     /// teams only).
     pub stats: Option<StatsClient>,
@@ -89,6 +97,7 @@ impl Default for Services {
     fn default() -> Self {
         Self {
             backend: None,
+            remote: watch::channel(RemoteConfig::default()).1,
             stats: None,
             builds: Arc::new(NoBuilds),
             names: Arc::new(|_| None),
@@ -100,6 +109,7 @@ impl std::fmt::Debug for Services {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Services")
             .field("backend", &self.backend)
+            .field("remote", &*self.remote.borrow())
             .field("stats", &self.stats)
             .finish_non_exhaustive()
     }
@@ -129,6 +139,8 @@ impl ScoutingHandle {
 struct LiveFollower {
     tx: watch::Sender<Option<LiveGame>>,
     backend: Option<BackendClient>,
+    /// The `scouting` feature flag can turn lookups off.
+    remote: watch::Receiver<RemoteConfig>,
     task: Option<JoinHandle<()>>,
 }
 
@@ -165,11 +177,64 @@ impl LiveFollower {
         let Some(lcu) = client.borrow().clone() else {
             return;
         };
+        let lookups = self.remote.borrow().features.scouting;
         self.task = Some(tokio::spawn(live::scout_game(
             lcu,
-            self.backend.clone(),
+            self.backend.clone().filter(|_| lookups),
             self.tx.clone(),
         )));
+    }
+}
+
+/// Auto-accept of the ready check: at most one per ready check, and only while both the
+/// player's setting and the remote config (feature flag, kill switch) allow it. A kill switch
+/// stops a pending accept at once.
+struct AutoAccept {
+    client: watch::Receiver<Option<LcuClient>>,
+    settings: watch::Receiver<Settings>,
+    remote: watch::Receiver<RemoteConfig>,
+    events: mpsc::Sender<CoreEvent>,
+    pending: Option<JoinHandle<()>>,
+}
+
+impl AutoAccept {
+    fn allowed(&self) -> bool {
+        self.settings.borrow().auto_accept && remote::auto_accept_allowed(&self.remote.borrow())
+    }
+
+    /// A new phase: starts on the ready check; leaving it (answered or timed out) cancels, so
+    /// it never accepts late.
+    fn on_phase(&mut self, phase: GameflowPhase) {
+        if phase != GameflowPhase::ReadyCheck {
+            self.stop();
+        } else if self.allowed() {
+            self.start();
+        }
+    }
+
+    /// The setting or the remote config changed: switched on while the pop-up is up, accept;
+    /// switched off or killed, stop.
+    fn on_change(&mut self, phase: GameflowPhase) {
+        if !self.allowed() {
+            self.stop();
+        } else if self.pending.is_none() && phase == GameflowPhase::ReadyCheck {
+            self.start();
+        }
+    }
+
+    fn start(&mut self) {
+        self.pending = Some(tokio::spawn(automation::accept_after_delay(
+            self.client.clone(),
+            self.settings.clone(),
+            self.remote.clone(),
+            self.events.clone(),
+        )));
+    }
+
+    fn stop(&mut self) {
+        if let Some(pending) = self.pending.take() {
+            pending.abort();
+        }
     }
 }
 
@@ -205,6 +270,7 @@ pub fn start_with_services(
 ) -> Companion {
     let Services {
         backend,
+        mut remote,
         stats,
         builds,
         names,
@@ -218,7 +284,7 @@ pub fn start_with_services(
     // Sessions as mapped (teams only) → the draft helper → the UI.
     let (session_tx, session_rx) = watch::channel(None);
     let (draft_tx, draft) = watch::channel(None);
-    let helper = draft::spawn(session_rx, draft_tx, client.clone(), stats);
+    let helper = draft::spawn(session_rx, draft_tx, client.clone(), stats, remote.clone());
     let (events_tx, events) = mpsc::channel(32);
     let (views_tx, mut views_rx) = mpsc::unbounded_channel::<String>();
     let (live_tx, live) = watch::channel(None);
@@ -228,6 +294,7 @@ pub fn start_with_services(
         client.clone(),
         status.clone(),
         settings.clone(),
+        remote.clone(),
         builds,
         names,
     );
@@ -237,10 +304,16 @@ pub fn start_with_services(
         let mut game = LiveFollower {
             tx: live_tx,
             backend,
+            remote: remote.clone(),
             task: None,
         };
-        // The auto-accept of the current ready check: at most one per ready check.
-        let mut ready_check: Option<JoinHandle<()>> = None;
+        let mut accept = AutoAccept {
+            client: lcu_client.clone(),
+            settings: settings.clone(),
+            remote: remote.clone(),
+            events: events_tx.clone(),
+            pending: None,
+        };
         loop {
             tokio::select! {
                 update = connector.updates.recv() => {
@@ -258,15 +331,8 @@ pub fn start_with_services(
                         lock_in.reset();
                     }
                     game.on_phase(phase, &lcu_client);
+                    accept.on_phase(phase);
                     let current = settings.borrow().clone();
-                    if phase == GameflowPhase::ReadyCheck {
-                        if current.auto_accept {
-                            ready_check = Some(spawn_accept(&lcu_client, &settings, &events_tx));
-                        }
-                    } else if let Some(pending) = ready_check.take() {
-                        // Left the ready check (answered or timed out): never accept late.
-                        pending.abort();
-                    }
                     if let Some(intent) = autopilot.on_phase(phase, &current) {
                         send(&events_tx, CoreEvent::Window(intent));
                     }
@@ -274,20 +340,16 @@ pub fn start_with_services(
                 Some(path) = views_rx.recv() => autopilot.on_view(&path),
                 Some(()) = retry_rx.recv() => game.retry(tx.borrow().phase, &lcu_client),
                 Ok(()) = settings.changed() => {
-                    // Switched on while the pop-up is already up.
-                    let enabled = settings.borrow_and_update().auto_accept;
-                    if enabled
-                        && ready_check.is_none()
-                        && tx.borrow().phase == GameflowPhase::ReadyCheck
-                    {
-                        ready_check = Some(spawn_accept(&lcu_client, &settings, &events_tx));
-                    }
+                    settings.borrow_and_update();
+                    accept.on_change(tx.borrow().phase);
+                }
+                Ok(()) = remote.changed() => {
+                    remote.borrow_and_update();
+                    accept.on_change(tx.borrow().phase);
                 }
             }
         }
-        if let Some(pending) = ready_check {
-            pending.abort();
-        }
+        accept.stop();
         if let Some(scouting) = game.task {
             scouting.abort();
         }
@@ -304,18 +366,6 @@ pub fn start_with_services(
         imports: importer,
         task,
     }
-}
-
-fn spawn_accept(
-    client: &watch::Receiver<Option<LcuClient>>,
-    settings: &watch::Receiver<Settings>,
-    events: &mpsc::Sender<CoreEvent>,
-) -> JoinHandle<()> {
-    tokio::spawn(automation::accept_after_delay(
-        client.clone(),
-        settings.clone(),
-        events.clone(),
-    ))
 }
 
 /// Never blocks the core on a slow consumer: intents only matter right away.

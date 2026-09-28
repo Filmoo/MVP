@@ -14,6 +14,7 @@ export const defaultSettings: Settings = {
   importItemSet: "oneClick",
   importSpells: "oneClick",
   flashKey: "auto",
+  crashReports: false,
 };
 
 /** A player who turned automations on and changed the app's defaults. */
@@ -29,6 +30,7 @@ export const customSettings: Settings = {
   importItemSet: "onLockIn",
   importSpells: "off",
   flashKey: "f",
+  crashReports: false,
 };
 
 /** Every part imported by itself on lock-in. */

@@ -122,9 +122,12 @@ impl LockIn {
                 task.abort();
             }
             self.deferred_spells = None;
+            // Parts the server paused aren't tried (a click still says why).
             let mut parts: Vec<ImportPart> = ImportPart::ALL
                 .into_iter()
-                .filter(|&part| mode(&settings, part) == ImportMode::OnLockIn)
+                .filter(|&part| {
+                    mode(&settings, part) == ImportMode::OnLockIn && self.importer.allowed(part)
+                })
                 .collect();
             // Nothing comes after finalization: spells locked there are tried (and refused in
             // its last seconds); earlier, they wait for the next turn.
@@ -142,7 +145,9 @@ impl LockIn {
             && has_time
         {
             self.deferred_spells = None;
-            if mode(&settings, ImportPart::Spells) == ImportMode::OnLockIn {
+            if mode(&settings, ImportPart::Spells) == ImportMode::OnLockIn
+                && self.importer.allowed(ImportPart::Spells)
+            {
                 self.spawn(lock, vec![ImportPart::Spells]);
             }
         }

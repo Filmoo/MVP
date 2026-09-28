@@ -74,3 +74,19 @@ burden, not abusive. Design calls:
   Settings, saved by the core.
 - The hex mosaic in the backdrop is dropped: in screenshots it read as compression blocks.
 
+## 2026-09-28 — Scouting identity, app side of updates/config/reports (Claude)
+- **Scouting names players by Riot ID.** Client PUUIDs aren't our API key's (Riot encrypts
+  PUUIDs per key), so they never leave the core; the backend resolves Riot IDs with account-v1
+  and cards are matched back by Riot ID, case-insensitively. The PUUID form stays for 0.1.0 apps.
+- **The core drives updates** (the webview has no updater permission): the policy is a pure,
+  tested `UpdatePlan`; nothing downloads or installs during a ready check, champ select or game;
+  the player restarts into an update, or it installs on quit without reopening MVP. The public
+  key lives in one place, `tauri.conf.json` `plugins.updater.pubkey`; without it a build doesn't
+  update itself and the release workflow refuses to build.
+- **Remote config is kept on disk** so kill switches hold offline and from the first second of
+  the next start; kill switches only ever turn things off. Banners gained `dismissible`.
+- **Crash reports are scrubbed in the app too**, with the server's rules (`crates/scrub`);
+  panics are saved by the hook (release builds abort) and sent at the next start.
+- **Notices load lazily**: the banners, update prompt and update-required card cost nothing at
+  first paint; banner links open through the core by banner id, never from a URL the UI gives.
+
