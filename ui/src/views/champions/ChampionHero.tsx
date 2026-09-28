@@ -9,9 +9,11 @@ import { liquid } from "../../design/liquid/liquid";
 import { Segmented } from "../../design/Segmented";
 import { Skeleton } from "../../design/States";
 import { GradeBadge } from "../../design/TierBadge";
-import { games, percent, signedPoints, timeAgo } from "../../lib/format";
-import { ROLE_ICON, ROLE_LABEL } from "../../lib/roles";
-import { BRACKET_LABEL, patchName, QUEUE_LABEL, type RoleTab, tierFor } from "../../lib/stats";
+import { t } from "../../i18n";
+import { className } from "../../lib/champions";
+import { percent, timeAgo } from "../../lib/format";
+import { ROLE_ICON, roleLabel } from "../../lib/roles";
+import { bracketLabel, patchName, type RoleTab, tierFor } from "../../lib/stats";
 import { parseQueue } from "../../lib/stats-filters";
 import styles from "./ChampionHero.module.css";
 
@@ -53,23 +55,23 @@ export function ChampionHero(props: {
       <div class={styles.top}>
         <ChampionIcon championId={props.championId} size={72} />
         <div class={styles.identity}>
-          <h1 class={styles.name}>{champion()?.name ?? `Champion ${props.championId}`}</h1>
+          <h1 class={styles.name}>{champion()?.name ?? t().common.championN(props.championId)}</h1>
           <Show when={(champion()?.tags.length ?? 0) > 0}>
-            <ul class={styles.tags} aria-label="Classes">
-              <For each={champion()?.tags}>{(tag) => <li class={styles.tag}>{tag}</li>}</For>
+            <ul class={styles.tags} aria-label={t().champions.classes}>
+              <For each={champion()?.tags}>{(tag) => <li class={styles.tag}>{className(tag)}</li>}</For>
             </ul>
           </Show>
           <Switch>
             <Match when={roleTabs().length > 1}>
               <Segmented
-                label="Role"
+                label={t().stats.role}
                 size="sm"
                 class={styles.roles}
-                options={roleTabs().map((t) => ({
-                  value: t.role,
-                  label: ROLE_LABEL[t.role],
-                  icon: ROLE_ICON[t.role],
-                  detail: percent(t.share),
+                options={roleTabs().map((tab) => ({
+                  value: tab.role,
+                  label: roleLabel(tab.role),
+                  icon: ROLE_ICON[tab.role],
+                  detail: percent(tab.share),
                 }))}
                 value={props.forRole ?? roleTabs()[0]?.role ?? "middle"}
                 onChange={props.onRole}
@@ -80,7 +82,7 @@ export function ChampionHero(props: {
               {(only) => (
                 <span class={styles.onlyRole} data-testid="only-role">
                   <Icon name={ROLE_ICON[only().role]} size={16} />
-                  {ROLE_LABEL[only().role]}
+                  {roleLabel(only().role)}
                 </span>
               )}
             </Match>
@@ -102,15 +104,15 @@ export function ChampionHero(props: {
           </div>
         </Show>
         <Show when={tier()}>
-          {(t) => (
+          {(entry) => (
             <div class={`${styles.grade} glass-rim`} data-testid="champion-tier">
               <div class={styles.gradeGlass} aria-hidden="true" ref={(el) => liquid(el, "clear")} />
-              <GradeBadge grade={t().tier} size="lg" />
+              <GradeBadge grade={entry().tier} size="lg" />
               <div class={styles.gradeText}>
-                <span class={styles.gradeTitle}>Tier {t().tier}</span>
-                <span class={`${styles.gradeDetail} num`} title="Shrunk win rate minus 50 %, in points (what the tier is based on)">
-                  {signedPoints(t().score)} pts {t().score >= 0 ? "over" : "under"} 50 %
-                  {aram() ? "" : ` · ${ROLE_LABEL[t().role ?? "middle"]}`}
+                <span class={styles.gradeTitle}>{t().stats.tier(entry().tier)}</span>
+                <span class={`${styles.gradeDetail} num`} title={t().champions.pointsTitle}>
+                  {t().champions.pointsVs50(entry().score)}
+                  {aram() ? "" : ` · ${roleLabel(entry().role ?? "middle")}`}
                 </span>
               </div>
             </div>
@@ -131,7 +133,7 @@ export function ChampionHero(props: {
       </Show>
       <Show when={props.page?.stats ? props.page : undefined}>
         {(p) => (
-          <section class={`${styles.strip} num`} aria-label="Record">
+          <section class={`${styles.strip} num`} aria-label={t().champions.record}>
             <Show
               when={tier()}
               fallback={
@@ -139,34 +141,42 @@ export function ChampionHero(props: {
                   {(r) => (
                     <Stat
                       value={percent(r().g ? r().w / r().g : 0, 1)}
-                      label="Win rate"
-                      detail={`${games(r().g)} games`}
+                      label={t().champions.winRate}
+                      detail={t().common.games(r().g)}
                       tone={r().w / Math.max(1, r().g) >= 0.5 ? "good" : "bad"}
                     />
                   )}
                 </Show>
               }
             >
-              {(t) => (
+              {(entry) => (
                 <>
                   <Stat
-                    value={percent(t().winRate, 1)}
-                    label="Win rate"
-                    detail={`${games(t().g)} games`}
-                    tone={t().winRate >= 0.5 ? "good" : "bad"}
-                    title={`Shrunk toward 50 %: ${t().w} wins in ${t().g} games is ${percent(t().w / Math.max(1, t().g), 1)} raw`}
+                    value={percent(entry().winRate, 1)}
+                    label={t().champions.winRate}
+                    detail={t().common.games(entry().g)}
+                    tone={entry().winRate >= 0.5 ? "good" : "bad"}
+                    title={t().champions.shrunkTitle(entry().w, entry().g, percent(entry().w / Math.max(1, entry().g), 1))}
                   />
-                  <Stat value={percent(t().pickRate, 1)} label="Pick rate" detail={`of ${games(p().info.games)} games`} />
+                  <Stat
+                    value={percent(entry().pickRate, 1)}
+                    label={t().champions.pickRate}
+                    detail={t().champions.ofGames(p().info.games)}
+                  />
                   <Show when={!aram()}>
-                    <Stat value={percent(t().banRate, 1)} label="Ban rate" detail={`${games(p().stats?.bans ?? 0)} bans`} />
+                    <Stat
+                      value={percent(entry().banRate, 1)}
+                      label={t().champions.banRate}
+                      detail={t().champions.bans(p().stats?.bans ?? 0)}
+                    />
                   </Show>
                 </>
               )}
             </Show>
             <Stat
               value={patchName(props.index, p().info.patch)}
-              label="Patch"
-              detail={`${QUEUE_LABEL[aram() ? 450 : 420]} · ${BRACKET_LABEL[p().info.bracket]} · ${timeAgo(p().info.updatedAt)}`}
+              label={t().champions.patch}
+              detail={t().champions.patchDetail(aram() ? 450 : 420, bracketLabel(p().info.bracket), timeAgo(p().info.updatedAt))}
             />
           </section>
         )}

@@ -1,6 +1,33 @@
-import { expect, type Page } from "@playwright/test";
+import { test as base, expect, type Page } from "@playwright/test";
 import { FIXTURE_NOW } from "../src/data/mock/fixtures";
 import type { ScenarioName } from "../src/data/mock/scenarios";
+import { loadViewWords, type Messages, setLanguage, t as words } from "../src/i18n";
+
+export { expect };
+
+/**
+ * The language a test runs in is the browser's (Playwright's `locale`): the app's default,
+ * `auto`, follows it like it follows Windows. The `*-fr` projects run the suites with `fr-FR`;
+ * a block can switch with `test.use({ locale: "fr-FR" })`.
+ */
+export const isFrench = (locale: string | undefined): boolean => locale?.toLowerCase().startsWith("fr") ?? false;
+
+/** Window sizes the French runs of the view × size matrix cover (400, 1280 and 2560 px wide). */
+export const FRENCH_SIZES: ReadonlySet<string> = new Set(["min", "laptop", "qhd"]);
+
+/** Tests with `t`: the app's words in the language the browser runs in (`t.nav.home.label`). */
+export const test = base.extend<{ t: Messages }>({
+  t: async ({ locale }, use) => {
+    // Numbers inside sentences are formatted like the page does them, in that language.
+    await setLanguage(isFrench(locale) ? "fr" : "en");
+    await loadViewWords();
+    await use(words());
+  },
+});
+
+/** A server text (banner, update message) as the app shows it in the browser's language. */
+export const localizedFor = (locale: string | undefined, text: { en: string; fr: string }): string =>
+  isFrench(locale) ? text.fr : text.en;
 
 export const VIEWS = ["/", "/draft", "/live", "/champions", "/tier-list", "/settings"] as const;
 export type View = (typeof VIEWS)[number];

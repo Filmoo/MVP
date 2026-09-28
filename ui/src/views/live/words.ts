@@ -1,6 +1,8 @@
 import type { BackendError } from "../../data/generated/BackendError";
 import type { ScoutCard } from "../../data/generated/ScoutCard";
 import type { ScoutTag } from "../../data/generated/ScoutTag";
+import { t } from "../../i18n";
+import { percent } from "../../lib/format";
 
 /** A chip on a scouting card: short, positive or neutral (docs/policy.md). */
 export interface Chip {
@@ -14,21 +16,22 @@ export interface Chip {
  * `championName` words the one-trick tag.
  */
 export function chips(tags: readonly ScoutTag[], championName: (id: number) => string): Chip[] {
+  const words = t().live;
   const out: Chip[] = [];
   for (const tag of tags) {
     switch (tag.kind) {
       case "otp":
         out.push({
           kind: "otp",
-          label: `${championName(tag.championId)} one-trick`,
-          title: `${Math.round(tag.share * 100)}% of recent ranked games on ${championName(tag.championId)}`,
+          label: words.otp(championName(tag.championId)),
+          title: words.otpTitle(percent(tag.share), championName(tag.championId)),
         });
         break;
       case "hotStreak":
-        out.push({ kind: "streak", label: `${tag.wins} wins in a row`, title: `Won the last ${tag.wins} ranked games` });
+        out.push({ kind: "streak", label: words.streak(tag.wins), title: words.streakTitle(tag.wins) });
         break;
       case "veteran":
-        out.push({ kind: "veteran", label: "Veteran", title: `${tag.games} ranked games this season` });
+        out.push({ kind: "veteran", label: words.veteran, title: words.veteranTitle(tag.games) });
         break;
       case "mainRole":
         break;
@@ -44,15 +47,14 @@ export function championRecord(card: ScoutCard, championId: number | null) {
 
 /** One line for the whole view when the cards couldn't come. */
 export function scoutingFailure(error: BackendError): string {
+  const words = t().live.scouting;
   switch (error.kind) {
     case "rateLimited":
-      return error.retryAfter === null
-        ? "Riot is busy: player cards paused"
-        : `Riot is busy: player cards paused for ${error.retryAfter} s`;
+      return words.busy(error.retryAfter);
     case "network":
-      return "Can't reach MVP's servers: no player cards";
+      return words.network;
     case "unavailable":
     case "notFound":
-      return "Player cards are unavailable right now";
+      return words.unavailable;
   }
 }

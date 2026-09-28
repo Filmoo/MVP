@@ -4,6 +4,7 @@ import type { ClientStatus } from "../../data/generated/ClientStatus";
 import { useAmbient } from "../../design/ambient";
 import { Card } from "../../design/Card";
 import { EmptyState, ErrorState } from "../../design/States";
+import { t } from "../../i18n";
 import page from "../page.module.css";
 import { ProfileContent, ProfileSkeleton, profileArt } from "./Profile";
 
@@ -32,7 +33,7 @@ export function Home(): JSX.Element {
             <Card>
               <ErrorState
                 heading
-                title="Couldn't load your profile"
+                title={t().home.loadFailed}
                 message={String(profile.error?.message ?? profile.error)}
                 onRetry={() => void refetch()}
               />
@@ -45,12 +46,7 @@ export function Home(): JSX.Element {
         <Match when={profile() === null}>
           <div class={page.centered}>
             <Card>
-              <EmptyState
-                heading
-                icon="plug"
-                title="Waiting for the League client"
-                text="Start League of Legends: your profile, live games and champion select help appear here automatically."
-              />
+              <EmptyState heading icon="plug" title={t().home.waiting.title} text={t().home.waiting.text} />
             </Card>
           </div>
         </Match>

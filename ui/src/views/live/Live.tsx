@@ -8,6 +8,7 @@ import { championArtUrl } from "../../design/GameIcon";
 import { Icon } from "../../design/Icon";
 import { Segmented, type SegmentedOption } from "../../design/Segmented";
 import { EmptyState, ErrorState, Skeleton } from "../../design/States";
+import { t } from "../../i18n";
 import { queueName } from "../../lib/format";
 import { platformLabel } from "../../lib/riot-id";
 import { Widget } from "../../widgets/Widget";
@@ -19,9 +20,9 @@ import { scoutingFailure } from "./words";
 
 type LiveTab = "players" | "build";
 
-const TABS: SegmentedOption<LiveTab>[] = [
-  { value: "players", label: "Players" },
-  { value: "build", label: "My build" },
+const tabs = (): SegmentedOption<LiveTab>[] => [
+  { value: "players", label: t().live.tabs.players },
+  { value: "build", label: t().live.tabs.build },
 ];
 
 const parseTab = (value: string | null): LiveTab => (value === "build" ? "build" : "players");
@@ -38,7 +39,7 @@ function ScoutingStatus(props: { game: LiveGame }): JSX.Element {
     <Switch>
       <Match when={props.game.scouting.state === "loading"}>
         <span class={styles.status} data-testid="scouting-status">
-          Looking players up…
+          {t().live.lookingUp}
         </span>
       </Match>
       <Match when={props.game.scouting.state === "failed" && props.game.scouting}>
@@ -47,7 +48,7 @@ function ScoutingStatus(props: { game: LiveGame }): JSX.Element {
             <Icon name="alert" size={14} />
             <span class={styles.statusText}>{scoutingFailure(failed().error)}</span>
             <button type="button" class={styles.retry} onClick={retry}>
-              Try again
+              {t().common.tryAgain}
             </button>
           </span>
         )}
@@ -61,10 +62,10 @@ export function LiveContent(props: { game: LiveGame }): JSX.Element {
   return (
     <div class={styles.grid}>
       <Widget name="live-team" class={styles.side}>
-        <LiveTeam title="Your team" players={props.game.allies} enemy={false} scouting={scouting()} />
+        <LiveTeam title={t().draft.yourTeam} players={props.game.allies} enemy={false} scouting={scouting()} />
       </Widget>
       <Widget name="live-team" class={styles.side}>
-        <LiveTeam title="Enemy team" players={props.game.enemies} enemy scouting={scouting()} />
+        <LiveTeam title={t().draft.enemyTeam} players={props.game.enemies} enemy scouting={scouting()} />
       </Widget>
     </div>
   );
@@ -117,9 +118,9 @@ export default function Live(): JSX.Element {
     <div class={`${page.page} ${tab() === "build" && ready() ? "" : page.live}`}>
       <div class={styles.head}>
         <div class={styles.titleRow}>
-          <h1 class={page.title}>Live game</h1>
+          <h1 class={page.title}>{t().live.title}</h1>
           <Show when={ready()}>
-            <Segmented label="Show" options={TABS} value={tab()} onChange={setTab} size="sm" testId="live-tabs" />
+            <Segmented label={t().live.show} options={tabs()} value={tab()} onChange={setTab} size="sm" testId="live-tabs" />
           </Show>
         </div>
         <Show when={ready()}>
@@ -139,11 +140,7 @@ export default function Live(): JSX.Element {
         <Match when={game.state === "errored"}>
           <div class={page.centered}>
             <Card>
-              <ErrorState
-                title="Couldn't read the game"
-                message={String(game.error?.message ?? game.error)}
-                onRetry={() => void refetch()}
-              />
+              <ErrorState title={t().live.readFailed} message={String(game.error?.message ?? game.error)} onRetry={() => void refetch()} />
             </Card>
           </div>
         </Match>
@@ -153,11 +150,7 @@ export default function Live(): JSX.Element {
         <Match when={game() === null}>
           <div class={page.centered}>
             <Card>
-              <EmptyState
-                icon="live"
-                title="Not in a game"
-                text="When your game loads, everyone in it shows up here: rank, recent form and experience on their champion."
-              />
+              <EmptyState icon="live" title={t().live.idle.title} text={t().live.idle.text} />
             </Card>
           </div>
         </Match>

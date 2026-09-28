@@ -1,7 +1,8 @@
 //! Riot Data Dragon: static game data (champions, items, summoner spells, runes) per patch.
 //!
-//! Files are cached on disk per version, so the app starts offline with the last known
-//! patch and downloads a new patch once. Only the current and previous versions are kept.
+//! Files are cached on disk per version and locale (`{version}/{locale}/champion.json`: the
+//! app's languages side by side), so the app starts offline with the last known patch and
+//! downloads a new patch once per language. Only the current and previous versions are kept.
 
 use std::cmp::Ordering;
 use std::collections::BTreeMap;

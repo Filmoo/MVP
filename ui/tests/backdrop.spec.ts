@@ -1,8 +1,8 @@
-import { expect, type Page, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
 // Brings the window.__SCOUT_MOCK__ declaration into scope.
 import type {} from "../src/data/mock";
 import { lockInImport } from "../src/data/mock/import-fixtures";
-import { animationsDone, openApp, settle, trackErrors } from "./app";
+import { animationsDone, expect, openApp, settle, test, trackErrors } from "./app";
 
 // The WebGL backdrop (src/design/backdrop): which level renders, fallbacks, and that it renders
 // on demand only. Render costs and idle silence are budgeted in perf.spec.ts.
@@ -188,17 +188,17 @@ for (const [name, options, expected] of [
   });
 }
 
-test("liquid glass: the rail's lens sits on the current section and glides to the next", async ({ page }) => {
+test("liquid glass: the rail's lens sits on the current section and glides to the next", async ({ page, t }) => {
   await openApp(page, { freezeClock: false });
   const lens = page.getByTestId("rail-lens");
   const over = async (label: string) => {
     const [l, i] = await Promise.all([lens.boundingBox(), page.getByRole("link", { name: label }).boundingBox()]);
     return l && i ? Math.hypot(l.x - i.x, l.y - i.y) : Number.POSITIVE_INFINITY;
   };
-  expect(await over("Home")).toBeLessThan(1);
-  await page.getByRole("link", { name: "Settings" }).click();
+  expect(await over(t.nav.home.label)).toBeLessThan(1);
+  await page.getByRole("link", { name: t.nav.settings.label }).click();
   await animationsDone(page);
-  expect(await over("Settings")).toBeLessThan(1);
+  expect(await over(t.nav.settings.label)).toBeLessThan(1);
   // At rest again: nothing animates.
   expect(await page.evaluate(() => document.getAnimations().length)).toBe(0);
 });
@@ -225,7 +225,7 @@ const lensShadows = (page: Page) =>
 const outerShadows = (lenses: Awaited<ReturnType<typeof lensShadows>>) =>
   lenses.flatMap((l) => l.shadows.filter((s) => s !== "none" && !s.includes("inset")).map((s) => `${l.kind} in ${l.where}: ${s}`));
 
-test("liquid glass: nothing that lenses the page carries an outer shadow", async ({ page }) => {
+test("liquid glass: nothing that lenses the page carries an outer shadow", async ({ page, t }) => {
   const errors = trackErrors(page);
   await openApp(page);
   // Title bar, rail lens, rank pane over the art.
@@ -243,8 +243,8 @@ test("liquid glass: nothing that lenses the page carries an outer shadow", async
   await expect(page.getByTestId("toast")).toBeVisible();
   expect(outerShadows(await lensShadows(page))).toEqual([]);
   // Settings: segment thumbs, and a switch held down.
-  await page.getByRole("link", { name: "Settings" }).click();
-  const toggle = page.getByRole("switch", { name: "Close to tray" });
+  await page.getByRole("link", { name: t.nav.settings.label }).click();
+  const toggle = page.getByRole("switch", { name: t.settings.app.closeToTray.title });
   await toggle.scrollIntoViewIfNeeded();
   const box = await toggle.boundingBox();
   if (!box) throw new Error("no switch");
@@ -255,15 +255,15 @@ test("liquid glass: nothing that lenses the page carries an outer shadow", async
   expect(outerShadows(await lensShadows(page))).toEqual([]);
   await page.mouse.up();
   // Stats pages: segmented thumbs.
-  await page.getByRole("link", { name: "Tier list" }).click();
+  await page.getByRole("link", { name: t.nav.tierList.label }).click();
   await expect(page.getByTestId("queue-switch")).toBeVisible();
   expect(outerShadows(await lensShadows(page))).toEqual([]);
   expect(errors).toEqual([]);
 });
 
-test("liquid glass: a held switch turns its knob into a lens, released it's solid again", async ({ page }) => {
+test("liquid glass: a held switch turns its knob into a lens, released it's solid again", async ({ page, t }) => {
   await openApp(page, { view: "/settings" });
-  const toggle = page.getByRole("switch", { name: "Close to tray" });
+  const toggle = page.getByRole("switch", { name: t.settings.app.closeToTray.title });
   const knobFilter = () => toggle.locator("span").evaluate((el) => getComputedStyle(el).backdropFilter);
   expect(await knobFilter()).toBe("none");
   // The pointer goes where the switch is on screen.

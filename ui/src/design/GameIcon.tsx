@@ -1,6 +1,7 @@
 import { createSignal, type JSX, Show } from "solid-js";
 import { useData } from "../data/context";
 import type { GameDataView } from "../data/static-data";
+import { t } from "../i18n";
 import { lightFrom } from "./ambient";
 import styles from "./GameIcon.module.css";
 
@@ -51,7 +52,7 @@ export function ChampionIcon(props: { championId: number; size: Size; round?: bo
   return (
     <ImageWithFallback
       src={champion() ? `${gameData()?.assetBase}/img/champion/${champion()?.key}.png` : undefined}
-      alt={champion()?.name ?? `Champion ${props.championId}`}
+      alt={champion()?.name ?? t().common.championN(props.championId)}
       fallback={(champion()?.name ?? "?").slice(0, 2)}
       size={props.size}
       round={props.round ?? false}
@@ -75,7 +76,7 @@ export function ItemIcon(props: { itemId: number | undefined; size: Size; toolti
       {(id) => (
         <ImageWithFallback
           src={gameData() ? `${gameData()?.assetBase}/img/item/${id()}.png` : undefined}
-          alt={gameData()?.items.get(id())?.name ?? `Item ${id()}`}
+          alt={gameData()?.items.get(id())?.name ?? t().common.itemN(id())}
           fallback=""
           size={props.size}
           class={styles.item}
@@ -92,7 +93,7 @@ export function SpellIcon(props: { spellId: number; size: Size; tooltip?: boolea
   return (
     <ImageWithFallback
       src={spell() ? `${gameData()?.assetBase}/img/spell/${spell()?.key}.png` : undefined}
-      alt={spell()?.name ?? `Spell ${props.spellId}`}
+      alt={spell()?.name ?? t().common.spellN(props.spellId)}
       fallback=""
       size={props.size}
       class={styles.spell}
@@ -106,7 +107,7 @@ export function ProfileIcon(props: { iconId: number; size: Size }): JSX.Element 
   return (
     <ImageWithFallback
       src={gameData() ? `${gameData()?.assetBase}/img/profileicon/${props.iconId}.png` : undefined}
-      alt="Profile icon"
+      alt={t().common.profileIcon}
       fallback=""
       size={props.size}
     />

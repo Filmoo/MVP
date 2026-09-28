@@ -2,6 +2,7 @@
 import type { Effects } from "./Effects";
 import type { FlashKey } from "./FlashKey";
 import type { ImportMode } from "./ImportMode";
+import type { Language } from "./Language";
 
 /**
  * User preferences, owned and persisted by the core.
@@ -38,6 +39,10 @@ closeToTray: boolean,
  * How much the window draws: glass, light and motion.
  */
 effects: Effects, 
+/**
+ * The app's language; `auto` follows the system's (the webview's) language.
+ */
+language: Language, 
 /**
  * Rune page import: off, one click, or also automatically on lock-in.
  */

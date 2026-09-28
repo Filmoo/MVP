@@ -4,10 +4,10 @@ import type { Reason } from "../../data/generated/Reason";
 import type { Suggestion } from "../../data/generated/Suggestion";
 import { Card } from "../../design/Card";
 import { ChampionArt } from "../../design/GameIcon";
-import { games, percent, signedPoints } from "../../lib/format";
+import { t } from "../../i18n";
+import { decimal, percent, percentOf100, signedPoints } from "../../lib/format";
 import styles from "./Why.module.css";
 
-const KIND_LABEL: Record<Reason["kind"], string> = { base: "Strength", lane: "Lane", jungle: "Jungle", matchup: "Matchup", duo: "Duo" };
 /** Bars span ±5 pp. */
 const SCALE = 5;
 /** Below this share kept, the value is mostly the prior: flagged as weak evidence. */
@@ -55,15 +55,16 @@ function Bar(props: { points: number }): JSX.Element {
 }
 
 function evidence(r: Reason): Segment[] {
-  const segments: Segment[] = [{ text: `${games(r.games)} games` }];
+  const words = t().why;
+  const segments: Segment[] = [{ text: t().common.games(r.games) }];
   if (r.kind !== "base") {
     const kept = percent(r.kept);
-    const title = `Small samples are pulled toward zero: ${kept} of the observed effect is kept.`;
-    segments.push(r.kept < WEAK ? { text: `weak evidence, ${kept} kept`, class: styles.weak, title } : { text: `${kept} kept`, title });
+    const title = words.keptTitle(kept);
+    segments.push(r.kept < WEAK ? { text: words.weak(kept), class: styles.weak, title } : { text: words.kept(kept), title });
   }
   if (r.probability < 0.995) {
     const odds = percent(r.probability);
-    segments.push({ text: `${odds} role odds`, title: `Counts only if the role guess holds (${odds} likely).` });
+    segments.push({ text: words.roleOdds(odds), title: words.roleOddsTitle(odds) });
   }
   return segments;
 }
@@ -71,11 +72,11 @@ function evidence(r: Reason): Segment[] {
 /** The terms that add up to a pick's estimate, largest first. */
 export function WhyTerms(props: { suggestion: Suggestion; class?: string | undefined }): JSX.Element {
   const { gameData } = useData();
-  const name = (id: number) => gameData()?.champions.get(id)?.name ?? `Champion ${id}`;
+  const name = (id: number) => gameData()?.champions.get(id)?.name ?? t().common.championN(id);
   const label = (r: Reason) => {
     if (r.kind === "base") return name(props.suggestion.championId);
-    if (r.championId === null) return KIND_LABEL[r.kind];
-    return `${r.kind === "duo" ? "with" : "vs"} ${name(r.championId)}`;
+    if (r.championId === null) return t().why.kinds[r.kind];
+    return r.kind === "duo" ? t().draft.with(name(r.championId)) : t().draft.vs(name(r.championId));
   };
   return (
     <ul class={`${styles.rows} ${props.class ?? ""}`}>
@@ -83,7 +84,7 @@ export function WhyTerms(props: { suggestion: Suggestion; class?: string | undef
         {(r) => (
           <li class={styles.row}>
             <span class={styles.label}>
-              <span class={styles.kind}>{KIND_LABEL[r.kind]} · </span>
+              <span class={styles.kind}>{t().why.kinds[r.kind]} · </span>
               {label(r)}
             </span>
             <span class={`${styles.value} num ${r.points >= 0 ? styles.up : styles.down}`}>{signedPoints(r.points)}</span>
@@ -98,24 +99,25 @@ export function WhyTerms(props: { suggestion: Suggestion; class?: string | undef
 
 export function Why(props: { suggestion: Suggestion | undefined; teamPercent: number | undefined }): JSX.Element {
   const { gameData } = useData();
-  const name = (id: number) => gameData()?.champions.get(id)?.name ?? `Champion ${id}`;
+  const name = (id: number) => gameData()?.champions.get(id)?.name ?? t().common.championN(id);
   return (
     <Card
-      title={props.suggestion ? `Why ${name(props.suggestion.championId)}` : "Why"}
+      title={t().why.title(props.suggestion ? name(props.suggestion.championId) : undefined)}
       class={styles.card}
       scroll
       backdrop={<Show when={props.suggestion}>{(s) => <ChampionArt championId={s().championId} class={styles.art} light />}</Show>}
     >
-      <Show when={props.suggestion} fallback={<p class={styles.meta}>Select a pick to see how its estimate is built.</p>}>
+      <Show when={props.suggestion} fallback={<p class={styles.meta}>{t().why.empty}</p>}>
         {(s) => (
           <>
             <div class={`${styles.summary} num`}>
-              <span class={styles.big}>{s().estimate.percent.toFixed(1)}%</span>
-              <span class={styles.pm}>± {s().estimate.plusMinus.toFixed(1)}</span>
+              <span class={styles.big}>{percentOf100(s().estimate.percent)}</span>
+              <span class={styles.pm}>± {decimal(s().estimate.plusMinus, 1)}</span>
               <Show when={props.teamPercent}>
                 {(team) => (
                   <span class={styles.delta}>
-                    <b class={s().gain >= 0 ? styles.up : styles.down}>{signedPoints(s().gain)}</b> vs team now ({team().toFixed(1)}%)
+                    <b class={s().gain >= 0 ? styles.up : styles.down}>{signedPoints(s().gain)}</b>{" "}
+                    {t().why.vsTeamNow(percentOf100(team()))}
                   </span>
                 )}
               </Show>
@@ -126,9 +128,9 @@ export function Why(props: { suggestion: Suggestion | undefined; teamPercent: nu
                 <Segments
                   class={styles.footer}
                   items={[
-                    { text: `You: ${m().games} ${m().games === 1 ? "game" : "games"}` },
-                    { text: `${percent(m().wins / m().games)} WR` },
-                    { text: "not in estimate", title: "Your own games are shown for reference; the estimate uses everyone's games." },
+                    { text: t().why.yourGames(m().games) },
+                    { text: t().common.wr(percent(m().wins / m().games)) },
+                    { text: t().why.notInEstimate, title: t().why.notInEstimateTitle },
                   ]}
                 />
               )}

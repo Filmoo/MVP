@@ -5,6 +5,7 @@ import { useAmbient } from "../../design/ambient";
 import { Card } from "../../design/Card";
 import { championArtUrl } from "../../design/GameIcon";
 import { EmptyState, ErrorState, Skeleton } from "../../design/States";
+import { t } from "../../i18n";
 import { Widget } from "../../widgets/Widget";
 import page from "../page.module.css";
 import styles from "./Draft.module.css";
@@ -75,12 +76,12 @@ function DraftSkeleton(): JSX.Element {
         </Card>
       </div>
       <div class={styles.picks}>
-        <Card title="Picks">
+        <Card title={t().draft.picks}>
           <Skeleton height="480px" />
         </Card>
       </div>
       <div class={styles.why}>
-        <Card title="Why">
+        <Card title={t().why.title(undefined)}>
           <Skeleton height="360px" />
         </Card>
       </div>
@@ -97,7 +98,7 @@ export default function Draft(): JSX.Element {
     <div class={`${page.page} ${page.live}`}>
       {/* The teams card carries the clock once it has the odds column (stats): the head can fold. */}
       <div class={styles.head} data-folds={draft.state === "ready" && draft()?.team ? "" : undefined}>
-        <h1 class={page.title}>Draft</h1>
+        <h1 class={page.title}>{t().nav.draft.label}</h1>
         <Show when={draft.state === "ready" && draft()}>{(d) => <PhasePill draft={d()} />}</Show>
       </div>
       <Switch>
@@ -105,7 +106,7 @@ export default function Draft(): JSX.Element {
           <div class={page.centered}>
             <Card>
               <ErrorState
-                title="Couldn't read champion select"
+                title={t().draft.readFailed}
                 message={String(draft.error?.message ?? draft.error)}
                 onRetry={() => void refetch()}
               />
@@ -118,11 +119,7 @@ export default function Draft(): JSX.Element {
         <Match when={draft() === null}>
           <div class={page.centered}>
             <Card>
-              <EmptyState
-                icon="draft"
-                title="Not in champion select"
-                text="When your champion select starts, picks for your role show up here and update with every hover, pick and ban."
-              />
+              <EmptyState icon="draft" title={t().draft.idle.title} text={t().draft.idle.text} />
             </Card>
           </div>
         </Match>

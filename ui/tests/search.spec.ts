@@ -1,7 +1,7 @@
-import { expect, type Page, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
 // Brings the window.__SCOUT_MOCK__ declaration into scope.
 import type {} from "../src/data/mock";
-import { openApp, SIZES, settle, trackErrors } from "./app";
+import { expect, openApp, SIZES, settle, test, trackErrors } from "./app";
 import { auditLayout } from "./layout-rules";
 
 const input = (page: Page) => page.getByTestId("search-input");
@@ -26,7 +26,7 @@ const boxes = (page: Page) =>
     }),
   );
 
-test("Enter opens the highlighted champion even while a slow player lookup is in flight", async ({ page }) => {
+test("Enter opens the highlighted champion even while a slow player lookup is in flight", async ({ page, t }) => {
   const errors = trackErrors(page);
   await openApp(page, { scenario: "search-slow" });
   await typeQuery(page, "Ahri#EUW");
@@ -36,7 +36,7 @@ test("Enter opens the highlighted champion even while a slow player lookup is in
   await expect(selected(page)).toHaveAttribute("data-kind", "champion");
   await expect(selected(page)).toContainText("Ahri");
   // The lookup is running (2.5 s) when Enter is pressed.
-  await expect(options(page).filter({ hasText: "Searching EUW…" })).toBeVisible();
+  await expect(options(page).filter({ hasText: t.search.searching("EUW") })).toBeVisible();
   await page.keyboard.press("Enter");
   expect(await hash(page)).toBe("#/champions?id=103");
   await expect(page.getByRole("heading", { level: 1, name: "Ahri" })).toBeVisible();
@@ -55,15 +55,15 @@ test("typing a champion name and pressing Enter at once opens the champion (no n
   expect(await lookups(page)).toBe(0);
 });
 
-test("a lookup landing late fills its row in place: no row moves, the highlight stays", async ({ page }) => {
+test("a lookup landing late fills its row in place: no row moves, the highlight stays", async ({ page, t }) => {
   await openApp(page, { scenario: "search-slow" });
   await typeQuery(page, "Ahri#EUW");
   await page.keyboard.press("ArrowUp");
   const player = options(page).filter({ has: page.locator("text=#EUW") });
-  await expect(player).toContainText("Searching EUW…");
+  await expect(player).toContainText(t.search.searching("EUW"));
   const before = await boxes(page);
-  await expect(player).toContainText("Level 512", { timeout: 5_000 });
-  await expect(player).toContainText("Master");
+  await expect(player).toContainText(t.search.level(512, "EUW"), { timeout: 5_000 });
+  await expect(player).toContainText(t.tiers.master);
   expect(await boxes(page)).toEqual(before);
   await expect(selected(page)).toHaveAttribute("data-kind", "champion");
   await page.keyboard.press("Enter");
@@ -121,11 +121,11 @@ test("keyboard: arrows move and wrap, Escape clears then closes, Ctrl+K and / fo
   await expect(input(page), "typing / in the field is text").toHaveValue("Name/x");
 });
 
-test("Enter on a player opens their page, which reuses the lookup", async ({ page }) => {
+test("Enter on a player opens their page, which reuses the lookup", async ({ page, t }) => {
   const errors = trackErrors(page);
   await openApp(page);
   await typeQuery(page, "Blade Dancer#IRE");
-  await expect(options(page).filter({ hasText: "Level 512" })).toBeVisible();
+  await expect(options(page).filter({ hasText: t.search.level(512, "EUW") })).toBeVisible();
   await page.keyboard.press("Enter");
   expect(await hash(page)).toBe("#/player/euw1/Blade Dancer/IRE");
   await expect(page.locator("[data-widget=profile-header]")).toContainText("Blade Dancer");
@@ -143,26 +143,26 @@ test("Enter on a player before the lookup answers opens the page, which loads", 
   await expect(page.locator("[data-widget=profile-header]")).toContainText("Blade Dancer", { timeout: 6_000 });
 });
 
-test("the region picker searches another platform and is remembered", async ({ page }) => {
+test("the region picker searches another platform and is remembered", async ({ page, t }) => {
   await openApp(page);
   await page.getByTestId("search-region").selectOption("na1");
   await typeQuery(page, "Blade Dancer#IRE");
-  await expect(selected(page)).toContainText("on NA");
+  await expect(selected(page)).toContainText(t.search.searchOn("Blade Dancer#IRE", "NA"));
   await page.keyboard.press("Enter");
   expect(await hash(page)).toBe("#/player/na1/Blade Dancer/IRE");
   await page.reload();
   await expect(page.getByTestId("search-region")).toHaveValue("na1");
 });
 
-test("a player that doesn't exist says so in its row, and Enter still opens the page", async ({ page }) => {
+test("a player that doesn't exist says so in its row, and Enter still opens the page", async ({ page, t }) => {
   await openApp(page);
   await typeQuery(page, "Nobody#404");
-  await expect(selected(page)).toContainText("No player with this Riot ID on EUW");
+  await expect(selected(page)).toContainText(t.search.noPlayerOn("EUW"));
   await page.keyboard.press("Enter");
-  await expect(page.getByRole("heading", { level: 1, name: "Player not found" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: t.players.notFound.title })).toBeVisible();
 });
 
-test("recent searches: newest first, at most 8, clearable", async ({ page }) => {
+test("recent searches: newest first, at most 8, clearable", async ({ page, t }) => {
   await page.addInitScript(() => {
     if (sessionStorage.getItem("seeded")) return;
     sessionStorage.setItem("seeded", "1");
@@ -187,13 +187,13 @@ test("recent searches: newest first, at most 8, clearable", async ({ page }) => 
   await input(page).click();
   await expect(recent.first()).toContainText("Old 2");
   await expect(recent).toHaveCount(8);
-  await page.getByRole("button", { name: "Clear recent searches" }).click();
+  await page.getByRole("button", { name: t.search.clearRecent }).click();
   await expect(recent).toHaveCount(0);
-  await expect(panel(page)).toContainText("Search a champion, or a player by Riot ID");
+  await expect(panel(page)).toContainText(t.search.hint);
   await expect(input(page)).toBeFocused();
 });
 
-test("the panel lays out at every window size, while loading and once resolved", async ({ page }) => {
+test("the panel lays out at every window size, while loading and once resolved", async ({ page, t }) => {
   const errors = trackErrors(page);
   for (const size of SIZES) {
     await openApp(page, { width: size.width, height: size.height });
@@ -201,7 +201,7 @@ test("the panel lays out at every window size, while loading and once resolved",
     await expect(panel(page)).toBeVisible();
     expect(await page.evaluate(auditLayout), `${size.name} champions`).toEqual([]);
     await input(page).fill("WWWWWWWWWWWWWWWW#WWWWW");
-    await expect(options(page).filter({ hasText: "Level" })).toBeVisible();
+    await expect(options(page).filter({ hasText: t.search.level(512, "EUW") })).toBeVisible();
     await settle(page);
     expect(await page.evaluate(auditLayout), `${size.name} player`).toEqual([]);
     const box = await panel(page).boundingBox();

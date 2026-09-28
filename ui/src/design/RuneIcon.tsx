@@ -1,5 +1,6 @@
 import { createSignal, type JSX, Show } from "solid-js";
 import { useData } from "../data/context";
+import { t } from "../i18n";
 import { type ShardGlyph, shard } from "../lib/runes";
 import styles from "./RuneIcon.module.css";
 
@@ -53,12 +54,12 @@ function Picture(props: {
 export function RuneIcon(props: { runeId: number; size: Size; decorative?: boolean; class?: string | undefined }): JSX.Element {
   const { gameData } = useData();
   const entry = () => gameData()?.runes.get(props.runeId);
-  const name = () => entry()?.rune.name ?? `Rune ${props.runeId}`;
+  const name = () => entry()?.rune.name ?? t().common.runeN(props.runeId);
   return (
     <Picture
       src={entry() ? `${gameData()?.artBase}/img/${entry()?.rune.icon}` : undefined}
       name={name()}
-      title={entry()?.rune.shortDesc ? `${name()}: ${entry()?.rune.shortDesc}` : name()}
+      title={entry()?.rune.shortDesc ? t().common.colon(name(), entry()?.rune.shortDesc ?? "") : name()}
       size={props.size}
       decorative={props.decorative ?? false}
       class={`${styles.rune} ${props.class ?? ""}`}
@@ -70,7 +71,7 @@ export function RuneIcon(props: { runeId: number; size: Size; decorative?: boole
 export function RuneStyleIcon(props: { styleId: number; size: Size; decorative?: boolean; class?: string | undefined }): JSX.Element {
   const { gameData } = useData();
   const style = () => gameData()?.runeStyles.get(props.styleId);
-  const name = () => style()?.name ?? `Rune tree ${props.styleId}`;
+  const name = () => style()?.name ?? t().common.runeTreeN(props.styleId);
   return (
     <Picture
       src={style() ? `${gameData()?.artBase}/img/${style()?.icon}` : undefined}
@@ -105,7 +106,7 @@ export function ShardIcon(props: { shardId: number; size: 20 | 24 | 28; chosen?:
       role="img"
       aria-label={`${s().name} (${s().stat})`}
       aria-hidden={props.chosen ? undefined : "true"}
-      title={`${s().name}: ${s().stat}`}
+      title={t().common.colon(s().name, s().stat)}
     >
       <svg
         width={Math.round(props.size * 0.62)}

@@ -2,7 +2,8 @@ import type { BackendError } from "../data/generated/BackendError";
 import type { PlayerProfile } from "../data/generated/PlayerProfile";
 import type { RiotId } from "../data/generated/RiotId";
 import { CommandError, type Transport } from "../data/transport";
-import { platformLabel, riotIdKey } from "./riot-id";
+import { t } from "../i18n";
+import { formatRiotId, platformLabel, riotIdKey } from "./riot-id";
 
 /** Same freshness as the backend's own cache: a lookup the search bar made is reused by the page. */
 const TTL_MS = 2 * 60_000;
@@ -40,30 +41,15 @@ export interface ErrorWords {
 
 /** How a failed player lookup reads, for `riotId` on `platform`. */
 export function lookupErrorWords(error: BackendError, riotId: RiotId, platform: string): ErrorWords {
-  const who = `${riotId.gameName}#${riotId.tagLine}`;
+  const words = t().players;
   switch (error.kind) {
     case "notFound":
-      return {
-        title: "Player not found",
-        text: `No player named ${who} on ${platformLabel(platform)}. Check the spelling, the tag and the region.`,
-        retry: false,
-      };
+      return { title: words.notFound.title, text: words.notFound.text(formatRiotId(riotId), platformLabel(platform)), retry: false };
     case "rateLimited":
-      return {
-        title: "Too many lookups right now",
-        text:
-          error.retryAfter === null
-            ? "Riot limits how fast we can look players up. Try again in a moment."
-            : `Riot limits how fast we can look players up. Try again in ${error.retryAfter} s.`,
-        retry: true,
-      };
+      return { title: words.rateLimited.title, text: words.rateLimited.text(error.retryAfter), retry: true };
     case "unavailable":
-      return {
-        title: "Player lookups are unavailable",
-        text: "Our servers can't reach Riot right now. Try again in a moment.",
-        retry: true,
-      };
+      return { ...words.unavailable, retry: true };
     case "network":
-      return { title: "Can't reach MVP's servers", text: "Check your internet connection, then try again.", retry: true };
+      return { ...words.network, retry: true };
   }
 }

@@ -1,30 +1,25 @@
 import { createSignal } from "solid-js";
 import type { IconName } from "../design/Icon";
+import type { Messages } from "../i18n";
 
 export interface Route {
   path: string;
-  label: string;
-  /** Under the icon in the rail. */
-  short: string;
+  /** Its name and rail label: `t().nav[nav]`. */
+  nav: Exclude<keyof Messages["nav"], "main">;
   /** Not built yet: the rail marks it. */
   planned?: boolean;
   icon: IconName;
 }
 
 export const mainRoutes: readonly Route[] = [
-  { path: "/", label: "Home", short: "Home", icon: "home" },
-  { path: "/draft", label: "Draft", short: "Draft", icon: "draft" },
-  { path: "/live", label: "Live game", short: "Live", icon: "live" },
-  { path: "/champions", label: "Champions", short: "Champs", icon: "champions" },
-  { path: "/tier-list", label: "Tier list", short: "Tiers", icon: "tiers" },
+  { path: "/", nav: "home", icon: "home" },
+  { path: "/draft", nav: "draft", icon: "draft" },
+  { path: "/live", nav: "live", icon: "live" },
+  { path: "/champions", nav: "champions", icon: "champions" },
+  { path: "/tier-list", nav: "tierList", icon: "tiers" },
 ];
 
-export const settingsRoute: Route = {
-  path: "/settings",
-  label: "Settings",
-  short: "Settings",
-  icon: "settings",
-};
+export const settingsRoute: Route = { path: "/settings", nav: "settings", icon: "settings" };
 
 /** `#/champions?id=103` → path `/champions`, query `id=103`. */
 function fromHash(): { path: string; query: string } {

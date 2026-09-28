@@ -84,10 +84,20 @@ except where marked.
      the GitHub secrets. Until then no build updates itself and `release.yml` refuses to run.
    - The `draftHelper` flag hides the draft helper's numbers at once (teams stay); the import
      kill switches and flags pause each part (`remote::import_allowed`), also mid champ select.
-   - French banner/`minVersion` texts are served but the UI shows `en` (job 7).
+   - French banner/`minVersion` texts show when the UI is in French (job 7).
    - Consider `plugins.updater.requireSignedVersion: true` once the CLI's signatures carry the
      version (the plugin then rejects a manifest pairing a new version with an older installer).
-7. **French** UI strings (owner wants EN + FR), after the screens settle.
+7. *(done)* **English + French** (architecture.md "Languages"): every UI string in typed
+   catalogues (`ui/src/i18n`), Settings → App → Language (Auto follows Windows), `Intl` number
+   and date formats, Data Dragon names in French (`fr_FR`), French banners, the UI suites in
+   French (`*-fr` projects). **Left:**
+   - the owner reads the French screens (`pnpm screenshots` → `reports/screenshots/fr-*.png`) and
+     fixes any wording that doesn't sound like the French client; unsure terms are listed in the
+     i18n report (e.g. Swiftplay/Quickplay names, "Survol", roles as players say them — Top,
+     Jungle, Mid, Bot, Support — where the League client says Haut, Milieu, Bas; shard rows);
+   - core words stay English: the tray menu, MVP's item set block titles and page names in the
+     League client (the core could follow `Settings.language` + the UI's `auto` answer);
+   - check the French Data Dragon names on a real client (`fr_FR`, cached per patch).
 
 ## Verify with the real client (Windows)
 ```sh

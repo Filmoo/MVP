@@ -27,10 +27,11 @@ async fn fake_ddragon(latest: &'static str) -> (String, Arc<Hits>, tokio::task::
         )
         .route(
             "/cdn/{version}/data/{locale}/{file}",
-            axum::routing::get(|State(h): State<Arc<Hits>>, Path((_v, _l, file)): Path<(String, String, String)>| async move {
+            axum::routing::get(|State(h): State<Arc<Hits>>, Path((_v, locale, file)): Path<(String, String, String)>| async move {
                 h.files.fetch_add(1, Ordering::SeqCst);
                 match file.as_str() {
                     "champion.json" => Ok(r#"{"data":{"Ahri":{"id":"Ahri","key":"103","name":"Ahri","tags":["Mage"]}}}"#),
+                    "item.json" if locale == "fr_FR" => Ok(r#"{"data":{"3031":{"name":"Lame d’infini","gold":{"total":3500}}}}"#),
                     "item.json" => Ok(r#"{"data":{"3031":{"name":"Infinity Edge","gold":{"total":3500}}}}"#),
                     "summoner.json" => Ok(r#"{"data":{"SummonerFlash":{"id":"SummonerFlash","key":"4","name":"Flash"}}}"#),
                     "runesReforged.json" => Ok(r#"[{"id":8000,"key":"Precision","icon":"perk-images/Styles/7201_Precision.png","name":"Precision","slots":[{"runes":[{"id":8010,"key":"Conqueror","icon":"perk-images/Styles/Precision/Conqueror/Conqueror.png","name":"Conqueror","shortDesc":"Gain <b>stacks</b>."}]}]}]"#),
@@ -100,6 +101,45 @@ async fn works_offline_from_cache() {
         .unwrap();
     assert_eq!(offline.version, "16.19.1");
     assert_eq!(offline.runes.len(), 1, "runes are cached with the patch");
+}
+
+#[tokio::test]
+async fn caches_each_language_on_its_own() {
+    let cache = temp_dir("locales");
+    let (base, hits, server) = fake_ddragon("16.19.1").await;
+    let english = DataDragon::new(&base, &cache, "en_US")
+        .unwrap()
+        .load()
+        .await
+        .unwrap();
+    let french = DataDragon::new(&base, &cache, "fr_FR")
+        .unwrap()
+        .load()
+        .await
+        .unwrap();
+    assert_eq!(english.items[0].name, "Infinity Edge");
+    assert_eq!(french.items[0].name, "Lame d’infini");
+    assert_eq!(french.version, english.version, "same patch, other names");
+    assert_eq!(
+        hits.files.load(Ordering::SeqCst),
+        8,
+        "each language downloads its own files"
+    );
+    server.abort();
+    let _ = server.await;
+
+    // Offline, each language comes from its own copy of the patch.
+    for (locale, expected) in [("fr_FR", &french), ("en_US", &english)] {
+        let offline = DataDragon::new(&base, &cache, locale)
+            .unwrap()
+            .load()
+            .await
+            .unwrap();
+        assert_eq!(&offline, expected, "{locale}");
+    }
+    // A language never downloaded isn't served from another one's files.
+    let german = DataDragon::new(&base, &cache, "de_DE").unwrap();
+    assert_eq!(german.newest_cached(), None);
 }
 
 #[tokio::test]

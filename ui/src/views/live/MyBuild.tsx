@@ -4,9 +4,10 @@ import type { LiveGame } from "../../data/generated/LiveGame";
 import { Card } from "../../design/Card";
 import { ChampionIcon } from "../../design/GameIcon";
 import { EmptyState, Skeleton } from "../../design/States";
+import { t } from "../../i18n";
 import { createQuery } from "../../lib/query";
-import { ROLE_LABEL } from "../../lib/roles";
-import { BRACKET_LABEL, QUEUE_LABEL, statsQueueOf } from "../../lib/stats";
+import { roleLabel } from "../../lib/roles";
+import { bracketLabel, scopeLabel, statsQueueOf } from "../../lib/stats";
 import { filters } from "../../lib/stats-filters";
 import { ChampionBuilds } from "../champions/Champions";
 import { StatsProblem, useStatsIndex } from "../stats/common";
@@ -32,13 +33,13 @@ export function MyBuild(props: { game: LiveGame }): JSX.Element {
   );
   const name = () => {
     const id = me()?.championId;
-    return id ? (gameData()?.champions.get(id)?.name ?? `Champion ${id}`) : "your champion";
+    return id ? (gameData()?.champions.get(id)?.name ?? t().common.championN(id)) : t().common.yourChampion;
   };
   const role = () => (queue() === 450 ? undefined : (me()?.role ?? undefined));
 
   const scope = () => {
     const q = queue();
-    return q ? `most played in ${QUEUE_LABEL[q]} · ${BRACKET_LABEL[filters().bracket]}` : "";
+    return q ? t().imports.mostPlayedIn(q, bracketLabel(filters().bracket)) : "";
   };
 
   return (
@@ -49,10 +50,10 @@ export function MyBuild(props: { game: LiveGame }): JSX.Element {
             <ChampionIcon championId={id()} size={24} />
             <span class={styles.buildWho}>
               {name()}
-              {role() ? ` · ${ROLE_LABEL[role() ?? "top"]}` : ""}
+              {role() ? ` · ${roleLabel(role() ?? "top")}` : ""}
             </span>
             <span class={styles.buildScope}>
-              {scope()} · <a href={`#/champions?id=${id()}${role() ? `&role=${role()}` : ""}`}>champion page</a>
+              {scope()} · <a href={`#/champions?id=${id()}${role() ? `&role=${role()}` : ""}`}>{t().live.build.page}</a>
             </span>
           </p>
         )}
@@ -60,12 +61,12 @@ export function MyBuild(props: { game: LiveGame }): JSX.Element {
       <Switch>
         <Match when={!queue()}>
           <Card>
-            <EmptyState icon="champions" title="No builds for this mode" text="MVP's builds cover Summoner's Rift and ARAM." />
+            <EmptyState icon="champions" title={t().live.build.noMode.title} text={t().live.build.noMode.text} />
           </Card>
         </Match>
         <Match when={!me()?.championId}>
           <Card>
-            <EmptyState icon="champions" title="Champion not known yet" text="Your build shows as soon as the game says who you play." />
+            <EmptyState icon="champions" title={t().live.build.noChampion.title} text={t().live.build.noChampion.text} />
           </Card>
         </Match>
         <Match when={stats.error() !== undefined && !stats.loading()}>
@@ -73,7 +74,7 @@ export function MyBuild(props: { game: LiveGame }): JSX.Element {
         </Match>
         <Match when={!stats.data()}>
           <div aria-busy="true">
-            <Card title="Runes">
+            <Card title={t().champions.runes}>
               <Skeleton height="310px" />
             </Card>
           </div>
@@ -82,8 +83,8 @@ export function MyBuild(props: { game: LiveGame }): JSX.Element {
           <Card>
             <EmptyState
               icon="champions"
-              title={`No games of ${name()} yet`}
-              text={`Nothing counted in ${QUEUE_LABEL[queue() ?? 420]} · ${BRACKET_LABEL[filters().bracket]} on this patch yet.`}
+              title={t().stats.noGamesOf(name())}
+              text={t().stats.nothingCounted(scopeLabel(queue() ?? 420, filters().bracket))}
             />
           </Card>
         </Match>

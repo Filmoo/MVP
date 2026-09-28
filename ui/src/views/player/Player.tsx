@@ -7,6 +7,7 @@ import { Button } from "../../design/Button";
 import { Card } from "../../design/Card";
 import { Icon } from "../../design/Icon";
 import { EmptyState, ErrorState } from "../../design/States";
+import { t } from "../../i18n";
 import { backendError, lookupErrorWords, lookupPlayer } from "../../lib/players";
 import { parsePlayerPath } from "../../lib/riot-id";
 import { ProfileContent, ProfileSkeleton, profileArt } from "../home/Profile";
@@ -28,7 +29,7 @@ export default function Player(): JSX.Element {
   const searchAgain = (
     <Button onClick={focusSearch}>
       <Icon name="search" size={16} />
-      Search again
+      {t().search.again}
     </Button>
   );
 
@@ -38,7 +39,7 @@ export default function Player(): JSX.Element {
         <Match when={!target()}>
           <div class={page.centered}>
             <Card>
-              <EmptyState heading icon="user" title="Player not found" text="This link doesn't point to a Riot ID." action={searchAgain} />
+              <EmptyState heading icon="user" title={t().players.badLink.title} text={t().players.badLink.text} action={searchAgain} />
             </Card>
           </div>
         </Match>

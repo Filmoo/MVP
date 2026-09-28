@@ -1,7 +1,7 @@
 /** Groups items by local calendar day, newest first, with human labels. */
+import { t } from "../i18n";
 
 const DAY_MS = 86_400_000;
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 function startOfDay(ms: number): number {
   const d = new Date(ms);
@@ -9,14 +9,13 @@ function startOfDay(ms: number): number {
   return d.getTime();
 }
 
-/** `Today`, `Yesterday`, a weekday within the week, else `12 Sep`. */
+/** `Today`, `Yesterday`, a weekday within the week, else `12 Sep` (French `Aujourd’hui`, `12 sept.`). */
 export function dayLabel(ms: number, now = Date.now()): string {
   const days = Math.round((startOfDay(now) - startOfDay(ms)) / DAY_MS);
-  if (days <= 0) return "Today";
-  if (days === 1) return "Yesterday";
-  if (days < 7) return new Intl.DateTimeFormat("en", { weekday: "long" }).format(ms);
-  const d = new Date(ms);
-  return `${d.getDate()} ${MONTHS[d.getMonth()]}`;
+  if (days <= 0) return t().days.today;
+  if (days === 1) return t().days.yesterday;
+  if (days < 7) return t().days.weekday(new Date(ms));
+  return t().days.date(new Date(ms));
 }
 
 export interface DayGroup<T> {

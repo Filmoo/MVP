@@ -1,8 +1,10 @@
-import { createEffect, type JSX, on, Show } from "solid-js";
+import { createEffect, createMemo, type JSX, on, Show } from "solid-js";
+import { useData } from "../../data/context";
 import type { AppInfo } from "../../data/generated/AppInfo";
 import type { Effects } from "../../data/generated/Effects";
 import type { FlashKey } from "../../data/generated/FlashKey";
 import type { ImportMode } from "../../data/generated/ImportMode";
+import type { Language } from "../../data/generated/Language";
 import type { Settings } from "../../data/generated/Settings";
 import type { UpdateStatus } from "../../data/generated/UpdateStatus";
 import { Button } from "../../design/Button";
@@ -14,6 +16,8 @@ import { Mark } from "../../design/Logo";
 import { SettingList, SettingRow } from "../../design/SettingRow";
 import { Slider } from "../../design/Slider";
 import { Toggle } from "../../design/Toggle";
+import { setLanguage, t } from "../../i18n";
+import { FLASH_ID } from "../../lib/imports";
 import { MAX_AUTO_ACCEPT_DELAY } from "../../lib/settings";
 import { aboutLine } from "../../lib/updates";
 import styles from "./Settings.module.css";
@@ -35,24 +39,19 @@ function SaveError(props: { message: string | undefined }): JSX.Element {
       {(message) => (
         <p class={styles.saveError} role="alert">
           <Icon name="alert" size={16} class={styles.saveErrorIcon} />
-          <span>Couldn't save this change. {sentence(message())}</span>
+          <span>{t().settings.saveFailed(sentence(message()))}</span>
         </p>
       )}
     </Show>
   );
 }
 
-const seconds = (n: number) => `${n} s`;
-const spokenSeconds = (n: number) => (n === 1 ? "1 second" : `${n} seconds`);
-
 export function AutomationSettings(props: SectionProps & { autoAcceptPaused?: boolean }): JSX.Element {
+  const words = () => t().settings.automation;
   return (
-    <Card title="Automation">
+    <Card title={words().title}>
       <SettingList>
-        <SettingRow
-          title="Auto-accept matches"
-          description="Accepts the match found pop-up for you, after a delay so you still see it. Declining in the client always wins."
-        >
+        <SettingRow title={words().autoAccept.title} description={words().autoAccept.text}>
           {(ids) => (
             <Toggle
               checked={props.settings.autoAccept}
@@ -63,15 +62,15 @@ export function AutomationSettings(props: SectionProps & { autoAcceptPaused?: bo
             />
           )}
         </SettingRow>
-        <SettingRow nested title="Delay before accepting">
+        <SettingRow nested title={words().delay}>
           {(ids) => (
             <div class={styles.slider}>
               <Slider
                 value={props.settings.autoAcceptDelaySeconds}
                 min={0}
                 max={MAX_AUTO_ACCEPT_DELAY}
-                format={seconds}
-                valueText={spokenSeconds}
+                format={(n) => t().settings.seconds(n)}
+                valueText={(n) => t().settings.spokenSeconds(n)}
                 onChange={(autoAcceptDelaySeconds) => props.onChange({ autoAcceptDelaySeconds })}
                 disabled={!props.settings.autoAccept}
                 labelledBy={ids.label}
@@ -80,7 +79,7 @@ export function AutomationSettings(props: SectionProps & { autoAcceptPaused?: bo
             </div>
           )}
         </SettingRow>
-        <SettingRow title="Bring MVP to the front" description="Shows the window as soon as your champion select starts.">
+        <SettingRow title={words().bringToFront.title} description={words().bringToFront.text}>
           {(ids) => (
             <Toggle
               checked={props.settings.bringToFrontOnChampSelect}
@@ -91,10 +90,7 @@ export function AutomationSettings(props: SectionProps & { autoAcceptPaused?: bo
             />
           )}
         </SettingRow>
-        <SettingRow
-          title="Switch views with the game"
-          description="Draft in champion select, Live once the game loads, Home when it ends. Pages you open yourself stay open."
-        >
+        <SettingRow title={words().autoSwitch.title} description={words().autoSwitch.text}>
           {(ids) => (
             <Toggle
               checked={props.settings.autoSwitchView}
@@ -109,10 +105,7 @@ export function AutomationSettings(props: SectionProps & { autoAcceptPaused?: bo
       <Show when={props.autoAcceptPaused}>
         <p class={styles.paused} role="status" data-testid="auto-accept-paused">
           <Icon name="info" size={16} class={styles.pausedIcon} />
-          <span>
-            Auto-accept is paused for everyone while we fix an issue with the League client. Your choice is kept and works again as soon as
-            it's fixed.
-          </span>
+          <span>{words().paused}</span>
         </p>
       </Show>
       <SaveError message={props.error} />
@@ -120,26 +113,33 @@ export function AutomationSettings(props: SectionProps & { autoAcceptPaused?: bo
   );
 }
 
-const IMPORT_MODES: ReadonlyArray<ChoiceOption<ImportMode>> = [
-  { value: "off", label: "Off" },
-  { value: "oneClick", label: "One click" },
-  { value: "onLockIn", label: "On lock-in" },
-];
+const importModes = (): ReadonlyArray<ChoiceOption<ImportMode>> => {
+  const modes = t().settings.imports.modes;
+  return [
+    { value: "off", label: modes.off },
+    { value: "oneClick", label: modes.oneClick },
+    { value: "onLockIn", label: modes.onLockIn },
+  ];
+};
 
-const FLASH_KEYS: ReadonlyArray<ChoiceOption<FlashKey>> = [
-  { value: "auto", label: "From your games" },
+const flashKeys = (): ReadonlyArray<ChoiceOption<FlashKey>> => [
+  { value: "auto", label: t().settings.imports.fromGames },
   { value: "d", label: "D" },
   { value: "f", label: "F" },
 ];
 
 /** Build imports into the League client: when each part is imported, and where Flash goes. */
 export function ImportSettings(props: SectionProps): JSX.Element {
-  const mode = (title: string, description: string, key: "importRunes" | "importItemSet" | "importSpells", testId: string) => (
-    <SettingRow title={title} description={description}>
+  const { gameData } = useData();
+  const words = () => t().settings.imports;
+  // Flash as the game names it in the player's language (`Saut éclair`).
+  const flash = () => gameData()?.spells.get(FLASH_ID)?.name ?? "Flash";
+  const mode = (row: () => { title: string; text: string }, key: "importRunes" | "importItemSet" | "importSpells", testId: string) => (
+    <SettingRow title={row().title} description={row().text}>
       {(ids) => (
         <Choice
           value={props.settings[key]}
-          options={IMPORT_MODES}
+          options={importModes()}
           onChange={(next) => {
             const patch: Partial<Settings> = {};
             patch[key] = next;
@@ -153,31 +153,16 @@ export function ImportSettings(props: SectionProps): JSX.Element {
     </SettingRow>
   );
   return (
-    <Card title="Imports">
+    <Card title={words().title}>
       <SettingList>
-        {mode(
-          "Rune page",
-          "Writes the build's runes into MVP's own page, named “MVP”, and selects it. Your pages are never changed.",
-          "importRunes",
-          "setting-import-runes",
-        )}
-        {mode(
-          "Item set",
-          "Adds the build to the in-game shop as MVP's set for the champion. Your item sets are never changed.",
-          "importItemSet",
-          "setting-import-item-set",
-        )}
-        {mode(
-          "Summoner spells",
-          "Sets the build's spells in champion select, never in its last 5 seconds.",
-          "importSpells",
-          "setting-import-spells",
-        )}
-        <SettingRow nested title="Flash key" description="Flash always goes on this key, whatever the build lists.">
+        {mode(() => words().runes, "importRunes", "setting-import-runes")}
+        {mode(() => words().itemSet, "importItemSet", "setting-import-item-set")}
+        {mode(() => words().spells, "importSpells", "setting-import-spells")}
+        <SettingRow nested title={words().flashKey.title(flash())} description={words().flashKey.text(flash())}>
           {(ids) => (
             <Choice
               value={props.settings.flashKey}
-              options={FLASH_KEYS}
+              options={flashKeys()}
               onChange={(flashKey) => props.onChange({ flashKey })}
               labelledBy={ids.label}
               describedBy={ids.description}
@@ -187,24 +172,27 @@ export function ImportSettings(props: SectionProps): JSX.Element {
           )}
         </SettingRow>
       </SettingList>
-      <p class={styles.footnote}>One click: buttons in Draft. On lock-in: also by itself, once, when you lock in your champion.</p>
+      <p class={styles.footnote}>{words().footnote}</p>
       <SaveError message={props.error} />
     </Card>
   );
 }
 
-const EFFECTS: ReadonlyArray<ChoiceOption<Effects>> = [
-  { value: "auto", label: "Full" },
-  { value: "light", label: "Light" },
-  { value: "off", label: "Off" },
-];
-
-/** Why "Full" isn't drawn right now (design/backdrop fallbacks). */
-const FALLBACK: Record<string, string> = {
-  "no-webgl": "this PC has no graphics acceleration for the window",
-  slow: "your graphics card can't draw it cheaply",
-  "context-lost": "the graphics driver restarted; it comes back on its own",
+const effectLevels = (): ReadonlyArray<ChoiceOption<Effects>> => {
+  const levels = t().settings.app.effects.levels;
+  return [
+    { value: "auto", label: levels.auto },
+    { value: "light", label: levels.light },
+    { value: "off", label: levels.off },
+  ];
 };
+
+/** Each language in its own words, whatever the UI's language. */
+const LANGUAGES: ReadonlyArray<ChoiceOption<Language>> = [
+  { value: "auto", label: "Auto" },
+  { value: "en", label: "English" },
+  { value: "fr", label: "Français" },
+];
 
 export function AppSettings(props: SectionProps & { installId?: string | null | undefined }): JSX.Element {
   // The window follows what's saved, including a change that couldn't be saved and flipped back.
@@ -215,14 +203,27 @@ export function AppSettings(props: SectionProps & { installId?: string | null | 
       { defer: true },
     ),
   );
+  // Only when the language itself changes (a settings change re-reads `props.settings`).
+  const language = createMemo(() => props.settings.language);
+  createEffect(on(language, (next) => void setLanguage(next), { defer: true }));
   const fallback = () => (props.settings.effects === "auto" && rendered().rendering !== "shader" ? rendered().reason : undefined);
+  const words = () => t().settings.app;
   return (
-    <Card title="App">
+    <Card title={words().title}>
       <SettingList>
-        <SettingRow
-          title="Close to tray"
-          description="Closing the window keeps MVP running in the tray, so automations keep working. Quit from the tray icon."
-        >
+        <SettingRow title={words().language.title} description={words().language.text}>
+          {(ids) => (
+            <Choice
+              options={LANGUAGES}
+              value={props.settings.language}
+              onChange={(language) => props.onChange({ language })}
+              labelledBy={ids.label}
+              describedBy={ids.description}
+              testId="setting-language"
+            />
+          )}
+        </SettingRow>
+        <SettingRow title={words().closeToTray.title} description={words().closeToTray.text}>
           {(ids) => (
             <Toggle
               checked={props.settings.closeToTray}
@@ -233,7 +234,7 @@ export function AppSettings(props: SectionProps & { installId?: string | null | 
             />
           )}
         </SettingRow>
-        <SettingRow title="Launch at startup" description="Starts MVP with Windows, quietly in the tray.">
+        <SettingRow title={words().launchAtStartup.title} description={words().launchAtStartup.text}>
           {(ids) => (
             <Toggle
               checked={props.settings.launchAtStartup}
@@ -244,10 +245,7 @@ export function AppSettings(props: SectionProps & { installId?: string | null | 
             />
           )}
         </SettingRow>
-        <SettingRow
-          title="Send crash reports"
-          description="When MVP crashes or a panel fails, it sends what went wrong and the app and Windows versions to MVP's server. Player names, IDs and file paths are removed first, and reports are deleted after 30 days."
-        >
+        <SettingRow title={words().crashReports.title} description={words().crashReports.text}>
           {(ids) => (
             <Toggle
               checked={props.settings.crashReports}
@@ -260,11 +258,7 @@ export function AppSettings(props: SectionProps & { installId?: string | null | 
         </SettingRow>
         <Show when={props.settings.crashReports && props.installId}>
           {(id) => (
-            <SettingRow
-              nested
-              title="Report ID"
-              description="Random, and not linked to your Riot account: with it, your reports can be deleted on request."
-            >
+            <SettingRow nested title={words().reportId.title} description={words().reportId.text}>
               {() => (
                 <span class={`${styles.installId} num`} data-testid="install-id">
                   {id()}
@@ -273,13 +267,10 @@ export function AppSettings(props: SectionProps & { installId?: string | null | 
             </SettingRow>
           )}
         </Show>
-        <SettingRow
-          title="Visual effects"
-          description="How much glass and light MVP draws. Full bends the light like real glass, when your graphics card draws it easily."
-        >
+        <SettingRow title={words().effects.title} description={words().effects.text}>
           {(ids) => (
             <Choice
-              options={EFFECTS}
+              options={effectLevels()}
               value={props.settings.effects}
               onChange={(effects) => props.onChange({ effects })}
               labelledBy={ids.label}
@@ -291,7 +282,7 @@ export function AppSettings(props: SectionProps & { installId?: string | null | 
         <Show when={fallback()}>
           {(reason) => (
             <p class={styles.effectsNote} data-testid="effects-fallback">
-              Showing Light for now: {FALLBACK[reason()] ?? reason()}.
+              {words().effects.fallback(words().effects.reasons[reason()] ?? reason())}
             </p>
           )}
         </Show>
@@ -301,14 +292,12 @@ export function AppSettings(props: SectionProps & { installId?: string | null | 
   );
 }
 
-const PLATFORMS: Record<string, string> = { windows: "Windows", macos: "macOS", linux: "Linux", web: "Browser preview" };
-
 /** Settings → About: the app's own update, with the one action that fits. */
 function Updates(props: { update: UpdateStatus; onCheck: () => void; onRestart: () => void }): JSX.Element {
   const line = () => aboutLine(props.update);
   return (
     <section class={styles.note}>
-      <h3 class={styles.noteTitle}>Updates</h3>
+      <h3 class={styles.noteTitle}>{t().settings.about.updates}</h3>
       <div class={styles.update}>
         <p data-testid="update-status">{line().text}</p>
         <Show when={line().action}>
@@ -336,7 +325,7 @@ export function About(props: {
   onRestart?: () => void;
 }): JSX.Element {
   return (
-    <Card title="About">
+    <Card title={t().settings.about.title}>
       <div class={styles.about}>
         <div class={styles.identity}>
           <div class={styles.mark}>
@@ -345,10 +334,11 @@ export function About(props: {
           <div class={styles.identityText}>
             <span class={styles.appName}>MVP</span>
             <span class={styles.version}>
-              <Show when={props.info} fallback="Version unknown">
+              <Show when={props.info} fallback={t().settings.about.unknownVersion}>
                 {(info) => (
                   <>
-                    Version <span class="num">{info().version}</span> · {PLATFORMS[info().platform] ?? info().platform}
+                    {t().settings.about.version} <span class="num">{info().version}</span> ·{" "}
+                    {t().settings.about.platforms[info().platform] ?? info().platform}
                   </>
                 )}
               </Show>
@@ -359,20 +349,12 @@ export function About(props: {
           {(update) => <Updates update={update()} onCheck={() => props.onCheckUpdates?.()} onRestart={() => props.onRestart?.()} />}
         </Show>
         <section class={styles.note}>
-          <h3 class={styles.noteTitle}>Your data</h3>
-          <p>
-            MVP reads the League client on this computer and keeps your settings here, with no account. Player searches and loading-screen
-            cards go through MVP's server, which asks Riot. Crash reports are sent only if you turn them on. Game names and icons come from
-            Riot's Data Dragon.
-          </p>
+          <h3 class={styles.noteTitle}>{t().settings.about.dataTitle}</h3>
+          <p>{t().settings.about.data}</p>
         </section>
         <section class={styles.note}>
-          <h3 class={styles.noteTitle}>Legal</h3>
-          <p>
-            MVP isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone officially involved in
-            producing or managing Riot Games properties. Riot Games, and all associated properties are trademarks or registered trademarks
-            of Riot Games, Inc.
-          </p>
+          <h3 class={styles.noteTitle}>{t().settings.about.legalTitle}</h3>
+          <p>{t().settings.about.legal}</p>
         </section>
       </div>
     </Card>

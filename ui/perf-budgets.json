@@ -38,8 +38,8 @@
       "domNodes": 84
     },
     "settings-app": {
-      "renderMs": 2,
-      "domNodes": 44
+      "renderMs": 3,
+      "domNodes": 60
     },
     "settings-about": {
       "renderMs": 2,

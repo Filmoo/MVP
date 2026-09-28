@@ -5,6 +5,7 @@ import type { BuildStats } from "../../data/generated/BuildStats";
 import type { RuneStyle } from "../../data/generated/RuneStyle";
 import { Card } from "../../design/Card";
 import { RuneIcon, RuneStyleIcon, ShardIcon } from "../../design/RuneIcon";
+import { t } from "../../i18n";
 import { percent } from "../../lib/format";
 import { type RunePage, runePage, SHARD_ROWS, styleTone } from "../../lib/runes";
 import { optionShare, winRateOf } from "../../lib/stats";
@@ -27,7 +28,7 @@ function Tree(props: {
     <div class={`${styles.tree} ${styles[styleTone(props.styleId)]}`}>
       <div class={styles.treeHead}>
         <RuneStyleIcon styleId={props.styleId} size={24} decorative />
-        <span class={styles.treeName}>{props.style?.name ?? "Runes"}</span>
+        <span class={styles.treeName}>{props.style?.name ?? t().champions.runes}</span>
         <Show when={keystone()}>{(k) => <span class={styles.keystoneName}>{k().name}</span>}</Show>
       </div>
       <Show
@@ -65,7 +66,7 @@ function Shards(props: { chosen: readonly number[] }): JSX.Element {
   return (
     <div class={`${styles.tree} ${styles.shards}`}>
       <div class={styles.treeHead}>
-        <span class={styles.treeName}>Shards</span>
+        <span class={styles.treeName}>{t().champions.shards}</span>
       </div>
       <For each={SHARD_ROWS}>
         {(row, i) => {
@@ -76,7 +77,7 @@ function Shards(props: { chosen: readonly number[] }): JSX.Element {
             return p === undefined || row.ids.includes(p) ? row.ids : [...row.ids, p];
           };
           return (
-            <div class={styles.row} title={row.label}>
+            <div class={styles.row} title={t().shards.rows[row.row]}>
               <For each={ids()}>{(id) => <ShardIcon shardId={id} size={24} chosen={id === pick()} />}</For>
             </div>
           );
@@ -136,24 +137,24 @@ export function RunesCard(props: { build: BuildStats }): JSX.Element {
   );
   const current = () => pages()[picked()] ?? pages()[0];
   const describe = (p: PageOption) => {
-    const keystone = gameData()?.runes.get(p.page.perks[0] ?? 0)?.rune.name ?? "Keystone";
-    const sub = gameData()?.runeStyles.get(p.page.sub)?.name ?? "secondary tree";
+    const keystone = gameData()?.runes.get(p.page.perks[0] ?? 0)?.rune.name ?? t().champions.keystone;
+    const sub = gameData()?.runeStyles.get(p.page.sub)?.name ?? t().champions.secondaryTree;
     const wr = winRateOf(p.option);
-    return `${keystone} with ${sub}: ${percent(wr ?? 0, 1)} win rate, ${percent(optionShare(p.option, props.build.runes), 1)} pick`;
+    return t().champions.runePage(keystone, sub, percent(wr ?? 0, 1), percent(optionShare(p.option, props.build.runes), 1));
   };
   return (
     <Card
-      title="Runes"
+      title={t().champions.runes}
       // An "Import" action (rune page into the client, HANDOFF job 5) goes next to these numbers.
       actions={<Show when={current()}>{(c) => <OptionStats option={c().option} section={props.build.runes} large />}</Show>}
     >
-      <Show when={current()} fallback={<p class={styles.none}>Not enough games yet.</p>}>
+      <Show when={current()} fallback={<p class={styles.none}>{t().stats.notEnoughGames}</p>}>
         {(c) => (
           <div class={styles.body}>
             <RunePageView page={c().page} />
             <Show when={pages().length > 1}>
               <div class={styles.alternatives}>
-                <span class={styles.altTitle}>Most played pages</span>
+                <span class={styles.altTitle}>{t().champions.mostPlayedPages}</span>
                 <For each={pages()}>
                   {(p, i) => (
                     <button

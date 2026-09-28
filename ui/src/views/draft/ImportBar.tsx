@@ -10,9 +10,10 @@ import type { Settings } from "../../data/generated/Settings";
 import { Card } from "../../design/Card";
 import { ChampionIcon } from "../../design/GameIcon";
 import { Icon, type IconName } from "../../design/Icon";
-import { IMPORT_PARTS, PART_LABEL, type PartTone, statusOf, toneOf } from "../../lib/imports";
+import { t } from "../../i18n";
+import { FLASH_ID, IMPORT_PARTS, type PartTone, statusOf, toneOf } from "../../lib/imports";
 import { lastLockIn } from "../../lib/lock-in-toasts";
-import { ROLE_LABEL } from "../../lib/roles";
+import { roleLabel } from "../../lib/roles";
 import styles from "./ImportBar.module.css";
 
 export type ImportModes = Record<ImportPart, ImportMode>;
@@ -46,9 +47,6 @@ export interface PartView {
 
 const TONE_ICON: Record<PartTone, IconName> = { done: "check", warn: "alert", skipped: "minimize", failed: "alert" };
 
-/** Before any import: what the buttons do and don't touch. */
-export const IDLE_HINT = "Your own rune pages and item sets are never changed, and Flash stays on your key.";
-
 /** The bar as shown: who the build is for, one button per part, and what happened last. */
 export function ImportPanel(props: {
   championId: number | null;
@@ -66,7 +64,7 @@ export function ImportPanel(props: {
             {(id) => <ChampionIcon championId={id()} size={32} />}
           </Show>
           <div class={styles.whoText}>
-            <h2 class={styles.title}>Import build</h2>
+            <h2 class={styles.title}>{t().imports.title}</h2>
             <span class={styles.subtitle}>{props.subtitle}</span>
           </div>
         </div>
@@ -85,9 +83,9 @@ export function ImportPanel(props: {
                   disabled={view().disabled !== undefined}
                   // Busy stays focusable (a disabled button would drop the focus), clicks wait.
                   aria-disabled={view().busy ? "true" : undefined}
-                  aria-label={`Import ${PART_LABEL[view().part].toLowerCase()}`}
+                  aria-label={t().imports.importPart(view().part)}
                   aria-busy={view().busy ? "true" : undefined}
-                  title={view().disabled ?? (view().automatic ? "Also imported by itself when you lock in" : undefined)}
+                  title={view().disabled ?? (view().automatic ? t().imports.auto : undefined)}
                   data-testid={`import-${view().part}`}
                   data-tone={tone()}
                   onClick={() => {
@@ -97,7 +95,7 @@ export function ImportPanel(props: {
                   <Show when={!view().busy} fallback={<span class={styles.spinner} aria-hidden="true" />}>
                     <Icon name={tone() ? TONE_ICON[tone() as PartTone] : "import"} size={16} class={styles.icon} />
                   </Show>
-                  {PART_LABEL[view().part]}
+                  {t().imports.parts[view().part]}
                 </button>
               );
             }}
@@ -140,9 +138,9 @@ export function ImportBar(props: {
   const [last, setLast] = createSignal<ImportResult["parts"]>([]);
   // The core couldn't be asked at all (still starting): shown instead of the last outcome.
   const [unreachable, setUnreachable] = createSignal<string>();
-  const spellName = (id: number) => gameData()?.spells.get(id)?.name ?? `Spell ${id}`;
+  const spellName = (id: number) => gameData()?.spells.get(id)?.name ?? (id === FLASH_ID ? "Flash" : t().common.spellN(id));
   const name = () =>
-    props.championId === null ? undefined : (gameData()?.champions.get(props.championId)?.name ?? `Champion ${props.championId}`);
+    props.championId === null ? undefined : (gameData()?.champions.get(props.championId)?.name ?? t().common.championN(props.championId));
 
   // Results belong to one champion and role: another hover starts afresh.
   createEffect(
@@ -185,7 +183,7 @@ export function ImportBar(props: {
       if (championId === props.championId) {
         const message = error instanceof Error ? error.message : String(error);
         setResults((current) => ({ ...current, [part]: { kind: "failed", reason: { kind: "client", message } } }));
-        setUnreachable(`Couldn't import: ${message}`);
+        setUnreachable(t().imports.failed(message));
       }
     } finally {
       setBusy((current) => new Set([...current].filter((p) => p !== part)));
@@ -193,9 +191,9 @@ export function ImportBar(props: {
   };
 
   const unavailable = (part: ImportPart): string | undefined => {
-    if (props.championId === null) return "Hover or lock in a champion first";
-    if (!props.available) return "Builds come with the champion stats, not available yet";
-    if (part === "spells" && !props.inChampSelect) return "Spells can only change during champion select";
+    if (props.championId === null) return t().imports.pickFirst;
+    if (!props.available) return t().imports.notYet;
+    if (part === "spells" && !props.inChampSelect) return t().imports.spellsInChampSelect;
     return undefined;
   };
 
@@ -210,9 +208,9 @@ export function ImportBar(props: {
 
   const subtitle = () => {
     const who = name();
-    if (!who) return "Hover or lock in a champion";
-    const role = props.role ? ` · ${ROLE_LABEL[props.role]}` : "";
-    return `${who}${role} · ${props.context ?? (props.hovering ? "hovering" : "locked in")}`;
+    if (!who) return t().imports.pick;
+    const role = props.role ? ` · ${roleLabel(props.role)}` : "";
+    return `${who}${role} · ${props.context ?? (props.hovering ? t().imports.hovering : t().imports.lockedIn)}`;
   };
 
   const status = () => {
@@ -221,9 +219,9 @@ export function ImportBar(props: {
     const shown = statusOf(last(), spellName);
     if (shown) return shown;
     if (props.championId !== null && !props.available) {
-      return { tone: "hint" as const, text: "Builds come with the champion stats, which aren't available yet." };
+      return { tone: "hint" as const, text: t().imports.notYetStatus };
     }
-    return { tone: "hint" as const, text: IDLE_HINT };
+    return { tone: "hint" as const, text: t().imports.idle(spellName(FLASH_ID)) };
   };
 
   return (

@@ -4,15 +4,16 @@ import type { MatchSummary } from "../../data/generated/MatchSummary";
 import { Card } from "../../design/Card";
 import { ChampionIcon, ItemIcon } from "../../design/GameIcon";
 import { EmptyState } from "../../design/States";
+import { t } from "../../i18n";
 import { groupByDay } from "../../lib/days";
-import { duration, kdaRatio, perMinute, queueName, REMAKE_MAX_SECONDS, timeAgo } from "../../lib/format";
+import { duration, kda, kdaRatio, perMinute, queueName, REMAKE_MAX_SECONDS, timeAgo } from "../../lib/format";
 import styles from "./RecentMatches.module.css";
 
 const ITEM_SLOTS = 6;
 
-/** DPM-style KDA coloring: great ≥ 5, good ≥ 3, poor < 1.5. */
-function kdaBand(ratio: string): string {
-  const value = Number(ratio);
+/** DPM-style KDA coloring: perfect, great ≥ 5, good ≥ 3, poor < 1.5. */
+function kdaBand(value: number | null): string {
+  if (value === null) return styles.perfect ?? "";
   if (value >= 5) return styles.kdaGreat ?? "";
   if (value >= 3) return styles.kdaGood ?? "";
   if (value < 1.5) return styles.kdaPoor ?? "";
@@ -23,17 +24,16 @@ function MatchRow(props: { match: MatchSummary }): JSX.Element {
   const m = () => props.match;
   const remake = () => m().durationSeconds <= REMAKE_MAX_SECONDS;
   const outcome = () => (remake() ? "remake" : m().win ? "win" : "loss");
-  const label = { win: "Victory", loss: "Defeat", remake: "Remake" } as const;
-  const ratio = () => kdaRatio(m().kills, m().deaths, m().assists);
+  const value = () => kda(m().kills, m().deaths, m().assists);
   const { gameData } = useData();
-  const champion = () => gameData()?.champions.get(m().championId)?.name ?? "Unknown";
+  const champion = () => gameData()?.champions.get(m().championId)?.name ?? t().common.unknown;
   const slots = () => Array.from({ length: ITEM_SLOTS }, (_, i) => m().items[i]);
 
   return (
     <li class={`${styles.row} ${styles[outcome()]} glass-pill`} data-glass data-testid="match-row" data-outcome={outcome()}>
       <ChampionIcon championId={m().championId} size={40} />
       <div class={styles.outcome}>
-        <span class={styles.result}>{label[outcome()]}</span>
+        <span class={styles.result}>{t().matches.outcome[outcome()]}</span>
         <span class={styles.sub}>
           {champion()} · {queueName(m().queueId)}
         </span>
@@ -43,15 +43,15 @@ function MatchRow(props: { match: MatchSummary }): JSX.Element {
           {m().kills} <span class={styles.slash}>/</span> <span class={styles.deaths}>{m().deaths}</span>{" "}
           <span class={styles.slash}>/</span> {m().assists}
         </span>
-        <span class={`${styles.caption} ${ratio() === "Perfect" ? styles.perfect : kdaBand(ratio())}`}>
-          {ratio() === "Perfect" ? "Perfect KDA" : `${ratio()} KDA`}
+        <span class={`${styles.caption} ${kdaBand(value())}`}>
+          {value() === null ? t().matches.perfectKda : t().common.kda(kdaRatio(m().kills, m().deaths, m().assists))}
         </span>
       </div>
       <div class={`${styles.stat} ${styles.cs} num`}>
         <span class={styles.value}>
           {m().creepScore} <span class={styles.unit}>CS</span>
         </span>
-        <span class={styles.caption}>{perMinute(m().creepScore, m().durationSeconds)} / min</span>
+        <span class={styles.caption}>{t().matches.perMinute(perMinute(m().creepScore, m().durationSeconds))}</span>
       </div>
       <div class={styles.items}>
         <For each={slots()}>{(id) => <ItemIcon itemId={id} size={24} />}</For>
@@ -70,7 +70,8 @@ function DayRecord(props: { matches: readonly MatchSummary[] }): JSX.Element {
   return (
     <Show when={counted().length > 0}>
       <span class={styles.dayRecord}>
-        <span class={styles.dayWins}>{wins()}W</span> <span class={styles.dayLosses}>{counted().length - wins()}L</span>
+        <span class={styles.dayWins}>{t().common.wins(wins())}</span>{" "}
+        <span class={styles.dayLosses}>{t().common.losses(counted().length - wins())}</span>
       </span>
     </Show>
   );
@@ -79,13 +80,8 @@ function DayRecord(props: { matches: readonly MatchSummary[] }): JSX.Element {
 export function RecentMatches(props: { matches: readonly MatchSummary[] }): JSX.Element {
   const hasMatches = () => props.matches.length > 0;
   return (
-    <Card title="Match history" flush={hasMatches()}>
-      <Show
-        when={hasMatches()}
-        fallback={
-          <EmptyState icon="history" title="No recent games" text="Finish a game and it shows up here, with your stats and build." />
-        }
-      >
+    <Card title={t().matches.title} flush={hasMatches()}>
+      <Show when={hasMatches()} fallback={<EmptyState icon="history" title={t().matches.empty.title} text={t().matches.empty.text} />}>
         <ol class={styles.list}>
           <For each={groupByDay(props.matches, (m) => m.endedAt)}>
             {(day) => (

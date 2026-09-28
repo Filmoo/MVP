@@ -228,6 +228,49 @@ The Tier list and Champions pages read the published stats through the core only
   window created for an intent opens directly on its view. *Launch at startup* uses
   tauri-plugin-autostart and starts in the tray (`--autostart`).
 
+## Languages (`ui/src/i18n`)
+English and French, for every word the player reads (views, states, toasts, tooltips,
+`aria-label`s). Riot's own names (champions, items, spells, runes) come from Data Dragon in the
+same language.
+- **Catalogues**: `en.ts` + `en-views.ts` are the source, nested objects of strings and small
+  functions for anything carrying a value (plurals, agreement, French elision `d’Ahri`), always
+  whole sentences. `fr.ts` + `fr-views.ts` have exactly their shapes (`satisfies`): a missing or
+  extra key fails the typecheck. `catalogue.test.ts` walks both (same keys, same arities, every
+  function called with samples, no empty text, French only equal to English for a listed set of
+  shared terms such as ARAM, Draft or KDA, French typography: a no-break space before `: ; ! ? %`
+  and inside « », ’, …).
+- **Reading**: components read `t().section.key`, a signal: switching the language re-renders the
+  text in place, no reload. Setting the same language again keeps the same words object (every
+  `settings` event re-sends it), so nothing re-renders.
+- **Loading**: the first screen's words (shell, title bar search, Home) are in the startup
+  bundle, in English; the other views' words load with the first of those views (their lazy
+  loaders await `loadViewWords`, and Draft and Live preload at startup); French loads only when
+  it is on (a few KB each, before the first frame when it is the saved language).
+- **Setting**: `Settings.language` (`auto` | `en` | `fr`, default `auto`), kept by the core like
+  `effects`, with a local copy in `localStorage["mvp.language"]` so the first frame is in it.
+  `auto` follows the webview's language (`navigator.language`, the system's): French when it
+  starts with `fr`. Settings → App → Language: Auto / English / Français, each in its own words.
+- **Formatting** (`lib/format.ts`, `lib/days.ts`, with `Intl`): English as before (`54.6%`,
+  `3,244`, `127K`, `5m ago`, `12 Sep`); French `54,6 %`, `3 244`, `127 k`, `1,9 M de parties`,
+  `il y a 3 h`, `hier`, `12 sept.` (a number and its unit never part at a line end). Durations
+  stay `29:02`. CSS values are never formatted.
+- **Game data**: `game_data { language }` is asked in the UI's language (`auto` resolved there);
+  the core loads Data Dragon in `en_US` or `fr_FR` (the disk cache keeps each locale under its
+  patch), emits `game-data` again when another language is asked for, and falls back to English
+  names offline before a language's first download. The browser mock stays English.
+- **Server texts**: the remote config's `LocalizedText { en, fr }` (banners, `minVersion`) shows
+  in the current language (`localized`), English when the French one is empty.
+- **Still English**: errors worded by the core (shown inside a translated sentence), MVP's rune
+  page and item set names and the item set's block titles in the League client, the tray menu.
+- **Room**: French runs about a fifth longer than English. Where a label is tight, French gets
+  its own shorter words (`Solo/Duo` next to a rank, `Taux de ban`) rather than an ellipsis, and
+  lines that can grow wrap (the champion hero's stat details go under their label while the hero
+  is narrower than 1100 px).
+- **Tests**: the `*-fr` Playwright projects (`locale: "fr-FR"`, so `auto` picks French) run
+  layout (views × sizes at 400, 1280 and 2560 px), coherence, errors and interactions in French;
+  specs read expected words from the `t` fixture (`tests/app.ts`). `pnpm screenshots` also writes
+  the main screens in French (`fr-*.png`).
+
 ## Glass and light (`ui/src/design/backdrop`, `ui/src/design/liquid`)
 Two layers, one budget: **idle means idle** (nothing is scheduled at rest; the perf suite asserts
 0 backdrop renders over 3 s and no script, style or layout work), and every moving part runs on

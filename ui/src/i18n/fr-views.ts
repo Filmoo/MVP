@@ -1,0 +1,473 @@
+/**
+ * The French words of the views besides Home: exactly the shape of `en-views.ts`. Typography and
+ * terms as in `fr.ts`.
+ */
+import type { Role } from "../data/generated/Role";
+import { integer, signedPoints } from "../lib/format";
+import type { ViewMessages } from "./en-views";
+import { count, plural, roles } from "./fr";
+
+/** `de Yasuo`, `d’Ahri`: « de » elides before a vowel. */
+const de = (name: string) => (/^[aeiouyàâäéèêëîïôöûüœ]/i.test(name) && !/^y[aeiou]/i.test(name) ? `d’${name}` : `de ${name}`);
+
+/** `Choix pour le mid`. */
+const roleFor = { top: "le top", jungle: "la jungle", middle: "le mid", bottom: "le bot", support: "le support" } satisfies Record<
+  Role,
+  string
+>;
+/** `… de parties au mid`. */
+const roleAt = { top: "au top", jungle: "en jungle", middle: "au mid", bottom: "au bot", support: "en support" } satisfies Record<
+  Role,
+  string
+>;
+const parts = { runes: "runes", itemSet: "set d’objets", spells: "sorts" };
+/** `des runes`, `du set d’objets`. */
+const ofParts = { runes: "des runes", itemSet: "du set d’objets", spells: "des sorts" };
+/** Update progress: `(45 %)`. */
+const progress = (pct: number | null) => (pct === null ? "" : ` (${pct}\u00A0%)`);
+
+export const frViews = {
+  soloDuoShort: "Solo/Duo",
+
+  brackets: { emeraldPlus: "Émeraude+", diamondPlus: "Diamant+", masterPlus: "Maître+" },
+
+  players: {
+    badLink: { title: "Joueur introuvable", text: "Ce lien ne mène à aucun Riot ID." },
+    notFound: {
+      title: "Joueur introuvable",
+      text: (riotId: string, region: string) => `Aucun joueur nommé ${riotId} sur ${region}. Vérifiez l’orthographe, le tag et la région.`,
+    },
+    rateLimited: {
+      title: "Trop de recherches pour le moment",
+      text: (seconds: number | null) =>
+        seconds === null
+          ? "Riot limite la vitesse des recherches de joueurs. Réessayez dans un instant."
+          : `Riot limite la vitesse des recherches de joueurs. Réessayez dans ${seconds}\u00A0s.`,
+    },
+    unavailable: {
+      title: "Recherche de joueurs indisponible",
+      text: "Nos serveurs ne peuvent pas joindre Riot pour le moment. Réessayez dans un instant.",
+    },
+    network: { title: "Impossible de joindre les serveurs de MVP", text: "Vérifiez votre connexion Internet, puis réessayez." },
+  },
+
+  draft: {
+    readFailed: "Impossible de lire la sélection des champions",
+    idle: {
+      title: "Pas en sélection des champions",
+      text: "Dès que votre sélection des champions commence, les choix pour votre rôle s’affichent ici et suivent chaque survol, choix et bannissement.",
+    },
+    phases: { planning: "Planification", banning: "Bannissements", picking: "Choix", finalizing: "Finalisation" },
+    yourTeam: "Votre équipe",
+    enemyTeam: "Équipe adverse",
+    bans: (enemy: boolean) => (enemy ? "Bannissements adverses" : "Bannissements de votre équipe"),
+    hovering: "Survol",
+    youHover: "Vous survolez ce champion",
+    picking: "Choisit…",
+    waiting: "À venir",
+    winChance: "Chances de victoire",
+    oddsAria: (us: string, plusMinus: string) => `Chances de victoire\u00A0: votre équipe ${us}, ± ${plusMinus}`,
+    picks: "Choix",
+    picksFor: (role: Role | null) => (role ? `Choix pour ${roleFor[role]}` : "Choix pour votre rôle"),
+    ifPicked: "Chances si choisi",
+    teamNow: (pct: string) => `Votre équipe actuellement\u00A0: ${pct}. Le petit nombre est l’écart.`,
+    strength: "Force",
+    vs: (champion: string) => `contre ${champion}`,
+    with: (champion: string) => `avec ${champion}`,
+    tier: (n: number) => `Tier ${n}`,
+    best: (tied: boolean) => (tied ? "Meilleurs · à égalité statistique" : "Meilleur choix"),
+    yourGames: (games: number, winRate: string) => `Vous · ${games} ${plural(games, "partie", "parties")} · ${winRate}`,
+    yourMastery: (level: number) => `Vous · Maîtrise ${level}`,
+    masteryTitle: (level: number, points: number) => `Votre maîtrise\u00A0: niveau ${level}, ${integer(points)}\u00A0points`,
+    noSuggestions: { title: "Pas encore de suggestions", text: "Les suggestions s’affichent dès que votre rôle est connu." },
+    noStats: {
+      title: "Stats pas encore disponibles",
+      text: "Les suggestions ont besoin des stats des champions, qui se téléchargent dès que notre service de stats est en ligne.",
+    },
+  },
+
+  why: {
+    title: (champion: string | undefined) => (champion ? `Pourquoi ${champion}` : "Pourquoi"),
+    kinds: { base: "Force", lane: "Voie", jungle: "Jungle", matchup: "Matchup", duo: "Duo" },
+    empty: "Sélectionnez un choix pour voir comment son estimation se construit.",
+    vsTeamNow: (pct: string) => `par rapport à l’équipe actuelle (${pct})`,
+    kept: (pct: string) => `${pct} retenu`,
+    weak: (pct: string) => `peu de données, ${pct} retenu`,
+    keptTitle: (pct: string) => `Les petits échantillons sont ramenés vers zéro\u00A0: ${pct} de l’effet observé est retenu.`,
+    roleOdds: (pct: string) => `rôle probable à ${pct}`,
+    roleOddsTitle: (pct: string) => `Ne compte que si le rôle deviné est le bon (probable à ${pct}).`,
+    yourGames: (n: number) => `Vous\u00A0: ${n} ${plural(n, "partie", "parties")}`,
+    notInEstimate: "hors estimation",
+    notInEstimateTitle: "Vos propres parties sont affichées pour info\u202F; l’estimation utilise les parties de tout le monde.",
+  },
+
+  imports: {
+    title: "Importer le build",
+    parts: { runes: "Runes", itemSet: "Set d’objets", spells: "Sorts" },
+    nouns: parts,
+    importPart: (part: "runes" | "itemSet" | "spells") =>
+      ({ runes: "Importer les runes", itemSet: "Importer le set d’objets", spells: "Importer les sorts" })[part],
+    auto: "Aussi importé tout seul quand vous verrouillez",
+    idle: (flash: string) => `Vos pages de runes et sets d’objets ne sont jamais modifiés, et ${flash} reste sur votre touche.`,
+    pickFirst: "Survolez ou verrouillez d’abord un champion",
+    pick: "Survolez ou verrouillez un champion",
+    notYet: "Les builds arrivent avec les stats des champions, pas encore disponibles",
+    notYetStatus: "Les builds arrivent avec les stats des champions, qui ne sont pas encore disponibles.",
+    spellsInChampSelect: "Les sorts ne peuvent changer qu’en sélection des champions",
+    hovering: "survolé",
+    lockedIn: "verrouillé",
+    mostPlayedIn: (queue: 420 | 450, bracket: string) => `le plus joué en ${queue === 450 ? "ARAM" : "Solo/Duo"} · ${bracket}`,
+    failed: (message: string) => `Import impossible\u00A0: ${message}`,
+    fail: {
+      noClient: "Le client League n’est pas connecté.",
+      noBuild: "Pas encore de build pour ce champion et ce rôle dans les stats.",
+      noRunes: "Les stats n’ont pas encore de page de runes complète pour ce build.",
+      noItems: "Les stats n’ont pas encore d’objets pour ce build.",
+      noSpells: "Les stats n’ont pas encore de sorts d’invocateur pour ce build.",
+      unsupportedMode: "MVP n’a pas de builds pour ce mode de jeu.",
+      noFreePage: "Aucune page de runes libre\u00A0: supprimez-en une, ou renommez-en une «\u00A0MVP\u00A0» pour que MVP l’utilise.",
+      client: (message: string) => `Le client League a refusé\u00A0: ${message}`,
+    },
+    skip: {
+      off: "Désactivé dans les paramètres.",
+      paused: "Mis en pause par MVP le temps de l’adapter à la dernière version du client League.",
+      notInChampSelect: "Les sorts ne peuvent changer qu’en sélection des champions.",
+      tooLate: (seconds: number) =>
+        seconds > 0
+          ? `Sorts inchangés\u00A0: plus que ${seconds}\u00A0s de sélection des champions.`
+          : "Sorts inchangés\u00A0: la partie commence.",
+    },
+    flash: {
+      kept: (flash: string, key: string) => `${flash} reste sur ${key}, votre touche habituelle.`,
+      guessed: (flash: string, key: string) =>
+        `Pas de ${flash} dans vos parties récentes, il va donc sur ${key}. Choisissez votre touche dans les paramètres.`,
+      notInBuild: (flash: string) => `Ce build ne prend pas ${flash}.`,
+    },
+    savedRunes: (name: string) => `«\u00A0${name}\u00A0» est votre page de runes actuelle.`,
+    savedItemSet: (name: string) => `Le set d’objets «\u00A0${name}\u00A0» est dans la boutique.`,
+    spellsOn: (d: string, f: string) => `${d} sur D, ${f} sur F.`,
+    spellsSet: (spells: string) => `Sorts en place\u00A0: ${spells}`,
+    spellsAlready: (spells: string) => `Sorts déjà en place\u00A0: ${spells}`,
+    imported: (list: string) => `Import réussi\u00A0: ${list}.`,
+    importedFor: (list: string, champion: string) => `Import pour ${champion}\u00A0: ${list}.`,
+    notesFor: (champion: string, notes: string) => `${champion}\u00A0: ${notes}`,
+    failedFor: (part: "runes" | "itemSet" | "spells", champion: string, reason: string) =>
+      `Échec de l’import ${ofParts[part]} pour ${champion}\u00A0: ${reason}`,
+  },
+
+  live: {
+    title: "Partie en cours",
+    show: "Afficher",
+    tabs: { players: "Joueurs", build: "Mon build" },
+    lookingUp: "Recherche des joueurs…",
+    readFailed: "Impossible de lire la partie",
+    idle: {
+      title: "Pas en partie",
+      text: "Dès que votre partie charge, tous ses joueurs s’affichent ici\u00A0: rang, forme récente et expérience sur leur champion.",
+    },
+    scouting: {
+      busy: (seconds: number | null) =>
+        seconds === null
+          ? "Riot est surchargé\u00A0: cartes des joueurs en pause"
+          : `Riot est surchargé\u00A0: cartes des joueurs en pause pendant ${seconds}\u00A0s`,
+      network: "Impossible de joindre les serveurs de MVP\u00A0: pas de cartes des joueurs",
+      unavailable: "Les cartes des joueurs sont indisponibles pour le moment",
+    },
+    otp: (champion: string) => `One-trick ${champion}`,
+    otpTitle: (share: string, champion: string) => `${share} des parties classées récentes sur ${champion}`,
+    streak: (wins: number) => `${wins} victoires d’affilée`,
+    streakTitle: (wins: number) => `A gagné ses ${wins} dernières parties classées`,
+    veteran: "Vétéran",
+    veteranTitle: (n: number) => `${integer(n)} ${plural(n, "partie classée", "parties classées")} cette saison`,
+    kdaOn: (kda: string, champion: string | undefined) => `${kda} KDA sur ${champion ?? "ce champion"}`,
+    wr: "WR",
+    mostPlayed: "Les plus joués récemment",
+    poolTitle: (champion: string, n: number, winRate: string) =>
+      `${champion}\u00A0: ${n} ${plural(n, "partie", "parties")}, ${winRate} de victoires`,
+    streamer: "Mode streamer",
+    mains: (list: string) => `Main ${list}`,
+    hidden: "Joueur masqué",
+    unknown: "Joueur inconnu",
+    cardUnavailable: "Carte indisponible",
+    noRankedData: "Pas de données classées",
+    build: {
+      page: "page du champion",
+      noMode: { title: "Pas de builds pour ce mode", text: "Les builds de MVP couvrent la Faille de l’invocateur et l’ARAM." },
+      noChampion: { title: "Champion pas encore connu", text: "Votre build s’affiche dès que la partie indique votre champion." },
+    },
+  },
+
+  stats: {
+    queue: "File",
+    rank: "Rang",
+    role: "Rôle",
+    all: "Tous",
+    queueN: (id: number) => `File ${id}`,
+    errors: {
+      notFound: {
+        title: "Pas encore de stats publiées",
+        text: "Rien n’est encore compté pour cette file et ce rang sur le patch actuel. Les stats s’affichent ici dès leur publication.",
+      },
+      rateLimited: {
+        title: "Trop de requêtes pour le moment",
+        text: (seconds: number | null) => (seconds === null ? "Réessayez dans un instant." : `Réessayez dans ${seconds}\u00A0s.`),
+      },
+      unavailable: {
+        title: "Stats indisponibles",
+        text: "Notre service de stats ne peut pas répondre pour le moment. Réessayez dans un instant.",
+      },
+      network: {
+        title: "Impossible de joindre les serveurs de MVP",
+        text: "Vérifiez votre connexion Internet, puis réessayez. Les stats déjà consultées restent disponibles hors ligne.",
+      },
+    },
+    tier: (grade: string) => `Tier ${grade}`,
+    noGamesOf: (champion: string) => `Pas encore de parties ${de(champion)}`,
+    nothingCounted: (scope: string) => `Rien de compté en ${scope} sur ce patch pour l’instant.`,
+    nothingCountedNew: (scope: string) =>
+      `Rien de compté en ${scope} sur ce patch pour l’instant\u00A0: les nouveaux champions arrivent après leurs premières parties.`,
+    notEnoughGames: "Pas encore assez de parties.",
+    winsInGames: (wins: number, n: number) =>
+      `${integer(wins)} ${plural(wins, "victoire", "victoires")} sur ${integer(n)} ${plural(n, "partie", "parties")}`,
+    pickedIn: (n: number, of: number) => `Choisi dans ${integer(n)} ${plural(n, "partie", "parties")} sur ${integer(of)}`,
+    pick: "choix",
+  },
+
+  tierList: {
+    title: "Tier list",
+    note: "Les tiers viennent du score\u00A0: le taux de victoire ramené vers 50\u00A0% comme si chaque champion avait 1\u202F000 parties de plus à 50\u00A0% (un petit échantillon chanceux ne peut donc pas prendre la tête), moins 50\u00A0%. S ≥ +2 · A ≥ +0,75 · B ≥ −0,75 · C ≥ −2 · D en dessous. Les taux de sélection et de bannissement sont des parts de toutes les parties comptées.",
+    columns: {
+      rank: "#",
+      champion: "Champion",
+      tier: "Tier",
+      winRate: "Victoires",
+      pick: "Choix",
+      ban: "Bans",
+      score: "Score",
+    },
+    titles: {
+      rank: "Rang selon le score",
+      tier: "S ≥ +2 · A ≥ +0,75 · B ≥ −0,75 · C ≥ −2 · D en dessous (score, en points)",
+      winRate: "Taux de victoire ramené vers 50\u00A0%\u00A0: les petits échantillons comptent moins",
+      pick: "Part des parties avec ce champion dans ce rôle",
+      ban: "Part des parties où il a été banni",
+      score: "Taux de victoire lissé moins 50\u00A0%, en points\u00A0: la base du tier",
+    },
+    empty: {
+      title: "Aucun champion classé ici pour l’instant",
+      text: "Un champion a besoin d’assez de parties dans un rôle pour être classé. Essayez un autre rôle ou un autre rang.",
+    },
+    showAll: (n: number) => `Tout afficher (${n})`,
+  },
+
+  champions: {
+    title: "Champions",
+    all: "Tous les champions",
+    search: "Rechercher un champion",
+    classes: "Classes",
+    record: "Bilan",
+    tiersFrom: { before: "Tiers issus de la ", link: "tier list", after: (scope: string) => `\u00A0: ${scope}` },
+    noMatch: (query: string) => `Aucun champion ne correspond à «\u00A0${query}\u00A0»`,
+    noneYet: "Aucun champion pour l’instant",
+    checkSpelling: "Vérifiez l’orthographe, ou effacez la recherche.",
+    whenLoaded: "Les champions s’affichent une fois les données du jeu et les stats chargées.",
+    noBuild: {
+      title: "Pas encore de données de build",
+      text: (champion: string, role: Role | undefined) =>
+        `${champion} a besoin de plus de parties${role ? ` ${roleAt[role]}` : ""} avant que son build soit publié.`,
+    },
+    // Plural from 2, as shown (rounded): « +0,8 pt », « +3,1 pts ». A non-breaking hyphen: tabular
+    // figures (the line is numbers) would widen a plain one.
+    pointsVs50: (score: number) =>
+      `${signedPoints(score)}\u00A0${Math.abs(Number(score.toFixed(1))) >= 2 ? "pts" : "pt"} ${score >= 0 ? "au\u2011dessus de" : "en dessous de"} 50\u00A0%`,
+    pointsTitle: "Taux de victoire lissé moins 50\u00A0%, en points (la base du tier)",
+    winRate: "Taux de victoire",
+    pickRate: "Taux de sélection",
+    banRate: "Taux de ban",
+    patch: "Patch",
+    // Next to a rank, « Solo/Duo » says the queue: the line then fits a laptop screen.
+    patchDetail: (queue: 420 | 450, bracket: string, ago: string) => `${queue === 450 ? "ARAM" : "Solo/Duo"} · ${bracket} · ${ago}`,
+    ofGames: (n: number) => `sur ${count(n, "partie", "parties")}`,
+    bans: (n: number) => count(n, "ban", "bans"),
+    shrunkTitle: (wins: number, n: number, raw: string) =>
+      `Ramené vers 50\u00A0%\u00A0: ${integer(wins)} ${plural(wins, "victoire", "victoires")} sur ${integer(n)} ${plural(n, "partie", "parties")}, soit ${raw} brut`,
+    build: "Build",
+    runes: "Runes",
+    shards: "Fragments",
+    keystone: "Clé de voûte",
+    secondaryTree: "voie secondaire",
+    runePage: (keystone: string, secondary: string, winRate: string, pick: string) =>
+      `${keystone} avec ${secondary}\u00A0: ${winRate} de victoires, choisie dans ${pick} des parties`,
+    mostPlayedPages: "Pages les plus jouées",
+    spells: "Sorts d’invocateur",
+    skills: "Ordre des compétences",
+    maxOrder: (keys: readonly string[]) => `Monter ${keys.join(", puis ")}`,
+    firstPoints: "Premiers points",
+    firstPointsLabel: "Quatre premiers points de compétence",
+    or: "Ou",
+    items: "Objets",
+    starting: "Objets de départ",
+    boots: "Bottes",
+    core: "Build principal",
+    nth: (n: number) => `${n}e objet`,
+    matchups: "Matchups",
+    lane: "Voie",
+    vsJungler: "Face au jungler",
+    duos: "Duos",
+    bestWith: "Meilleurs avec",
+    bestAgainst: "Meilleurs contre",
+    worstWith: "Pires avec",
+    worstAgainst: "Pires contre",
+    noEffect: "Pas encore d’effet net.",
+    effectTitle:
+      "Effet sur le taux de victoire au-delà de la force des deux champions, en points, réduit quand les parties sont peu nombreuses",
+    effectNote:
+      "Le nombre en couleur est l’effet sur le taux de victoire, en points, au-delà de la force des deux champions, réduit quand les parties sont peu nombreuses.",
+    aram: {
+      title: "Pas de matchups en ARAM.",
+      text: "Tout le monde partage une seule voie avec des équipes aléatoires\u00A0: il n’y a pas d’adversaire de voie à mesurer. Les builds restent valables.",
+    },
+    noMatchups: { title: "Pas encore assez de parties", text: "Les matchups s’affichent dès que ce rôle compte assez de parties." },
+    buildTitle: (champion: string, role: Role | undefined) => `Build ${champion} ${role ? roles[role] : "ARAM"}`,
+    summary: { runes: "Runes", spells: "Sorts", skills: "Compétences", core: "Objets principaux" },
+    buildRecord: (n: number) => `de victoires · ${count(n, "partie", "parties")}`,
+  },
+
+  shards: {
+    rows: { offense: "Attaque", flex: "Flexible", defense: "Défense" },
+    names: {
+      5001: { name: "PV évolutifs", stat: "+10–180\u00A0PV (selon le niveau)" },
+      5002: { name: "Armure", stat: "+6 armure" },
+      5003: { name: "Résistance magique", stat: "+8 résistance magique" },
+      5005: { name: "Vitesse d’attaque", stat: "+10\u00A0% de vitesse d’attaque" },
+      5007: { name: "Accélération de compétence", stat: "+8 accélération de compétence" },
+      5008: { name: "Force adaptative", stat: "+9 force adaptative" },
+      5010: { name: "Vitesse de déplacement", stat: "+2\u00A0% de vitesse de déplacement" },
+      5011: { name: "PV", stat: "+65\u00A0PV" },
+      5013: { name: "Ténacité et résistance aux ralentissements", stat: "+10\u00A0% de ténacité et de résistance aux ralentissements" },
+    },
+    unknown: "Fragment de stats",
+    unknownN: (id: number) => `Fragment de stats ${id}`,
+  },
+
+  settings: {
+    title: "Paramètres",
+    loadFailed: "Impossible de charger vos paramètres",
+    saveFailed: (message: string) => `Impossible d’enregistrer ce changement. ${message}`,
+    seconds: (n: number) => `${n}\u00A0s`,
+    spokenSeconds: (n: number) => `${n} ${plural(n, "seconde", "secondes")}`,
+    automation: {
+      title: "Automatisation",
+      autoAccept: {
+        title: "Accepter les parties automatiquement",
+        text: "Accepte la fenêtre de partie trouvée à votre place, après un délai pour que vous la voyiez quand même. Refuser dans le client l’emporte toujours.",
+      },
+      delay: "Délai avant d’accepter",
+      bringToFront: { title: "Mettre MVP au premier plan", text: "Affiche la fenêtre dès que votre sélection des champions commence." },
+      autoSwitch: {
+        title: "Changer de page avec la partie",
+        text: "Draft en sélection des champions, Partie en cours au chargement, Accueil à la fin. Les pages que vous ouvrez vous-même restent ouvertes.",
+      },
+      paused:
+        "L’acceptation automatique est en pause pour tout le monde, le temps de corriger un problème avec le client League. Votre choix est conservé et refonctionnera dès que ce sera corrigé.",
+    },
+    imports: {
+      title: "Importations",
+      modes: { off: "Désactivé", oneClick: "En un clic", onLockIn: "Au verrouillage" },
+      runes: {
+        title: "Page de runes",
+        text: "Écrit les runes du build dans la page de MVP, nommée «\u00A0MVP\u00A0», et la sélectionne. Vos pages ne sont jamais modifiées.",
+      },
+      itemSet: {
+        title: "Set d’objets",
+        text: "Ajoute le build à la boutique en jeu comme set de MVP pour le champion. Vos sets d’objets ne sont jamais modifiés.",
+      },
+      spells: {
+        title: "Sorts d’invocateur",
+        text: "Règle les sorts du build en sélection des champions, jamais dans ses 5 dernières secondes.",
+      },
+      flashKey: {
+        title: (flash: string) => `Touche de ${flash}`,
+        text: (flash: string) => `${flash} va toujours sur cette touche, quel que soit le build.`,
+      },
+      fromGames: "D’après vos parties",
+      footnote:
+        "En un clic\u00A0: boutons dans Draft. Au verrouillage\u00A0: aussi tout seul, une fois, quand vous verrouillez votre champion.",
+    },
+    app: {
+      title: "Application",
+      closeToTray: {
+        title: "Réduire dans la zone de notification",
+        text: "Fermer la fenêtre laisse MVP tourner dans la zone de notification, pour que les automatisations continuent. Quittez depuis son icône.",
+      },
+      launchAtStartup: { title: "Lancer au démarrage", text: "Démarre MVP avec Windows, discrètement dans la zone de notification." },
+      crashReports: {
+        title: "Envoyer les rapports de plantage",
+        text: "Quand MVP plante ou qu’un panneau échoue, il envoie l’erreur et les versions de l’app et de Windows au serveur de MVP. Les noms de joueurs, identifiants et chemins de fichiers sont retirés avant l’envoi, et les rapports sont supprimés au bout de 30\u00A0jours.",
+      },
+      reportId: {
+        title: "ID de rapport",
+        text: "Aléatoire et sans lien avec votre compte Riot\u00A0: il permet de supprimer vos rapports sur demande.",
+      },
+      effects: {
+        title: "Effets visuels",
+        text: "La quantité de verre et de lumière que MVP affiche. Complet courbe la lumière comme du vrai verre, quand votre carte graphique le permet sans effort.",
+        levels: { auto: "Complet", light: "Léger", off: "Aucun" },
+        fallback: (reason: string) => `Affichage en Léger pour l’instant\u00A0: ${reason}.`,
+        reasons: {
+          "no-webgl": "ce PC n’a pas d’accélération graphique pour la fenêtre",
+          slow: "votre carte graphique ne peut pas l’afficher sans effort",
+          "context-lost": "le pilote graphique a redémarré\u202F; l’effet revient tout seul",
+        } as Record<string, string>,
+      },
+      language: { title: "Langue", text: "Auto suit la langue de Windows." },
+    },
+    about: {
+      title: "À propos",
+      version: "Version",
+      unknownVersion: "Version inconnue",
+      platforms: { windows: "Windows", macos: "macOS", linux: "Linux", web: "Aperçu navigateur" } as Record<string, string>,
+      updates: "Mises à jour",
+      dataTitle: "Vos données",
+      data: "MVP lit le client League sur cet ordinateur et garde vos paramètres ici, sans compte. Les recherches de joueurs et les cartes de l’écran de chargement passent par le serveur de MVP, qui interroge Riot. Les rapports de plantage ne sont envoyés que si vous les activez. Les noms et icônes du jeu viennent du Data Dragon de Riot.",
+      legalTitle: "Mentions légales",
+      legal:
+        "MVP n’est pas approuvé par Riot Games et ne reflète pas les opinions de Riot Games ni de quiconque officiellement impliqué dans la production ou la gestion des propriétés de Riot Games. Riot Games et toutes les propriétés associées sont des marques commerciales ou des marques déposées de Riot Games, Inc.",
+    },
+  },
+
+  updates: {
+    unavailable: (reason: string) => `Cette copie de MVP ne se met pas à jour toute seule (${reason}).`,
+    idle: "MVP cherche les mises à jour tout seul, toutes les quelques heures.",
+    check: "Rechercher des mises à jour",
+    checking: "Recherche de mises à jour…",
+    upToDate: "MVP est à jour.",
+    available: (version: string) => `La version ${version} est sortie\u00A0: elle se télécharge dès qu’aucune partie n’est en cours.`,
+    downloading: (version: string, pct: number | null) => `Téléchargement de la version ${version}${progress(pct)}…`,
+    ready: (version: string) =>
+      `La version ${version} est prête\u00A0: elle s’installe quand vous redémarrez MVP, ou quand vous le quittez.`,
+    restart: "Redémarrer pour mettre à jour",
+    failed: (message: string) => `Impossible de rechercher les mises à jour\u00A0: ${message}.`,
+    restartFailed: (message: string) => `Impossible de redémarrer sur la mise à jour\u00A0: ${message}`,
+    required: {
+      title: "Mettez MVP à jour pour continuer",
+      unsupported: "Cette version de MVP n’est plus prise en charge.",
+      inGame: "Terminez d’abord votre partie\u00A0: MVP se met à jour juste après.",
+      ready: (version: string) => `MVP ${version} est téléchargé et prêt.`,
+      downloading: (version: string, pct: number | null) => `Téléchargement de MVP ${version}${progress(pct)}…`,
+      getting: "Récupération de la mise à jour…",
+      cannot: "Cette copie de MVP ne peut pas se mettre à jour\u00A0: installez la dernière version.",
+      failed: (message: string) => `Impossible de récupérer la mise à jour\u00A0: ${message}.`,
+      check: "Rechercher la mise à jour",
+    },
+  },
+
+  notices: {
+    label: "Annonces",
+    moreInfo: "En savoir plus",
+    ready: (mandatory: boolean) => (mandatory ? "Mise à jour importante prête" : "Mise à jour prête"),
+    readyText: "s’installe quand vous redémarrez, ou quand vous quittez.",
+    restart: "Redémarrer",
+    later: "Plus tard",
+  },
+} satisfies ViewMessages;

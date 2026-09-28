@@ -7,19 +7,20 @@ import type { Suggestion } from "../../data/generated/Suggestion";
 import { Card } from "../../design/Card";
 import { ChampionIcon } from "../../design/GameIcon";
 import { EmptyState } from "../../design/States";
-import { games, percent, signedPoints, timeAgo } from "../../lib/format";
-import { ROLE_LABEL } from "../../lib/roles";
+import { t } from "../../i18n";
+import { decimal, percent, percentOf100, signedPoints, timeAgo } from "../../lib/format";
+import { bracketName } from "../../lib/stats";
 import styles from "./Suggestions.module.css";
 import { bySize, Segments, WEAK, WhyTerms } from "./Why";
 
-const REASON_PREFIX: Record<Reason["kind"], string> = { base: "", lane: "vs", jungle: "vs", matchup: "vs", duo: "with" };
 const CHIPS = 2;
 /** The row's delta bar spans ±5 points around "team now". */
 const DELTA_SCALE = 5;
 
 function reasonLabel(reason: Reason, championName: (id: number) => string): string {
-  if (reason.kind === "base" || reason.championId === null) return "Strength";
-  return `${REASON_PREFIX[reason.kind]} ${championName(reason.championId)}`;
+  if (reason.kind === "base" || reason.championId === null) return t().draft.strength;
+  const name = championName(reason.championId);
+  return reason.kind === "duo" ? t().draft.with(name) : t().draft.vs(name);
 }
 
 /** Largest solid effects first; a weak one only shows when nothing solid is left. */
@@ -34,25 +35,25 @@ function tone(points: number): string {
 }
 
 function tierLabel(index: number, size: number): string {
-  if (index > 0) return `Tier ${index + 1}`;
-  return size > 1 ? "Best · statistically tied" : "Best";
+  if (index > 0) return t().draft.tier(index + 1);
+  return t().draft.best(size > 1);
 }
 
 /** Your line next to the name: your games on this pick in the role, else your mastery of it. */
 function yourLine(s: Suggestion): string | undefined {
-  if (s.mine) return `You · ${s.mine.games} ${s.mine.games === 1 ? "game" : "games"} · ${percent(s.mine.wins / s.mine.games)}`;
-  if (s.mastery) return `You · Mastery ${s.mastery.level}`;
+  if (s.mine) return t().draft.yourGames(s.mine.games, percent(s.mine.wins / s.mine.games));
+  if (s.mastery) return t().draft.yourMastery(s.mastery.level);
   return undefined;
 }
 
 function masteryTitle(s: Suggestion): string | undefined {
   if (!s.mastery) return undefined;
-  return `Your mastery: level ${s.mastery.level}, ${new Intl.NumberFormat("en").format(s.mastery.points)} points`;
+  return t().draft.masteryTitle(s.mastery.level, s.mastery.points);
 }
 
 function Row(props: { s: Suggestion; selected: boolean; expanded: boolean; onSelect: () => void }): JSX.Element {
   const { gameData } = useData();
-  const name = (id: number) => gameData()?.champions.get(id)?.name ?? `Champion ${id}`;
+  const name = (id: number) => gameData()?.champions.get(id)?.name ?? t().common.championN(id);
   const reasons = () => topReasons(props.s.reasons);
   return (
     <li class={`${styles.item} ${props.selected ? styles.selected : ""}`}>
@@ -98,10 +99,10 @@ function Row(props: { s: Suggestion; selected: boolean; expanded: boolean; onSel
           />
         </span>
         <span class={`${styles.estimate} num`}>
-          <span class={styles.pct}>{props.s.estimate.percent.toFixed(1)}%</span>
+          <span class={styles.pct}>{percentOf100(props.s.estimate.percent)}</span>
           <span class={styles.caption}>
             <span class={`${styles.gain} ${tone(props.s.gain)}`}>{signedPoints(props.s.gain)}</span> · ±{" "}
-            {props.s.estimate.plusMinus.toFixed(1)}
+            {decimal(props.s.estimate.plusMinus, 1)}
           </span>
         </span>
       </button>
@@ -120,10 +121,10 @@ function DataLine(props: { data: DataInfo }): JSX.Element {
     <Segments
       class={styles.footer}
       items={[
-        { text: props.data.bracket },
-        { text: `Patch ${props.data.patch}` },
-        { text: `${games(props.data.games)} games` },
-        { text: `updated ${timeAgo(props.data.updatedAt)}` },
+        { text: bracketName(props.data.bracket) },
+        { text: t().common.patch(props.data.patch) },
+        { text: t().common.games(props.data.games) },
+        { text: t().common.updated(timeAgo(props.data.updatedAt)) },
       ]}
     />
   );
@@ -145,15 +146,14 @@ export function Suggestions(props: {
     }
     return groups.filter((g) => g.length > 0);
   };
-  const role = () => (props.draft.myRole ? ROLE_LABEL[props.draft.myRole] : "your role");
   return (
     <Card
-      title={`Picks for ${role()}`}
+      title={t().draft.picksFor(props.draft.myRole)}
       actions={
         <Show when={props.draft.team}>
           {(team) => (
-            <span class={`${styles.teamNow} num`} title={`Your team now: ${team().percent.toFixed(1)}%. The small number is the change.`}>
-              Win chance if picked
+            <span class={`${styles.teamNow} num`} title={t().draft.teamNow(percentOf100(team().percent))}>
+              {t().draft.ifPicked}
             </span>
           )}
         </Show>
@@ -166,12 +166,8 @@ export function Suggestions(props: {
         fallback={
           <EmptyState
             icon="draft"
-            title={props.draft.data ? "No suggestions yet" : "Stats not available yet"}
-            text={
-              props.draft.data
-                ? "Suggestions appear once your role is known."
-                : "Pick suggestions need champion stats, which download once our stats service is live."
-            }
+            title={props.draft.data ? t().draft.noSuggestions.title : t().draft.noStats.title}
+            text={props.draft.data ? t().draft.noSuggestions.text : t().draft.noStats.text}
           />
         }
       >

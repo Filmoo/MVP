@@ -1,4 +1,5 @@
 import { type JSX, Show } from "solid-js";
+import { t } from "../i18n";
 import { Button } from "./Button";
 import { Icon, type IconName } from "./Icon";
 import styles from "./States.module.css";
@@ -35,13 +36,13 @@ export function ErrorState(props: { title?: string; message: string; onRetry?: (
       <div class={styles.icon}>
         <Icon name="alert" size={24} />
       </div>
-      <Title heading={props.heading}>{props.title ?? "Something went wrong"}</Title>
+      <Title heading={props.heading}>{props.title ?? t().common.somethingWrong}</Title>
       <p class={styles.text}>{props.message}</p>
       <Show when={props.onRetry}>
         <div class={styles.action}>
           <Button onClick={() => props.onRetry?.()}>
             <Icon name="refresh" size={16} />
-            Try again
+            {t().common.tryAgain}
           </Button>
         </div>
       </Show>

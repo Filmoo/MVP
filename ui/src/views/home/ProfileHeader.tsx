@@ -5,8 +5,9 @@ import { ChampionArt, ProfileIcon } from "../../design/GameIcon";
 import { liquid } from "../../design/liquid/liquid";
 import { RankEmblem } from "../../design/RankEmblem";
 import { TierBadge } from "../../design/TierBadge";
-import { duration, kdaRatio, percent, REMAKE_MAX_SECONDS, winRate } from "../../lib/format";
-import { ROLE_LABEL } from "../../lib/roles";
+import { t } from "../../i18n";
+import { decimal, duration, kdaRatio, percent, REMAKE_MAX_SECONDS, winRate } from "../../lib/format";
+import { roleLabel } from "../../lib/roles";
 import styles from "./ProfileHeader.module.css";
 import { summarize } from "./summary";
 
@@ -33,7 +34,7 @@ export function ProfileHeader(props: { profile: PlayerProfile }): JSX.Element {
     const id = main();
     return id === undefined ? undefined : gameData()?.champions.get(id)?.name;
   };
-  const per = (total: number) => (s().games ? (total / s().games).toFixed(1) : "0");
+  const per = (total: number) => (s().games ? decimal(total / s().games, 1) : "0");
   /** Most recent first, remakes left out. */
   const form = () =>
     props.profile.recentMatches
@@ -58,19 +59,14 @@ export function ProfileHeader(props: { profile: PlayerProfile }): JSX.Element {
             </h1>
             <p class={`${styles.meta} num`}>
               <span class={styles.chip}>{props.profile.region}</span>
-              <Show when={mainName()} fallback={`Level ${props.profile.level}`}>
-                {(name) => `${name()} main`}
+              <Show when={mainName()} fallback={t().profile.level(props.profile.level)}>
+                {(name) => t().profile.main(name())}
               </Show>
             </p>
             <Show when={form().length > 0}>
               <div class={styles.form}>
-                <span class={styles.formLabel}>Last {form().length}</span>
-                <ol
-                  class={styles.formList}
-                  aria-label={`Last ${form().length}: ${form()
-                    .map((w) => (w ? "win" : "loss"))
-                    .join(", ")}`}
-                >
+                <span class={styles.formLabel}>{t().profile.last(form().length)}</span>
+                <ol class={styles.formList} aria-label={t().common.lastResults(form())}>
                   <For each={form()}>{(win) => <li class={`${styles.formPip} ${win ? styles.formWin : styles.formLoss}`} />}</For>
                 </ol>
               </div>
@@ -84,8 +80,8 @@ export function ProfileHeader(props: { profile: PlayerProfile }): JSX.Element {
                 <>
                   <RankEmblem tier="unranked" size="lg" />
                   <div class={styles.rankText}>
-                    <span class={styles.queue}>Ranked Solo/Duo</span>
-                    <span class={styles.unranked}>Unranked</span>
+                    <span class={styles.queue}>{t().soloDuo}</span>
+                    <span class={styles.unranked}>{t().common.unranked}</span>
                   </div>
                 </>
               }
@@ -96,18 +92,16 @@ export function ProfileHeader(props: { profile: PlayerProfile }): JSX.Element {
                   <>
                     <RankEmblem tier={q().tier} size="lg" />
                     <div class={styles.rankText}>
-                      <span class={styles.queue}>Ranked Solo/Duo</span>
+                      <span class={styles.queue}>{t().soloDuo}</span>
                       <div class={styles.rankLine}>
                         <TierBadge tier={q().tier} division={q().division} plain />
-                        <span class={`${styles.lp} num`}>{q().leaguePoints} LP</span>
+                        <span class={`${styles.lp} num`}>{t().common.lp(q().leaguePoints)}</span>
                       </div>
                       <div class={`${styles.record} num`}>
-                        <span>
-                          {q().wins}W {q().losses}L
-                        </span>
+                        <span>{t().common.record(q().wins, q().losses)}</span>
                         <span class={styles.wr}>{percent(wr())}</span>
-                        <div class={styles.bar} role="img" aria-label={`Win rate ${percent(wr())}`}>
-                          <div class={styles.barWins} style={{ width: percent(wr(), 1) }} />
+                        <div class={styles.bar} role="img" aria-label={t().profile.winRate(percent(wr()))}>
+                          <div class={styles.barWins} style={{ width: `${(wr() * 100).toFixed(1)}%` }} />
                         </div>
                       </div>
                     </div>
@@ -118,23 +112,25 @@ export function ProfileHeader(props: { profile: PlayerProfile }): JSX.Element {
           </div>
         </div>
         <Show when={s().games > 0}>
-          <section class={`${styles.strip} num`} aria-label={`Last ${s().games} games`}>
+          <section class={`${styles.strip} num`} aria-label={t().profile.lastGames(s().games)}>
             <Stat
               value={percent(s().wins / s().games)}
-              label="Win rate"
-              detail={`${s().wins}W ${s().games - s().wins}L`}
+              label={t().profile.stats.winRate}
+              detail={t().common.record(s().wins, s().games - s().wins)}
               tone={s().wins / s().games >= 0.5 ? "good" : "bad"}
             />
             <Stat
               value={kdaRatio(s().kills, s().deaths, s().assists)}
-              label="KDA"
+              label={t().profile.stats.kda}
               detail={`${per(s().kills)} / ${per(s().deaths)} / ${per(s().assists)}`}
             />
-            <Stat value={s().csPerMinute.toFixed(1)} label="CS per minute" />
+            <Stat value={decimal(s().csPerMinute, 1)} label={t().profile.stats.csPerMinute} />
             <Show when={s().roles[0]}>
-              {(r) => <Stat value={ROLE_LABEL[r().role]} label="Main role" detail={`${r().games} of ${s().games}`} />}
+              {(r) => (
+                <Stat value={roleLabel(r().role)} label={t().profile.stats.mainRole} detail={t().profile.roleShare(r().games, s().games)} />
+              )}
             </Show>
-            <Stat value={duration(s().averageSeconds)} label="Average game" />
+            <Stat value={duration(s().averageSeconds)} label={t().profile.stats.averageGame} />
           </section>
         </Show>
       </div>

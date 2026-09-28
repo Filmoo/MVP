@@ -1,16 +1,19 @@
-import { expect, test } from "@playwright/test";
 import { scenarioNames } from "../src/data/mock/scenarios";
-import { openApp, SIZES, settle, trackErrors, VIEWS } from "./app";
+import { expect, FRENCH_SIZES, isFrench, openApp, SIZES, settle, test, trackErrors, VIEWS } from "./app";
 import { auditLayout } from "./layout-rules";
 
 const EXPECTED_ERRORS: Record<string, RegExp> = {
   "widget-crash": /widget:recent-matches|Cannot read properties/,
 };
 
+/** The French runs cover the matrix at 400, 1280 and 2560 px (see FRENCH_SIZES). */
+const FRENCH_ONLY_AT = "French: the matrix at 400, 1280 and 2560 px";
+
 // Every view × every window size, on the richest data.
 for (const view of VIEWS) {
   for (const size of SIZES) {
-    test(`${view} @ ${size.name} ${size.width}×${size.height}`, async ({ page }) => {
+    test(`${view} @ ${size.name} ${size.width}×${size.height}`, async ({ page, locale }) => {
+      test.skip(isFrench(locale) && !FRENCH_SIZES.has(size.name), FRENCH_ONLY_AT);
       const errors = trackErrors(page);
       await openApp(page, { view, width: size.width, height: size.height });
       expect(await page.evaluate(auditLayout)).toEqual([]);
@@ -85,7 +88,8 @@ for (const { view, scenario } of STATE_VIEWS) {
 }
 for (const { view, scenario } of SCENARIO_VIEWS) {
   for (const size of SIZES) {
-    test(`${view}/${scenario} @ ${size.name} ${size.width}×${size.height}`, async ({ page }) => {
+    test(`${view}/${scenario} @ ${size.name} ${size.width}×${size.height}`, async ({ page, locale }) => {
+      test.skip(isFrench(locale) && !FRENCH_SIZES.has(size.name), FRENCH_ONLY_AT);
       const errors = trackErrors(page);
       await openApp(page, { view, scenario, width: size.width, height: size.height });
       expect(await page.evaluate(auditLayout)).toEqual([]);
@@ -109,7 +113,7 @@ test("resize sweep keeps layout sound", async ({ page }) => {
 
 // Draft interactions: the selected pick is explained beside the list on wide windows and under
 // its own row on narrow ones; both states must lay out cleanly.
-test("draft: picking a suggestion updates the explanation at every size", async ({ page }) => {
+test("draft: picking a suggestion updates the explanation at every size", async ({ page, t }) => {
   const errors = trackErrors(page);
   for (const size of SIZES) {
     await openApp(page, { view: "/draft", scenario: "champ-select", width: size.width, height: size.height });
@@ -118,7 +122,7 @@ test("draft: picking a suggestion updates the explanation at every size", async 
     await shen.click();
     await expect(shen, size.name).toHaveAttribute("aria-pressed", "true");
     if (wide) {
-      await expect(page.locator("[data-widget=draft-why] h2"), size.name).toHaveText("Why Shen");
+      await expect(page.locator("[data-widget=draft-why] h2"), size.name).toHaveText(t.why.title("Shen"));
     } else {
       const terms = page.locator("[data-widget=draft-suggestions] li:has(> button[aria-pressed=true]) ul");
       await expect(terms, size.name).toBeVisible();

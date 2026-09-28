@@ -304,8 +304,9 @@ td.score {
   .cWr {
     width: 88px;
   }
+  /* Room for the longest header with its arrow (French « Choix »). */
   .cPick {
-    width: 60px;
+    width: 64px;
   }
   th,
   td {

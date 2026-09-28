@@ -4,6 +4,7 @@ import type { UpdateStatus } from "../../data/generated/UpdateStatus";
 import { Button } from "../../design/Button";
 import { Card } from "../../design/Card";
 import { Icon } from "../../design/Icon";
+import { localized, t } from "../../i18n";
 import { requiredStep } from "../../lib/updates";
 import { Widget } from "../../widgets/Widget";
 import styles from "./Notices.module.css";
@@ -15,19 +16,19 @@ import styles from "./Notices.module.css";
 
 export type Ready = Extract<UpdateStatus, { state: "ready" }>;
 
-/** One notice: patch day, service issues, maintenance. English until the French UI lands. */
+/** One notice: patch day, service issues, maintenance, in the player's language. */
 function Notice(props: { banner: Banner; onDismiss: (id: string) => void; onOpen: (id: string) => void }): JSX.Element {
   return (
     <li class={`${styles.banner} ${styles[props.banner.severity]}`} data-testid="banner" data-severity={props.banner.severity} data-refract>
       <Icon name={props.banner.severity === "warn" ? "alert" : "info"} size={16} class={styles.icon} />
-      <p class={styles.text}>{props.banner.text.en}</p>
+      <p class={styles.text}>{localized(props.banner.text)}</p>
       <Show when={props.banner.link}>
         <button type="button" class={styles.link} onClick={() => props.onOpen(props.banner.id)}>
-          More info
+          {t().notices.moreInfo}
         </button>
       </Show>
       <Show when={props.banner.dismissible}>
-        <button type="button" class={styles.close} aria-label="Dismiss" onClick={() => props.onDismiss(props.banner.id)}>
+        <button type="button" class={styles.close} aria-label={t().common.dismiss} onClick={() => props.onDismiss(props.banner.id)}>
           <Icon name="close" size={14} />
         </button>
       </Show>
@@ -41,15 +42,15 @@ function UpdateReady(props: { update: Ready; onRestart: () => void; onLater: () 
     <li class={`${styles.banner} ${styles.update}`} data-testid="update-ready" data-refract>
       <Icon name="download" size={16} class={styles.icon} />
       <p class={styles.text}>
-        <strong class={styles.strong}>{props.update.mandatory ? "Important update ready" : "Update ready"}</strong>
+        <strong class={styles.strong}>{t().notices.ready(props.update.mandatory)}</strong>
         {" — "}
-        <span class="num">MVP {props.update.version}</span> installs when you restart, or when you quit.
+        <span class="num">MVP {props.update.version}</span> {t().notices.readyText}
       </p>
       <Button variant="primary" onClick={props.onRestart} testId="update-restart">
-        Restart
+        {t().notices.restart}
       </Button>
       <Show when={!props.update.mandatory}>
-        <button type="button" class={styles.close} aria-label="Later" onClick={() => props.onLater()}>
+        <button type="button" class={styles.close} aria-label={t().notices.later} onClick={() => props.onLater()}>
           <Icon name="close" size={14} />
         </button>
       </Show>
@@ -69,7 +70,7 @@ export interface NoticeListProps {
 /** The notices strip at the top of the page (also measured alone by the perf suite). */
 export function NoticeList(props: NoticeListProps): JSX.Element {
   return (
-    <ul class={styles.list} aria-label="Notices" aria-live="polite">
+    <ul class={styles.list} aria-label={t().notices.label} aria-live="polite">
       <Show when={props.ready}>{(ready) => <UpdateReady update={ready()} onRestart={props.onRestart} onLater={props.onLater} />}</Show>
       <For each={props.banners}>{(banner) => <Notice banner={banner} onDismiss={props.onDismiss} onOpen={props.onOpen} />}</For>
     </ul>
@@ -109,7 +110,7 @@ export function UpdateRequiredDialog(props: UpdateRequiredProps): JSX.Element {
             <Icon name="download" size={24} />
           </div>
           <h2 class={styles.dialogTitle} id="update-required-title">
-            Update MVP to keep going
+            {t().updates.required.title}
           </h2>
           <p class={styles.dialogText}>{props.message}</p>
           <Show when={step().text}>

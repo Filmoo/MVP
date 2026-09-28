@@ -1,10 +1,10 @@
 import { resolve } from "node:path";
-import { type Page, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
 // Brings the window.__SCOUT_MOCK__ declaration into scope.
 import type {} from "../src/data/mock";
 import { FIXTURE_NOW } from "../src/data/mock/fixtures";
 import { lockInImport } from "../src/data/mock/import-fixtures";
-import { animationsDone, openApp, settle, VIEWS } from "./app";
+import { animationsDone, openApp, settle, test, VIEWS } from "./app";
 
 // Screenshots for human/UI-agent review. Not asserted: layout, coherence and
 // error specs are the gates. Output: reports/screenshots/<view>-<scenario>-<size>.png
@@ -335,4 +335,77 @@ for (const scenario of ["crash-reports-on", "update-available", "update-download
 test("settings crash-reports-on 420x800", async ({ page }) => {
   await openApp(page, { view: "/settings", scenario: "crash-reports-on", width: 420, height: 800 });
   await capture(page, `${OUT}/settings-crash-reports-on-420x800.png`, true);
+});
+
+// The main screens in French (the app follows the webview's language): fr-<screen>-<size>.png.
+test.describe("in French", () => {
+  test.use({ locale: "fr-FR" });
+
+  const SCREENS = [
+    { name: "home", view: "/", scenario: "default" },
+    { name: "draft", view: "/draft", scenario: "champ-select" },
+    { name: "live", view: "/live", scenario: "live" },
+    { name: "live-build", view: "/live?tab=build", scenario: "live" },
+    { name: "champion", view: "/champions?id=103", scenario: "default" },
+    { name: "champions", view: "/champions", scenario: "default" },
+    { name: "tierlist", view: "/tier-list", scenario: "default" },
+    { name: "settings", view: "/settings", scenario: "default" },
+    { name: "player-404", view: "/player/euw1/Nobody/404", scenario: "default" },
+    { name: "home-banners", view: "/", scenario: "banners" },
+    { name: "home-update-required", view: "/", scenario: "update-required" },
+    { name: "home-not-running", view: "/", scenario: "not-running" },
+    { name: "tierlist-empty", view: "/tier-list", scenario: "stats-empty" },
+    { name: "settings-custom", view: "/settings", scenario: "settings-custom" },
+  ] as const;
+
+  for (const { name, view, scenario } of SCREENS) {
+    for (const [width, height] of [
+      [1280, 800],
+      [420, 800],
+    ] as const) {
+      test(`fr ${name} ${width}x${height}`, async ({ page, t }) => {
+        await openApp(page, { view, scenario, width, height });
+        // The lookup answers after the page's skeleton.
+        if (name === "player-404") await page.getByRole("heading", { level: 1, name: t.players.notFound.title }).waitFor();
+        await capture(page, `${OUT}/fr-${name}-${width}x${height}.png`, true);
+      });
+    }
+  }
+
+  test("fr search open 1280x720", async ({ page, t }) => {
+    await openApp(page, { width: 1280, height: 720 });
+    await page.getByTestId("search-input").click();
+    await page.keyboard.type("Ahri#EUW");
+    await page
+      .getByTestId("search-option")
+      .filter({ hasText: t.search.level(512, "EUW") })
+      .waitFor();
+    await settle(page);
+    await capture(page, `${OUT}/fr-search-open-1280x720.png`, false);
+  });
+
+  test("fr draft import failures 1280x800", async ({ page, t }) => {
+    await openApp(page, { view: "/draft", scenario: "import-failures" });
+    for (const part of ["itemSet", "spells", "runes"] as const) {
+      const name = t.imports.importPart(part);
+      await page.getByRole("button", { name }).click();
+      await page.getByRole("button", { name }).and(page.locator(":not([aria-busy])")).waitFor();
+    }
+    await page.mouse.move(0, 0);
+    await settle(page);
+    await capture(page, `${OUT}/fr-draft-import-failures-1280x800.png`, false);
+  });
+
+  test("fr draft import lock-in 1280x800", async ({ page }) => {
+    await openApp(page, { view: "/draft", scenario: "import-lock-in" });
+    await page.evaluate((result) => window.__SCOUT_MOCK__?.emit("import", result), lockInImport);
+    await page.getByTestId("toast").waitFor();
+    await settle(page);
+    await capture(page, `${OUT}/fr-draft-import-lock-in-1280x800.png`, false);
+  });
+
+  test("fr champion page 2560x1440", async ({ page }) => {
+    await openApp(page, { view: "/champions?id=412", width: 2560, height: 1440 });
+    await capture(page, `${OUT}/fr-champion-thresh-2560x1440.png`, false);
+  });
 });

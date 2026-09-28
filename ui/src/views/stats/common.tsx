@@ -6,9 +6,10 @@ import type { StatsIndex } from "../../data/generated/StatsIndex";
 import { Card } from "../../design/Card";
 import { Segmented } from "../../design/Segmented";
 import { EmptyState, ErrorState } from "../../design/States";
-import { games, timeAgo } from "../../lib/format";
+import { t } from "../../i18n";
+import { timeAgo } from "../../lib/format";
 import { backendError } from "../../lib/players";
-import { BRACKET_LABEL, BRACKET_OPTIONS, patchName, QUEUE_LABEL, QUEUE_OPTIONS, statsErrorWords } from "../../lib/stats";
+import { bracketLabel, bracketOptions, patchName, queueLabel, queueOptions, statsErrorWords } from "../../lib/stats";
 import { applyLinkFilters, filters, parseQueue, setFilter } from "../../lib/stats-filters";
 import styles from "./common.module.css";
 
@@ -51,15 +52,15 @@ export function ScopeSwitches(props: { class?: string | undefined }): JSX.Elemen
   return (
     <div class={`${styles.switches} ${props.class ?? ""}`}>
       <Segmented
-        label="Queue"
-        options={QUEUE_OPTIONS}
+        label={t().stats.queue}
+        options={queueOptions()}
         value={filters().queue}
         onChange={(queue) => setFilter({ queue })}
         testId="queue-switch"
       />
       <Segmented
-        label="Rank"
-        options={BRACKET_OPTIONS}
+        label={t().stats.rank}
+        options={bracketOptions()}
         value={filters().bracket}
         onChange={(bracket) => setFilter({ bracket })}
         testId="bracket-switch"
@@ -70,16 +71,19 @@ export function ScopeSwitches(props: { class?: string | undefined }): JSX.Elemen
 
 /** Where the numbers come from: patch, queue, rank, games counted, last update. */
 export function DataBadge(props: { info: DataSetInfo; index: StatsIndex | null | undefined; class?: string | undefined }): JSX.Element {
-  const queue = () => parseQueue(props.info.queue);
+  const queueText = () => {
+    const queue = parseQueue(props.info.queue);
+    return queue === undefined ? t().stats.queueN(props.info.queue) : queueLabel(queue);
+  };
   return (
     <p class={`${styles.badge} num ${props.class ?? ""}`} data-testid="data-badge">
-      <span class={styles.patch}>Patch {patchName(props.index, props.info.patch)}</span>
+      <span class={styles.patch}>{t().common.patch(patchName(props.index, props.info.patch))}</span>
       <span class={styles.facts}>
         <span class={styles.fact}>
-          {queue() === undefined ? `Queue ${props.info.queue}` : QUEUE_LABEL[queue() ?? 420]} · {BRACKET_LABEL[props.info.bracket]} ·
+          {queueText()} · {bracketLabel(props.info.bracket)} ·
         </span>{" "}
-        <span class={styles.fact}>{games(props.info.games)} games ·</span>{" "}
-        <span class={styles.fact}>updated {timeAgo(props.info.updatedAt)}</span>
+        <span class={styles.fact}>{t().common.games(props.info.games)} ·</span>{" "}
+        <span class={styles.fact}>{t().common.updated(timeAgo(props.info.updatedAt))}</span>
       </span>
     </p>
   );

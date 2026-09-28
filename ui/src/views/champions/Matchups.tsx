@@ -9,8 +9,9 @@ import { ChampionIcon } from "../../design/GameIcon";
 import { Icon } from "../../design/Icon";
 import { Segmented, type SegmentedOption } from "../../design/Segmented";
 import { EmptyState } from "../../design/States";
-import { games, percent, signedPoints } from "../../lib/format";
-import { ROLE_LABEL } from "../../lib/roles";
+import { t } from "../../i18n";
+import { percent, signedPoints } from "../../lib/format";
+import { roleLabel } from "../../lib/roles";
 import { bestAndWorst } from "../../lib/stats";
 import styles from "./Matchups.module.css";
 
@@ -21,11 +22,11 @@ const SHOWN = 5;
 
 function Pairs(props: { title: string; entries: readonly MatchupEntry[]; showRole: boolean; testId: string }): JSX.Element {
   const { gameData } = useData();
-  const name = (id: number) => gameData()?.champions.get(id)?.name ?? `Champion ${id}`;
+  const name = (id: number) => gameData()?.champions.get(id)?.name ?? t().common.championN(id);
   return (
     <div class={styles.list} data-testid={props.testId}>
       <h3 class={styles.listTitle}>{props.title}</h3>
-      <Show when={props.entries.length > 0} fallback={<p class={styles.none}>No clear effect yet.</p>}>
+      <Show when={props.entries.length > 0} fallback={<p class={styles.none}>{t().champions.noEffect}</p>}>
         <ol class={styles.rows}>
           <For each={props.entries}>
             {(e) => (
@@ -35,19 +36,16 @@ function Pairs(props: { title: string; entries: readonly MatchupEntry[]; showRol
                   <span class={styles.names}>
                     <span class={styles.name}>{name(e.id)}</span>
                     <Show when={props.showRole}>
-                      <span class={styles.sub}>{ROLE_LABEL[e.role]}</span>
+                      <span class={styles.sub}>{roleLabel(e.role)}</span>
                     </Show>
                   </span>
                 </a>
-                <span
-                  class={`${styles.delta} ${e.d >= 0 ? styles.up : styles.down} num`}
-                  title="Win-rate effect beyond both champions' strength, in points, shrunk when games are few"
-                >
+                <span class={`${styles.delta} ${e.d >= 0 ? styles.up : styles.down} num`} title={t().champions.effectTitle}>
                   {signedPoints(e.d)}
                 </span>
-                <span class={`${styles.stat} num`} title={`${e.w} wins in ${e.g} games`}>
+                <span class={`${styles.stat} num`} title={t().stats.winsInGames(e.w, e.g)}>
                   <span class={styles.wr}>{percent(e.g > 0 ? e.w / e.g : 0, 1)}</span>
-                  <span class={styles.caption}>{games(e.g)} games</span>
+                  <span class={styles.caption}>{t().common.games(e.g)}</span>
                 </span>
               </li>
             )}
@@ -66,9 +64,9 @@ export function MatchupsCard(props: { page: ChampionPage; forRole: Role | undefi
     if (!d) return [];
     const jungler = d.role === "jungle";
     const all: Array<SegmentedOption<Kind> & { n: number }> = [
-      { value: "lane", label: jungler ? "vs Jungler" : "Lane", n: d.lane.length },
-      { value: "jungle", label: "vs Jungler", n: d.jungle.length },
-      { value: "duos", label: "Duos", n: d.duos.length },
+      { value: "lane", label: jungler ? t().champions.vsJungler : t().champions.lane, n: d.lane.length },
+      { value: "jungle", label: t().champions.vsJungler, n: d.jungle.length },
+      { value: "duos", label: t().champions.duos, n: d.duos.length },
     ];
     return all.filter((o) => o.n > 0).map(({ value, label }) => ({ value, label }));
   });
@@ -80,24 +78,23 @@ export function MatchupsCard(props: { page: ChampionPage; forRole: Role | undefi
   const showRole = () => current() === "duos" || (current() === "lane" && (props.forRole === "bottom" || props.forRole === "support"));
   const duo = () => current() === "duos";
   return (
-    <Card title="Matchups" class={styles.card}>
+    <Card title={t().champions.matchups} class={styles.card}>
       <Switch>
         <Match when={props.page.info.queue === 450}>
           <p class={styles.aram} data-testid="matchups-aram">
             <Icon name="champions" size={20} class={styles.aramIcon} />
             <span>
-              <b class={styles.aramTitle}>No matchups in ARAM.</b> Everyone shares one lane with random teams: there is no lane opponent to
-              measure. The builds still apply.
+              <b class={styles.aramTitle}>{t().champions.aram.title}</b> {t().champions.aram.text}
             </span>
           </p>
         </Match>
         <Match when={!data() || options().length === 0}>
-          <EmptyState icon="champions" title="Not enough games yet" text="Matchups show once enough games of this role are counted." />
+          <EmptyState icon="champions" title={t().champions.noMatchups.title} text={t().champions.noMatchups.text} />
         </Match>
         <Match when={true}>
           <Show when={options().length > 1}>
             <Segmented
-              label="Matchups"
+              label={t().champions.matchups}
               size="sm"
               class={styles.kinds}
               options={options()}
@@ -108,13 +105,21 @@ export function MatchupsCard(props: { page: ChampionPage; forRole: Role | undefi
           </Show>
           <div class={styles.wrap}>
             <div class={styles.lists}>
-              <Pairs title={duo() ? "Best with" : "Best against"} entries={split().best} showRole={showRole()} testId="matchups-best" />
-              <Pairs title={duo() ? "Worst with" : "Worst against"} entries={split().worst} showRole={showRole()} testId="matchups-worst" />
+              <Pairs
+                title={duo() ? t().champions.bestWith : t().champions.bestAgainst}
+                entries={split().best}
+                showRole={showRole()}
+                testId="matchups-best"
+              />
+              <Pairs
+                title={duo() ? t().champions.worstWith : t().champions.worstAgainst}
+                entries={split().worst}
+                showRole={showRole()}
+                testId="matchups-worst"
+              />
             </div>
           </div>
-          <p class={styles.note}>
-            The colored number is the effect on win rate in points, beyond both champions' strength, shrunk when games are few.
-          </p>
+          <p class={styles.note}>{t().champions.effectNote}</p>
         </Match>
       </Switch>
     </Card>

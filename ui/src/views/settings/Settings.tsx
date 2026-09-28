@@ -4,6 +4,7 @@ import type { Settings as SettingsData } from "../../data/generated/Settings";
 import { useRemoteConfig, useUpdates } from "../../data/platform";
 import { Card } from "../../design/Card";
 import { ErrorState, Skeleton } from "../../design/States";
+import { t } from "../../i18n";
 import { reportError } from "../../lib/errors";
 import { Widget } from "../../widgets/Widget";
 import page from "../page.module.css";
@@ -17,18 +18,18 @@ function SettingsSkeleton(): JSX.Element {
   return (
     <div class={styles.grid} aria-busy="true">
       <div class={styles.main}>
-        <Card title="Automation">
+        <Card title={t().settings.automation.title}>
           <Skeleton height="296px" />
         </Card>
-        <Card title="Imports">
+        <Card title={t().settings.imports.title}>
           <Skeleton height="360px" />
         </Card>
-        <Card title="App">
-          <Skeleton height="246px" />
+        <Card title={t().settings.app.title}>
+          <Skeleton height="413px" />
         </Card>
       </div>
       <div class={styles.aside}>
-        <Card title="About">
+        <Card title={t().settings.about.title}>
           <Skeleton height="438px" />
         </Card>
       </div>
@@ -49,7 +50,7 @@ function SettingsContent(props: { initial: SettingsData }): JSX.Element {
   const updates = useUpdates();
   const restart = () => {
     updates.restart().catch((error: unknown) => {
-      reportError(`Couldn't restart into the update: ${error instanceof Error ? error.message : String(error)}`, "update");
+      reportError(t().updates.restartFailed(error instanceof Error ? error.message : String(error)), "update");
     });
   };
   // Changed elsewhere (another window, the tray, the core normalizing a value).
@@ -103,13 +104,13 @@ export default function Settings(): JSX.Element {
   const [initial, { refetch }] = createResource(() => transport.call("get_settings"));
   return (
     <div class={page.page}>
-      <h1 class={page.title}>Settings</h1>
+      <h1 class={page.title}>{t().settings.title}</h1>
       <Switch>
         <Match when={initial.state === "errored"}>
           <div class={page.centered}>
             <Card>
               <ErrorState
-                title="Couldn't load your settings"
+                title={t().settings.loadFailed}
                 message={String(initial.error?.message ?? initial.error)}
                 onRetry={() => void refetch()}
               />

@@ -2,6 +2,7 @@ import { type JSX, Show } from "solid-js";
 import type { Division } from "../data/generated/Division";
 import type { Tier } from "../data/generated/Tier";
 import type { TierGrade } from "../data/generated/TierGrade";
+import { t } from "../i18n";
 import styles from "./TierBadge.module.css";
 
 /**
@@ -13,8 +14,8 @@ export function GradeBadge(props: { grade: TierGrade; size?: "sm" | "md" | "lg";
     <span
       class={`${styles.grade} ${styles[`grade${props.grade}`]} ${styles[props.size ?? "md"]} ${props.class ?? ""}`}
       role="img"
-      aria-label={`Tier ${props.grade}`}
-      title={`Tier ${props.grade}`}
+      aria-label={t().stats.tier(props.grade)}
+      title={t().stats.tier(props.grade)}
     >
       {props.grade}
     </span>
@@ -22,7 +23,7 @@ export function GradeBadge(props: { grade: TierGrade; size?: "sm" | "md" | "lg";
 }
 
 export function tierLabel(tier: Tier, division: Division | null): string {
-  const name = tier.charAt(0).toUpperCase() + tier.slice(1);
+  const name = t().tiers[tier];
   return division ? `${name} ${division}` : name;
 }
 

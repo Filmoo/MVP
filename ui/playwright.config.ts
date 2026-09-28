@@ -6,6 +6,7 @@ const PORT = Number(process.env.MVP_UI_PORT ?? 4173);
 
 /**
  * UI test projects (all run against the production build with mock scenarios):
+ * (each of layout, coherence, errors and interactions also runs in French: `<name>-fr`)
  * - layout:    every view × scenario × window size keeps a sound layout
  * - coherence: rendered styles only use design tokens; views share one frame
  * - errors:    failure scenarios render the right states, nothing crashes
@@ -25,6 +26,8 @@ export default defineConfig({
     baseURL: `http://127.0.0.1:${PORT}`,
     trace: "retain-on-failure",
     colorScheme: "dark",
+    // The app's language follows the webview's (`auto`): English unless a project says French.
+    locale: "en-US",
   },
   webServer: {
     // The browser preview: the app with its mock scenarios (`pnpm build` is the desktop app's).
@@ -38,6 +41,12 @@ export default defineConfig({
     { name: "coherence", testMatch: /coherence\.spec\.ts/ },
     { name: "errors", testMatch: /errors\.spec\.ts/ },
     { name: "interactions", testMatch: /(interactions|search|live|backdrop|imports|stats)\.spec\.ts/ },
+    // The same suites in French (longer words, other formats): the views × sizes matrix at 400,
+    // 1280 and 2560 px (tests/app.ts FRENCH_SIZES), everything else as in English.
+    { name: "layout-fr", testMatch: /layout\.spec\.ts/, use: { locale: "fr-FR" } },
+    { name: "coherence-fr", testMatch: /coherence\.spec\.ts/, use: { locale: "fr-FR" } },
+    { name: "errors-fr", testMatch: /errors\.spec\.ts/, use: { locale: "fr-FR" } },
+    { name: "interactions-fr", testMatch: /(interactions|search|live|backdrop|imports|stats)\.spec\.ts/, use: { locale: "fr-FR" } },
     { name: "perf", testMatch: /perf\.spec\.ts/ },
     { name: "showcase", testMatch: /showcase\.spec\.ts/ },
   ],
