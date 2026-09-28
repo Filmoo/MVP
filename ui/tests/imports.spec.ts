@@ -38,7 +38,7 @@ test("draft: one click imports a part and says how it went", async ({ page }) =>
   await expect(runes, "busy while the core imports").toHaveAttribute("aria-busy", "true");
   await expect(runes).toHaveAttribute("data-tone", "done");
   await expect(status(page)).toHaveText("“MVP · Malphite Top” is your current rune page.");
-  expect(await requests(page)).toEqual([{ championId: 54, role: "top", queue: null, parts: ["runes"] }]);
+  expect(await requests(page)).toEqual([{ championId: 54, role: "top", queue: null, bracket: null, parts: ["runes"] }]);
 
   await page.getByRole("button", { name: "Import spells" }).click();
   await expect(status(page)).toHaveText("Spells set: Flash on D, Teleport on F.");
@@ -175,6 +175,7 @@ test("draft: a part turned off has no button", async ({ page }) => {
     importItemSet: "oneClick",
     importSpells: "off",
     flashKey: "auto",
+    crashReports: false,
   };
   await page.evaluate((next) => window.__SCOUT_MOCK__?.emit("settings", next), settings);
   await expect(page.getByRole("button", { name: "Import spells" })).toHaveCount(0);
@@ -208,6 +209,38 @@ test("draft: the import bar lays out in every state at every size", async ({ pag
     expect(await page.evaluate(auditLayout), size.name).toEqual([]);
   }
   expect(errors).toEqual([]);
+});
+
+test("champion page: imports the build shown, spells wait for champion select", async ({ page }) => {
+  const errors = trackErrors(page);
+  await openApp(page, { view: "/champions?id=99&role=middle" });
+  const champion = page.locator("[data-widget=champion-import]");
+  await expect(champion).toContainText("Lux · Mid · most played in Ranked Solo · Emerald+");
+  const spells = champion.getByRole("button", { name: "Import spells" });
+  await expect(spells, "outside champion select").toBeDisabled();
+  await expect(spells).toHaveAttribute("title", "Spells can only change during champion select");
+  // Another bracket on the page: that's the build imported.
+  await page.getByTestId("bracket-switch").getByRole("radio", { name: "Diamond+" }).click();
+  await expect(champion).toContainText("most played in Ranked Solo · Diamond+");
+  await champion.getByRole("button", { name: "Import runes" }).click();
+  await expect(status(page)).toHaveText("“MVP · Lux Mid” is your current rune page.");
+  expect(await requests(page)).toEqual([{ championId: 99, role: "middle", queue: 420, bracket: "diamondPlus", parts: ["runes"] }]);
+  expect(errors).toEqual([]);
+});
+
+test("champion page: ARAM imports without a role; in champion select spells can go too", async ({ page }) => {
+  await openApp(page, { view: "/champions?id=99&queue=450", scenario: "champ-select" });
+  const champion = page.locator("[data-widget=champion-import]");
+  await expect(champion).toContainText("Lux · most played in ARAM · Emerald+");
+  await champion.getByRole("button", { name: "Import spells" }).click();
+  await expect(champion.getByTestId("import-spells")).toHaveAttribute("data-tone", /done|warn/);
+  expect(await requests(page)).toEqual([{ championId: 99, role: null, queue: 450, bracket: "emeraldPlus", parts: ["spells"] }]);
+});
+
+test("champion page: imports turned off leave no bar", async ({ page }) => {
+  await openApp(page, { view: "/champions?id=103", scenario: "imports-off" });
+  await expect(page.locator("[data-widget=champion-runes]")).toBeVisible();
+  await expect(page.locator("[data-widget=champion-import]")).toHaveCount(0);
 });
 
 test("settings: import modes save, the Flash key follows the spells", async ({ page }) => {

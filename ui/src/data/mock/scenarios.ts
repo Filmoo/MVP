@@ -104,6 +104,8 @@ const base: Scenario["responses"] = {
   stats_index: { data: mockStatsIndex() },
   tier_list: { handle: tierList },
   champion_stats: { handle: championStats },
+  // Champion pages import too (each takes a moment, like the real client).
+  import_build: { handle: importAnswer(), delayMs: 400 },
 };
 
 const inGame: ClientStatus = { connection: "connected", phase: "inGame" };
@@ -113,7 +115,6 @@ const champSelect: Scenario["responses"] = {
   ...base,
   client_status: { data: { connection: "connected", phase: "champSelect" } },
   draft_state: { data: champSelectDraft },
-  import_build: { handle: importAnswer(), delayMs: 400 },
 };
 
 export const scenarios = {

@@ -168,6 +168,7 @@ impl LockIn {
             champion_id: lock.champion_id,
             role: lock.role,
             queue: None,
+            bracket: None,
             parts,
         };
         tracing::info!(champion = lock.champion_id, parts = ?request.parts, "automatic import on lock-in");

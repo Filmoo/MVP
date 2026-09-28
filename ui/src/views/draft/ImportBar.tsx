@@ -1,5 +1,6 @@
 import { type Accessor, createEffect, createResource, createSignal, Index, type JSX, on, onCleanup, Show } from "solid-js";
 import { useData } from "../../data/context";
+import type { Bracket } from "../../data/generated/Bracket";
 import type { ImportMode } from "../../data/generated/ImportMode";
 import type { ImportOutcome } from "../../data/generated/ImportOutcome";
 import type { ImportPart } from "../../data/generated/ImportPart";
@@ -111,17 +112,22 @@ export function ImportPanel(props: {
 }
 
 /**
- * One-click imports of the build of the champion the player hovers or locked, into the League
- * client: rune page, item set, summoner spells. Parts turned off in Settings have no button;
- * automatic imports on lock-in (`import` events) show here too.
+ * One-click imports of a champion's build into the League client: rune page, item set, summoner
+ * spells. In Draft, of the champion the player hovers or locked (automatic imports on lock-in,
+ * `import` events, show here too); on a champion page, of the build shown. Parts turned off in
+ * Settings have no button.
  */
 export function ImportBar(props: {
   championId: number | null;
   role: Role | null;
   /** Hovering, not locked in yet. */
-  hovering: boolean;
+  hovering?: boolean;
+  /** What the build is, after the champion and role (default: hovering / locked in). */
+  context?: string;
   /** Stats queue (420, 450); `null`: the current game's. */
   queue?: number | null;
+  /** Stats bracket; `null`: Emerald+. */
+  bracket?: Bracket | null;
   /** Build stats are available. */
   available: boolean;
   /** In champion select: spells can change. */
@@ -172,7 +178,7 @@ export function ImportBar(props: {
     try {
       apply(
         await transport.call("import_build", {
-          request: { championId, role: props.role, queue: props.queue ?? null, parts: [part] },
+          request: { championId, role: props.role, queue: props.queue ?? null, bracket: props.bracket ?? null, parts: [part] },
         }),
       );
     } catch (error) {
@@ -206,7 +212,7 @@ export function ImportBar(props: {
     const who = name();
     if (!who) return "Hover or lock in a champion";
     const role = props.role ? ` · ${ROLE_LABEL[props.role]}` : "";
-    return `${who}${role} · ${props.hovering ? "hovering" : "locked in"}`;
+    return `${who}${role} · ${props.context ?? (props.hovering ? "hovering" : "locked in")}`;
   };
 
   const status = () => {

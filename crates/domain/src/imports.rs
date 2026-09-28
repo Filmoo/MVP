@@ -6,7 +6,7 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::Role;
+use crate::{Bracket, Role};
 
 /// A part of a build MVP can write into the League client.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
@@ -83,6 +83,9 @@ pub struct ImportRequest {
     /// Stats queue: 420 (ranked data, used for every Summoner's Rift mode) or 450 (ARAM).
     /// `None`: the current game's, ranked outside of a game.
     pub queue: Option<u32>,
+    /// Rank bracket of the stats (the champion page's choice); `None`: Emerald+.
+    #[serde(default)]
+    pub bracket: Option<Bracket>,
     pub parts: Vec<ImportPart>,
 }
 

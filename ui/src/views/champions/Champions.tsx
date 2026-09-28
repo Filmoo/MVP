@@ -1,5 +1,6 @@
 import { createEffect, createMemo, createSignal, For, type JSX, Match, on, Show, Switch } from "solid-js";
 import { queryParam } from "../../app/router";
+import { useClientStatus } from "../../data/client-status";
 import { useData } from "../../data/context";
 import type { ChampionPage } from "../../data/generated/ChampionPage";
 import type { Role } from "../../data/generated/Role";
@@ -14,6 +15,7 @@ import { ROLE_LABEL, ROLES } from "../../lib/roles";
 import { BRACKET_LABEL, buildFor, pickRole, QUEUE_LABEL, ROLE_FILTER_OPTIONS, roleTabs } from "../../lib/stats";
 import { ARAM, filters, setFilter } from "../../lib/stats-filters";
 import { Widget } from "../../widgets/Widget";
+import { ImportBar, useImportModes } from "../draft/ImportBar";
 import page from "../page.module.css";
 import { ScopeSwitches, StatsProblem, useLinkFilters, useStatsIndex } from "../stats/common";
 import { ItemsCard, SkillsCard, SpellsCard } from "./Builds";
@@ -127,6 +129,10 @@ function ChampionView(props: { championId: number }): JSX.Element {
   const role = createMemo(() => pickRole(tabs(), wanted()));
   useAmbient(() => championArtUrl(gameData(), props.championId));
   const name = () => gameData()?.champions.get(props.championId)?.name ?? `Champion ${props.championId}`;
+  // The build shown can go into the League client, like in Draft (spells in champion select only).
+  const modes = useImportModes();
+  const client = useClientStatus();
+  const imports = () => Object.values(modes()).some((mode) => mode !== "off");
 
   return (
     <div class={page.page}>
@@ -166,7 +172,21 @@ function ChampionView(props: { championId: number }): JSX.Element {
         </Match>
         <Match when={stats.data()}>
           {(p) => (
-            <div class={stats.loading() ? styles.busy : undefined}>
+            <div class={`${styles.content} ${stats.loading() ? styles.busy : ""}`}>
+              <Show when={imports()}>
+                <Widget name="champion-import">
+                  <ImportBar
+                    championId={props.championId}
+                    role={queue() === ARAM ? null : (role() ?? null)}
+                    context={`most played in ${QUEUE_LABEL[queue()]} · ${BRACKET_LABEL[bracket()]}`}
+                    queue={queue()}
+                    bracket={bracket()}
+                    available={buildFor(p(), role()) !== undefined}
+                    inChampSelect={client()?.phase === "champSelect"}
+                    modes={modes()}
+                  />
+                </Widget>
+              </Show>
               <ChampionBuilds page={p()} forRole={role()} />
             </div>
           )}

@@ -9,9 +9,9 @@ use companion::imports::{
     self, BuildFuture, BuildSource, CURRENT_PAGE, INVENTORY, Importer, MY_SELECTION, PAGES,
 };
 use domain::{
-    BuildOption, BuildSection, BuildStats, ClientConnection, ClientStatus, FailReason, FlashKey,
-    FlashNote, GameflowPhase, ImportMode, ImportOutcome, ImportPart, ImportRequest, ImportResult,
-    RemoteConfig, Role, Settings, SkipReason, SpellKey,
+    Bracket, BuildOption, BuildSection, BuildStats, ClientConnection, ClientStatus, FailReason,
+    FlashKey, FlashNote, GameflowPhase, ImportMode, ImportOutcome, ImportPart, ImportRequest,
+    ImportResult, RemoteConfig, Role, Settings, SkipReason, SpellKey,
 };
 use lcu::tls::pinned_client_config;
 use lcu::{ConnectorConfig, LcuClient};
@@ -68,15 +68,27 @@ fn ahri_build(role: Option<Role>) -> BuildStats {
     }
 }
 
+/// A build asked for: champion, role, queue, bracket.
+type Asked = (u32, Option<Role>, u32, Bracket);
+
 /// Builds for Ahri only; remembers what was asked.
 #[derive(Debug, Default)]
 struct FakeBuilds {
-    asked: Mutex<Vec<(u32, Option<Role>, u32)>>,
+    asked: Mutex<Vec<Asked>>,
 }
 
 impl BuildSource for FakeBuilds {
-    fn build(&self, champion_id: u32, role: Option<Role>, queue: u32) -> BuildFuture<'_> {
-        self.asked.lock().unwrap().push((champion_id, role, queue));
+    fn build(
+        &self,
+        champion_id: u32,
+        role: Option<Role>,
+        queue: u32,
+        bracket: Bracket,
+    ) -> BuildFuture<'_> {
+        self.asked
+            .lock()
+            .unwrap()
+            .push((champion_id, role, queue, bracket));
         Box::pin(std::future::ready(
             (champion_id == AHRI).then(|| ahri_build(role)),
         ))
@@ -214,6 +226,7 @@ fn request(parts: &[ImportPart]) -> ImportRequest {
         champion_id: AHRI,
         role: Some(Role::Middle),
         queue: None,
+        bracket: None,
         parts: parts.to_vec(),
     }
 }
@@ -318,7 +331,27 @@ async fn creates_mvp_page_when_there_is_room() {
     assert_player_pages_untouched(&mock);
     assert_eq!(
         setup.builds.asked.lock().unwrap().as_slice(),
-        [(AHRI, Some(Role::Middle), 420)]
+        [(AHRI, Some(Role::Middle), 420, Bracket::EmeraldPlus)]
+    );
+}
+
+#[tokio::test]
+async fn the_champion_pages_queue_and_bracket_are_imported() {
+    let mock = client_with_player_data(3).await;
+    let setup = importer(&mock, GameflowPhase::Idle, Settings::default());
+    let diamond = ImportRequest {
+        queue: Some(420),
+        bracket: Some(Bracket::DiamondPlus),
+        ..request(&[ImportPart::ItemSet])
+    };
+    let result = setup.importer.import(&diamond, false).await;
+    assert!(matches!(
+        outcome(&result, ImportPart::ItemSet),
+        ImportOutcome::Saved { .. }
+    ));
+    assert_eq!(
+        setup.builds.asked.lock().unwrap().as_slice(),
+        [(AHRI, Some(Role::Middle), 420, Bracket::DiamondPlus)]
     );
 }
 
@@ -735,7 +768,7 @@ async fn aram_uses_aram_builds_without_roles() {
     assert_eq!((result.queue, result.role), (450, None));
     assert_eq!(
         setup.builds.asked.lock().unwrap().as_slice(),
-        [(AHRI, None, 450)]
+        [(AHRI, None, 450, Bracket::EmeraldPlus)]
     );
     let sets = mock.get(&sets_path()).unwrap();
     assert_eq!(sets["itemSets"][2]["title"], "MVP · Ahri ARAM");

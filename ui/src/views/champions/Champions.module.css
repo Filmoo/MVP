@@ -60,11 +60,19 @@
   flex: 1;
 }
 
-/* Matchups stay in view next to the long build column. */
+/* Matchups stay in view next to the long build column (the page scrolls under the title bar). */
 .aside {
   min-width: 0;
   position: sticky;
-  top: var(--space-8);
+  top: calc(var(--titlebar-h) + var(--space-8));
+}
+
+/* The import bar over the builds. */
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  min-width: 0;
 }
 
 .skeletonList {

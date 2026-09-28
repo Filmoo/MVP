@@ -105,4 +105,18 @@ export const widgetRegistry: Record<string, () => JSX.Element> = {
   "champion-items": () => <ItemsCard build={luxBuild} />,
   "champion-matchups": () => <MatchupsCard page={lux} forRole="support" />,
   "build-summary": () => <BuildSummary championId={99} build={luxBuild} />,
+  // A champion page's bar, outside of champion select: spells wait for it.
+  "champion-import": () => (
+    <ImportPanel
+      championId={99}
+      subtitle="Lux · Support · most played in Ranked Solo · Emerald+"
+      parts={[
+        { part: "runes", busy: false, outcome: { kind: "saved", name: "MVP · Lux Support" }, automatic: false },
+        { part: "itemSet", busy: false, automatic: false },
+        { part: "spells", busy: false, disabled: "Spells can only change during champion select", automatic: false },
+      ]}
+      status={{ tone: "done", text: "“MVP · Lux Support” is your current rune page." }}
+      onImport={() => {}}
+    />
+  ),
 };

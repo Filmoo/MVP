@@ -26,8 +26,9 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use domain::{
-    BuildStats, BuildsFile, ClientStatus, FailReason, GameflowPhase, ImportMode, ImportOutcome,
-    ImportPart, ImportRequest, ImportResult, PartResult, RemoteConfig, Role, Settings, SkipReason,
+    Bracket, BuildStats, BuildsFile, ClientStatus, FailReason, GameflowPhase, ImportMode,
+    ImportOutcome, ImportPart, ImportRequest, ImportResult, PartResult, RemoteConfig, Role,
+    Settings, SkipReason,
 };
 use lcu::{LcuClient, LcuError};
 use serde_json::Value;
@@ -55,10 +56,17 @@ pub type BuildFuture<'a> = Pin<Box<dyn Future<Output = Option<BuildStats>> + Sen
 /// Where builds come from: in the app, the current patch's published `BuildsFile`s (see
 /// [`build_for_role`]); in tests, a fake.
 pub trait BuildSource: Send + Sync {
-    /// The build of `champion_id` in `role` for the stats `queue` (420 ranked, 450 ARAM).
-    /// `role: None` (blind pick, ARAM): the champion's most played role. `None` when there is no
-    /// such build: not published, no stats yet, or offline without a cached copy.
-    fn build(&self, champion_id: u32, role: Option<Role>, queue: u32) -> BuildFuture<'_>;
+    /// The build of `champion_id` in `role` for the stats `queue` (420 ranked, 450 ARAM) of
+    /// the rank `bracket`. `role: None` (blind pick, ARAM): the champion's most played role.
+    /// `None` when there is no such build: not published, no stats yet, or offline without a
+    /// cached copy.
+    fn build(
+        &self,
+        champion_id: u32,
+        role: Option<Role>,
+        queue: u32,
+        bracket: Bracket,
+    ) -> BuildFuture<'_>;
 }
 
 /// No stats in the app yet: every import answers "no build".
@@ -66,7 +74,13 @@ pub trait BuildSource: Send + Sync {
 pub struct NoBuilds;
 
 impl BuildSource for NoBuilds {
-    fn build(&self, _champion_id: u32, _role: Option<Role>, _queue: u32) -> BuildFuture<'_> {
+    fn build(
+        &self,
+        _champion_id: u32,
+        _role: Option<Role>,
+        _queue: u32,
+        _bracket: Bracket,
+    ) -> BuildFuture<'_> {
         Box::pin(std::future::ready(None))
     }
 }
@@ -315,8 +329,9 @@ impl Importer {
                 if queue == ARAM {
                     result.role = None;
                 }
+                let bracket = request.bracket.unwrap_or(Bracket::EmeraldPlus);
                 self.builds
-                    .build(request.champion_id, result.role, queue)
+                    .build(request.champion_id, result.role, queue, bracket)
                     .await
                     .ok_or(FailReason::NoBuild)
             }
@@ -449,7 +464,7 @@ mod tests {
                 schema: 1,
                 patch: "16.19".into(),
                 queue: RANKED,
-                bracket: domain::Bracket::EmeraldPlus,
+                bracket: Bracket::EmeraldPlus,
                 games: 100,
                 updated_at: 0,
             },
