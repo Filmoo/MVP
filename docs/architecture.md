@@ -136,11 +136,45 @@ Recent searches (max 8) and the region live in `localStorage`.
   window created for an intent opens directly on its view. *Launch at startup* uses
   tauri-plugin-autostart and starts in the tray (`--autostart`).
 
-## Window backdrop (`ui/src/design/backdrop`)
-The ambient light behind the shell is one WebGL 1 canvas (first child of `[data-ambient-host]`,
-fixed, `z-index: -1`, `aria-hidden`, `data-free-style`), drawn **on demand only**. Nothing runs at
-rest: no rAF loop, no timers (the perf suite asserts 0 renders over 3 s, and a median render
-≤ 2 ms of CPU).
+## Glass and light (`ui/src/design/backdrop`, `ui/src/design/liquid`)
+Two layers, one budget: **idle means idle** (nothing is scheduled at rest; the perf suite asserts
+0 backdrop renders over 3 s and no script, style or layout work), and every moving part runs on
+the compositor (transform/opacity, GPU filters).
+
+**Optics** (`liquid/optics.ts`, pure, unit-tested): a glass pane lies on the page, seen from above.
+Its top is flat and curves down to the page across a bezel (a squircle profile, or a circle for
+domes). The view ray refracts where the surface slopes (Snell's law, index 1.5) and crosses the
+glass down to the page, landing further inside: what is under the rim is pulled inward and
+squeezed; a dome magnifies. The rim reflects more at grazing angles (Fresnel, Schlick). Both
+curves are sampled into small tables shared by the two layers below, so they bend light alike.
+
+**Liquid glass over the page** (`liquid/liquid.ts`, `liquid/maps.ts`): floating chrome and
+controls bend the real page behind them. Each element gets an SVG filter used as its CSS
+`backdrop-filter` (`backdrop-filter: var(--lg-filter, <plain frost>)`): frost (blur) → a
+displacement map → optionally three displaced copies for a slight colour split at the rim (blue
+bends 6–8 % more than green, red less) → vibrancy (saturate, brightness) inside the filter
+(Chromium drops a `url()` backdrop filter chained with CSS filter functions). Maps are nine
+slices (four corners, four one-pixel edges stretched along, a neutral flood) computed once per
+radius and bezel and cached as data-URL images (the CSP allows `data:` images), so resizing only
+moves slices. The optical outline rounds corners at least as much as the bezel is wide (smooth
+normals, no crease along the corner diagonal); a dome is a stadium.
+- Kinds (`LIQUID`): `bar` (title bar: lower rim only, light frost), `panel` (search results,
+  toasts: frosted, lensing rim), `lens` (rail selection, held switches: a clear dome that
+  magnifies ×1.1–1.2, no colour split over labels).
+- The page scrolls **under** the title bar (`main` spans both rows, padding-top = bar height),
+  which bends it along its lower rim. Sticky side columns stick below the bar.
+- An element with a backdrop filter hides the page from its descendants' glass (backdrop root),
+  so the bar's and the rail's glass are layers inside them, not the elements themselves.
+  (A `::before` layer would do in principle, but Chromium ignored it there.)
+- Motion (`design/motion.ts`): springs sampled into CSS `linear()` easings (`--ease-spring`,
+  kept in sync with the code by a unit test). The rail lens glides to the new section and
+  stretches like a drop (WAAPI on transform); a held switch's knob swells into clear glass and
+  springs across. Reduced motion jumps.
+- On only with the shader (`data-effects="shader"`); otherwise the same elements keep a plain
+  CSS blur (`light`) or none (`off`).
+
+**The window backdrop** (`backdrop/`): one WebGL 1 canvas (first child of `[data-ambient-host]`,
+fixed, `z-index: -1`, `aria-hidden`, `data-free-style`), drawn **on demand only**.
 - **What wakes it**: the page light changing (a MutationObserver on the host's inline `--amb-*`,
   written by `ambient.ts`; the 450/600 ms glide is mirrored in JS, a frame each only while it
   runs), a ResizeObserver on the host and on the glass panes, a DOM change under the host (panes
@@ -148,21 +182,25 @@ rest: no rAF loop, no timers (the perf suite asserts 0 renders over 3 s, and a m
 - **Two cheap passes**: (1) the light, glows bent by 2 octaves of value noise with a faint satin
   sheen, into a texture at 1/8 of CSS px, redrawn only when the light or the window size changes;
   (2) per render, into a canvas at ½ CSS px (device pixel ratio capped at 1, scaled up by CSS): the
-  texture plus a soft hex mosaic (a 128² tile drawn once) and a dither, then one quad per glass
-  pane in a single draw call. Panes are elements marked `data-refract` (`="chrome"` for the title
-  bar and rail; at most 16). Inside a pane's rounded-rect SDF the backdrop is sampled through a
-  slight lens and a 22 px bevel that pulls the light in from beyond the edge, gathers it, and adds a
-  faint top-lit rim. Pattern and gathering scale the light's difference from `--bg-0`, so dark
-  areas and text backgrounds stay as they were (text contrast is unchanged vs the CSS light).
-- **Levels** (`effects`, saved in localStorage `mvp.effects`; shown on `<html data-effects>`):
-  `auto` (default) → `shader`, falling back to `css` when WebGL is missing, the first frame takes
+  texture with a dither, then one quad per glass card in a single draw call. Cards are elements
+  marked `data-refract` (`="chrome"` for the rail; at most 16). Inside a card's rim the backdrop
+  is seen through thick glass: the optics table (a 64×1 texture) gives the inward bend and the
+  reflectance across an 18 px bevel; the bend is split slightly by colour, the rim gathers the
+  light it bends and catches the page light on the side facing it. Everything scales the light's
+  difference from `--bg-0`, so dark areas and text backgrounds stay as they were. Cards add a
+  crisp 1 px rim of light in CSS (`.glass-rim`).
+- **Levels** (`Settings.effects`, owned by the core; a copy in localStorage `mvp.effects` so the
+  first frame matches; shown on `<html data-effects>`; Settings → App → Visual effects): `auto`
+  ("Full", default) → `shader`, falling back to `css` when WebGL is missing, the first frame takes
   more than 8 ms GPU included (software rendering, weak GPU), or the context is lost (back to
-  `shader` when restored); `prefers-reduced-transparency` → `css`; `prefers-reduced-motion` keeps the
-  shader but skips glides. `light` → `css`, the static gradients. `off` → `flat`: `--bg-0` only and
-  no backdrop blur. `data-effects-fallback` says why a fallback happened.
+  `shader` when restored); `prefers-reduced-transparency` → `css`; `prefers-reduced-motion` keeps
+  the shader but skips glides. `light` → `css`, static gradients and plain blur. `off` → `flat`:
+  `--bg-0` only, no blur, opaque floating panels. `data-effects-fallback` says why a fallback
+  happened (Settings words it).
 - **Tests**: headless Chromium renders with SwiftShader, which the speed probe rightly rejects, so
   `tests/app.ts` sets `window.__MVP_TRUST_WEBGL__` to keep the shader in every suite
-  (`webgl: "probe" | "missing"` exercises the fallbacks, `tests/backdrop.spec.ts`).
+  (`webgl: "probe" | "missing"` exercises the fallbacks, `tests/backdrop.spec.ts`, which also
+  checks the lenses per level, the rail lens following navigation and the held switch).
 
 ## Stats pipeline (`apps/crawler` + `crates/aggregate`)
 Server-side only (the Riot key never leaves it). Checkpoint 2 scope: **Emerald+**, ranked solo

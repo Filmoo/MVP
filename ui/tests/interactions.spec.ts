@@ -74,8 +74,11 @@ test("settings: unreadable settings show an error with retry", async ({ page }) 
   await openApp(page, { view: "/settings", scenario: "settings-error" });
   const alert = page.getByRole("alert");
   await expect(alert).toContainText("Couldn't load your settings");
+  // The shell also reads the settings once at start (the visual effects level): count from here.
+  const reads = () => page.evaluate(() => window.__SCOUT_MOCK__?.calls.filter((c) => c === "get_settings").length ?? 0);
+  const before = await reads();
   await alert.getByRole("button", { name: "Try again" }).click();
-  await expect.poll(() => page.evaluate(() => window.__SCOUT_MOCK__?.calls.filter((c) => c === "get_settings").length)).toBe(2);
+  await expect.poll(reads).toBe(before + 1);
 });
 
 test("the core moves the UI along with the game, and hears about every view", async ({ page }) => {

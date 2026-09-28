@@ -30,6 +30,7 @@
   --bg-lens: #b9a9ff14; /* clear lens over controls, a breath of the accent */
   --line-rim: #ffffff42; /* specular rim, lit side */
   --line-rim-far: #ffffff12; /* specular rim, far side */
+  --line-glint: #ffffff8c; /* where the rim turns to the pointer */
   --line-shade: #0000005c; /* thin shade under a floating edge */
   --shadow-float: 0 18px 44px -12px rgb(0 0 0 / 0.6), 0 2px 6px -2px rgb(0 0 0 / 0.4);
 
@@ -189,6 +190,34 @@
   syntax: "<percentage>";
   inherits: true;
   initial-value: 0%;
+}
+/* Where the pointer is on a glass surface (app/glass.ts): not inherited, so moving it restyles
+   only that element's highlight, not everything inside it. */
+@property --mx {
+  syntax: "<length-percentage>";
+  inherits: false;
+  initial-value: 50%;
+}
+@property --my {
+  syntax: "<length-percentage>";
+  inherits: false;
+  initial-value: -60%;
+}
+@property --rx {
+  syntax: "<length-percentage>";
+  inherits: false;
+  initial-value: 50%;
+}
+@property --ry {
+  syntax: "<length-percentage>";
+  inherits: false;
+  initial-value: 50%;
+}
+/* The rim's glint (design/glass.css): registered so it fades in and out. */
+@property --glint {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
 }
 @property --tone-a {
   syntax: "<color>";

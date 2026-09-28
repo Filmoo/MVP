@@ -55,3 +55,22 @@ Full triage lives in the checkpoint page; the owner's calls that shape the roadm
 - A **random install id** (`X-MVP-Install`) keys rate limits, rollouts and GDPR deletion; it is
   not linked to the Riot account.
 - Riot caches persist as a **JSON snapshot on shutdown**, not a database (bounded, tens of MB).
+
+## 2026-09-28 — Liquid glass (owner asked, Claude designed)
+Owner: "real optic effects, like iOS, real distortion", running at 120 fps easily, never a
+burden, not abusive. Design calls:
+- **Glass is for the layer that floats over content** (title bar, search results, toasts, the
+  rail's selection, controls being touched), like Apple's guidance. Content cards stay calm:
+  a crisp rim of light and a soft thick-glass edge drawn by the backdrop shader, no lensing of
+  their text.
+- **Real refraction from real optics**, not a blur with a gradient: Snell's law through a curved
+  bezel, Fresnel on the rim, a hair of colour split only where light bends most (never over
+  labels). One optics model for both the SVG lenses over the page and the WebGL card glass.
+- **The page scrolls under the title bar** so its glass has something to bend.
+- **Motion only when the player acts**: springs (compositor-only) for the rail lens and switches;
+  nothing moves at rest; reduced motion jumps.
+- **Budget first**: lenses are GPU filters with maps computed once; only on machines where the
+  WebGL backdrop is cheap ("Full"). "Light" (plain blur) and "Off" (flat) are one click away in
+  Settings, saved by the core.
+- The hex mosaic in the backdrop is dropped: in screenshots it read as compression blocks.
+

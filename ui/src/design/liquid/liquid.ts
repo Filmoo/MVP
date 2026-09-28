@@ -64,7 +64,8 @@ export const LIQUID = {
     glass: { profile: "circle", bezel: 0, thickness: 0 },
     dome: 0.6,
     frost: 0,
-    dispersion: 0.04,
+    // No colour split: lenses sit over labels, where it reads as fringing, not as optics.
+    dispersion: 0,
     saturate: 1.5,
     brightness: 1.1,
   },
