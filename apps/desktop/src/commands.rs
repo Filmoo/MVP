@@ -1,14 +1,15 @@
 //! Commands the UI can invoke. Names and payloads mirror `ui/src/data/transport.ts`.
 
 use companion::settings::SettingsStore;
+use companion::stats::StatsClient;
 use domain::{
-    AppInfo, BackendError, ClientStatus, DraftView, GameData, LiveGame, PlayerProfile, RiotId,
-    Settings,
+    AppInfo, BackendError, Bracket, ChampionPage, ClientStatus, DraftView, GameData, LiveGame,
+    PlayerProfile, RiotId, Settings, StatsIndex, TierList,
 };
 use tauri::{Emitter as _, Manager as _};
 use tauri_plugin_autostart::ManagerExt as _;
 
-use crate::core::{Backend, Core, GameDataState};
+use crate::core::{Backend, Core, GameDataState, Stats};
 
 #[tauri::command]
 #[allow(
@@ -180,4 +181,58 @@ pub fn retry_scouting(app: tauri::AppHandle) {
     if let Some(core) = app.try_state::<Core>() {
         core.scouting.retry();
     }
+}
+
+fn stats(app: &tauri::AppHandle) -> Result<StatsClient, BackendError> {
+    app.try_state::<Stats>()
+        .and_then(|stats| stats.0.clone())
+        .ok_or_else(|| BackendError::Unavailable {
+            message: "no backend configured".to_owned(),
+        })
+}
+
+/// What our backend has published, as last fetched (a stale copy is revalidated in the
+/// background: a `stats-index` event follows when it changed); `None` when nothing is published
+/// yet, or offline without a cached copy.
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub async fn stats_index(app: tauri::AppHandle) -> Option<StatsIndex> {
+    let index = stats(&app).ok()?.index().await.ok()?;
+    Some(StatsIndex::clone(&index))
+}
+
+/// The current patch's tier list for `queue` × `bracket`, from the disk cache when current.
+/// Fails with a `BackendError` (`notFound` when neither published nor cached).
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub async fn tier_list(
+    app: tauri::AppHandle,
+    queue: u32,
+    bracket: Bracket,
+) -> Result<TierList, BackendError> {
+    stats(&app)?.current_tier_list(queue, bracket).await
+}
+
+/// One champion's page for `queue` × `bracket`, current patch: missing files leave their part
+/// empty; fails with `notFound` only when the data set doesn't exist.
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub async fn champion_stats(
+    app: tauri::AppHandle,
+    champion_id: u32,
+    queue: u32,
+    bracket: Bracket,
+) -> Result<ChampionPage, BackendError> {
+    stats(&app)?
+        .champion_page(champion_id, queue, bracket)
+        .await
 }
