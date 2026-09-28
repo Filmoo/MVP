@@ -80,6 +80,8 @@ fn id_of(page: &Value) -> Option<u64> {
 #[derive(Debug)]
 enum Error {
     NoFreePage,
+    /// Created, but the client doesn't list it.
+    Lost,
     Client(LcuError),
 }
 
@@ -151,7 +153,7 @@ async fn write(client: &LcuClient, page: &RunePage, name: &str) -> Result<(), Er
                 .iter()
                 .find(|p| is_ours(p))
                 .and_then(id_of)
-                .ok_or(Error::NoFreePage)?,
+                .ok_or(Error::Lost)?,
         }
     };
     client
@@ -176,6 +178,11 @@ pub(super) async fn import(client: &LcuClient, build: &BuildStats, name: &str) -
         }
         Err(Error::NoFreePage) => ImportOutcome::Failed {
             reason: FailReason::NoFreePage,
+        },
+        Err(Error::Lost) => ImportOutcome::Failed {
+            reason: FailReason::Client {
+                message: "the new rune page didn't show up in the client".to_owned(),
+            },
         },
         Err(Error::Client(error)) => client_failure(&error),
     }
