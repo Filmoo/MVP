@@ -12,8 +12,8 @@ export { expect };
  */
 export const isFrench = (locale: string | undefined): boolean => locale?.toLowerCase().startsWith("fr") ?? false;
 
-/** Window sizes the French runs of the view × size matrix cover (400, 1280 and 2560 px wide). */
-export const FRENCH_SIZES: ReadonlySet<string> = new Set(["min", "laptop", "qhd"]);
+/** Window sizes the French runs of the view × size matrix cover (400, 820, 1280 and 2560 px wide). */
+export const FRENCH_SIZES: ReadonlySet<string> = new Set(["min", "medium", "laptop", "qhd"]);
 
 /** Tests with `t`: the app's words in the language the browser runs in (`t.nav.home.label`). */
 export const test = base.extend<{ t: Messages }>({

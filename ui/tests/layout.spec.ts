@@ -6,8 +6,8 @@ const EXPECTED_ERRORS: Record<string, RegExp> = {
   "widget-crash": /widget:recent-matches|Cannot read properties/,
 };
 
-/** The French runs cover the matrix at 400, 1280 and 2560 px (see FRENCH_SIZES). */
-const FRENCH_ONLY_AT = "French: the matrix at 400, 1280 and 2560 px";
+/** The French runs cover the matrix at 400, 820, 1280 and 2560 px (see FRENCH_SIZES). */
+const FRENCH_ONLY_AT = "French: the matrix at 400, 820, 1280 and 2560 px";
 
 // Every view × every window size, on the richest data.
 for (const view of VIEWS) {
