@@ -173,6 +173,7 @@ const samples = (): Record<string, unknown[][]> => ({
   ],
   "champions.runePage": [["Conqueror", "Resolve", percent(0.531, 1), percent(0.23, 1)]],
   "champions.maxOrder": [[["Q", "E", "W"]]],
+  "champions.levelsLabel": [[4], [3]],
   "champions.nth": [[4]],
   "champions.buildTitle": [
     ["Ahri", "middle"],
