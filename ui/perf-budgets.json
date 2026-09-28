@@ -43,7 +43,7 @@
     },
     "settings-about": {
       "renderMs": 2,
-      "domNodes": 28
+      "domNodes": 36
     },
     "live-team": {
       "renderMs": 6,
