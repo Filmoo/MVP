@@ -59,7 +59,7 @@
   font-size: var(--text-sm);
   color: var(--text-2);
   white-space: nowrap;
-  overflow: hidden;
+  /* No clipping here: the dot's glow reaches past the line (the words clip themselves). */
   min-width: 0;
   pointer-events: none;
 }
