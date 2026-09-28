@@ -418,19 +418,20 @@ test("aram: your champion and the bench, by your team's chances with each", asyn
   expect(errors).toEqual([]);
 });
 
-test("draft: the Teams tab lays out at every size, compositions first on narrow windows", async ({ page, t }) => {
-  const errors = trackErrors(page);
-  for (const size of SIZES) {
-    for (const scenario of ["champ-select", "aram-champ-select"] as const) {
+// One test per scenario: eight window sizes, each a full load, fit one test's time.
+for (const scenario of ["champ-select", "aram-champ-select"] as const) {
+  test(`draft: the Teams tab lays out at every size, compositions first on narrow windows (${scenario})`, async ({ page, t }) => {
+    const errors = trackErrors(page);
+    for (const size of SIZES) {
       await openApp(page, { view: "/draft", scenario, width: size.width, height: size.height });
       const tab = whyTab(page, t.why.tabs.teams);
       // Narrow windows stack the panel last and open it on the compositions.
       if (size.width < 1080) await expect(tab, size.name).toHaveAttribute("aria-checked", "true");
       else await tab.click();
-      await expect(comps(page).getByRole("table"), `${scenario} ${size.name}`).toBeVisible();
+      await expect(comps(page).getByRole("table"), size.name).toBeVisible();
       await settle(page);
-      expect(await page.evaluate(auditLayout), `${scenario} ${size.name}`).toEqual([]);
+      expect(await page.evaluate(auditLayout), size.name).toEqual([]);
     }
-  }
-  expect(errors).toEqual([]);
-});
+    expect(errors).toEqual([]);
+  });
+}
