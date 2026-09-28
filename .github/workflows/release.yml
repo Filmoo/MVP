@@ -67,6 +67,8 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # The app's server (repository variable; MVP: https://api.mvpgg.com).
+          MVP_BACKEND_URL: ${{ vars.MVP_BACKEND_URL }}
         run: pnpm build:exe --config '{"bundle":{"createUpdaterArtifacts":true}}'
       # What installed apps read: the latest release's latest.json (the installer's URL and signature).
       - name: Update manifest (latest.json)
@@ -98,6 +100,8 @@ jobs:
             target/release/bundle/nsis/latest.json
       - name: Updater command
         shell: bash
+        env:
+          MVP_BACKEND_URL: ${{ vars.MVP_BACKEND_URL }}
         run: |
           version="${GITHUB_REF_NAME#v}"
           installer=$(ls target/release/bundle/nsis/*-setup.exe | head -n 1)
@@ -108,8 +112,13 @@ jobs:
           url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/${name// /.}"
           {
             echo "### Published"
-            echo "Installed apps find it on GitHub within 6 hours (or at once: Settings → About → Check for updates)."
-            echo "Once MVP's own server serves updates, offer it there too:"
+            if [ -n "$MVP_BACKEND_URL" ]; then
+              # updater.rs: the first source that answers decides, "no update" included.
+              echo "Installed apps ask $MVP_BACKEND_URL for updates first, and its answer decides: they only see this release once it is offered there (GitHub's latest.json serves when the server can't be reached). On the server (\`ssh mvp\`, then \`sudo\` in front):"
+            else
+              echo "Installed apps find it on GitHub within 6 hours (or at once: Settings → About → Check for updates)."
+              echo "Once MVP's own server serves updates, offer it there too:"
+            fi
             echo '```sh'
             echo "docker exec mvp-backend mvp-backend release add --version $version --channel $channel \\"
             echo "  --url '$url' \\"

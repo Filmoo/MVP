@@ -108,8 +108,10 @@ HTTPS request.
 - **Base URL**: `MVP_BACKEND_URL` at **build time** (`MVP_BACKEND_URL=https://api… pnpm build:exe`);
   without it, `http://127.0.0.1:8787` (a local `pnpm backend`). **Debug builds** also read
   `MVP_BACKEND_URL` at run time, to point a dev app anywhere without rebuilding:
-  `MVP_BACKEND_URL=http://127.0.0.1:8787 pnpm app`. The CSP's `connect-src` lists the local origin;
-  add the production origin there once it exists (only needed if the webview ever calls it directly).
+  `MVP_BACKEND_URL=http://127.0.0.1:8787 pnpm app`. CI's Windows build and the release take it
+  from the repository variable `MVP_BACKEND_URL` (`https://api.mvpgg.com` for MVP; unset in a
+  fork, whose builds then look for a local backend). The CSP's `connect-src` keeps the local origin
+  only: the webview never calls the backend, the core does.
 - **Install id**: a random 128-bit hex id in `install-id` next to `settings.json`, sent as
   `X-MVP-Install` on every request, the update check included (anonymous; lets the server
   rate-limit per install, stage rollouts and erase an install's crash reports). Settings shows it

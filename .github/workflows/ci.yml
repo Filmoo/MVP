@@ -128,7 +128,11 @@ jobs:
       # The backend runs on Linux (tested in `checks`, image built in `backend-image`).
       - run: cargo test --workspace --locked --exclude mvp-backend
       # Builds only the desktop crate (tauri runs cargo in apps/desktop), never the backend.
+      # The app's server comes from the repository variable (MVP: https://api.mvpgg.com); unset,
+      # as in a fork, the build talks to a local backend (http://127.0.0.1:8787).
       - run: pnpm build:exe
+        env:
+          MVP_BACKEND_URL: ${{ vars.MVP_BACKEND_URL }}
       - name: Footprint of the real app (RAM, idle CPU)
         shell: pwsh
         run: ./scripts/windows-footprint.ps1 -Exe target/release/MVP.exe

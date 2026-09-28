@@ -25,11 +25,12 @@ check the latest run before building on it.
 **To fix / finish**
 1. **The server is live at `https://api.mvpgg.com`** (2026-09-28: an OVHcloud VPS behind
    Cloudflare, `deploy/README.md`), on a development key until the production key comes (it
-   expires every 24 h: `sudo mvp-set-riot-key` on the server). Left: CI and release builds still
-   point the app at `http://127.0.0.1:8787` (`MVP_BACKEND_URL` unset at build time), so their
-   stats, search and scouting say the service isn't there. Give `ci.yml` and `release.yml`
-   `MVP_BACKEND_URL` from a repository variable (`https://api.mvpgg.com`); until then the owner
-   sees "nothing changed" in each build.
+   expires every 24 h: `sudo mvp-set-riot-key` on the server). CI's Windows build and release
+   builds take the server from the repository variable `MVP_BACKEND_URL`
+   (`https://api.mvpgg.com`); installers built before it was set still look for
+   `http://127.0.0.1:8787`. Those builds ask the server for updates first, so each release is
+   also offered there (`deploy/README.md`, "Deploy a release"). Until the production key: keep the
+   installers to the owner and testers (Riot forbids public use of a development key).
 2. **A newer MVP started while an older one sits in the tray shows the old one** (single instance,
    close to tray by default: `window::open` on the running app, the new process exits). The owner
    ran run 43's exe and saw the old app. Quit from the tray first. Fix: a different executable
