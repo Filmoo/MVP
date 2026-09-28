@@ -125,7 +125,12 @@ test("my build: the build of my champion and role, for this game's mode", async 
 test("my build: a link opens it; modes without builds say so", async ({ page, t }) => {
   await openApp(page, { view: "/live?tab=build", scenario: "live" });
   await expect(page.locator("[data-widget=champion-runes]")).toBeVisible();
-  await page.evaluate((game) => window.__SCOUT_MOCK__?.emit("live", { ...game, queueId: 1700 }), liveGame);
+  // A custom game on the Rift (the client's queue 3100): the core says Rift builds fit.
+  await page.evaluate((game) => window.__SCOUT_MOCK__?.emit("live", { ...game, queueId: 3100, statsQueue: 420 }), liveGame);
+  await expect(page.getByTestId("my-build")).toContainText(t.imports.mostPlayedIn(420, t.brackets.emeraldPlus));
+  await expect(page.locator("[data-widget=champion-runes]")).toBeVisible();
+  // Arena: no builds.
+  await page.evaluate((game) => window.__SCOUT_MOCK__?.emit("live", { ...game, queueId: 1700, statsQueue: null }), liveGame);
   await expect(page.getByTestId("my-build")).toContainText(t.live.build.noMode.title);
 });
 

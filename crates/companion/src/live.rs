@@ -131,8 +131,15 @@ impl Scouted {
     }
 }
 
-/// Maps one team member. Hidden players' identity fields are never read.
-fn seat(member: &Value, selections: &[Value], my_puuid: Option<&str>) -> Seat {
+/// Maps one team member. Hidden players' identity fields are never read. The client's session
+/// carries no names today (2026: `summonerName` empty, no `gameName`/`tagLine`): the local
+/// player's own Riot ID comes from `current-summoner` instead.
+fn seat(
+    member: &Value,
+    selections: &[Value],
+    my_puuid: Option<&str>,
+    my_riot_id: Option<&RiotId>,
+) -> Seat {
     let hidden =
         str_at(member, "nameVisibilityType").is_some_and(|v| v.eq_ignore_ascii_case("HIDDEN"));
     let champion_id = u32_at(member, "championId");
@@ -170,6 +177,7 @@ fn seat(member: &Value, selections: &[Value], my_puuid: Option<&str>) -> Seat {
         }
     };
     let is_me = !hidden && my_puuid.is_some() && puuid.as_deref() == my_puuid;
+    let riot_id = riot_id.or_else(|| is_me.then(|| my_riot_id.cloned()).flatten());
     Seat {
         player: LivePlayer {
             champion_id,
@@ -185,7 +193,12 @@ fn seat(member: &Value, selections: &[Value], my_puuid: Option<&str>) -> Seat {
 }
 
 /// Maps a gameflow session; `None` when it has no game (yet).
-pub fn map_session(session: &Value, my_puuid: Option<&str>, platform: &str) -> Option<Scouted> {
+pub fn map_session(
+    session: &Value,
+    my_puuid: Option<&str>,
+    my_riot_id: Option<&RiotId>,
+    platform: &str,
+) -> Option<Scouted> {
     let data = session.get("gameData")?;
     let game_id = data
         .get("gameId")
@@ -205,7 +218,7 @@ pub fn map_session(session: &Value, my_puuid: Option<&str>, platform: &str) -> O
     let map = |members: &[Value]| -> Vec<Seat> {
         members
             .iter()
-            .map(|m| seat(m, &selections, my_puuid))
+            .map(|m| seat(m, &selections, my_puuid, my_riot_id))
             .collect()
     };
     let (one, two) = (map(&one), map(&two));
@@ -222,6 +235,7 @@ pub fn map_session(session: &Value, my_puuid: Option<&str>, platform: &str) -> O
                 .get("queue")
                 .and_then(|q| u32_at(q, "id"))
                 .unwrap_or_default(),
+            stats_queue: crate::imports::stats_queue(session),
             platform: platform.to_owned(),
             allies: allies.into_iter().map(|s| s.player).collect(),
             enemies: enemies.into_iter().map(|s| s.player).collect(),
@@ -247,13 +261,19 @@ pub(crate) async fn scout_game(
     };
     let me = lcu.get::<Value>(profile::CURRENT_SUMMONER).await.ok();
     let my_puuid = me.as_ref().and_then(|m| str_at(m, "puuid"));
+    let my_riot_id = me.as_ref().and_then(|m| {
+        Some(RiotId {
+            game_name: str_at(m, "gameName")?.to_owned(),
+            tag_line: str_at(m, "tagLine")?.to_owned(),
+        })
+    });
     let region = lcu.get::<Value>(profile::REGION).await.ok();
     let platform = region
         .as_ref()
         .and_then(|r| str_at(r, "region"))
         .and_then(platform_for_region)
         .unwrap_or("euw1");
-    let Some(mut scouted) = map_session(&session, my_puuid, platform) else {
+    let Some(mut scouted) = map_session(&session, my_puuid, my_riot_id.as_ref(), platform) else {
         tracing::debug!("no game in the session yet");
         return;
     };
@@ -332,7 +352,7 @@ mod tests {
 
     #[test]
     fn our_team_comes_first_and_hidden_players_stay_hidden() {
-        let scouted = map_session(&ranked_session(), Some("me"), "euw1").expect("game");
+        let scouted = map_session(&ranked_session(), Some("me"), None, "euw1").expect("game");
         let game = &scouted.game;
         assert_eq!((game.game_id, game.queue_id), (7_100_000_001, 420));
         assert_eq!(game.allies.len(), 3);
@@ -366,9 +386,77 @@ mod tests {
 
     #[test]
     fn spectated_games_keep_the_client_order() {
-        let scouted = map_session(&ranked_session(), Some("someone-else"), "euw1").expect("game");
+        let scouted =
+            map_session(&ranked_session(), Some("someone-else"), None, "euw1").expect("game");
         assert_eq!(scouted.game.allies[0].champion_id, Some(39));
         assert!(!scouted.game.allies.iter().any(|p| p.is_me));
+    }
+
+    /// A real client's session (2026-09-28, a custom game vs bots on the Rift): no names in the
+    /// team entries, bots not listed at all, the queue a custom one.
+    fn custom_session_as_the_client_sends_it() -> Value {
+        json!({
+            "phase": "InProgress",
+            "gameData": {
+                "gameId": 7_997_869_038_u64, "isCustomGame": true,
+                "queue": { "id": 3100, "mapId": 11, "gameMode": "CLASSIC", "isCustom": true },
+                "teamOne": [{ "championId": 85, "lastSelectedSkinIndex": 0, "profileIconId": 7148,
+                              "puuid": "me", "selectedPosition": "MIDDLE",
+                              "selectedRole": "MIDDLE.PRIMARY.MIDDLE.UNSELECTED",
+                              "summonerId": 1, "summonerInternalName": "", "summonerName": "",
+                              "teamOwner": false, "teamParticipantId": 1 }],
+                "teamTwo": [],
+                "playerChampionSelections": [{ "championId": 85, "puuid": "me", "selectedSkinIndex": 6, "spell1Id": 4, "spell2Id": 14 }]
+            }
+        })
+    }
+
+    #[test]
+    fn the_local_player_is_named_from_their_own_summoner() {
+        let me = RiotId {
+            game_name: "Fillmo".to_owned(),
+            tag_line: "7272".to_owned(),
+        };
+        let session = custom_session_as_the_client_sends_it();
+        let scouted = map_session(&session, Some("me"), Some(&me), "euw1").expect("game");
+        let mine = &scouted.game.allies[0];
+        assert!(mine.is_me);
+        assert_eq!(mine.riot_id.as_ref(), Some(&me));
+        assert_eq!(
+            (mine.champion_id, mine.spells.as_slice()),
+            (Some(85), [4, 14].as_slice())
+        );
+        assert_eq!(
+            scouted.game.stats_queue,
+            Some(420),
+            "a custom game on the Rift: Rift builds"
+        );
+        assert_eq!(scouted.wanted(), vec![me.clone()]);
+
+        // Someone else's seat never borrows the local player's name.
+        let other = map_session(&session, Some("someone-else"), Some(&me), "euw1").expect("game");
+        assert_eq!(other.game.allies[0].riot_id, None);
+    }
+
+    #[test]
+    fn builds_follow_the_map() {
+        let mut session = custom_session_as_the_client_sends_it();
+        let queue_of = |s: &Value| {
+            map_session(s, None, None, "euw1")
+                .expect("game")
+                .game
+                .stats_queue
+        };
+        session["gameData"]["queue"] = json!({ "id": 2400, "mapId": 12, "gameMode": "KIWI" });
+        assert_eq!(
+            queue_of(&session),
+            Some(450),
+            "ARAM: Mayhem is on Howling Abyss"
+        );
+        session["gameData"]["queue"] = json!({ "id": 720, "mapId": 12, "gameMode": "ARAM" });
+        assert_eq!(queue_of(&session), Some(450), "ARAM Clash");
+        session["gameData"]["queue"] = json!({ "id": 1700, "mapId": 30, "gameMode": "CHERRY" });
+        assert_eq!(queue_of(&session), None, "Arena");
     }
 
     #[test]
@@ -377,16 +465,17 @@ mod tests {
             map_session(
                 &json!({ "phase": "None", "gameData": { "gameId": 0 } }),
                 None,
+                None,
                 "euw1"
             )
             .is_none()
         );
-        assert!(map_session(&json!({}), None, "euw1").is_none());
+        assert!(map_session(&json!({}), None, None, "euw1").is_none());
     }
 
     #[test]
     fn cards_fill_their_seats_by_riot_id() {
-        let mut scouted = map_session(&ranked_session(), Some("me"), "euw1").expect("game");
+        let mut scouted = map_session(&ranked_session(), Some("me"), None, "euw1").expect("game");
         // The backend spells names the account's way: matched case-insensitively. Its PUUIDs
         // are its API key's, unrelated to the client's.
         let mut enemy = card("api-puuid-1", "ENEMY");
@@ -410,7 +499,7 @@ mod tests {
         assert!(scouted.game.allies[1].card.is_none(), "no Riot ID, no card");
         assert!(scouted.game.enemies[1].card.is_none(), "hidden");
 
-        let mut failed = map_session(&ranked_session(), Some("me"), "euw1").expect("game");
+        let mut failed = map_session(&ranked_session(), Some("me"), None, "euw1").expect("game");
         failed.apply(Err(BackendError::RateLimited {
             retry_after: Some(3),
         }));

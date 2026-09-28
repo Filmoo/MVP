@@ -15,6 +15,10 @@ pub struct LiveGame {
     pub game_id: u64,
     /// Queue id (420 = ranked solo/duo, 440 = flex, 450 = ARAM…).
     pub queue_id: u32,
+    /// Whose builds fit this game, from its map (as imports decide): 420 (ranked data) on
+    /// Summoner's Rift, whatever the queue (customs, co-op vs AI…), 450 on Howling Abyss;
+    /// `None` for modes without published builds (Arena…).
+    pub stats_queue: Option<u32>,
     /// Platform id of the game, e.g. `euw1`.
     pub platform: String,
     /// The local player's team, then the other one.

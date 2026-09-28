@@ -131,6 +131,7 @@ const me = id("Fillmo", "7272");
 export const liveGame: LiveGame = {
   gameId: 7_100_000_001,
   queueId: 420,
+  statsQueue: 420,
   platform: "euw1",
   scouting: { state: "done" },
   allies: [

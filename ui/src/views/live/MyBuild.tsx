@@ -7,7 +7,7 @@ import { EmptyState, Skeleton } from "../../design/States";
 import { t } from "../../i18n";
 import { createQuery } from "../../lib/query";
 import { roleLabel } from "../../lib/roles";
-import { bracketLabel, scopeLabel, statsQueueOf } from "../../lib/stats";
+import { asStatsQueue, bracketLabel, scopeLabel } from "../../lib/stats";
 import { filters } from "../../lib/stats-filters";
 import { ChampionBuilds } from "../champions/Champions";
 import { StatsProblem, useStatsIndex } from "../stats/common";
@@ -22,7 +22,8 @@ export function MyBuild(props: { game: LiveGame }): JSX.Element {
   const { transport, gameData } = useData();
   const { version } = useStatsIndex();
   const me = () => props.game.allies.find((p) => p.isMe);
-  const queue = () => statsQueueOf(props.game.queueId);
+  // The core reads it from the game's map: Rift builds for customs and co-op vs AI too.
+  const queue = () => asStatsQueue(props.game.statsQueue);
   const key = createMemo(() => {
     const championId = me()?.championId;
     const q = queue();

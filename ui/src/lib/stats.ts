@@ -46,16 +46,9 @@ export const roleFilterOptions = (): SegmentedOption<RoleFilter>[] => [
   ...ROLES.map((role) => ({ value: role, label: roleLabel(role), icon: ROLE_ICON[role] })),
 ];
 
-/** Summoner's Rift queues (normal, ranked, Clash, co-op vs AI): their builds are ranked data's. */
-const RIFT_QUEUES = new Set([0, 400, 420, 430, 440, 480, 490, 700, 720, 830, 840, 850, 870, 880, 890]);
-
-/**
- * Stats queue for a game's queue: ARAM's own, ranked data on the Rift (as the core does for
- * imports), none for other modes (Arena, URF…).
- */
-export function statsQueueOf(queueId: number): Queue | undefined {
-  if (queueId === 450 || queueId === 100) return ARAM;
-  return RIFT_QUEUES.has(queueId) ? RANKED : undefined;
+/** A stats queue the core named (a game's builds: from its map, as imports decide), if published. */
+export function asStatsQueue(queue: number | null | undefined): Queue | undefined {
+  return queue === RANKED || queue === ARAM ? queue : undefined;
 }
 
 /** Public name of a game-version patch (`16.19` → `26.19`), from the index; the patch itself without one. */

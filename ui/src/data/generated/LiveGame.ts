@@ -14,6 +14,12 @@ export type LiveGame = { gameId: number,
  */
 queueId: number, 
 /**
+ * Whose builds fit this game, from its map (as imports decide): 420 (ranked data) on
+ * Summoner's Rift, whatever the queue (customs, co-op vs AI…), 450 on Howling Abyss;
+ * `None` for modes without published builds (Arena…).
+ */
+statsQueue: number | null, 
+/**
  * Platform id of the game, e.g. `euw1`.
  */
 platform: string, 
