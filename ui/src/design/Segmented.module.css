@@ -10,7 +10,8 @@
   grid-auto-columns: 1fr;
   max-width: 100%;
   padding: var(--space-1);
-  border-radius: var(--radius-3);
+  /* Capsules, like the thumb's glass drop: its optics and its outline agree. */
+  border-radius: var(--radius-full);
   background: var(--bg-1);
   border: 1px solid var(--line-glass);
   box-shadow: inset 0 1px 2px var(--line-shade);
@@ -25,7 +26,7 @@
   left: var(--space-1);
   width: calc((100% - 2 * var(--space-1)) / var(--count));
   transform: translateX(calc(var(--index) * 100%));
-  border-radius: var(--radius-2);
+  border-radius: var(--radius-full);
   background: var(--bg-4);
   transition: transform var(--dur-glide) var(--ease-glide);
   pointer-events: none;
@@ -51,7 +52,7 @@
   min-width: 0;
   padding: 0 var(--space-5);
   border: 0;
-  border-radius: var(--radius-2);
+  border-radius: var(--radius-full);
   background: transparent;
   color: var(--text-3);
   font-weight: var(--weight-medium);
