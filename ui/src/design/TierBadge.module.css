@@ -58,3 +58,58 @@
   flex: none;
   filter: drop-shadow(0 0 10px color-mix(in oklab, currentColor 45%, transparent));
 }
+
+/* Tier-list grades (S–D): a filled square in the tier color; D an outline. */
+.grade {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid transparent;
+  color: var(--text-on-accent);
+  font-weight: var(--weight-bold);
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.sm {
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-1);
+  font-size: var(--text-xs);
+}
+
+.md {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-2);
+  font-size: var(--text-sm);
+}
+
+.lg {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-3);
+  font-size: var(--text-xl);
+}
+
+.gradeS {
+  background: var(--tier-s);
+  border-color: var(--tier-s);
+}
+.gradeA {
+  background: var(--tier-a);
+  border-color: var(--tier-a);
+}
+.gradeB {
+  background: var(--tier-b);
+  border-color: var(--tier-b);
+}
+.gradeC {
+  background: var(--tier-c);
+  border-color: var(--tier-c);
+}
+.gradeD {
+  background: var(--bg-1);
+  border-color: var(--tier-d);
+  color: var(--text-2);
+}

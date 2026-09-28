@@ -13,15 +13,18 @@ function ImageWithFallback(props: {
   round?: boolean;
   fallback: string;
   class?: string | undefined;
+  /** Shows the name on hover (icons shown without their name next to them). */
+  tooltip?: boolean | undefined;
 }): JSX.Element {
   const [failed, setFailed] = createSignal(false);
   const cls = () => `${styles.icon} ${props.round ? styles.round : ""} ${props.class ?? ""}`;
   const style = () => ({ width: `${props.size}px`, height: `${props.size}px` });
+  const title = () => (props.tooltip ? props.alt : undefined);
   return (
     <Show
       when={props.src && !failed()}
       fallback={
-        <div class={`${cls()} ${styles.fallback}`} style={style()} role="img" aria-label={props.alt} data-free-style>
+        <div class={`${cls()} ${styles.fallback}`} style={style()} role="img" aria-label={props.alt} title={title()} data-free-style>
           {props.size >= 28 ? props.fallback : ""}
         </div>
       }
@@ -29,6 +32,7 @@ function ImageWithFallback(props: {
       <img
         class={cls()}
         src={props.src}
+        title={title()}
         alt={props.alt}
         width={props.size}
         height={props.size}
@@ -55,7 +59,7 @@ export function ChampionIcon(props: { championId: number; size: Size; round?: bo
   );
 }
 
-export function ItemIcon(props: { itemId: number | undefined; size: Size }): JSX.Element {
+export function ItemIcon(props: { itemId: number | undefined; size: Size; tooltip?: boolean }): JSX.Element {
   const { gameData } = useData();
   return (
     <Show
@@ -75,13 +79,14 @@ export function ItemIcon(props: { itemId: number | undefined; size: Size }): JSX
           fallback=""
           size={props.size}
           class={styles.item}
+          tooltip={props.tooltip}
         />
       )}
     </Show>
   );
 }
 
-export function SpellIcon(props: { spellId: number; size: Size }): JSX.Element {
+export function SpellIcon(props: { spellId: number; size: Size; tooltip?: boolean }): JSX.Element {
   const { gameData } = useData();
   const spell = () => gameData()?.spells.get(props.spellId);
   return (
@@ -91,6 +96,7 @@ export function SpellIcon(props: { spellId: number; size: Size }): JSX.Element {
       fallback=""
       size={props.size}
       class={styles.spell}
+      tooltip={props.tooltip}
     />
   );
 }

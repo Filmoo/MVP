@@ -22,6 +22,14 @@ const paths = {
     "M9.9 4.2A10.4 10.4 0 0 1 12 4c6.5 0 10 8 10 8a17.6 17.6 0 0 1-2.2 3.3M6.6 6.6C3.7 8.5 2 12 2 12s3.5 8 10 8a9.7 9.7 0 0 0 5.4-1.6M9.9 9.9a3 3 0 0 0 4.2 4.2M2 2l20 20",
   enter: "M20 5v7a3 3 0 0 1-3 3H5M9 11l-4 4 4 4",
   sparkles: "M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z",
+  // Roles: the lane on a map square (top and bottom along the edges, mid across), a leaf, a shield.
+  roleTop: "M4 20V4h16M9 9h5v5H9z",
+  roleJungle: "M5 19C5 10 10 5 19 5c0 9-5 14-14 14zM5 19l7-7",
+  roleMiddle: "M5 19 19 5M4 9V4h5M20 15v5h-5",
+  roleBottom: "M20 4v16H4M10 10h5v5h-5z",
+  roleSupport: "M12 3 5 6v5c0 4.4 3 8.2 7 10 4-1.8 7-5.6 7-10V6zM12 9v6M9 12h6",
+  back: "M15 5l-7 7 7 7",
+  chevronDown: "M6 9l6 6 6-6",
 } as const;
 
 export type IconName = keyof typeof paths;
