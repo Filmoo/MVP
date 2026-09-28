@@ -24,12 +24,17 @@ except where marked.
    and the Riot cache snapshot are merged in `apps/backend` (see its README). Stats downloads share
    the per-install rate limit (60 burst, 120/min): the app must cache stats files and revalidate
    with `If-None-Match`.
-2. *(done)* Glass backdrop shader (`ui/src/design/backdrop/`, see architecture.md "Window
-   backdrop"): render on demand, half resolution, CSS fallback. Left: a Settings row "Visual
-   effects" (auto/light/off; today only `localStorage["mvp.effects"]`), ideally backed by an
-   `effects` field in the Rust `Settings`; verify GPU cost on a real Windows/WebView2 machine; fix
-   text contrast over art in Draft's Why card ("± 2.0", "+3.1 vs team now") and the phase pill
-   (≈3.3–3.6, target ≥ 4.5).
+2. *(done)* **Glass and light** (`ui/src/design/backdrop/`, `ui/src/design/liquid/`, see
+   architecture.md "Glass and light", decisions.md "Liquid glass"): liquid glass over the page
+   (SVG lenses from real optics: title bar over scrolling content, search results, toasts, the
+   rail's selection lens, held switches, segmented thumbs, the rank pane over art, the floating
+   tab bar on narrow windows), the backdrop shader's thick-glass card edges, rim glints toward
+   the pointer, springs for motion; Settings → App → Visual effects (Full / Light / Off, kept in
+   `Settings.effects`). Draft's Why captions are brighter over art. Left:
+   - **verify on real Windows/WebView2 GPUs**: frame times while scrolling under the title bar
+     and while the rail lens glides (DevTools → Rendering → Frame rendering stats), at 100 % and
+     150 % scaling, on an iGPU; the speed probe keeps "Full" off where the backdrop is slow;
+   - the lenses are Chromium-only by design (WebView2): a future web build falls back to blur.
 3. **Scouting identity fix:** LCU PUUIDs can differ from the API key's PUUIDs. Make
    `POST /v1/players/batch` accept Riot IDs (the core already reads them from the gameflow session)
    and use them; keep hidden/streamer-mode players out of any lookup.
