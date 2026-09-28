@@ -28,6 +28,8 @@ pub struct Summoner {
 #[serde(rename_all = "camelCase")]
 pub struct LeagueEntry {
     pub puuid: Option<String>,
+    /// Empty in apex leagues: their items carry no queue (the list's `queue` names it).
+    #[serde(default)]
     pub queue_type: String,
     pub tier: Option<String>,
     pub rank: Option<String>,

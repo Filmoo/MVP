@@ -87,11 +87,17 @@ async fn league_page(
     })
 }
 
+/// Riot's apex shape (2026): `queue` on the list, items without `queueType` or `tier`.
 async fn apex(Path((league, _)): Path<(String, String)>) -> Response {
     if league == "masterleagues" {
-        Json(json!({ "tier": "MASTER", "entries": [entry("m-1", "MASTER")] })).into_response()
+        let item = json!({ "puuid": "m-1", "leaguePoints": 50, "rank": "I", "wins": 60,
+                           "losses": 50, "veteran": false, "inactive": false,
+                           "freshBlood": false, "hotStreak": false });
+        Json(json!({ "tier": "MASTER", "queue": "RANKED_SOLO_5x5", "entries": [item] }))
+            .into_response()
     } else {
-        Json(json!({ "tier": "CHALLENGER", "entries": [] })).into_response()
+        Json(json!({ "tier": "CHALLENGER", "queue": "RANKED_SOLO_5x5", "entries": [] }))
+            .into_response()
     }
 }
 
