@@ -22,6 +22,8 @@ No in-game overlay for now (keep the architecture overlay-ready).
   deploy notes in its README.
 - `apps/crawler/` `mvp-crawler`: `crawl` (Emerald+ ladders → ranked/ARAM matches + timelines →
   facts in SQLite, resumable, idempotent) and `publish` (→ `stats/v1/{patch}/{queue}/{bracket}/…`).
+- `deploy/` the server behind Cloudflare (`https://api.mvpgg.com`): its configuration files,
+  `mvp-deploy` (release tags of `main` only), `mvp-set-riot-key` and the runbook (`deploy/README.md`).
 - `crates/domain` UI-facing types → exported to `ui/src/data/generated/*.ts` by ts-rs
   (`cargo test -p domain`; never edit generated files).
 - `crates/lcu` League client API: pinned Riot root TLS, REST, WAMP events, discovery, connector.
@@ -61,6 +63,9 @@ No in-game overlay for now (keep the architecture overlay-ready).
 ## Rules
 - Every change keeps `check.mjs full` green. Never weaken a test or raise a budget silently:
   budget changes go in their own commit with a reason.
+- Git: work on a branch from `main` and open a pull request into `main`. Never push to `main` or
+  create `v*` tags: the owner merges and tags, and the server only runs tags of `main`. Never
+  commit a key, token, password or `.env` file (`scripts/check-secrets.mjs` blocks known formats).
 - UI: only design tokens (`ui/src/design/tokens.css`); the coherence suite enforces it.
   Wrap self-contained blocks in `<Widget name>` (error isolation + perf budget entry required).
   New views need: layout-safe at 400→2560px, empty/error/loading states, mock scenarios.
