@@ -5,10 +5,18 @@ import type { Bracket } from "../generated/Bracket";
 import type { ChampionPage } from "../generated/ChampionPage";
 import type { ClientStatus } from "../generated/ClientStatus";
 import type { PlayerProfile } from "../generated/PlayerProfile";
+import type { Settings } from "../generated/Settings";
 import type { TierList } from "../generated/TierList";
 import { DEFAULT_REMOTE_CONFIG } from "../remote-defaults";
 import { CommandError, type CommandName, type Commands, type EventName, type Events } from "../transport";
-import { champSelectDraft, champSelectLocked, champSelectNoStats } from "./draft-fixtures";
+import {
+  aramDraft,
+  champSelectDraft,
+  champSelectLocked,
+  champSelectNoComps,
+  champSelectNoStats,
+  champSelectPlanning,
+} from "./draft-fixtures";
 import { rankEmblemsFixture } from "./emblem-fixtures";
 import { corruptProfile, extremeProfile, newPlayerProfile, profile } from "./fixtures";
 import { flashKept, importAnswer, importFailures } from "./import-fixtures";
@@ -82,6 +90,9 @@ export interface Scenario {
 
 const connectedIdle: ClientStatus = { connection: "connected", phase: "idle" };
 
+/** What the core saved last, while the page lives (a reload starts from the defaults again). */
+let savedSettings: Settings | undefined;
+
 const base: Scenario["responses"] = {
   app_info: { data: { name: "MVP", version: "0.1.0", platform: "web", installId: null } },
   client_status: { data: connectedIdle },
@@ -89,10 +100,16 @@ const base: Scenario["responses"] = {
   // Riot's emblems come from the core (downloaded at run time): the preview draws MVP's crests.
   rank_emblems: { data: null },
   draft_state: { data: null },
-  // The browser preview has no core to persist settings: the effects and language choices live in
-  // localStorage.
-  get_settings: { handle: () => ({ ...defaultSettings, effects: loadEffects(), language: savedLanguage() }) },
-  update_settings: { handle: (args) => saveSettings(args.settings), delayMs: 60 },
+  // The browser preview has no core to persist settings: they last as long as the page, and the
+  // effects and language choices live in localStorage.
+  get_settings: { handle: () => ({ ...(savedSettings ?? defaultSettings), effects: loadEffects(), language: savedLanguage() }) },
+  update_settings: {
+    handle: (args) => {
+      savedSettings = saveSettings(args.settings);
+      return savedSettings;
+    },
+    delayMs: 60,
+  },
   view_changed: { data: null },
   // A lookup takes a moment, like the real backend with a warm cache.
   search_player: { handle: searchPlayer, delayMs: 350 },
@@ -153,6 +170,18 @@ export const scenarios = {
   "draft-no-stats": {
     description: "Champion select before stats exist: no picks, the import buttons say why they wait.",
     responses: { ...champSelect, draft_state: { data: champSelectNoStats } },
+  },
+  "draft-planning": {
+    description: "Planning: nobody has picked or hovered yet, the team compositions wait for picks.",
+    responses: { ...champSelect, draft_state: { data: champSelectPlanning } },
+  },
+  "draft-no-comps": {
+    description: "Stats published before team compositions were: picks and odds, no compositions yet.",
+    responses: { ...champSelect, draft_state: { data: champSelectNoComps } },
+  },
+  "aram-champ-select": {
+    description: "ARAM: you have Lux, four champions on the bench and a reroll; ranked by the team's chance with each.",
+    responses: { ...champSelect, draft_state: { data: aramDraft } },
   },
   "imports-off": {
     description: "Every import turned off in Settings: no import bar in Draft.",

@@ -14,6 +14,8 @@ import styles from "./Suggestions.module.css";
 import { bySize, Segments, WEAK, WhyTerms } from "./Why";
 
 const CHIPS = 2;
+/** ARAM's stats queue. */
+const ARAM = 450;
 /** The row's delta bar spans ±5 points around "team now". */
 const DELTA_SCALE = 5;
 
@@ -39,8 +41,12 @@ function tierLabel(index: number, size: number): string {
   return t().draft.best(size > 1);
 }
 
-/** Your line next to the name: your games on this pick in the role, else your mastery of it. */
-function yourLine(s: Suggestion): string | undefined {
+/**
+ * Your line next to the name: your games on this pick in the role, else your mastery of it; in
+ * ARAM, the champion you have now says so.
+ */
+function yourLine(s: Suggestion, yours: number | undefined): string | undefined {
+  if (s.championId === yours) return s.mastery ? t().draft.yoursMastery(s.mastery.level) : t().draft.yours;
   if (s.mine) return t().draft.yourGames(s.mine.games, percent(s.mine.wins / s.mine.games));
   if (s.mastery) return t().draft.yourMastery(s.mastery.level);
   return undefined;
@@ -51,7 +57,14 @@ function masteryTitle(s: Suggestion): string | undefined {
   return t().draft.masteryTitle(s.mastery.level, s.mastery.points);
 }
 
-function Row(props: { s: Suggestion; selected: boolean; expanded: boolean; onSelect: () => void }): JSX.Element {
+function Row(props: {
+  s: Suggestion;
+  selected: boolean;
+  expanded: boolean;
+  /** ARAM: the champion you have now. */
+  yours?: number | undefined;
+  onSelect: () => void;
+}): JSX.Element {
   const { gameData } = useData();
   const name = (id: number) => gameData()?.champions.get(id)?.name ?? t().common.championN(id);
   const reasons = () => topReasons(props.s.reasons);
@@ -68,7 +81,7 @@ function Row(props: { s: Suggestion; selected: boolean; expanded: boolean; onSel
         <ChampionIcon championId={props.s.championId} size={40} />
         <span class={styles.nameLine}>
           <span class={styles.name}>{name(props.s.championId)}</span>
-          <Show when={yourLine(props.s)}>
+          <Show when={yourLine(props.s, props.yours)}>
             {(line) => (
               <span class={`${styles.mine} num`} title={masteryTitle(props.s)}>
                 {line()}
@@ -116,15 +129,17 @@ function Row(props: { s: Suggestion; selected: boolean; expanded: boolean; onSel
   );
 }
 
-function DataLine(props: { data: DataInfo }): JSX.Element {
+function DataLine(props: { data: DataInfo; rerolls: number | null }): JSX.Element {
   return (
     <Segments
       class={styles.footer}
       items={[
+        ...(props.data.queue === ARAM ? [{ text: t().queues[ARAM] }] : []),
         { text: bracketName(props.data.bracket) },
         { text: t().common.patch(props.data.patch) },
         { text: t().common.games(props.data.games) },
         { text: t().common.updated(timeAgo(props.data.updatedAt)) },
+        ...(props.rerolls === null ? [] : [{ text: t().draft.rerolls(props.rerolls) }]),
       ]}
     />
   );
@@ -137,6 +152,12 @@ export function Suggestions(props: {
   expanded?: number | undefined;
   onSelect: (championId: number) => void;
 }): JSX.Element {
+  const aram = () => props.draft.queue === ARAM;
+  const yours = () => (aram() ? (props.draft.allies.find((slot) => slot.isMe)?.championId ?? undefined) : undefined);
+  const empty = () => {
+    if (!props.draft.data) return t().draft.noStats;
+    return aram() ? t().draft.aramWaiting : t().draft.noSuggestions;
+  };
   const tiers = () => {
     const groups: Suggestion[][] = [];
     for (const s of props.draft.suggestions) {
@@ -148,7 +169,7 @@ export function Suggestions(props: {
   };
   return (
     <Card
-      title={t().draft.picksFor(props.draft.myRole)}
+      title={aram() ? t().draft.aramPicks : t().draft.picksFor(props.draft.myRole)}
       actions={
         <Show when={props.draft.team}>
           {(team) => (
@@ -161,16 +182,7 @@ export function Suggestions(props: {
       flush={props.draft.suggestions.length > 0}
       scroll
     >
-      <Show
-        when={props.draft.suggestions.length > 0}
-        fallback={
-          <EmptyState
-            icon="draft"
-            title={props.draft.data ? t().draft.noSuggestions.title : t().draft.noStats.title}
-            text={props.draft.data ? t().draft.noSuggestions.text : t().draft.noStats.text}
-          />
-        }
-      >
+      <Show when={props.draft.suggestions.length > 0} fallback={<EmptyState icon="draft" title={empty().title} text={empty().text} />}>
         <ol class={styles.list}>
           <For each={tiers()}>
             {(group, i) => (
@@ -183,6 +195,7 @@ export function Suggestions(props: {
                         s={s}
                         selected={props.selected === s.championId}
                         expanded={props.expanded === s.championId}
+                        yours={yours()}
                         onSelect={() => props.onSelect(s.championId)}
                       />
                     )}
@@ -192,7 +205,7 @@ export function Suggestions(props: {
             )}
           </For>
         </ol>
-        <Show when={props.draft.data}>{(data) => <DataLine data={data()} />}</Show>
+        <Show when={props.draft.data}>{(data) => <DataLine data={data()} rerolls={props.draft.rerolls} />}</Show>
       </Show>
     </Card>
   );

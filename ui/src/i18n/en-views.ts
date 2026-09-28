@@ -65,6 +65,12 @@ export const enViews = {
       title: "Stats not available yet",
       text: "Pick suggestions need champion stats, which download once our stats service is live.",
     },
+    aramPicks: "Yours and the bench",
+    yours: "Yours",
+    yoursMastery: (level: number) => `Yours · Mastery ${level}`,
+    rerolls: (n: number) => `${n} ${plural(n, "reroll", "rerolls")} left`,
+    aramWaiting: { title: "Waiting for your champion", text: "Yours and the bench show here." },
+    enemiesHidden: "Shown once the game loads",
   },
 
   why: {
@@ -80,6 +86,56 @@ export const enViews = {
     yourGames: (n: number) => `You: ${n} ${plural(n, "game", "games")}`,
     notInEstimate: "not in estimate",
     notInEstimateTitle: "Your own games are shown for reference; the estimate uses everyone's games.",
+    tabs: { pick: "Pick", teams: "Teams" },
+    tabsLabel: "Explain",
+    teamsTitle: "Team compositions",
+    withPick: (champion: string) => `Your team with ${champion}`,
+  },
+
+  /** Team compositions in Draft: what each team's champions usually bring. */
+  comps: {
+    none: "—",
+    rows: {
+      champions: "Champions",
+      damage: "Damage",
+      physical: "Physical",
+      magic: "Magic",
+      trueDamage: "True",
+      frontline: "Frontline",
+      cc: "Crowd control",
+      late: "Late game",
+      games: "Games each",
+    },
+    physicalDamage: "Physical damage",
+    magicDamage: "Magic damage",
+    times: (x: string) => `${x}×`,
+    seconds: (s: string) => `${s} s`,
+    atLeast: (n: string) => `≥ ${n}`,
+    change: (label: string, from: string, to: string) => `${label} ${from} → ${to}`,
+    value: (label: string, value: string) => `${label} ${value}`,
+    frontlineTitle: (x: string) => `Damage taken and mitigated: ${x} usual picks in these roles`,
+    ccTitle: (usual: string) => `Per game, added up (usual picks: ${usual} s)`,
+    lateTitle: (buckets: string) => `Win rate against usual, points: ${buckets}`,
+    under: (minutes: number) => `under ${minutes} min`,
+    between: (from: number, to: number) => `${from}–${to} min`,
+    over: (minutes: number) => `${minutes} min and more`,
+    bucket: (length: string, points: string) => `${length} ${points}`,
+    readings: {
+      mostlyPhysical: "Mostly physical damage",
+      mostlyMagic: "Mostly magic damage",
+      littleFrontline: "Little frontline",
+      lotsOfFrontline: "Lots of frontline",
+      littleCc: "Little crowd control",
+      lotsOfCc: "Lots of crowd control",
+      early: "Stronger in short games",
+      late: "Stronger in long games",
+    },
+    waiting: "Waiting for picks",
+    note: (bracket: string, patch: string) =>
+      `Usual numbers in each role (enemies: likely roles) · ${bracket} · patch ${patch} · not in the estimate`,
+    noteAram: (bracket: string, patch: string) => `Usual numbers in ARAM · ${bracket} · patch ${patch} · not in the estimate`,
+    noStats: { title: "No compositions yet", text: "They come with the champion stats." },
+    noComps: { title: "No compositions yet", text: "They come with the next stats update." },
   },
 
   imports: {
@@ -342,6 +398,11 @@ export const enViews = {
       },
       paused:
         "Auto-accept is paused for everyone while we fix an issue with the League client. Your choice is kept and works again as soon as it's fixed.",
+    },
+    stats: {
+      title: "Stats",
+      bracket: "Rank",
+      bracketText: "Games from this rank up count for Draft, imported builds, and the stats pages at first.",
     },
     imports: {
       title: "Imports",

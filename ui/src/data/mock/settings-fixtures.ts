@@ -15,6 +15,7 @@ export const defaultSettings: Settings = {
   importItemSet: "oneClick",
   importSpells: "oneClick",
   flashKey: "auto",
+  statsBracket: "emeraldPlus",
   crashReports: false,
 };
 
@@ -32,6 +33,7 @@ export const customSettings: Settings = {
   importItemSet: "onLockIn",
   importSpells: "off",
   flashKey: "f",
+  statsBracket: "diamondPlus",
   crashReports: false,
 };
 

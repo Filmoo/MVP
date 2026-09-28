@@ -266,7 +266,8 @@ impl Importer {
     }
 
     /// The build to import: for the request's queue (else the game's, else ranked), its role
-    /// (none in ARAM) and bracket. `result` takes the queue and role used.
+    /// (none in ARAM) and bracket (else the player's, else Emerald+ when theirs has no build
+    /// yet). `result` takes the queue and role used.
     async fn build_for(
         &self,
         lcu: &LcuClient,
@@ -288,11 +289,29 @@ impl Importer {
         if queue == ARAM {
             result.role = None;
         }
-        let bracket = request.bracket.unwrap_or(Bracket::EmeraldPlus);
-        self.builds
+        let chosen = self.settings.borrow().stats_bracket;
+        let bracket = request.bracket.unwrap_or(chosen);
+        if let Some(build) = self
+            .builds
             .build(request.champion_id, result.role, queue, bracket)
             .await
-            .ok_or(FailReason::NoBuild)
+        {
+            return Ok(build);
+        }
+        // The player's bracket may not be published (yet): the widest one's build.
+        if request.bracket.is_none() && bracket != Bracket::EmeraldPlus {
+            return self
+                .builds
+                .build(
+                    request.champion_id,
+                    result.role,
+                    queue,
+                    Bracket::EmeraldPlus,
+                )
+                .await
+                .ok_or(FailReason::NoBuild);
+        }
+        Err(FailReason::NoBuild)
     }
 
     /// Imports the requested parts, in order, and says what happened to each. Parts turned off

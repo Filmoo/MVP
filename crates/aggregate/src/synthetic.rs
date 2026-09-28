@@ -3,10 +3,24 @@
 
 use serde_json::{Value, json};
 
-use crate::facts::{ARAM, RANKED_SOLO};
+use crate::facts::{ARAM, Combat, RANKED_SOLO};
 
 /// Positions of participants 1–5 (blue) and 6–10 (red) in a ranked game.
 pub const POSITIONS: [&str; 5] = ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"];
+
+/// The damage, damage soaked and crowd control a synthetic `champion` always has: a mix that
+/// depends on its id, so compositions differ from champion to champion.
+pub fn combat_of(champion: u16) -> Combat {
+    let c = u32::from(champion);
+    Combat {
+        physical: 4_000 + 1_000 * (c % 10),
+        magic: 3_000 + 2_000 * (c % 5),
+        true_damage: 200 * (c % 3),
+        taken: 12_000 + 3_000 * (c % 4),
+        mitigated: 6_000 + 1_000 * (c % 6),
+        cc: 5 + c % 20,
+    }
+}
 
 /// A synthetic game.
 #[derive(Debug, Clone)]
@@ -20,6 +34,8 @@ pub struct Game {
     pub blue_wins: bool,
     pub bans: Vec<u16>,
     pub early_surrender: bool,
+    /// Participants carry damage, soaked damage and crowd control ([`combat_of`]).
+    pub combat: bool,
 }
 
 impl Game {
@@ -33,6 +49,7 @@ impl Game {
             blue_wins,
             bans: Vec::new(),
             early_surrender: false,
+            combat: true,
         }
     }
 
@@ -63,7 +80,7 @@ impl Game {
                 };
                 let keystone = if champion % 2 == 0 { 8005 } else { 8010 };
                 let smite_or_ignite = if i % 5 == 1 { 11 } else { 14 };
-                json!({
+                let mut participant = json!({
                     "participantId": i + 1,
                     "puuid": self.puuid(i),
                     "championId": champion,
@@ -84,7 +101,21 @@ impl Game {
                             ]}
                         ]
                     }
-                })
+                });
+                if self.combat {
+                    let c = combat_of(champion);
+                    for (key, value) in [
+                        ("physicalDamageDealtToChampions", c.physical),
+                        ("magicDamageDealtToChampions", c.magic),
+                        ("trueDamageDealtToChampions", c.true_damage),
+                        ("totalDamageTaken", c.taken),
+                        ("damageSelfMitigated", c.mitigated),
+                        ("timeCCingOthers", c.cc),
+                    ] {
+                        participant[key] = json!(value);
+                    }
+                }
+                participant
             })
             .collect();
         let bans: Vec<Value> = self

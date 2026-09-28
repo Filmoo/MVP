@@ -19,6 +19,7 @@ import { Toggle } from "../../design/Toggle";
 import { setLanguage, t } from "../../i18n";
 import { FLASH_ID } from "../../lib/imports";
 import { MAX_AUTO_ACCEPT_DELAY } from "../../lib/settings";
+import { bracketOptions } from "../../lib/stats";
 import { aboutLine } from "../../lib/updates";
 import styles from "./Settings.module.css";
 
@@ -173,6 +174,30 @@ export function ImportSettings(props: SectionProps): JSX.Element {
         </SettingRow>
       </SettingList>
       <p class={styles.footnote}>{words().footnote}</p>
+      <SaveError message={props.error} />
+    </Card>
+  );
+}
+
+/** Whose games the stats count: the draft's numbers, imported builds, the stats pages' start. */
+export function StatsSettings(props: SectionProps): JSX.Element {
+  const words = () => t().settings.stats;
+  return (
+    <Card title={words().title}>
+      <SettingList>
+        <SettingRow title={words().bracket} description={words().bracketText}>
+          {(ids) => (
+            <Choice
+              value={props.settings.statsBracket}
+              options={bracketOptions()}
+              onChange={(statsBracket) => props.onChange({ statsBracket })}
+              labelledBy={ids.label}
+              describedBy={ids.description}
+              testId="setting-stats-bracket"
+            />
+          )}
+        </SettingRow>
+      </SettingList>
       <SaveError message={props.error} />
     </Card>
   );

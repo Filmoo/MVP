@@ -5,6 +5,10 @@
  */
 export type DataInfo = { 
 /**
+ * 420 (ranked solo/duo data) or 450 (ARAM).
+ */
+queue: number, 
+/**
  * e.g. `Emerald+`.
  */
 bracket: string, 

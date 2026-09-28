@@ -83,7 +83,8 @@ pub struct ImportRequest {
     /// Stats queue: 420 (ranked data, used for every Summoner's Rift mode) or 450 (ARAM).
     /// `None`: the current game's, ranked outside of a game.
     pub queue: Option<u32>,
-    /// Rank bracket of the stats (the champion page's choice); `None`: Emerald+.
+    /// Rank bracket of the stats (the champion page's choice); `None`: the player's (Settings),
+    /// Emerald+ when that one has no build yet.
     #[serde(default)]
     pub bracket: Option<Bracket>,
     pub parts: Vec<ImportPart>,

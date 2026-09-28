@@ -24,7 +24,18 @@ test("/draft in champion select only uses design tokens", async ({ page }) => {
   expect(await page.evaluate(auditTokens)).toEqual([]);
 });
 
-for (const scenario of ["import-lock-in", "draft-no-stats"] as const) {
+// The side panel's other tab: both teams' compositions (ARAM: yours, the enemy team hidden).
+for (const scenario of ["champ-select", "aram-champ-select", "draft-planning"] as const) {
+  test(`/draft/${scenario} team compositions only use design tokens`, async ({ page, t }) => {
+    await openApp(page, { view: "/draft", scenario });
+    await page.getByTestId("why-tabs").getByRole("radio", { name: t.why.tabs.teams }).click();
+    await expect(page.locator("[data-widget=draft-comps]").getByRole("table")).toBeVisible();
+    await animationsDone(page);
+    expect(await page.evaluate(auditTokens)).toEqual([]);
+  });
+}
+
+for (const scenario of ["import-lock-in", "draft-no-stats", "aram-champ-select"] as const) {
   test(`/draft/${scenario} only uses design tokens`, async ({ page }) => {
     await openApp(page, { view: "/draft", scenario });
     if (scenario === "import-lock-in") {

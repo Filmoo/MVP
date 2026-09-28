@@ -18,6 +18,7 @@ role: Role | null,
  */
 queue: number | null, 
 /**
- * Rank bracket of the stats (the champion page's choice); `None`: Emerald+.
+ * Rank bracket of the stats (the champion page's choice); `None`: the player's (Settings),
+ * Emerald+ when that one has no build yet.
  */
 bracket: Bracket | null, parts: Array<ImportPart>, };

@@ -65,7 +65,7 @@
 }
 
 /* Narrow: the import bar, then picks (the client already shows the teams); the selected pick
-   explains itself inline. */
+   explains itself inline, and the side panel (compositions first) comes last. */
 @container page (max-width: 959px) {
   .grid {
     flex: none;
@@ -74,15 +74,14 @@
     grid-template-areas:
       "imports"
       "picks"
-      "teams";
+      "teams"
+      "why";
   }
   .noImports {
     grid-template-areas:
       "picks"
-      "teams";
-  }
-  .why {
-    display: none;
+      "teams"
+      "why";
   }
 }
 

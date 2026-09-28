@@ -117,6 +117,61 @@ test("draft no stats 1280x800", async ({ page }) => {
   await capture(page, `${OUT}/draft-no-stats-1280x800.png`, false);
 });
 
+// Team compositions (the side panel's Teams tab) and ARAM: yours and the bench.
+async function teamsTab(page: Page, label: string): Promise<void> {
+  const tab = page.getByTestId("why-tabs").getByRole("radio", { name: label });
+  if ((await tab.getAttribute("aria-checked")) !== "true") await tab.click();
+  await page.locator("[data-widget=draft-comps] > *").first().waitFor();
+  await page.mouse.move(0, 0);
+  await animationsDone(page);
+}
+
+for (const [scenario, sizes] of [
+  [
+    "champ-select",
+    [
+      [1280, 720],
+      [1920, 1080],
+      [420, 800],
+    ],
+  ],
+  [
+    "aram-champ-select",
+    [
+      [1280, 720],
+      [420, 800],
+    ],
+  ],
+  ["draft-planning", [[1280, 720]]],
+  ["draft-no-comps", [[1280, 720]]],
+] as const) {
+  for (const [width, height] of sizes) {
+    test(`draft teams ${scenario} ${width}x${height}`, async ({ page, t }) => {
+      await openApp(page, { view: "/draft", scenario, width, height });
+      await teamsTab(page, t.why.tabs.teams);
+      await capture(page, `${OUT}/draft-teams-${scenario}-${width}x${height}.png`, width < 900);
+    });
+  }
+}
+
+for (const [width, height] of [
+  [1280, 720],
+  [1920, 1080],
+] as const) {
+  test(`draft aram ${width}x${height}`, async ({ page }) => {
+    await openApp(page, { view: "/draft", scenario: "aram-champ-select", width, height });
+    await capture(page, `${OUT}/draft-aram-${width}x${height}.png`, false);
+  });
+}
+
+test("draft aram 1280x720 bench pick", async ({ page }) => {
+  await openApp(page, { view: "/draft", scenario: "aram-champ-select", width: 1280, height: 720 });
+  await page.getByTestId("suggestion").filter({ hasText: "Sion" }).click();
+  await page.mouse.move(0, 0);
+  await animationsDone(page);
+  await capture(page, `${OUT}/draft-aram-1280x720-sion.png`, false);
+});
+
 test("draft champ-select 420x800 tapped", async ({ page }) => {
   await openApp(page, { view: "/draft", scenario: "champ-select", width: 420, height: 800 });
   await page.getByTestId("suggestion").filter({ hasText: "Shen" }).click();
@@ -360,6 +415,7 @@ test.describe("in French", () => {
   const SCREENS = [
     { name: "home", view: "/", scenario: "default" },
     { name: "draft", view: "/draft", scenario: "champ-select" },
+    { name: "draft-aram", view: "/draft", scenario: "aram-champ-select" },
     { name: "live", view: "/live", scenario: "live" },
     { name: "live-build", view: "/live?tab=build", scenario: "live" },
     { name: "champion", view: "/champions?id=103", scenario: "default" },
@@ -418,6 +474,22 @@ test.describe("in French", () => {
     await page.getByTestId("toast").waitFor();
     await settle(page);
     await capture(page, `${OUT}/fr-draft-import-lock-in-1280x800.png`, false);
+  });
+
+  for (const scenario of ["champ-select", "aram-champ-select", "draft-planning"] as const) {
+    test(`fr draft teams ${scenario} 1280x720`, async ({ page, t }) => {
+      await openApp(page, { view: "/draft", scenario, width: 1280, height: 720 });
+      await teamsTab(page, t.why.tabs.teams);
+      await capture(page, `${OUT}/fr-draft-teams-${scenario}-1280x720.png`, false);
+    });
+  }
+
+  test("fr draft aram 1280x720 bench pick", async ({ page }) => {
+    await openApp(page, { view: "/draft", scenario: "aram-champ-select", width: 1280, height: 720 });
+    await page.getByTestId("suggestion").filter({ hasText: "Sion" }).click();
+    await page.mouse.move(0, 0);
+    await animationsDone(page);
+    await capture(page, `${OUT}/fr-draft-aram-1280x720-sion.png`, false);
   });
 
   test("fr champion page 2560x1440", async ({ page }) => {

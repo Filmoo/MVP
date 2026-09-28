@@ -7,6 +7,7 @@
 //! v1/{patch}/{queue}/{bracket}/tierlist.json          TierList
 //! v1/{patch}/{queue}/{bracket}/matchups/{id}.json     MatchupsFile (ranked only)
 //! v1/{patch}/{queue}/{bracket}/builds/{id}.json       BuildsFile
+//! v1/{patch}/{queue}/{bracket}/compositions.json      CompositionsFile (once games carry them)
 //! ```
 //! Everything the app needs is precomputed here, but raw games and wins always ship next to
 //! derived numbers so the app can explain (and re-derive) every value.
@@ -15,14 +16,15 @@ use std::collections::{BTreeMap, HashMap};
 
 use domain::{
     Bracket, BuildOption, BuildSection, BuildStats, BuildsFile, ChampionRoleStats, ChampionStats,
-    ChampionsFile, DataSetIndex, DataSetInfo, GamesWins, MatchupEntry, MatchupsFile, PairKind,
-    PairPrior, PatchIndex, RoleMatchups, STATS_SCHEMA, StatsIndex, TierEntry, TierGrade, TierList,
+    ChampionsFile, CompositionStats, CompositionsFile, DataSetIndex, DataSetInfo, GamesWins,
+    MatchupEntry, MatchupsFile, PairKind, PairPrior, PatchIndex, RoleMatchups, STATS_SCHEMA,
+    StatsIndex, TierEntry, TierGrade, TierList,
 };
 use stats::draft::{Evidence, PairObservation, estimate_tau, shrunk_delta};
 use stats::{BetaPrior, Record, logit, sigmoid};
 
-use crate::dataset::{Builds, Dataset, SliceStats};
-use crate::facts::{ARAM, Lane, Patch, RANKED_SOLO};
+use crate::dataset::{BASIS_POINTS, Builds, CompTally, Dataset, SliceStats};
+use crate::facts::{ARAM, Lane, Patch, RANKED_SOLO, length_bounds};
 use crate::tally::{Rec, Tally};
 
 /// Queues we publish.
@@ -304,6 +306,9 @@ pub fn publish_set(
             &tier_list(s, &model, info, opts),
         )?,
     ];
+    if let Some(comps) = compositions(s, info, opts) {
+        files.push(to_json(format!("{dir}/compositions.json"), &comps)?);
+    }
 
     // Per champion: builds, and (ranked) matchups.
     let mut versus_of: HashMap<u16, Pairs> = HashMap::new();
@@ -486,6 +491,59 @@ fn role_matchups(
         jungle,
         duos: with,
     }
+}
+
+/// What a champion (or, with `id` 0, a whole role) brings to a team composition.
+fn composition(id: u32, role: Option<Lane>, t: &CompTally, lengths: bool) -> CompositionStats {
+    let minutes = t.seconds as f64 / 60.0;
+    let per_minute = |sum: u64| {
+        if minutes > 0.0 {
+            round(sum as f64 / minutes, 1)
+        } else {
+            0.0
+        }
+    };
+    let games = f64::from(t.games.max(1));
+    CompositionStats {
+        id,
+        role: role.map(Lane::domain),
+        n: t.games,
+        dmg: t.damage.map(per_minute),
+        front: round(t.frontline as f64 / BASIS_POINTS as f64 / games, 4),
+        cc: round(t.cc as f64 / games, 1),
+        len: if lengths {
+            t.lengths.iter().map(|r| (r.games, r.wins)).collect()
+        } else {
+            Vec::new()
+        },
+    }
+}
+
+/// `compositions.json`: champions × roles with enough games counted, and each whole role (every
+/// champion's games, however few) as the usual pick. `None` before any game carries the numbers.
+fn compositions(s: &SliceStats, info: &DataSetInfo, opts: &Options) -> Option<CompositionsFile> {
+    let mut roles: BTreeMap<Option<Lane>, CompTally> = BTreeMap::new();
+    let mut champions = Vec::new();
+    for (&(c, role), t) in &s.comps {
+        roles.entry(role).or_default().merge(t);
+        if t.games >= opts.min_role_games.max(1) {
+            champions.push(composition(u32::from(c), role, t, true));
+        }
+    }
+    if champions.is_empty() {
+        return None;
+    }
+    let queue = u16::try_from(info.queue).unwrap_or(RANKED_SOLO);
+    Some(CompositionsFile {
+        info: info.clone(),
+        lengths: length_bounds(queue).to_vec(),
+        roles: roles
+            .iter()
+            .filter(|(_, t)| t.games > 0)
+            .map(|(&role, t)| composition(0, role, t, false))
+            .collect(),
+        champions,
+    })
 }
 
 /// Grade of a tier-list score (shrunk win rate − 50 %, in points).

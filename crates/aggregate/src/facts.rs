@@ -15,6 +15,27 @@ pub const ARAM: u16 = 450;
 pub const REMAKE_SECONDS: u64 = 5 * 60;
 /// Purchases before this count as starting items.
 pub const START_WINDOW_MS: u64 = 90_000;
+/// Game-length buckets of ranked games: upper bounds in minutes (under 25, 25 to 35, 35 and more).
+pub const RANKED_LENGTHS: [u32; 2] = [25, 35];
+/// … of ARAM games, which are shorter (under 17, 17 to 22, 22 and more).
+pub const ARAM_LENGTHS: [u32; 2] = [17, 22];
+
+/// Upper bounds of the game-length buckets of `queue`, in minutes.
+pub const fn length_bounds(queue: u16) -> [u32; 2] {
+    if queue == ARAM {
+        ARAM_LENGTHS
+    } else {
+        RANKED_LENGTHS
+    }
+}
+
+/// The game-length bucket (0, 1 or 2) of a game of `queue` lasting `seconds`.
+pub fn length_bucket(queue: u16, seconds: u32) -> usize {
+    length_bounds(queue)
+        .iter()
+        .position(|&minutes| seconds < minutes * 60)
+        .unwrap_or(2)
+}
 
 /// Game-version patch (`16.19`), as in match data and Data Dragon.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
@@ -196,6 +217,29 @@ pub struct Purchase {
     pub item: u32,
 }
 
+/// What one player did in the fights, as Match-V5 sums it up: the numbers of a team
+/// composition (damage mix, frontline, crowd control).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct Combat {
+    /// Damage dealt to champions, by type (`physicalDamageDealtToChampions`…).
+    pub physical: u32,
+    pub magic: u32,
+    pub true_damage: u32,
+    /// `totalDamageTaken`.
+    pub taken: u32,
+    /// `damageSelfMitigated`.
+    pub mitigated: u32,
+    /// `timeCCingOthers`, in seconds.
+    pub cc: u32,
+}
+
+impl Combat {
+    /// Damage taken and mitigated: what the player soaked for the team.
+    pub fn soaked(self) -> u64 {
+        u64::from(self.taken) + u64::from(self.mitigated)
+    }
+}
+
 /// One participant, anonymous.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct PlayerFacts {
@@ -214,6 +258,11 @@ pub struct PlayerFacts {
     /// Items bought in order; empty without a timeline.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub purchases: Vec<Purchase>,
+    /// Damage, damage soaked and crowd control; `None` in facts crawled before they were read
+    /// (left out of the composition aggregates, never counted as zero). Every player of a game
+    /// has them, or none does.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub combat: Option<Combat>,
 }
 
 /// What the aggregates need from one game.
@@ -227,6 +276,10 @@ pub struct GameFacts {
     pub players: Vec<PlayerFacts>,
     /// Skills and purchases are known (a timeline was read).
     pub timeline: bool,
+    /// Length in seconds; `None` in facts crawled before it was kept (left out of the
+    /// game-length aggregates).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub duration: Option<u32>,
 }
 
 /// Why a game is not counted.
@@ -252,6 +305,18 @@ fn u32_at(v: &Value, key: &str) -> Option<u32> {
 
 fn u16_at(v: &Value, key: &str) -> Option<u16> {
     u64_at(v, key).and_then(|n| u16::try_from(n).ok())
+}
+
+/// The participant's damage, soaked damage and crowd control; `None` when a field is missing.
+fn combat(p: &Value) -> Option<Combat> {
+    Some(Combat {
+        physical: u32_at(p, "physicalDamageDealtToChampions")?,
+        magic: u32_at(p, "magicDamageDealtToChampions")?,
+        true_damage: u32_at(p, "trueDamageDealtToChampions")?,
+        taken: u32_at(p, "totalDamageTaken")?,
+        mitigated: u32_at(p, "damageSelfMitigated")?,
+        cc: u32_at(p, "timeCCingOthers")?,
+    })
 }
 
 fn rune_page(p: &Value) -> Option<RunePage> {
@@ -381,6 +446,7 @@ fn player(
         runes: rune_page(p),
         skills,
         purchases,
+        combat: combat(p),
     })
 }
 
@@ -465,11 +531,17 @@ pub fn extract(game: &Value, timeline: Option<&Value>) -> Result<GameFacts, Skip
         })
         .unwrap_or_default();
 
-    let players = participants
+    let mut players = participants
         .iter()
         .map(|p| player(p, queue, &events, &timeline_ids))
         .collect::<Result<Vec<_>, _>>()?;
     check_teams(&players, queue)?;
+    // A team's shares need every teammate's numbers: all players have them, or none does.
+    if players.iter().any(|p| p.combat.is_none()) {
+        for p in &mut players {
+            p.combat = None;
+        }
+    }
     let bans = bans(info);
 
     Ok(GameFacts {
@@ -479,6 +551,7 @@ pub fn extract(game: &Value, timeline: Option<&Value>) -> Result<GameFacts, Skip
         bans,
         players,
         timeline: timeline.is_some(),
+        duration: u32::try_from(duration).ok(),
     })
 }
 
@@ -517,6 +590,18 @@ mod tests {
             .to_string(),
             "15.24"
         );
+    }
+
+    #[test]
+    fn games_fall_into_length_buckets() {
+        assert_eq!(length_bucket(RANKED_SOLO, 24 * 60 + 59), 0);
+        assert_eq!(length_bucket(RANKED_SOLO, 25 * 60), 1);
+        assert_eq!(length_bucket(RANKED_SOLO, 35 * 60 - 1), 1);
+        assert_eq!(length_bucket(RANKED_SOLO, 35 * 60), 2);
+        assert_eq!(length_bucket(ARAM, 16 * 60), 0);
+        assert_eq!(length_bucket(ARAM, 20 * 60), 1);
+        assert_eq!(length_bucket(ARAM, 30 * 60), 2);
+        assert_eq!(length_bounds(ARAM), ARAM_LENGTHS);
     }
 
     #[test]

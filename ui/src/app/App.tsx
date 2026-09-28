@@ -8,6 +8,7 @@ import { liquid } from "../design/liquid/liquid";
 import { loadViewWords, setLanguage, t } from "../i18n";
 import { dismissIssue, issues, notify, reportError } from "../lib/errors";
 import { listenForLockInImports } from "../lib/lock-in-toasts";
+import { setSettingsBracket } from "../lib/settings";
 import { Home } from "../views/home/Home";
 import { Planned } from "../views/Planned";
 import styles from "./App.module.css";
@@ -63,10 +64,11 @@ export function App(): JSX.Element {
   );
   onCleanup(followPointerOnGlass());
   // The core keeps the lasting visual effects and language choices; the first frame used the
-  // local copies.
+  // local copies. The stats pages start from the settings' bracket.
   const apply = (settings: SettingsData) => {
     setEffects(settings.effects);
     void setLanguage(settings.language);
+    setSettingsBracket(settings.statsBracket);
   };
   transport
     .call("get_settings")

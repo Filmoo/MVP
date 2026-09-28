@@ -24,6 +24,25 @@ struct Session {
     timer: Timer,
     #[serde(default)]
     local_player_cell_id: i64,
+    /// ARAM (and other modes with a bench): champions anyone on the team can swap for.
+    #[serde(default)]
+    bench_enabled: bool,
+    #[serde(default)]
+    bench_champions: Vec<BenchChampion>,
+    /// Older clients listed the bench as plain ids.
+    #[serde(default)]
+    bench_champion_ids: Vec<u32>,
+    #[serde(default)]
+    allow_rerolling: bool,
+    #[serde(default)]
+    rerolls_remaining: u32,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct BenchChampion {
+    #[serde(default)]
+    champion_id: u32,
 }
 
 /// Only what the draft needs. Identity fields are intentionally absent.
@@ -127,6 +146,22 @@ pub fn map_session(value: &serde_json::Value) -> Option<DraftView> {
         .find(|m| m.cell_id == session.local_player_cell_id)
         .and_then(|m| role(&m.assigned_position));
     let seconds = |ms: i64| u32::try_from(ms.max(0) / 1000).ok();
+    let bench = session.bench_enabled.then(|| {
+        let mut ids: Vec<u32> = session
+            .bench_champions
+            .iter()
+            .map(|b| b.champion_id)
+            .chain(session.bench_champion_ids.iter().copied())
+            .filter(|&c| c != 0)
+            .collect();
+        let mut seen = Vec::with_capacity(ids.len());
+        ids.retain(|c| {
+            let new = !seen.contains(c);
+            seen.push(*c);
+            new
+        });
+        ids
+    });
     Some(DraftView {
         phase,
         seconds_left: (session.timer.adjusted_time_left_in_phase > 0)
@@ -150,6 +185,10 @@ pub fn map_session(value: &serde_json::Value) -> Option<DraftView> {
         team: None,
         suggestions: Vec::new(),
         data: None,
+        queue: None,
+        bench,
+        rerolls: session.allow_rerolling.then_some(session.rerolls_remaining),
+        comps: None,
     })
 }
 
@@ -233,6 +272,54 @@ mod tests {
             map_session(&s).map(|v| v.phase),
             Some(DraftPhase::Finalizing)
         );
+    }
+
+    /// Shaped like an ARAM session: everyone has a champion, no roles, no picks or bans, the
+    /// enemy team unknown, a shared bench and rerolls.
+    fn aram_session() -> serde_json::Value {
+        json!({
+            "localPlayerCellId": 2,
+            "myTeam": [
+                { "cellId": 0, "assignedPosition": "", "championId": 222 },
+                { "cellId": 1, "assignedPosition": "", "championId": 54 },
+                { "cellId": 2, "assignedPosition": "", "championId": 99, "gameName": "Me", "tagLine": "EUW" },
+                { "cellId": 3, "assignedPosition": "", "championId": 37 },
+                { "cellId": 4, "assignedPosition": "", "championId": 115 }
+            ],
+            "theirTeam": [],
+            "actions": [],
+            "bans": { "myTeamBans": [], "theirTeamBans": [], "numBans": 0 },
+            "benchEnabled": true,
+            "benchChampions": [{ "championId": 63, "isPriority": false }, { "championId": 14, "isPriority": true }, { "championId": 63 }],
+            "allowRerolling": true,
+            "rerollsRemaining": 1,
+            "timer": { "phase": "FINALIZATION", "adjustedTimeLeftInPhase": 48_000 }
+        })
+    }
+
+    #[test]
+    fn maps_an_aram_session() {
+        let view = map_session(&aram_session()).expect("session");
+        assert_eq!(view.phase, DraftPhase::Finalizing);
+        assert_eq!(view.my_role, None);
+        let me = view.allies.iter().find(|s| s.is_me).expect("me");
+        assert_eq!((me.champion_id, me.hovering), (Some(99), false));
+        assert!(view.enemies.is_empty());
+        assert_eq!(view.bench, Some(vec![63, 14]), "each champion once");
+        assert_eq!(view.rerolls, Some(1));
+        let json = serde_json::to_string(&view).expect("serializable");
+        assert!(!json.contains("\"Me\""));
+
+        // Ranked has no bench and no rerolls.
+        let ranked = map_session(&ranked_session()).expect("session");
+        assert_eq!((ranked.bench, ranked.rerolls), (None, None));
+        // Rerolls only count where the mode allows them; older clients list the bench as ids.
+        let mut s = aram_session();
+        s["allowRerolling"] = json!(false);
+        s["benchChampions"] = json!([]);
+        s["benchChampionIds"] = json!([12, 0]);
+        let view = map_session(&s).expect("session");
+        assert_eq!((view.bench, view.rerolls), (Some(vec![12]), None));
     }
 
     #[test]

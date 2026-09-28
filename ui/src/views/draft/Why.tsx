@@ -1,12 +1,20 @@
 import { For, type JSX, Show } from "solid-js";
 import { useData } from "../../data/context";
+import type { Compositions } from "../../data/generated/Compositions";
+import type { DataInfo } from "../../data/generated/DataInfo";
 import type { Reason } from "../../data/generated/Reason";
 import type { Suggestion } from "../../data/generated/Suggestion";
 import { Card } from "../../design/Card";
 import { ChampionArt } from "../../design/GameIcon";
+import { Segmented } from "../../design/Segmented";
 import { t } from "../../i18n";
 import { decimal, percent, percentOf100, signedPoints } from "../../lib/format";
+import { Widget } from "../../widgets/Widget";
+import { CompChange, Comps } from "./Comps";
 import styles from "./Why.module.css";
+
+/** What the panel explains: the selected pick, or both teams' compositions. */
+export type WhyTab = "pick" | "teams";
 
 /** Bars span ±5 pp. */
 const SCALE = 5;
@@ -97,17 +105,62 @@ export function WhyTerms(props: { suggestion: Suggestion; class?: string | undef
   );
 }
 
-export function Why(props: { suggestion: Suggestion | undefined; teamPercent: number | undefined }): JSX.Element {
+export function Why(props: {
+  suggestion: Suggestion | undefined;
+  teamPercent: number | undefined;
+  /** Both teams' compositions: the "Teams" tab, and your team with the pick. */
+  comps?: Compositions | null | undefined;
+  data?: DataInfo | null | undefined;
+  aram?: boolean;
+  /** The champion you hover or have: your team's composition already holds it. */
+  mine?: number | null | undefined;
+  tab?: WhyTab;
+  onTab?: (tab: WhyTab) => void;
+}): JSX.Element {
   const { gameData } = useData();
   const name = (id: number) => gameData()?.champions.get(id)?.name ?? t().common.championN(id);
+  const teams = () => props.tab === "teams";
+  const tabs = () => [
+    { value: "pick" as const, label: t().why.tabs.pick },
+    { value: "teams" as const, label: t().why.tabs.teams },
+  ];
   return (
     <Card
-      title={t().why.title(props.suggestion ? name(props.suggestion.championId) : undefined)}
+      title={teams() ? t().why.teamsTitle : t().why.title(props.suggestion ? name(props.suggestion.championId) : undefined)}
+      actions={
+        <Show when={props.onTab}>
+          {(onTab) => (
+            <Segmented
+              size="sm"
+              class={styles.tabs}
+              label={t().why.tabsLabel}
+              options={tabs()}
+              value={props.tab ?? "pick"}
+              onChange={onTab()}
+              testId="why-tabs"
+            />
+          )}
+        </Show>
+      }
       class={styles.card}
       scroll
-      backdrop={<Show when={props.suggestion}>{(s) => <ChampionArt championId={s().championId} class={styles.art} light />}</Show>}
+      backdrop={
+        <Show when={!teams() && props.suggestion}>{(s) => <ChampionArt championId={s().championId} class={styles.art} light />}</Show>
+      }
     >
-      <Show when={props.suggestion} fallback={<p class={styles.meta}>{t().why.empty}</p>}>
+      <Show when={teams()}>
+        <Widget name="draft-comps">
+          <Comps comps={props.comps ?? null} data={props.data ?? null} aram={props.aram ?? false} />
+        </Widget>
+      </Show>
+      <Show
+        when={!teams() && props.suggestion}
+        fallback={
+          <Show when={!teams()}>
+            <p class={styles.meta}>{t().why.empty}</p>
+          </Show>
+        }
+      >
         {(s) => (
           <>
             <div class={`${styles.summary} num`}>
@@ -123,6 +176,15 @@ export function Why(props: { suggestion: Suggestion | undefined; teamPercent: nu
               </Show>
             </div>
             <WhyTerms suggestion={s()} />
+            <Show when={s().comp}>
+              {(next) => (
+                <CompChange
+                  champion={name(s().championId)}
+                  now={s().championId === props.mine ? undefined : props.comps?.allies}
+                  next={next()}
+                />
+              )}
+            </Show>
             <Show when={s().mine}>
               {(m) => (
                 <Segments

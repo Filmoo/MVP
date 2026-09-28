@@ -20,10 +20,112 @@ pub struct DraftView {
     pub enemy_bans: Vec<u32>,
     /// Our team's estimated win chance with the current picks (`None` without stats data).
     pub team: Option<Estimate>,
-    /// Ranked picks for `my_role`, best first (empty without stats data).
+    /// Ranked picks for `my_role`, best first (empty without stats data). In ARAM: your
+    /// champion and the bench's, by the team's win chance with each (none is ever swapped for you).
     pub suggestions: Vec<Suggestion>,
     /// Where the stats come from (`None` until stats data is available).
     pub data: Option<DataInfo>,
+    /// The stats queue of this champion select: 420 (Summoner's Rift, ranked data) or 450
+    /// (ARAM); `None` until known, and for modes without stats.
+    pub queue: Option<u32>,
+    /// Champions on the bench, anyone on your team can take one (ARAM); `None` in modes
+    /// without a bench.
+    pub bench: Option<Vec<u32>>,
+    /// Rerolls you have left, when the mode allows rerolling.
+    pub rerolls: Option<u32>,
+    /// Both teams' compositions (`None` without composition stats).
+    pub comps: Option<Compositions>,
+}
+
+/// Each team's composition from its champions' usual numbers in their roles (informational:
+/// not part of the win estimate).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Compositions {
+    pub allies: TeamComp,
+    pub enemies: TeamComp,
+    /// Upper bounds of the game-length buckets of [`TeamComp::lengths`], in minutes (`[25, 35]`:
+    /// under 25, 25 to 35, 35 and more).
+    pub lengths: Vec<u32>,
+}
+
+/// A team's composition: what its champions usually bring, summed up, and short neutral
+/// readings of it (the UI words them).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct TeamComp {
+    /// The champions counted, in seat order: locked picks and hovers (`hovering`). Empty in a
+    /// suggestion's composition (the team's champions with the pick).
+    pub members: Vec<CompMember>,
+    /// Champions with composition stats: the numbers are theirs.
+    pub counted: u32,
+    /// Shares of the team's damage to champions.
+    pub damage: DamageMix,
+    /// Damage taken and mitigated: the champions' usual shares of their team's, summed, over
+    /// what usual picks in their roles take (1 = usual).
+    pub frontline: f64,
+    /// Crowd control (`timeCCingOthers`) per game, summed, in seconds…
+    pub cc: f64,
+    /// … and what usual picks in their roles bring.
+    pub cc_usual: f64,
+    /// Per game-length bucket: how much more (or less) often the champions win games of that
+    /// length than their usual win rate, summed, in points (shrunk when games are few).
+    pub lengths: Vec<f64>,
+    /// The fewest games behind a counted champion's numbers.
+    pub games: u32,
+    pub readings: Vec<CompReading>,
+}
+
+/// One champion of a composition, with its usual numbers (per game, in its role or likely roles).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CompMember {
+    pub champion_id: u32,
+    pub hovering: bool,
+    /// Games behind its numbers (0: no composition stats for it yet).
+    pub games: u32,
+    /// Shares of its damage to champions.
+    pub damage: DamageMix,
+    /// Its share of its team's damage taken and mitigated (0–1).
+    pub frontline: f64,
+    /// Its crowd control per game, in seconds.
+    pub cc: f64,
+}
+
+/// Shares of damage to champions by type (0–1, adding up to 1; all 0 without damage).
+#[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct DamageMix {
+    pub physical: f64,
+    pub magic: f64,
+    pub true_damage: f64,
+}
+
+/// A short neutral reading of a composition; the numbers behind it are in its [`TeamComp`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum CompReading {
+    /// Most of the damage is physical…
+    MostlyPhysical,
+    /// … or magic.
+    MostlyMagic,
+    /// Much less damage soaked than usual picks in these roles…
+    LittleFrontline,
+    /// … or much more.
+    LotsOfFrontline,
+    /// Much less crowd control than usual picks…
+    LittleCc,
+    /// … or much more.
+    LotsOfCc,
+    /// Its champions win more of their short games than of their long ones…
+    Early,
+    /// … or of their long games.
+    Late,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -89,6 +191,10 @@ pub struct Suggestion {
     pub mastery: Option<Mastery>,
     /// Why: largest contributions first.
     pub reasons: Vec<Reason>,
+    /// Your team's composition with this pick (in your seat), when composition stats are there.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub comp: Option<TeamComp>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
@@ -140,6 +246,8 @@ pub enum ReasonKind {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct DataInfo {
+    /// 420 (ranked solo/duo data) or 450 (ARAM).
+    pub queue: u32,
     /// e.g. `Emerald+`.
     pub bracket: String,
     /// Public patch name, e.g. `26.19`.

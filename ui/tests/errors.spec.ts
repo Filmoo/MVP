@@ -1,5 +1,6 @@
 // Brings the window.__SCOUT_MOCK__ declaration into scope.
 import type {} from "../src/data/mock";
+import { aramDraft } from "../src/data/mock/draft-fixtures";
 import { importFailures } from "../src/data/mock/import-fixtures";
 import type { Messages } from "../src/i18n";
 import { expect, openApp, settle, test, trackErrors } from "./app";
@@ -158,6 +159,37 @@ test("build import: every failure renders its own words, nothing crashes", async
     await expect(page.getByTestId("import-status")).toContainText(text);
   }
   await expect(page.locator("[data-widget=draft-imports] [role=alert]")).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test("draft: team compositions wait for picks, and say when the stats don't have them yet", async ({ page, t }) => {
+  const errors = trackErrors(page);
+  const teams = page.getByTestId("why-tabs").getByRole("radio", { name: t.why.tabs.teams });
+  const comps = page.locator("[data-widget=draft-comps]");
+  // Planning: nobody has picked or hovered yet, no numbers to add up.
+  await openApp(page, { view: "/draft", scenario: "draft-planning" });
+  await teams.click();
+  await expect(comps.getByRole("row").filter({ hasText: t.comps.rows.champions })).toContainText(t.comps.waiting);
+  const magic = comps.getByRole("row").filter({ has: page.getByRole("rowheader", { name: t.comps.rows.magic }) });
+  await expect(magic.getByRole("cell")).toHaveText([t.comps.none, t.comps.none]);
+  // Stats published before compositions were: the picks work, the tab says so.
+  await openApp(page, { view: "/draft", scenario: "draft-no-comps" });
+  await teams.click();
+  await expect(comps).toContainText(t.comps.noComps.title);
+  await expect(page.locator("[data-widget=draft-suggestions]")).toContainText("Shen");
+  // No stats at all.
+  await openApp(page, { view: "/draft", scenario: "draft-no-stats" });
+  await teams.click();
+  await expect(comps).toContainText(t.comps.noStats.title);
+  expect(errors).toEqual([]);
+});
+
+test("aram: before your champion is there, the list says what will show", async ({ page, t }) => {
+  const errors = trackErrors(page);
+  await openApp(page, { view: "/draft", scenario: "aram-champ-select" });
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(t.nav.draft.label);
+  await page.evaluate((next) => window.__SCOUT_MOCK__?.emit("draft", next), { ...aramDraft, suggestions: [] });
+  await expect(page.locator("[data-widget=draft-suggestions]")).toContainText(t.draft.aramWaiting.title);
   expect(errors).toEqual([]);
 });
 

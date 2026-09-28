@@ -21,6 +21,7 @@
 //!   included).
 //! - **Memory**: the files served last, parsed (a small LRU).
 
+pub mod comp;
 mod disk;
 pub mod model;
 
@@ -33,8 +34,8 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
 use domain::{
-    BackendError, Bracket, BuildsFile, ChampionPage, ChampionsFile, DataSetInfo, MatchupsFile,
-    STATS_SCHEMA, StatsIndex, TierList,
+    BackendError, Bracket, BuildsFile, ChampionPage, ChampionsFile, CompositionsFile, DataSetInfo,
+    MatchupsFile, STATS_SCHEMA, StatsIndex, TierList,
 };
 use serde::de::DeserializeOwned;
 use tokio::sync::{Mutex as AsyncMutex, OwnedMutexGuard, watch};
@@ -85,6 +86,12 @@ impl DataFile for MatchupsFile {
 }
 
 impl DataFile for BuildsFile {
+    fn info(&self) -> &DataSetInfo {
+        &self.info
+    }
+}
+
+impl DataFile for CompositionsFile {
     fn info(&self) -> &DataSetInfo {
         &self.info
     }
@@ -534,6 +541,15 @@ impl StatsClient {
         champion: u32,
     ) -> Result<Option<Arc<MatchupsFile>>, BackendError> {
         self.file(set, &format!("matchups/{champion}.json")).await
+    }
+
+    /// What each champion brings to a team composition (`None` when not published: games
+    /// crawled before those numbers were read, or an older server).
+    pub async fn compositions(
+        &self,
+        set: &DataSet,
+    ) -> Result<Option<Arc<CompositionsFile>>, BackendError> {
+        self.file(set, "compositions.json").await
     }
 
     /// Builds of `champion` (`None` when not published).

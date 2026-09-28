@@ -186,6 +186,9 @@ The Tier list and Champions pages read the published stats through the core only
   remembered in `localStorage["mvp.stats-filters.v1"]` (`lib/stats-filters.ts`) and shared by both
   pages. Links can set them: `#/tier-list?queue=450&role=middle`; on a champion page `role` picks the
   role tab instead (`#/champions?id=103&role=middle`), falling back to the champion's main role.
+  The bracket starts from the settings' `statsBracket` (`lib/settings.ts`, set by the shell from
+  `get_settings` and the `settings` event); one picked on the pages is saved with the setting it
+  was picked over (`over`) and holds until that setting changes, which brings the pages to it.
 - **Requests**: `lib/query.ts` keeps the last answer on screen while a newer one runs (switching a
   filter never blanks the page), drops answers to older keys and never triggers the app's
   Suspense. The `stats-index` event bumps a version in every request key: pages refetch when a new
@@ -216,7 +219,9 @@ The Tier list and Champions pages read the published stats through the core only
   `settings.json` from the app config dir at start (missing/corrupt → defaults), saves every change
   atomically (temp file + fsync + rename) and publishes it on a watch channel. The UI reads and
   writes them with `get_settings` / `update_settings` and follows the `settings` event. Opt-ins
-  (`autoAccept`, `crashReports`) are off by default.
+  (`autoAccept`, `crashReports`) are off by default. `statsBracket` (Emerald+ by default, Diamond+,
+  Master+; files saved before it load with the default) is whose games the stats count: the draft
+  helper, its compositions and build imports switch to it at once; the stats pages start from it.
 - **Automations** run in the core (`companion::automation`), so they work with the window closed:
   auto-accept (opt-in, delayed, once per ready check, see policy.md), build imports on lock-in
   (opt-in per part, see "Build imports" below) and the `Autopilot`, which
@@ -466,17 +471,23 @@ serve:   mvp-backend GET /v1/stats/… (ETag, Cache-Control) → the app downloa
   just crawls slowly). Brackets are rotated so each gets its share.
 - **Facts** (`aggregate::extract`): patch from `gameVersion` (`16.19.712.4` → `16.19`, public
   `26.19`), queue, bans (once per game), and per player: team, win, champion, `teamPosition`,
-  spells, full rune page, skill level-ups and net purchases (undos removed) from the timeline.
-  No PUUIDs or names are kept. Skipped: other queues, remakes (< 5 min or early surrender),
-  ranked games without one of each role per team. A game counts in the bracket of the ladder
-  player who surfaced it first (Match-V5 has no rank); brackets publish cumulatively
-  (`emeraldPlus` ⊇ `diamondPlus` ⊇ `masterPlus`).
+  spells, full rune page, skill level-ups and net purchases (undos removed) from the timeline;
+  the game's length and, per player, damage to champions by type, damage taken and
+  self-mitigated, and `timeCCingOthers` (every player of a game or none: a team's shares need
+  every teammate; facts crawled before have none and are left out of those aggregates, never
+  counted as zero). No PUUIDs or names are kept. Skipped: other queues, remakes (< 5 min or
+  early surrender), ranked games without one of each role per team. A game counts in the
+  bracket of the ladder player who surfaced it first (Match-V5 has no rank); brackets publish
+  cumulatively (`emeraldPlus` ⊇ `diamondPlus` ⊇ `masterPlus`).
 - **Aggregates** (`aggregate::Dataset`, per patch × queue × seed bracket): champion × role
   games/wins (pick counts, role odds), bans, lane-relevant opponents (same role, laner vs enemy
   jungler, bottom vs support), same-team duos (all 10 role pairs), and builds per champion ×
   role: rune pages, keystones, spell pairs, skill max order and first four points, starting
   items (< 1:30), core (first three completed legendaries in order), first upgraded boots, and
   the 4th/5th/6th legendary. Items are classified with the patch's Data Dragon `item.json`.
+  Compositions per champion × role (ARAM: no role): games with the numbers, damage by type, damage
+  soaked as a share of the team's (basis points), crowd control, games/wins per game-length bucket
+  (ranked: under 25, 25–35, 35+ minutes; ARAM: 17 and 22).
   Every count is a sum, so `merge` is commutative and results don't depend on game order
   (property-tested); build options are bounded by `compact` (top N + a tail count).
 - **Published files** (`aggregate::publish`, types in `crates/domain/src/stats.rs`, exported to
@@ -489,6 +500,7 @@ serve:   mvp-backend GET /v1/stats/… (ETag, Cache-Control) → the app downloa
 | `…/tierlist.json` | `TierList` | champion × role: score = shrunk win rate − 50 % (k = 1000), grade S–D, games, pick/ban rates |
 | `…/matchups/{championId}.json` | `MatchupsFile` | ranked only; per role: lane, vs enemy jungler, duos — g/w and the shrunk delta `d` in points |
 | `…/builds/{championId}.json` | `BuildsFile` | per role: runes, keystones, spells, skills, skill start, starts, core, boots, item 4/5/6 — each `{ n, top: [{ ids, g, w }] }` |
+| `…/compositions.json` | `CompositionsFile` | per champion × role (ARAM: no role) with enough games: `n`, damage to champions per minute (physical, magic, true), `front` (mean share of the team's damage taken + mitigated), `cc` (seconds per game), `len` (g/w per length bucket, bounds in `lengths`); `roles`: each whole role as the usual pick. Published once games carry the numbers |
 
 `{bracket}` is `emeraldPlus`, `diamondPlus` or `masterPlus`. Each patch directory is replaced
 atomically on publication; the index is written last.
@@ -531,7 +543,10 @@ once when nothing the model reads changed, else after one evaluation on a blocki
 and allies' hovers; your own hover only once you lock in), `suggestions` (≤ 15, tiers of
 statistically tied picks, reasons), `data` (bracket, public patch name, games, updated) and each
 enemy's `role`/`roleOdds` (≥ 5 %).
-- **Data**: ranked solo/duo, Emerald+, current patch. `stats::draft::DraftData` over
+- **Data**: the game's queue (the gameflow session's, else ARAM for a champion select with a
+  bench; modes without stats get none), the settings' `statsBracket` (Emerald+ when that one isn't
+  published: `data.bracket` names the one used; a change mid champion select reloads at once),
+  current patch. Ranked: `stats::draft::DraftData` over
   `champions.json` (base strength = this patch shrunk toward the previous patch's win rate in
   the role, which is itself shrunk toward 50 % — 47 % off-meta — with 1k games; prior strength
   `n_prev·k_d/(n_prev+k_d)`, `k_d` = 20k, 1.5k when the win rate moved with |z| > 3) and the
@@ -547,8 +562,28 @@ enemy's `role`/`roleOdds` (≥ 5 %).
 - **Loads**: at champ-select start, the pool (3 LCU reads) and the data set (index, champions,
   tier list); matchups files as champions appear (≤ 4 in flight). Arrivals within 30 ms are
   evaluated once. Without stats (no backend, nothing published, offline without cache) the draft
-  shows the teams only (`data: null`, no suggestions); without assigned roles (blind, ARAM), no
+  shows the teams only (`data: null`, no suggestions); without assigned roles (blind), no
   suggestions.
+- **Compositions** (`companion::stats::comp`, `DraftView.comps`, informational: never in the
+  estimate): each team from `compositions.json`, allies in their seats' roles, enemies over their
+  likely roles; locked picks and hovers (marked `hovering`: "what does my hover change?").
+  Damage mix, frontline against usual picks in the same roles (1 = usual, so three picks read like
+  five), crowd control (and the usual picks'), each length bucket's win-rate change (shrunk toward
+  the champion's own rate with 1k games) summed in points. Readings as data from three counted
+  champions: mostly physical/magic (≥ 70 %), little/lots of frontline (< 0.85 / > 1.15) or crowd
+  control (< 0.7 / > 1.3 × usual), stronger in short/long games (≥ 3 points apart). Each
+  suggestion carries your team's composition with it in your seat (`comp`). Not published yet:
+  `comps: null`.
+- **ARAM** (`enrich_aram`): your champion and the bench's (`benchChampions`; `bench`, `rerolls`
+  in the view) as suggestions, ranked by the team's chance with each: σ(Σ the champions' ARAM
+  base logits) against an average team (the enemy team is hidden), tiers of ties within one SD,
+  the "why" = the champion's own ARAM strength over its games, with mastery and the composition.
+  Informational only: nothing is swapped or picked for the player.
+- **Draft UI** (`views/draft`): the side panel has two tabs, *Pick* (the selected pick's terms, the
+  team with it) and *Teams* (`Comps.tsx`: both compositions side by side, every number with its
+  title, the bracket and patch under them; ARAM: yours only). A pick clicked beside the list opens
+  *Pick*; on narrow windows the panel is stacked last and opens on *Teams* (rows explain
+  themselves inline).
 
 ## Crates
 | Crate | Role |

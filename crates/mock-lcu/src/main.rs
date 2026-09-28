@@ -10,6 +10,9 @@
 //! The player has rune pages (two presets, two of their own, room for one more), item sets and
 //! Flash on F in their recent games; in champion select they lock in, then finalization runs,
 //! so build imports (one click and on lock-in) can be tried. Every write is logged.
+//!
+//! `cargo run -p mock-lcu -- --aram` plays ARAM champion selects instead: no roles, a shared
+//! bench, one reroll, then a swap with the bench.
 
 use std::path::PathBuf;
 use std::time::Duration;
@@ -93,6 +96,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             157, 222, 234, 238, 266, 412, 516, 517, 555, 777, 799, 800, 887, 897, 901, 910
         ]),
     );
+    let aram = std::env::args().any(|arg| arg == "--aram");
     loop {
         for (phase, seconds) in CYCLE {
             tracing::info!(phase, "gameflow");
@@ -107,7 +111,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             mock.set(lcu_phase_path(), json!(phase));
             if *phase == "ChampSelect" {
-                play_champ_select(&mock, *seconds).await;
+                if aram {
+                    play_aram_champ_select(&mock, *seconds).await;
+                } else {
+                    play_champ_select(&mock, *seconds).await;
+                }
                 log_writes(&mock);
             } else if *phase == "GameStart" {
                 mock.remove(CHAMP_SELECT);
@@ -256,6 +264,47 @@ async fn play_champ_select(mock: &MockLcu, finalization: u64) {
             "FINALIZATION",
             finalization * 1000,
         ),
+    );
+}
+
+/// An ARAM champion select: everyone gets a champion (you: Lux), the bench holds Brand and
+/// Sion; you reroll (Karthus, Lux goes to the bench), then take Brand from the bench.
+async fn play_aram_champ_select(mock: &MockLcu, finalization: u64) {
+    let session = |mine: u32, bench: &[u32], rerolls: u32, left_ms: u64| {
+        json!({
+            "localPlayerCellId": 0,
+            "myTeam": [
+                { "cellId": 0, "assignedPosition": "", "championId": mine, "spell1Id": 4, "spell2Id": 32 },
+                { "cellId": 1, "assignedPosition": "", "championId": 222 },
+                { "cellId": 2, "assignedPosition": "", "championId": 54 },
+                { "cellId": 3, "assignedPosition": "", "championId": 37 },
+                { "cellId": 4, "assignedPosition": "", "championId": 115 }
+            ],
+            "theirTeam": [],
+            "actions": [],
+            "bans": { "myTeamBans": [], "theirTeamBans": [], "numBans": 0 },
+            "benchEnabled": true,
+            "benchChampions": bench.iter().map(|c| json!({ "championId": c, "isPriority": false })).collect::<Vec<_>>(),
+            "allowRerolling": true,
+            "rerollsRemaining": rerolls,
+            "timer": { "phase": "FINALIZATION", "adjustedTimeLeftInPhase": left_ms, "internalNowInEpochMs": epoch_ms(), "isInfinite": false }
+        })
+    };
+    mock.set(
+        GAME_SESSION,
+        json!({ "phase": "ChampSelect", "gameData": { "queue": { "id": 450, "mapId": 12, "type": "ARAM_UNRANKED_5x5" } } }),
+    );
+    let total = finalization * 1000;
+    mock.set(CHAMP_SELECT, session(99, &[63, 14], 1, total));
+    tokio::time::sleep(Duration::from_secs(4)).await;
+    mock.set(
+        CHAMP_SELECT,
+        session(30, &[63, 14, 99], 0, total.saturating_sub(4_000)),
+    );
+    tokio::time::sleep(Duration::from_secs(4)).await;
+    mock.set(
+        CHAMP_SELECT,
+        session(63, &[14, 99, 30], 0, total.saturating_sub(8_000)),
     );
 }
 

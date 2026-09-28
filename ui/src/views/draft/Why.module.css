@@ -5,6 +5,11 @@
   overflow: hidden;
 }
 
+/* The switch keeps its words; the title gives way (ellipsis) on narrow panels. */
+.tabs {
+  flex: none;
+}
+
 .art {
   position: absolute;
   z-index: -1;

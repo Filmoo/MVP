@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { decimal, percent, timeAgo } from "../lib/format";
+import { decimal, integer, percent, timeAgo } from "../lib/format";
 import { setLanguage } from ".";
 import { en } from "./en";
 import { enViews } from "./en-views";
@@ -66,6 +66,8 @@ const samples = (): Record<string, unknown[][]> => ({
   ],
   "draft.yourMastery": [[5]],
   "draft.masteryTitle": [[5, 123456]],
+  "draft.rerolls": [[0], [1], [2]],
+  "draft.yoursMastery": [[7]],
   "why.title": [["Malphite"], [undefined]],
   "why.vsTeamNow": [[percent(0.515, 1)]],
   "why.kept": [[percent(0.85)]],
@@ -74,6 +76,21 @@ const samples = (): Record<string, unknown[][]> => ({
   "why.roleOdds": [[percent(0.94)]],
   "why.roleOddsTitle": [[percent(0.94)]],
   "why.yourGames": [[1], [41]],
+  "why.withPick": [["Shen"]],
+  "comps.times": [[decimal(1.12, 2)]],
+  "comps.seconds": [[integer(52)]],
+  "comps.atLeast": [[integer(3244)]],
+  "comps.change": [["Magic", percent(0.61), percent(0.47)]],
+  "comps.value": [["Magic", percent(0.47)]],
+  "comps.frontlineTitle": [[`${decimal(1.12, 2)}×`]],
+  "comps.ccTitle": [[integer(78)]],
+  "comps.lateTitle": [["25–35 min +0,3"]],
+  "comps.under": [[25]],
+  "comps.between": [[25, 35]],
+  "comps.over": [[35]],
+  "comps.bucket": [["35 min", "+1,9"]],
+  "comps.note": [["Emerald+", "26.19"]],
+  "comps.noteAram": [["Emerald+", "26.19"]],
   "imports.importPart": [["runes"], ["itemSet"], ["spells"]],
   "imports.idle": [["Flash"]],
   "imports.mostPlayedIn": [[420, "Emerald+"]],
@@ -221,6 +238,10 @@ const SAME = new Set([
   "why.kinds.jungle",
   "why.kinds.matchup",
   "why.kinds.duo",
+  "comps.none",
+  "comps.rows.champions",
+  "comps.rows.frontline",
+  "comps.times",
   "imports.parts.runes",
   "imports.nouns.runes",
   "live.wr",

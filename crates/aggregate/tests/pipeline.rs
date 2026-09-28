@@ -1,12 +1,12 @@
 //! The pipeline on hand-written synthetic games (no real Riot data).
 #![allow(clippy::unwrap_used, reason = "tests")]
 
-use aggregate::synthetic::{Game, buy, typical_build, undo};
+use aggregate::synthetic::{Game, buy, combat_of, typical_build, undo};
 use aggregate::{
-    Dataset, GameFacts, ItemCatalog, Lane, Patch, Rec, SeedBracket, SkillOrder, Skip, extract,
-    publish,
+    CompTally, Dataset, GameFacts, ItemCatalog, Lane, Patch, Rec, SeedBracket, SkillOrder, Skip,
+    extract, publish,
 };
-use domain::{Bracket, BuildsFile, ChampionsFile, MatchupsFile, Role, TierList};
+use domain::{Bracket, BuildsFile, ChampionsFile, CompositionsFile, MatchupsFile, Role, TierList};
 use proptest::prelude::*;
 
 const BLUE: [u16; 5] = [1, 2, 3, 4, 5];
@@ -170,6 +170,102 @@ fn extracts_builds_from_the_timeline() {
     assert!(quiet.core.options.is_empty() && quiet.skills.options.is_empty());
 }
 
+/// The same facts as the crawler stored them before damage, crowd control and length were
+/// read: the JSON without those fields.
+fn crawled_before(facts: &GameFacts) -> GameFacts {
+    let mut json = serde_json::to_value(facts).unwrap();
+    json.as_object_mut().unwrap().remove("duration");
+    for p in json["players"].as_array_mut().unwrap() {
+        p.as_object_mut().unwrap().remove("combat");
+    }
+    serde_json::from_value(json).unwrap()
+}
+
+#[test]
+fn extracts_damage_soaked_damage_crowd_control_and_length() {
+    let game = Game::ranked("EUW1_50", teams(BLUE, RED), true);
+    let f = facts(&game);
+    assert_eq!(f.duration, Some(1_800));
+    assert_eq!(f.players[0].combat, Some(combat_of(1)));
+    assert_eq!(f.players[9].combat, Some(combat_of(15)));
+
+    // One participant without the numbers: nobody has them (a team's shares need all five).
+    let mut partial = game.match_json();
+    partial["info"]["participants"][3]
+        .as_object_mut()
+        .unwrap()
+        .remove("timeCCingOthers");
+    let f = extract(&partial, None).unwrap();
+    assert!(f.players.iter().all(|p| p.combat.is_none()));
+    assert_eq!(f.duration, Some(1_800), "the length is still known");
+
+    // Facts stored before these fields existed still load, without them.
+    let old = crawled_before(&facts(&game));
+    assert!(old.duration.is_none() && old.players.iter().all(|p| p.combat.is_none()));
+    assert_eq!(old.players[0].champion, 1);
+}
+
+#[test]
+fn counts_what_each_pick_brings_to_a_composition() {
+    let mut long = Game::ranked("EUW1_51", teams(BLUE, RED), true);
+    long.duration = 40 * 60;
+    let short = Game::ranked("EUW1_52", teams(BLUE, RED), false);
+    let mut ds = Dataset::default();
+    for g in [&long, &short] {
+        ds.add(&facts(g), SeedBracket::Emerald, &catalog());
+    }
+    // Crawled before: counted everywhere else, never in the composition numbers.
+    let old = Game::ranked("EUW1_53", teams(BLUE, RED), true);
+    ds.add(
+        &crawled_before(&facts(&old)),
+        SeedBracket::Emerald,
+        &catalog(),
+    );
+    let s = ds.combined(patch(), 420, Bracket::EmeraldPlus);
+    assert_eq!(s.champions[&(1, Some(Lane::Top))], rec(3, 2));
+
+    let top = s.comps[&(1, Some(Lane::Top))];
+    let c = combat_of(1);
+    // Blue soaks 22k + 26k + 30k + 22k + 26k: champion 1 took 22k of 126k.
+    let share = (22_000u64 * 10_000 + 63_000) / 126_000;
+    assert_eq!(
+        top,
+        CompTally {
+            games: 2,
+            seconds: 40 * 60 + 30 * 60,
+            damage: [
+                2 * u64::from(c.physical),
+                2 * u64::from(c.magic),
+                2 * u64::from(c.true_damage)
+            ],
+            frontline: 2 * share,
+            cc: 2 * u64::from(c.cc),
+            // 30 minutes: 25 to 35; 40 minutes: 35 and more.
+            lengths: [rec(0, 0), rec(1, 0), rec(1, 1)],
+        }
+    );
+    // The five shares of a team add up to the whole team (up to rounding).
+    let blue: u64 = BLUE
+        .iter()
+        .zip(Lane::ALL)
+        .map(|(&c, lane)| s.comps[&(c, Some(lane))].frontline)
+        .sum();
+    assert!((2 * 10_000 - 5..=2 * 10_000 + 5).contains(&blue), "{blue}");
+
+    // ARAM games have their own length buckets (a 30-minute ARAM game is a long one).
+    let mut aram = Dataset::default();
+    aram.add(
+        &facts(&Game::aram("EUW1_54", teams(BLUE, RED), true)),
+        SeedBracket::Emerald,
+        &catalog(),
+    );
+    let s = aram.combined(patch(), 450, Bracket::EmeraldPlus);
+    assert_eq!(
+        s.comps[&(1, None)].lengths,
+        [rec(0, 0), rec(0, 0), rec(1, 1)]
+    );
+}
+
 #[test]
 fn merge_is_commutative() {
     let mut left = Dataset::default();
@@ -279,10 +375,68 @@ fn publishes_the_files_the_app_reads() {
             .all(|f| !f.path.starts_with("v1/16.19/450/emeraldPlus/matchups"))
     );
 
+    // What each pick brings to a composition: per minute, per game, by game length.
+    let comps: CompositionsFile =
+        serde_json::from_slice(&file(&format!("{dir}/compositions.json")).body).unwrap();
+    assert_eq!(comps.lengths, [25, 35]);
+    let top = comps
+        .champions
+        .iter()
+        .find(|c| c.id == 1 && c.role == Some(Role::Top))
+        .unwrap();
+    let c = combat_of(1);
+    assert_eq!(top.n, 6);
+    // 30-minute games.
+    for (published, dealt) in top.dmg.iter().zip([c.physical, c.magic, c.true_damage]) {
+        assert!(
+            (published - f64::from(dealt) / 30.0).abs() < 0.05,
+            "{:?}",
+            top.dmg
+        );
+    }
+    assert!((top.front - 0.1746).abs() < 1e-9, "{}", top.front);
+    assert!((top.cc - f64::from(c.cc)).abs() < 1e-9);
+    assert_eq!(top.len, [(0, 0), (6, 4), (0, 0)]);
+    // The usual pick of each role: its shares of the team add up to the whole team.
+    assert_eq!(comps.roles.len(), 5);
+    assert!(comps.roles.iter().all(|r| r.id == 0 && r.len.is_empty()));
+    let whole: f64 = comps.roles.iter().map(|r| r.front).sum();
+    assert!((whole - 1.0).abs() < 0.001, "{whole}");
+    let aram: CompositionsFile =
+        serde_json::from_slice(&file("v1/16.19/450/emeraldPlus/compositions.json").body).unwrap();
+    assert_eq!(aram.lengths, [17, 22]);
+    assert!(aram.champions.iter().all(|c| c.role.is_none()));
+
     let entry = entry.unwrap();
     assert_eq!(entry.name, "26.19");
     let index = publish::build_index(None, vec![entry], &opts, 1);
     assert_eq!(index.current.as_deref(), Some("16.19"));
+}
+
+#[test]
+fn no_compositions_before_games_carry_them() {
+    let mut ds = Dataset::default();
+    for i in 0..3 {
+        let g = Game::ranked(&format!("EUW1_6{i}"), teams(BLUE, RED), i % 2 == 0);
+        ds.add(
+            &crawled_before(&facts(&g)),
+            SeedBracket::Emerald,
+            &catalog(),
+        );
+    }
+    let opts = publish::Options {
+        min_role_games: 1,
+        min_pair_games: 1,
+        min_current_games: 1,
+        ..publish::Options::default()
+    };
+    let (files, _) = publish::publish_patch(&ds, patch(), &opts, 1).unwrap();
+    assert!(files.iter().any(|f| f.path.ends_with("/champions.json")));
+    assert!(
+        files
+            .iter()
+            .all(|f| !f.path.ends_with("/compositions.json"))
+    );
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -305,9 +459,15 @@ fn arb_game() -> impl Strategy<Value = (GameFacts, SeedBracket)> {
                 Game::ranked(&format!("G{id}"), champions, blue_wins)
             };
             g.version = format!("16.{}.1", 18 + minor);
+            // Every length bucket, and some games crawled before their numbers were read.
+            g.duration = 600 + u64::from(id % 3_000);
+            g.combat = id % 5 != 0;
             let legendaries = [3031, 3072, 6672, 3036][..usize::from(minor) + 2].to_vec();
             let timeline = g.timeline_json(&typical_build(1 + id as usize % 10, &legendaries));
-            let f = extract(&g.match_json(), Some(&timeline)).unwrap();
+            let mut f = extract(&g.match_json(), Some(&timeline)).unwrap();
+            if id % 7 == 0 {
+                f.duration = None;
+            }
             (f, SeedBracket::ALL[bracket])
         })
 }

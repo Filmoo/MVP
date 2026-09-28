@@ -4,9 +4,54 @@ use std::collections::BTreeMap;
 
 use crate::facts::{
     GameFacts, Lane, Patch, PlayerFacts, RANKED_SOLO, RunePage, START_WINDOW_MS, SeedBracket,
+    length_bucket,
 };
 use crate::items::ItemCatalog;
 use crate::tally::{Rec, Tally, merge_maps};
+
+/// Shares are counted in basis points, so sums stay integers (and merges exact).
+pub const BASIS_POINTS: u64 = 10_000;
+
+/// What one champion in one role brings to a team composition, summed over its games: exact
+/// integers, so merging stays commutative.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct CompTally {
+    /// Games with combat facts (facts crawled before them are left out).
+    pub games: u32,
+    /// Their length, in seconds.
+    pub seconds: u64,
+    /// Damage to champions: physical, magic, true.
+    pub damage: [u64; 3],
+    /// Its share of the team's damage taken and mitigated, per game, in basis points.
+    pub frontline: u64,
+    /// `timeCCingOthers`, in seconds.
+    pub cc: u64,
+    /// Record per game-length bucket (games with a known length).
+    pub lengths: [Rec; 3],
+}
+
+impl CompTally {
+    pub fn merge(&mut self, o: &Self) {
+        self.games = self.games.saturating_add(o.games);
+        self.seconds = self.seconds.saturating_add(o.seconds);
+        for (a, b) in self.damage.iter_mut().zip(o.damage) {
+            *a = a.saturating_add(b);
+        }
+        self.frontline = self.frontline.saturating_add(o.frontline);
+        self.cc = self.cc.saturating_add(o.cc);
+        for (a, b) in self.lengths.iter_mut().zip(o.lengths) {
+            a.merge(b);
+        }
+    }
+}
+
+/// `part` of `whole` in basis points, rounded (0 without a whole).
+fn basis_points(part: u64, whole: u64) -> u64 {
+    if whole == 0 {
+        return 0;
+    }
+    (part * BASIS_POINTS + whole / 2) / whole
+}
 
 /// Ability slots in max order (1 = Q, 2 = W, 3 = E), first maxed first.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -157,6 +202,8 @@ pub struct SliceStats {
     /// (champion, role, teammate, teammate's role), each pair once with `role < teammate's`.
     pub duos: BTreeMap<(u16, Lane, u16, Lane), Rec>,
     pub builds: BTreeMap<(u16, Option<Lane>), Builds>,
+    /// (champion, role) → what it brings to a team composition (games with those facts only).
+    pub comps: BTreeMap<(u16, Option<Lane>), CompTally>,
 }
 
 impl SliceStats {
@@ -175,6 +222,7 @@ impl SliceStats {
                 .or_default()
                 .add(p, game.timeline, catalog);
         }
+        self.add_comps(game);
         if game.queue != RANKED_SOLO {
             return;
         }
@@ -199,6 +247,41 @@ impl SliceStats {
         }
     }
 
+    /// Composition numbers: games with a known length count in their length bucket; those with
+    /// combat facts also count their damage, frontline share and crowd control. Older facts
+    /// without them are left out, never counted as zero.
+    fn add_comps(&mut self, game: &GameFacts) {
+        let Some(seconds) = game.duration else {
+            return;
+        };
+        // Each team's damage soaked, for the players' shares of it.
+        let mut soaked = [0u64; 2];
+        for p in &game.players {
+            if let Some(c) = p.combat {
+                soaked[usize::from(p.team.min(1))] += c.soaked();
+            }
+        }
+        for p in &game.players {
+            let tally = self.comps.entry((p.champion, p.role)).or_default();
+            tally.lengths[length_bucket(game.queue, seconds)].add(p.win);
+            let Some(c) = p.combat else { continue };
+            tally.games = tally.games.saturating_add(1);
+            tally.seconds = tally.seconds.saturating_add(u64::from(seconds));
+            for (sum, dealt) in tally
+                .damage
+                .iter_mut()
+                .zip([c.physical, c.magic, c.true_damage])
+            {
+                *sum = sum.saturating_add(u64::from(dealt));
+            }
+            let team = soaked[usize::from(p.team.min(1))];
+            tally.frontline = tally
+                .frontline
+                .saturating_add(basis_points(c.soaked(), team));
+            tally.cc = tally.cc.saturating_add(u64::from(c.cc));
+        }
+    }
+
     pub fn merge(&mut self, o: &Self) {
         self.games = self.games.saturating_add(o.games);
         for (c, n) in &o.bans {
@@ -209,6 +292,9 @@ impl SliceStats {
         merge_maps(&mut self.duos, &o.duos);
         for (k, b) in &o.builds {
             self.builds.entry(*k).or_default().merge(b);
+        }
+        for (k, c) in &o.comps {
+            self.comps.entry(*k).or_default().merge(c);
         }
     }
 

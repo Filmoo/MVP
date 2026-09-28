@@ -3,6 +3,7 @@ import type { Estimate } from "./Estimate";
 import type { Mastery } from "./Mastery";
 import type { PersonalRecord } from "./PersonalRecord";
 import type { Reason } from "./Reason";
+import type { TeamComp } from "./TeamComp";
 
 export type Suggestion = { championId: number, 
 /**
@@ -28,4 +29,8 @@ mastery?: Mastery,
 /**
  * Why: largest contributions first.
  */
-reasons: Array<Reason>, };
+reasons: Array<Reason>, 
+/**
+ * Your team's composition with this pick (in your seat), when composition stats are there.
+ */
+comp?: TeamComp, };

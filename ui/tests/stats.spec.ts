@@ -1,4 +1,5 @@
 import type { Page } from "@playwright/test";
+import type { Settings } from "../src/data/generated/Settings";
 // Brings the window.__SCOUT_MOCK__ declaration into scope.
 import type {} from "../src/data/mock";
 import { mockStatsIndex } from "../src/data/mock/stats-fixtures";
@@ -267,5 +268,49 @@ test("build summary (for the live view) lays out at every size", async ({ page }
     await expect(page.getByTestId("build-summary")).toBeVisible();
     expect(await page.evaluate(auditLayout), size.name).toEqual([]);
   }
+  expect(errors).toEqual([]);
+});
+
+test("the rank of Settings: saved, where the stats pages start; a rank picked there holds until it changes", async ({ page, t }) => {
+  const errors = trackErrors(page);
+  const saved = () =>
+    page.evaluate(
+      () =>
+        window.__SCOUT_MOCK__?.log
+          .filter((c) => c.command === "update_settings")
+          .map((c) => (c.args as { settings: Settings }).settings.statsBracket) ?? [],
+    );
+  const setting = page.getByTestId("setting-stats-bracket");
+  const tierList = page.getByRole("link", { name: t.nav.tierList.label });
+  const settings = page.getByRole("link", { name: t.nav.settings.label });
+  const lastTierList = async () => (await argsOf(page, "tier_list")).at(-1);
+
+  await openApp(page, { view: "/settings" });
+  await expect(setting.getByRole("radio", { name: t.brackets.emeraldPlus }), "Emerald+ by default").toBeChecked();
+  await setting.getByText(t.brackets.diamondPlus).click();
+  await expect.poll(async () => (await saved()).at(-1)).toBe("diamondPlus");
+
+  // The pages start from it.
+  await tierList.click();
+  await expect.poll(lastTierList).toEqual({ queue: 420, bracket: "diamondPlus" });
+  await expect(segment(page, "bracket-switch", t.brackets.diamondPlus)).toHaveAttribute("aria-checked", "true");
+
+  // Picked on a page, it holds there and on the champion pages.
+  await segment(page, "bracket-switch", t.brackets.masterPlus).click();
+  await expect.poll(lastTierList).toEqual({ queue: 420, bracket: "masterPlus" });
+  await rows(page).first().click();
+  await expect.poll(async () => (await argsOf(page, "champion_stats")).at(-1)).toMatchObject({ bracket: "masterPlus" });
+  await settings.click();
+  await expect(setting.getByRole("radio", { name: t.brackets.diamondPlus }), "the setting is its own").toBeChecked();
+  await tierList.click();
+  await expect(segment(page, "bracket-switch", t.brackets.masterPlus)).toHaveAttribute("aria-checked", "true");
+
+  // A new rank in Settings brings the pages to it.
+  await settings.click();
+  await setting.getByText(t.brackets.emeraldPlus).click();
+  await expect.poll(async () => (await saved()).at(-1)).toBe("emeraldPlus");
+  await tierList.click();
+  await expect(segment(page, "bracket-switch", t.brackets.emeraldPlus)).toHaveAttribute("aria-checked", "true");
+  await expect.poll(lastTierList).toEqual({ queue: 420, bracket: "emeraldPlus" });
   expect(errors).toEqual([]);
 });
