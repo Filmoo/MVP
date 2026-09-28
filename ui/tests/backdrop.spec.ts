@@ -151,15 +151,18 @@ test("a lost GPU context falls back to the CSS light, and comes back", async ({ 
 
 /** The title bar's glass layer: its backdrop filter, and the lens it points to (if any). */
 const barGlass = (page: Page) =>
-  page.locator("header > [aria-hidden=true]").first().evaluate((el) => {
-    const id = /url\("?#([\w-]+)"?\)/.exec(getComputedStyle(el).backdropFilter)?.[1];
-    const lens = id ? document.getElementById(id) : null;
-    return {
-      filter: getComputedStyle(el).backdropFilter,
-      displacements: lens ? lens.querySelectorAll("feDisplacementMap").length : 0,
-      slices: lens ? lens.querySelectorAll("feImage").length : 0,
-    };
-  });
+  page
+    .locator("header > [aria-hidden=true]")
+    .first()
+    .evaluate((el) => {
+      const id = /url\("?#([\w-]+)"?\)/.exec(getComputedStyle(el).backdropFilter)?.[1];
+      const lens = id ? document.getElementById(id) : null;
+      return {
+        filter: getComputedStyle(el).backdropFilter,
+        displacements: lens ? lens.querySelectorAll("feDisplacementMap").length : 0,
+        slices: lens ? lens.querySelectorAll("feImage").length : 0,
+      };
+    });
 
 test("liquid glass: the title bar bends the page under its rim with the shader", async ({ page }) => {
   await openApp(page);

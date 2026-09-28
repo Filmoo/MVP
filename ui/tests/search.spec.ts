@@ -71,13 +71,22 @@ test("a lookup landing late fills its row in place: no row moves, the highlight 
 });
 
 test("the local list never waits: champions show on the first key, lookups wait for a pause", async ({ page }) => {
-  await openApp(page);
+  await openApp(page, { freezeClock: false });
+  // The page's timers follow a fake clock from here: typing at 40 ms a key is exactly that, however
+  // loaded the machine running the test is (a slow runner used to fire a lookup mid-word).
+  await page.clock.install();
+  await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 1_000);
   await input(page).click();
-  await page.keyboard.type("Fillmo#7272", { delay: 40 });
+  for (const key of "Fillmo#7272") {
+    await page.keyboard.type(key);
+    await page.clock.runFor(40);
+  }
   await expect(options(page).first()).toBeVisible();
-  // One lookup for the finished Riot ID, none for the prefixes typed on the way.
+  expect(await lookups(page)).toBe(0);
+  // One lookup for the finished Riot ID once typing pauses, none for the prefixes typed on the way.
+  await page.clock.runFor(300);
   await expect.poll(() => lookups(page)).toBe(1);
-  await page.waitForTimeout(500);
+  await page.clock.runFor(1_000);
   expect(await lookups(page)).toBe(1);
 });
 
