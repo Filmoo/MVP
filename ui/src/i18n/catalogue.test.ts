@@ -186,6 +186,7 @@ const samples = (): Record<string, unknown[][]> => ({
   "settings.imports.flashKey.title": [["Flash"]],
   "settings.imports.flashKey.text": [["Flash"]],
   "settings.app.effects.fallback": [["the graphics driver restarted"]],
+  "settings.search.noMatch": [["overlay"]],
   "updates.unavailable": [["development build"]],
   "updates.available": [["0.2.0"]],
   "updates.downloading": [
@@ -281,6 +282,7 @@ const SAME = new Set([
   "champions.tiersFrom.link",
   "champions.summary.runes",
   "settings.about.version",
+  "settings.search.shortcut",
   "settings.about.platforms.windows",
   "settings.about.platforms.macos",
   "settings.about.platforms.linux",

@@ -505,6 +505,32 @@ export const enViews = {
       legal:
         "MVP isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot Games, and all associated properties are trademarks or registered trademarks of Riot Games, Inc.",
     },
+    search: {
+      label: "Search settings",
+      /** The key that finds it, as printed on keyboards. */
+      shortcut: "Ctrl F",
+      clear: "Clear search",
+      noMatch: (query: string) => `No setting matches “${query}”`,
+      tryOther: "Try another word, or fewer words.",
+      // What players type for a setting that its words on screen don't say (views/settings/search.ts).
+      keywords: {
+        autoAccept: "queue, ready check",
+        bringToFront: "focus, foreground",
+        runes: "keystone",
+        itemSet: "items, shop",
+        spells: "ignite, teleport",
+        flashKey: "D, F, hotkey, keybind",
+        bracket: "elo, ranked, tier",
+        language: "English, French, Français",
+        closeToTray: "minimize, background, systray, exit",
+        launchAtStartup: "boot, autostart",
+        crashReports: "bug, telemetry",
+        effects: "blur, transparency, animations",
+        updates: "version, upgrade",
+        data: "privacy",
+        help: "logs, bug, support, problem",
+      },
+    },
   },
 
   updates: {

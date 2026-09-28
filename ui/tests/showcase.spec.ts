@@ -417,6 +417,35 @@ test("settings crash-reports-on 420x800", async ({ page }) => {
   await capture(page, `${OUT}/settings-crash-reports-on-420x800.png`, true);
 });
 
+// The settings search in English and French (`fr-…`): what a query keeps, marked; only About
+// kept; nothing found.
+for (const lang of ["en", "fr"] as const) {
+  test.describe(lang === "fr" ? "settings search in French" : "settings search", () => {
+    if (lang === "fr") test.use({ locale: "fr-FR" });
+    const prefix = lang === "fr" ? "fr-" : "";
+    const SEARCHES = [
+      { name: "search", query: "windows" },
+      { name: "search-about", query: "logs" },
+      { name: "search-none", query: "overlay" },
+    ];
+    for (const { name, query } of SEARCHES) {
+      for (const [width, height] of [
+        [1280, 800],
+        [420, 800],
+      ] as const) {
+        test(`${prefix}settings ${name} ${width}x${height}`, async ({ page }) => {
+          await openApp(page, { view: "/settings", width, height });
+          await page.getByTestId("settings-search").fill(query);
+          await page.mouse.move(0, 0);
+          await settle(page);
+          await animationsDone(page);
+          await capture(page, `${OUT}/${prefix}settings-${name}-${width}x${height}.png`, width < 900);
+        });
+      }
+    }
+  });
+}
+
 // Match rows: an opened game (its row scrolled to the top of the page), a grade's why, and the
 // game's other states, in English and French (`fr-…`). `row`: which row, newest first.
 async function gameShot(page: Page, name: string, opts: { scenario?: ScenarioName; width: number; height: number; row?: number }) {
