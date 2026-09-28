@@ -164,6 +164,70 @@ mod connector {
         assert!(conn.client.borrow().is_none());
     }
 
+    /// Another app holds every connection the client accepts: its events still flow, requests
+    /// get no answer. The state says so, one cheap request asks again (with a growing pause),
+    /// and the first answer brings it back; nothing is asked while it answers.
+    #[tokio::test]
+    async fn a_client_that_stops_answering_then_answers() {
+        let mock = MockLcu::start().await.unwrap();
+        let mut conn = spawn(config(
+            &mock,
+            Arc::new(Mutex::new(Some(credentials(&mock)))),
+        ));
+        for expected in [
+            ConnectorUpdate::State(ConnectionState::NotRunning),
+            ConnectorUpdate::State(ConnectionState::Connecting),
+            ConnectorUpdate::State(ConnectionState::Connected),
+            ConnectorUpdate::Phase("None".into()),
+        ] {
+            assert_eq!(next(&mut conn).await, expected);
+        }
+        let client = conn.client.borrow().clone().unwrap();
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        mock.stop_answering();
+        let err = client
+            .get::<serde_json::Value>("/lol-summoner/v1/current-summoner")
+            .await
+            .unwrap_err();
+        assert!(err.is_unanswered(), "{err}");
+        assert!(!client.is_answering());
+        assert_eq!(
+            next(&mut conn).await,
+            ConnectorUpdate::State(ConnectionState::NotAnswering)
+        );
+        // Its events still flow; it is asked again after 50 ms, 100 ms, 200 ms… (not in a
+        // loop), and failed checks don't repeat the state.
+        let refused = mock.refused();
+        mock.set(PHASE, json!("Lobby"));
+        assert_eq!(
+            next(&mut conn).await,
+            ConnectorUpdate::Phase("Lobby".into())
+        );
+        tokio::time::sleep(Duration::from_millis(400)).await;
+        let checks = mock.refused() - refused;
+        assert!((1..=5).contains(&checks), "asked again {checks} times");
+        assert!(conn.updates.try_recv().is_err());
+
+        // It answers again: the next check brings it back.
+        mock.answer_again();
+        assert_eq!(
+            next(&mut conn).await,
+            ConnectorUpdate::State(ConnectionState::Connected)
+        );
+        assert!(client.is_answering());
+        assert!(
+            conn.client.borrow().is_some(),
+            "same client, still connected"
+        );
+
+        // Answering: nothing is polled.
+        let asked = mock.count("GET", PHASE);
+        let quiet = tokio::time::timeout(Duration::from_millis(400), conn.updates.recv()).await;
+        assert!(quiet.is_err(), "unexpected update: {quiet:?}");
+        assert_eq!(mock.count("GET", PHASE), asked);
+    }
+
     #[tokio::test]
     async fn stale_lockfile_does_not_flicker() {
         let mock = MockLcu::start().await.unwrap();

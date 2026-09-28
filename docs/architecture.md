@@ -101,6 +101,20 @@ Platform services (`apps/backend/src/ops.rs` and siblings) sit next to the Riot 
 
 Run, deploy, data dir layout and privacy: `apps/backend/README.md`.
 
+## League client status (`lcu::connector`, `ClientStatus`)
+`connection` is `notRunning` (no lockfile), `connecting` (handshake), `connected` (REST answers,
+events subscribed) or `notAnswering`: the event socket is up but requests get no answer (seen on
+a real client whose every connection another app held; the WebSocket stayed up and MVP said
+"connected" while each request failed). Every `LcuClient` request reports whether it got an
+answer (any HTTP status is one); a transport failure anywhere in the core flips the state to
+`notAnswering` (the phase stays: events still flow), the next answer flips it back. While it
+lasts, one cheap `GET /lol-gameflow/v1/gameflow-phase` asks again after the poll interval (2 s),
+then twice as long each time up to 30 s; nothing is polled while the client answers. UI: the
+title bar says "League client not responding" with an amber dot; Home's profile error says the
+client isn't answering and MVP retries (`current_profile` rejects with `ClientError`
+`notAnswering`, never the request's URL), and the profile reloads by itself once the status turns
+`connected` again. Mock: `MockLcu::stop_answering`/`answer_again`, scenario `client-not-answering`.
+
 ## Backend client (`companion::backend`)
 The app reaches the backend **from the core**, never from the webview: the UI calls Tauri commands
 (`search_player`, `live_game`, `retry_scouting`, the stats commands below) and the core makes the

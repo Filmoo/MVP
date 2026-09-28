@@ -54,6 +54,7 @@ const fn map_connection(state: ConnectionState) -> ClientConnection {
         ConnectionState::NotRunning => ClientConnection::NotRunning,
         ConnectionState::Connecting => ClientConnection::Connecting,
         ConnectionState::Connected => ClientConnection::Connected,
+        ConnectionState::NotAnswering => ClientConnection::NotAnswering,
     }
 }
 
@@ -435,7 +436,11 @@ fn apply(status: &mut ClientStatus, update: &ConnectorUpdate) -> bool {
     match update {
         ConnectorUpdate::State(state) => {
             status.connection = map_connection(*state);
-            if *state != ConnectionState::Connected {
+            // A client that doesn't answer requests still sends its events: the game goes on.
+            if !matches!(
+                state,
+                ConnectionState::Connected | ConnectionState::NotAnswering
+            ) {
                 status.phase = GameflowPhase::Idle;
             }
         }
@@ -494,5 +499,32 @@ mod tests {
             &mut status,
             &ConnectorUpdate::State(ConnectionState::NotRunning)
         ));
+    }
+
+    #[test]
+    fn a_client_not_answering_keeps_its_phase() {
+        let mut status = ClientStatus::not_running();
+        apply(
+            &mut status,
+            &ConnectorUpdate::State(ConnectionState::Connected),
+        );
+        apply(&mut status, &ConnectorUpdate::Phase("InProgress".into()));
+        assert!(apply(
+            &mut status,
+            &ConnectorUpdate::State(ConnectionState::NotAnswering)
+        ));
+        assert_eq!(
+            status,
+            ClientStatus {
+                connection: ClientConnection::NotAnswering,
+                phase: GameflowPhase::InGame,
+            },
+            "events still flow: the game goes on"
+        );
+        assert!(apply(
+            &mut status,
+            &ConnectorUpdate::State(ConnectionState::Connected)
+        ));
+        assert_eq!(status.phase, GameflowPhase::InGame);
     }
 }

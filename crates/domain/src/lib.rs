@@ -21,7 +21,7 @@ mod stats;
 mod update;
 
 pub use backend::{ApiError, ApiErrorCode, BackendError, Health};
-pub use client::{AppInfo, ClientConnection, ClientStatus, GameflowPhase};
+pub use client::{AppInfo, ClientConnection, ClientError, ClientStatus, GameflowPhase};
 pub use draft::{
     CompMember, CompReading, Compositions, DamageMix, DataInfo, DraftPhase, DraftSlot, DraftView,
     Estimate, Mastery, PersonalRecord, Reason, ReasonKind, RoleOdds, Suggestion, TeamComp,

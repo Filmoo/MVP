@@ -5,7 +5,7 @@
 
 use std::collections::HashMap;
 
-use domain::{Division, MatchSummary, PlayerProfile, RankedEntry, RiotId, Role, Tier};
+use domain::{ClientError, Division, MatchSummary, PlayerProfile, RankedEntry, RiotId, Role, Tier};
 use lcu::{LcuClient, LcuError};
 use serde_json::Value;
 use stats::grade::REMAKE_MAX_SECONDS;
@@ -164,6 +164,19 @@ pub fn map_matches(history: &Value, platform: &str) -> Vec<MatchSummary> {
         .collect()
 }
 
+/// How a failed read of the profile reads in the UI: no answer at all (the connection status
+/// turns `notAnswering` meanwhile, and the core asks the client again by itself), or the
+/// client's own error. The request's URL (with the client's port) never reaches the UI.
+pub fn client_error(error: &LcuError) -> ClientError {
+    if error.is_unanswered() {
+        ClientError::NotAnswering
+    } else {
+        ClientError::Failed {
+            message: error.to_string(),
+        }
+    }
+}
+
 /// Reads the whole profile. Missing pieces degrade gracefully (unranked, no games).
 pub async fn local_profile(client: &LcuClient) -> Result<PlayerProfile, LcuError> {
     read_local(client).await.map(|read| read.profile)
@@ -309,6 +322,21 @@ mod tests {
             role(line(11, [4, 21], "BOTTOM", "CARRY")),
             Some(Role::Bottom)
         );
+    }
+
+    /// An answer, even an error, isn't "not answering": the client's own words go on.
+    #[test]
+    fn an_error_answer_keeps_its_words() {
+        let busy = LcuError::Http {
+            method: reqwest::Method::GET,
+            path: CURRENT_SUMMONER.to_owned(),
+            status: reqwest::StatusCode::SERVICE_UNAVAILABLE,
+            message: "busy".to_owned(),
+        };
+        match client_error(&busy) {
+            ClientError::Failed { message } => assert!(message.contains("HTTP 503"), "{message}"),
+            ClientError::NotAnswering => panic!("the client answered"),
+        }
     }
 
     #[test]

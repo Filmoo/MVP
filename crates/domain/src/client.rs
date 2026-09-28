@@ -28,7 +28,34 @@ pub enum ClientConnection {
     Connecting,
     /// Authenticated and subscribed to client events.
     Connected,
+    /// Subscribed to its events, but the client doesn't answer requests (busy, or another app
+    /// holds every connection it accepts). The core asks it again by itself, with a pause that
+    /// grows, and the next answer makes it `connected` again.
+    NotAnswering,
 }
+
+/// Why the League client couldn't answer a command (`current_profile`), as the UI words it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+#[ts(export)]
+pub enum ClientError {
+    /// It didn't answer at all (the connection status turns `notAnswering`): the core asks it
+    /// again by itself, and the status says when it answers.
+    NotAnswering,
+    /// It answered with an error.
+    Failed { message: String },
+}
+
+impl std::fmt::Display for ClientError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::NotAnswering => f.write_str("the League client isn't answering"),
+            Self::Failed { message } => f.write_str(message),
+        }
+    }
+}
+
+impl std::error::Error for ClientError {}
 
 /// Where the League client is in its lifecycle.
 ///
@@ -77,5 +104,18 @@ mod tests {
         };
         let json = serde_json::to_string(&status).expect("serializable");
         assert_eq!(json, r#"{"connection":"notRunning","phase":"champSelect"}"#);
+        let json = serde_json::to_string(&ClientConnection::NotAnswering).expect("serializable");
+        assert_eq!(json, r#""notAnswering""#);
+    }
+
+    #[test]
+    fn client_errors_are_tagged() {
+        let json = serde_json::to_string(&ClientError::NotAnswering).expect("serializable");
+        assert_eq!(json, r#"{"kind":"notAnswering"}"#);
+        let failed = ClientError::Failed {
+            message: "HTTP 503".into(),
+        };
+        let json = serde_json::to_string(&failed).expect("serializable");
+        assert_eq!(json, r#"{"kind":"failed","message":"HTTP 503"}"#);
     }
 }

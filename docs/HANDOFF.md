@@ -223,7 +223,9 @@ pnpm install && node scripts/fetch-dev-assets.mjs
 RIOT_API_KEY=… pnpm backend              # 127.0.0.1:8787, the default the app uses
 pnpm app                                 # or pnpm build:exe and install the NSIS setup
 ```
-Checklist: title bar says "League client connected" · Home shows your real rank/LP/games ·
+Checklist: title bar says "League client connected" (and "League client not responding", amber,
+when another app holds the client's connections: Home says MVP retries, then loads by itself once
+it answers; log "league client not answering" / "answers again") · Home shows your real rank/LP/games ·
 Settings persist across restarts · auto-accept (turn on, queue) accepts after the delay, never
 after you declined · champ select brings the window up on Draft with the real teams/bans/roles
 (ranked: allies stay anonymous) and, with published stats (`STATS_DIR`), picks for your role that

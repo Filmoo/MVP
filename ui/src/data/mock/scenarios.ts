@@ -3,6 +3,7 @@ import { savedLanguage } from "../../i18n";
 import type { BackendError } from "../generated/BackendError";
 import type { Bracket } from "../generated/Bracket";
 import type { ChampionPage } from "../generated/ChampionPage";
+import type { ClientError } from "../generated/ClientError";
 import type { ClientStatus } from "../generated/ClientStatus";
 import type { PlayerProfile } from "../generated/PlayerProfile";
 import type { Settings } from "../generated/Settings";
@@ -154,6 +155,21 @@ const guessedRoles: PlayerProfile = {
   recentMatches: profile.recentMatches.map((m, i) => (i < 5 ? { ...m, role: "top" } : m)),
 };
 
+/**
+ * The League client stopped answering (another app holds every connection it accepts): the
+ * first read of your profile fails like the core says it, the next ones answer. The error's
+ * text is the request's, as the core logs it: the page must not show it.
+ */
+function answersAfterFirstRead(): () => PlayerProfile {
+  let reads = 0;
+  return () => {
+    reads += 1;
+    if (reads > 1) return profile;
+    const unanswered = "client not reachable: error sending request for url (https://127.0.0.1:61773/lol-summoner/v1/current-summoner)";
+    throw new CommandError("current_profile", unanswered, { kind: "notAnswering" } satisfies ClientError);
+  };
+}
+
 const inGame: ClientStatus = { connection: "connected", phase: "inGame" };
 
 /** Mid-draft, with imports that work (each takes a moment, like the real client). */
@@ -225,6 +241,15 @@ export const scenarios = {
       ...base,
       client_status: { data: { connection: "notRunning", phase: "idle" } },
       current_profile: { data: null },
+    },
+  },
+  "client-not-answering": {
+    description:
+      "The League client is up but doesn't answer (another app holds its connections): the title bar says so in amber, Home says MVP retries on its own, and your profile loads once a `client-status` says it answers again.",
+    responses: {
+      ...base,
+      client_status: { data: { connection: "notAnswering", phase: "idle" } },
+      current_profile: { handle: answersAfterFirstRead() },
     },
   },
   "slow-loading": {
