@@ -42,8 +42,8 @@ pub use scout::{ChampionRecord, ScoutCard, ScoutRequest, ScoutTag};
 pub use settings::{AutoAcceptEvent, Effects, Language, Settings, ViewRoute};
 pub use stats::{
     Bracket, BuildOption, BuildSection, BuildStats, BuildsFile, ChampionPage, ChampionRoleStats,
-    ChampionStats, ChampionsFile, DataSetIndex, DataSetInfo, GamesWins, MatchupEntry, MatchupsFile,
-    PairKind, PairPrior, PatchIndex, RoleMatchups, STATS_SCHEMA, StatsIndex, TierEntry, TierGrade,
-    TierList,
+    ChampionStats, ChampionsFile, CompositionStats, CompositionsFile, DataSetIndex, DataSetInfo,
+    GamesWins, MatchupEntry, MatchupsFile, PairKind, PairPrior, PatchIndex, RoleMatchups,
+    STATS_SCHEMA, StatsIndex, TierEntry, TierGrade, TierList,
 };
 pub use update::UpdateStatus;

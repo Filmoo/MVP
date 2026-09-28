@@ -13,10 +13,14 @@ pub const STATS_SCHEMA: u32 = 1;
 
 /// Rank bracket of a published data set. Brackets are cumulative: `emeraldPlus` holds every
 /// crawled game, `masterPlus` only games seeded from the Master+ ladders.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, TS)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Default, Serialize, Deserialize, TS,
+)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub enum Bracket {
+    /// The widest one, published first: the default.
+    #[default]
     EmeraldPlus,
     DiamondPlus,
     MasterPlus,
@@ -343,6 +347,46 @@ pub struct BuildOption {
     pub g: u32,
     /// Wins.
     pub w: u32,
+}
+
+/// `{patch}/{queue}/{bracket}/compositions.json`: what each champion in each role brings to a
+/// team composition, from the games crawled with those numbers (older ones are left out, never
+/// counted as zero). Read by the draft helper; not in the estimate, shown for information.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CompositionsFile {
+    pub info: DataSetInfo,
+    /// Upper bounds of the game-length buckets in minutes: `[25, 35]` = under 25, 25 to 35,
+    /// 35 and more (ARAM games are shorter: their own bounds).
+    pub lengths: Vec<u32>,
+    /// Every champion of each role together (`id` 0): what a usual pick in the role brings.
+    pub roles: Vec<CompositionStats>,
+    /// Per champion × role with enough games, sorted by champion, then role.
+    pub champions: Vec<CompositionStats>,
+}
+
+/// One champion in one role (`None` in ARAM), averaged over its `n` games.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CompositionStats {
+    /// Champion id (0 for a whole role).
+    pub id: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub role: Option<Role>,
+    /// Games behind these numbers.
+    pub n: u32,
+    /// Damage to champions per minute: physical, magic, true.
+    pub dmg: [f64; 3],
+    /// Mean share of its team's damage taken and self-mitigated (0–1): its frontline.
+    pub front: f64,
+    /// Mean crowd control (`timeCCingOthers`) per game, in seconds.
+    pub cc: f64,
+    /// `[games, wins]` in each game-length bucket (see `lengths`); empty for a whole role.
+    #[serde(default)]
+    pub len: Vec<(u32, u32)>,
 }
 
 /// Everything the Champions page shows for one champion in one queue × bracket, read by the

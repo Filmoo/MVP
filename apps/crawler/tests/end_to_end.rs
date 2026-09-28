@@ -13,7 +13,7 @@ use axum::http::{StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::{Json, Router};
-use domain::{BuildsFile, ChampionsFile, MatchupsFile, StatsIndex};
+use domain::{BuildsFile, ChampionsFile, CompositionsFile, MatchupsFile, Role, StatsIndex};
 use mvp_crawler::publish::PublishConfig;
 use mvp_crawler::{CrawlConfig, Store, crawl, publish};
 use riot_api::limits::parse_limits;
@@ -354,6 +354,8 @@ async fn check_served(stats_dir: &std::path::Path) {
     assert_eq!(b.starts.top[0].ids, [1055, 2003]);
     assert_eq!(b.skills.top[0].ids, [1, 3, 2]);
 
+    check_compositions(&backend).await;
+
     let res = get("/v1/stats/16.19/420/masterPlus/matchups/1.json")
         .await
         .unwrap();
@@ -382,4 +384,24 @@ async fn check_served(stats_dir: &std::path::Path) {
             "{missing}"
         );
     }
+}
+
+/// What each pick brings to a composition, from the facts stored with those numbers.
+async fn check_compositions(backend: &str) {
+    let comps: CompositionsFile = reqwest::get(format!(
+        "{backend}/v1/stats/16.19/420/emeraldPlus/compositions.json"
+    ))
+    .await
+    .unwrap()
+    .json()
+    .await
+    .unwrap();
+    let top = comps
+        .champions
+        .iter()
+        .find(|c| c.id == 1 && c.role == Some(Role::Top))
+        .unwrap();
+    assert_eq!(top.n, 6);
+    assert_eq!(top.len.iter().map(|l| l.0).sum::<u32>(), 6);
+    assert!(top.front > 0.0 && top.dmg.iter().all(|d| *d > 0.0));
 }
