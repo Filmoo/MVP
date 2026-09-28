@@ -87,6 +87,9 @@ for (const { view, scenario } of [
 ] as const) {
   test(`${view}/${scenario} only uses design tokens`, async ({ page }) => {
     await openApp(page, { view, scenario });
+    // A page opened on ARAM switches its queue control as it loads: audit the colours it
+    // settles on, not one caught halfway through the transition (seen on a busy machine).
+    await animationsDone(page);
     expect(await page.evaluate(auditTokens)).toEqual([]);
   });
 }
