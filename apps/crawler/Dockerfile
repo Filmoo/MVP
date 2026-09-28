@@ -13,12 +13,16 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/src/target \
     cargo build --release --locked -p mvp-crawler \
  && cp target/release/mvp-crawler /mvp-crawler \
- && mkdir -p /crawl-skeleton
+ && mkdir -p /crawl-skeleton /data-skeleton
 
 # glibc + CA certificates (TLS to Riot and Data Dragon), no shell, unprivileged.
 FROM gcr.io/distroless/cc-debian12:nonroot
 COPY --from=build /mvp-crawler /usr/local/bin/mvp-crawler
+# Both data dirs belong to the nonroot user, so a fresh named volume mounted on either inherits a
+# writable owner: /crawl (the store) and /data (where `publish` writes, the backend's data volume,
+# which doesn't exist yet when the crawler runs before the backend ever has).
 COPY --from=build --chown=65532:65532 /crawl-skeleton /crawl
+COPY --from=build --chown=65532:65532 /data-skeleton /data
 ENV CRAWL_DATA_DIR=/crawl RUST_LOG=info
 VOLUME /crawl
 ENTRYPOINT ["/usr/local/bin/mvp-crawler"]
