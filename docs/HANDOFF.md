@@ -10,7 +10,8 @@ except where marked.
 
 - **Desktop app** (Tauri 2 + SolidJS): Home (own profile from the LCU), Draft (live champ select,
   stats-only model, mock stats), Live (loading-screen scouting of all 10 players), player search
-  (title bar, Ctrl+K) + player pages, Settings (auto-accept opt-in, window follows the game, close
+  (title bar, Ctrl+K) + player pages, build imports (rune page, item set, spells: one click in
+  Draft or on lock-in), Settings (auto-accept opt-in, imports, window follows the game, close
   to tray, launch at startup). Glass UI with ambient light sampled from champion art.
 - **Backend** `apps/backend` (`mvp-backend`): player profiles, batch scouting, `/v1/stats/*` file
   serving, caches. **Crawler** `apps/crawler` (`mvp-crawler crawl|publish|status`) + `crates/aggregate`:
@@ -38,12 +39,16 @@ except where marked.
    mastery — `/lol-champion-mastery/v1/local-player/champion-mastery` — and recent games), then the
    **Champions** page (builds: runes, spells, skill order, items, matchups) and **Tier list** page
    (both are placeholders at `/champions` and `/tier-list`). No ban suggestions (owner's call).
-5. **Imports (LCU writes, declare them in policy.md):** rune page (dedicated "MVP" page, never
-   delete the player's pages: `/lol-perks/v1/pages`), item set (`/lol-item-sets/v1/item-sets/{summonerId}/sets`),
-   summoner spells (`PATCH /lol-champ-select/v1/session/my-selection`) — with the owner's Flash
-   rule: respect the player's usual Flash key (D/F) from their past games, warn when it differs, never
-   change spells in the last seconds of champ select, and every automation can be turned off.
-   Modes: one click, or automatic on lock-in (setting).
+5. *(built, against mock-lcu only)* **Imports** (`companion::imports`, architecture.md "Build
+   imports", policy.md "Build imports"): MVP's own rune page (never touches the player's pages),
+   MVP's item set per champion (the player's sets round-trip untouched), summoner spells in champ
+   select (Flash on the player's key from their games or Settings, never with ≤ 5 s left). Per
+   part: off / one click (default, Draft's import bar) / on lock-in (once per lock, toast), plus
+   the Flash key (auto/D/F) in Settings → Imports. **Left:** plug the stats client in as the
+   `BuildSource` (`Services.builds` in `apps/desktop/src/core.rs`, today `NoBuilds`: every import
+   answers "no build" and Draft's buttons wait for `draft.data`); the lead's Champions page import
+   action can reuse `ImportBar` (`ui/src/views/draft/ImportBar.tsx`, props: champion, role,
+   queue, `inChampSelect`); verify on a real client (checklist below).
 6. **Desktop side of updates/config** (after 1): `tauri-plugin-updater` (pubkey, endpoint
    `https://<api>/v1/updates/{{target}}/{{arch}}/{{current_version}}?channel=stable`), send
    `X-MVP-Install` (already stored as `install-id` next to `settings.json`), never update during a
@@ -64,6 +69,23 @@ after you declined · champ select brings the window up on Draft with the real t
 Riot ID · close to tray keeps automations running · launch at startup starts in the tray ·
 RAM/idle CPU stay low (`scripts/windows-footprint.ps1`). Fix what differs from the mock; add a
 mock-lcu scenario for anything the real client does that the mock didn't.
+
+Build imports (needs a `BuildSource` with real stats; the logs say "rune page imported", "item set
+imported", "summoner spells imported", "automatic import on lock-in"):
+- **Runes:** with a free slot, Runes creates "MVP · <Champion> <Role>" and selects it; again (other
+  role) replaces the same page; with every slot used, the message asks to free or rename one;
+  renaming a page "MVP" makes MVP use it. Your other pages keep their names and runes. Check the
+  real shapes: `canAddCustomPage`/`ownedPageCount` in `/lol-perks/v1/inventory`, the POST/PUT
+  body (`subStyleId`, 9 `selectedPerkIds`), the "max pages" error text (`is_page_limit`), whether
+  names over ~25 characters are refused (`NAME_MAX_CHARS`).
+- **Item set:** shows in the in-game shop for that champion (Summoner's Rift; Howling Abyss for
+  ARAM); your own sets unchanged after an import; the client accepts our `uid` ("6d7670a0-…").
+- **Spells:** set during picks and finalization, Flash on your key (try `Flash key` D/F/auto);
+  refused in the last 5 s; that `timer.internalNowInEpochMs` is this PC's clock (time-left math);
+  never outside champ select.
+- **On lock-in:** exactly one import per lock-in, none on hovers; a trade imports the new champion;
+  ARAM imports on the given champion and after rerolls/bench swaps; blind pick and ARAM (no
+  `assignedPosition`) use the most played role.
 
 ## Known issues
 - `tests/search.spec.ts` "local list never waits" can time out under heavy parallel load (passes
