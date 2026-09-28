@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Fails the build when the UI bundle outgrows its budget. The initial load
 // (entry JS + CSS) is what the user waits for when opening the window.
+// Measures `dist`: the desktop build (`vite build --mode app`, no browser mock), what ships.
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";

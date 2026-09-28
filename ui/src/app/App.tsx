@@ -19,7 +19,8 @@ const Live = lazy(() => import("../views/live/Live"));
 const Player = lazy(() => import("../views/player/Player"));
 const Champions = lazy(() => import("../views/champions/Champions"));
 const TierList = lazy(() => import("../views/tierlist/TierList"));
-const Harness = lazy(() => import("../widgets/Harness"));
+// Test-only page of mock builds (the desktop build leaves it out with the mock).
+const Harness = __MVP_MOCK__ ? lazy(() => import("../widgets/Harness")) : () => null;
 const Banners = lazy(() => import("./Banners"));
 
 function Toasts(): JSX.Element {

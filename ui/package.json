@@ -4,8 +4,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && node scripts/check-bundle.mjs",
-    "preview": "vite preview",
+    "build": "vite build --mode app && node scripts/check-bundle.mjs",
+    "build:preview": "vite build --outDir dist-preview",
+    "preview": "vite preview --outDir dist-preview",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.node.json",
     "test:unit": "vitest run",
     "test:e2e": "playwright test",

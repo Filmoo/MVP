@@ -8,6 +8,7 @@ node_modules/
 
 # Builds
 ui/dist/
+ui/dist-preview/
 apps/desktop/gen/
 
 # Test output (baselines under ui/tests/**/__screenshots__ ARE committed)

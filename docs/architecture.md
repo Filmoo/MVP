@@ -44,6 +44,9 @@ flowchart LR
 - **The core owns data, the UI renders it.** Every UI-facing type lives in `crates/domain` and is
   exported to TypeScript; the UI reaches the core only through `ui/src/data/transport.ts`
   (Tauri IPC in the app, scripted mock scenarios in a browser, HTTP later for a web version).
+  The mock only ships in browser builds (`pnpm dev`, `build:preview` for the UI tests, into
+  `ui/dist-preview`); the desktop build (`pnpm build` = `vite build --mode app`, into `ui/dist`,
+  the one the bundle budgets measure) leaves it out with the widget harness.
 - **Light next to League.** No overlay, no injection, no polling loops in the UI; the webview can
   be closed while the core keeps following the client from the tray. Budgets and an idle-work
   test guard this in CI, plus a real-app memory/CPU check on Windows.

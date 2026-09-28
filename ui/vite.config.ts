@@ -43,8 +43,14 @@ function serveFrom(dir: string) {
   };
 }
 
-export default defineConfig({
+/**
+ * `vite build --mode app` is what ships in the desktop app (`pnpm build`, Tauri's before-build
+ * command): it leaves out the browser mock (scripted scenarios, stats fixtures, the widget
+ * harness), which only the browser preview, the dev server and the UI tests use.
+ */
+export default defineConfig(({ mode }) => ({
   plugins: [solid(), devAssets()],
+  define: { __MVP_MOCK__: JSON.stringify(mode !== "app") },
   clearScreen: false,
   server: { port: 1420, strictPort: true, host: "127.0.0.1" },
   preview: { port: 4173, strictPort: true, host: "127.0.0.1" },
@@ -61,4 +67,4 @@ export default defineConfig({
     include: ["src/**/*.test.ts", "src/**/*.test.tsx", "tests/unit/**/*.test.ts"],
     environment: "node",
   },
-});
+}));
