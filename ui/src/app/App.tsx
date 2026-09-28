@@ -1,4 +1,4 @@
-import { createEffect, createResource, For, type JSX, lazy, Match, on, onCleanup, Suspense, Switch } from "solid-js";
+import { createEffect, createResource, For, type JSX, lazy, Match, on, onCleanup, onMount, Suspense, Switch } from "solid-js";
 import { useData } from "../data/context";
 import { Backdrop, setEffects } from "../design/backdrop";
 import { Icon } from "../design/Icon";
@@ -61,6 +61,11 @@ export function App(): JSX.Element {
       // Settings unreadable: the Settings page says so; keep the local choice meanwhile.
     });
   onCleanup(transport.listen("settings", (settings) => setEffects(settings.effects)));
+  // Draft and Live open on their own when the game moves on: have their code ready, once, at start.
+  onMount(() => {
+    void Draft.preload();
+    void Live.preload();
+  });
 
   // The core moves the UI along with the game. It hears about every view shown, so it never
   // switches away from a page the player opened themselves.

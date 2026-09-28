@@ -28,6 +28,7 @@
      the light (brightest top left, a fainter echo bottom right) and casts a thin shade. */
   --bg-float: #13141ecc; /* panels floating over the page: search, toasts (80%) */
   --bg-lens: #b9a9ff14; /* clear lens over controls, a breath of the accent */
+  --bg-field: #07080d8c; /* a field etched into glass (title bar search) */
   --line-rim: #ffffff42; /* specular rim, lit side */
   --line-rim-far: #ffffff12; /* specular rim, far side */
   --line-glint: #ffffff8c; /* where the rim turns to the pointer */
