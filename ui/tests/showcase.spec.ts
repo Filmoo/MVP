@@ -301,6 +301,22 @@ for (const [width, height] of [
   });
 }
 
+// Glass over scrolled content: the title bar (wide) and the floating tab bar (narrow) bend what
+// passes under their rims and keep their labels on a calm middle.
+for (const [view, width, height, by] of [
+  ["/", 1280, 800, 200],
+  ["/", 420, 800, 470],
+  ["/tier-list", 420, 800, 300],
+] as const) {
+  test(`scrolled ${view} ${width}x${height}`, async ({ page }) => {
+    await openApp(page, { view, width, height });
+    await page.locator("main").evaluate((main, y) => main.scrollTo(0, y), by);
+    await settle(page);
+    const name = view === "/" ? "home" : view.slice(1);
+    await page.screenshot({ path: `${OUT}/scrolled-${name}-${width}x${height}.png` });
+  });
+}
+
 test("home match accepted toast 1280x800", async ({ page }) => {
   await openApp(page, { scenario: "match-accepted" });
   await page.getByTestId("toast").waitFor();
