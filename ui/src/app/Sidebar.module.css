@@ -101,11 +101,12 @@
 
 /* Its rim of light is the glass-rim ring; the shadow is the wrapper's (see Search.module.css). */
 .glass {
-  --lg-tint: var(--bg-lens);
+  /* The accent, as glass: a choice reads as lit, never as a hole in the rail. */
+  --lg-tint: var(--bg-lens-accent);
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: var(--lg-fill, var(--bg-lens));
+  background: var(--lg-fill, var(--bg-lens-accent));
   backdrop-filter: var(--lg-filter, none);
 }
 

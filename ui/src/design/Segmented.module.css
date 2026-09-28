@@ -17,7 +17,8 @@
 }
 
 .thumb {
-  --lg-tint: var(--bg-lens);
+  /* A neutral lift: over a flat track there is little to bend, so the glass must add light. */
+  --lg-tint: var(--bg-highlight);
   position: absolute;
   top: var(--space-1);
   bottom: var(--space-1);
@@ -32,7 +33,7 @@
 
 /* Full effects: clear glass behind the chosen label, lifted over the labels while it glides. */
 :global(:root[data-effects="shader"]) .thumb {
-  background: var(--lg-fill, var(--bg-lens));
+  background: var(--lg-fill, var(--bg-highlight));
   backdrop-filter: var(--lg-filter, none);
 }
 

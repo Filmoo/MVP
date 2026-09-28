@@ -18,7 +18,7 @@
 
 .thumb {
   --travel: 0px;
-  --lg-tint: var(--bg-lens);
+  --lg-tint: var(--bg-highlight);
   position: absolute;
   top: 50%;
   left: var(--space-1);
@@ -57,7 +57,7 @@
 /* Held: the knob swells into clear glass that bends the track under it (design/liquid, "lens"). */
 .toggle[data-pressed] .thumb,
 .toggle[data-pressed]:hover .thumb {
-  background: var(--lg-fill, var(--bg-lens));
+  background: var(--lg-fill, var(--bg-highlight));
   backdrop-filter: var(--lg-filter, none);
   /* Inset only: an outer shadow would shift the lens (see Search.module.css). */
   box-shadow:
