@@ -95,6 +95,8 @@ fn platform_services<R: Runtime>(
         install_id,
         backend.cloned(),
     );
+    // Before the hook: a panic right at start is already covered (the follower runs async).
+    crashes.set_enabled(settings.get().crash_reports);
     crashes.install_panic_hook();
     tauri::async_runtime::spawn(Arc::clone(&crashes).run(settings.subscribe()));
     app.manage(Crashes(crashes));

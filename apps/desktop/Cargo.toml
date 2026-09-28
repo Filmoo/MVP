@@ -17,6 +17,8 @@ tauri-build = { version = "2", features = [] }
 companion.workspace = true
 domain.workspace = true
 lcu.workspace = true
+# Banner links in the default browser (ShellExecute on Windows, no shell in between).
+open = { version = "5", features = ["shellexecute-on-windows"] }
 static-data.workspace = true
 serde.workspace = true
 serde_json.workspace = true

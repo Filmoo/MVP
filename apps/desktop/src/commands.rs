@@ -38,6 +38,30 @@ pub fn remote_config(app: tauri::AppHandle) -> RemoteConfig {
         .map_or_else(RemoteConfig::default, |remote| remote.0.get())
 }
 
+/// Opens a banner's "More info" link in the default browser. The webview only names the
+/// banner: the link is the one our server sent, and only `https://` links open.
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub fn open_banner_link(app: tauri::AppHandle, id: String) -> Result<(), String> {
+    let config = app
+        .try_state::<Remote>()
+        .map_or_else(RemoteConfig::default, |remote| remote.0.get());
+    let link = config
+        .banners
+        .iter()
+        .find(|banner| banner.id == id)
+        .and_then(|banner| banner.link.as_deref())
+        .ok_or("this notice has no link")?;
+    let url = tauri::Url::parse(link)
+        .ok()
+        .filter(|url| url.scheme() == "https")
+        .ok_or("only https links open")?;
+    open::that_detached(url.as_str()).map_err(|error| format!("couldn't open the browser: {error}"))
+}
+
 /// Where the app's own update stands; `app-update` events follow changes.
 #[tauri::command]
 #[allow(

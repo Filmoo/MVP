@@ -61,6 +61,7 @@ pub fn run() {
             commands::live_game,
             commands::retry_scouting,
             commands::remote_config,
+            commands::open_banner_link,
             commands::update_status,
             commands::check_for_updates,
             commands::install_update,
