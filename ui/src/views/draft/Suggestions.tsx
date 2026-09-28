@@ -38,6 +38,18 @@ function tierLabel(index: number, size: number): string {
   return size > 1 ? "Best · statistically tied" : "Best";
 }
 
+/** Your line next to the name: your games on this pick in the role, else your mastery of it. */
+function yourLine(s: Suggestion): string | undefined {
+  if (s.mine) return `You · ${s.mine.games} ${s.mine.games === 1 ? "game" : "games"} · ${percent(s.mine.wins / s.mine.games)}`;
+  if (s.mastery) return `You · Mastery ${s.mastery.level}`;
+  return undefined;
+}
+
+function masteryTitle(s: Suggestion): string | undefined {
+  if (!s.mastery) return undefined;
+  return `Your mastery: level ${s.mastery.level}, ${new Intl.NumberFormat("en").format(s.mastery.points)} points`;
+}
+
 function Row(props: { s: Suggestion; selected: boolean; expanded: boolean; onSelect: () => void }): JSX.Element {
   const { gameData } = useData();
   const name = (id: number) => gameData()?.champions.get(id)?.name ?? `Champion ${id}`;
@@ -55,10 +67,10 @@ function Row(props: { s: Suggestion; selected: boolean; expanded: boolean; onSel
         <ChampionIcon championId={props.s.championId} size={40} />
         <span class={styles.nameLine}>
           <span class={styles.name}>{name(props.s.championId)}</span>
-          <Show when={props.s.mine}>
-            {(m) => (
-              <span class={`${styles.mine} num`}>
-                You · {m().games} {m().games === 1 ? "game" : "games"} · {percent(m().wins / m().games)}
+          <Show when={yourLine(props.s)}>
+            {(line) => (
+              <span class={`${styles.mine} num`} title={masteryTitle(props.s)}>
+                {line()}
               </span>
             )}
           </Show>
