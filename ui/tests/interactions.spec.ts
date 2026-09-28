@@ -1,3 +1,5 @@
+// The i18n module first: en.ts (imported below) needs lib/format, which needs it loaded.
+import "../src/i18n";
 import type { Page } from "@playwright/test";
 import type { Settings } from "../src/data/generated/Settings";
 // Brings the window.__SCOUT_MOCK__ declaration into scope.
