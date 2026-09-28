@@ -8,7 +8,9 @@ name: Release
 #
 # Once, on the owner's machine: `node scripts/setup-updates.mjs` makes the key pair, commits-ready
 # the public key (apps/desktop/tauri.conf.json plugins.updater.pubkey: installed apps verify every
-# update with it) and sets these secrets (repository settings → Secrets and variables → Actions):
+# update with it) and sets these secrets on the `release` environment (Settings → Environments),
+# never on the repository: only this job can read them, only for a `v*` tag, and only once the
+# owner approves the run (the environment's required reviewer).
 #   TAURI_SIGNING_PRIVATE_KEY           the private key
 #   TAURI_SIGNING_PRIVATE_KEY_PASSWORD  its password
 on:
@@ -21,8 +23,11 @@ permissions:
 jobs:
   windows:
     runs-on: windows-latest
+    environment: release
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - name: The tag is the app's version
         shell: bash
         run: |
@@ -48,9 +53,9 @@ jobs:
           fi
       - name: Rust toolchain (from rust-toolchain.toml)
         run: rustup show active-toolchain || rustup toolchain install
-      - uses: Swatinem/rust-cache@v2
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: pnpm
@@ -83,7 +88,7 @@ jobs:
           ' "${GITHUB_REF_NAME#v}" "$url" "$installer.sig"
           cat target/release/bundle/nsis/latest.json
       - name: Publish release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           prerelease: ${{ contains(github.ref_name, '-') }}
           make_latest: ${{ !contains(github.ref_name, '-') }}

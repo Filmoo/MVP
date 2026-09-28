@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // One entry point for every quality gate, used locally, by the Claude Code hook and by CI.
-//   node scripts/check.mjs fast   → lint, types, unit tests, UI build/budgets, Rust tests (~1 min)
+//   node scripts/check.mjs fast   → secrets, lint, types, unit tests, UI build/budgets, Rust tests (~1 min)
 //   node scripts/check.mjs full   → fast + UI suites (layout, coherence, errors, perf)
 //   node scripts/check.mjs ui     → build + UI suites only
 import { spawnSync } from "node:child_process";
@@ -10,6 +10,8 @@ const root = resolve(import.meta.dirname, "..");
 
 const mode = process.argv[2] ?? "fast";
 
+// First: a key or token in the working tree must never get as far as a commit.
+const secrets = [["secrets", "node", ["scripts/check-secrets.mjs"]]];
 const rust = [
   ["cargo fmt", "cargo", ["fmt", "--all", "--check"]],
   ["cargo clippy", "cargo", ["clippy", "--workspace", "--all-targets", "--", "-D", "warnings"]],
@@ -47,7 +49,11 @@ const ui = [
   ["UI: performance budgets", "pnpm", ["--filter", "@scout/ui", "exec", "playwright", "test", "--project=perf", "--workers=1"]],
 ];
 
-const plans = { fast: [...web, ...build, ...rust], full: [...web, ...build, ...rust, ...ui], ui: [...build, ...ui] };
+const plans = {
+  fast: [...secrets, ...web, ...build, ...rust],
+  full: [...secrets, ...web, ...build, ...rust, ...ui],
+  ui: [...secrets, ...build, ...ui],
+};
 const steps = plans[mode];
 if (!steps) {
   console.error(`unknown mode "${mode}" (fast | full | ui)`);
