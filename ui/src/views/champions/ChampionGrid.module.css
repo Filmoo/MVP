@@ -1,7 +1,85 @@
+/*
+ * Groups read like a tier list: the tier's letter (or the group's name) and its size in a column
+ * on the left, its champions on the right; a hairline between groups. Narrow: the heading on top.
+ */
+.groups {
+  display: flex;
+  flex-direction: column;
+}
+
+.group {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  column-gap: var(--space-5);
+}
+
+.group:has(> .head) {
+  grid-template-columns: 88px minmax(0, 1fr);
+}
+
+.group + .group {
+  margin-top: var(--space-5);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--line-1);
+}
+
+/* Level with the first row's icons. */
+.head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding-top: var(--space-5);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-regular);
+  text-align: center;
+}
+
+.label {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--text-2);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.size {
+  color: var(--text-3);
+}
+
+@container page (max-width: 559px) {
+  .group:has(> .head) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .head {
+    flex-direction: row;
+    padding: 0 var(--space-3) var(--space-2);
+  }
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
   gap: var(--space-2);
+}
+
+/*
+ * Loading: two rows of placeholders on the tiles' rhythm (per 96 px column, the 56 px icon and a
+ * name under it), cut out of a --bg-3 fill by a repeating mask: no element per tile.
+ */
+.ghosts {
+  height: 248px;
+  background: var(--bg-3);
+  mask:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='124'%3E%3Crect x='20' y='12' width='56' height='56' rx='12'/%3E%3Crect x='18' y='80' width='60' height='10' rx='5'/%3E%3C/svg%3E")
+    0 0 / 96px 124px space;
+  animation: pulse 1.6s var(--ease) infinite;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.45;
+  }
 }
 
 .tile {
@@ -9,7 +87,6 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-3);
   min-width: 0;
   padding: var(--space-5) var(--space-3) var(--space-4);
   border-radius: var(--radius-4);
@@ -25,8 +102,8 @@
   color: var(--text-1);
 }
 
-.tile > img,
-.tile > [role="img"]:first-child {
+.tile > :first-child {
+  margin-bottom: var(--space-3);
   border-radius: var(--radius-4);
 }
 
@@ -45,5 +122,13 @@
   text-align: center;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The number the grid is sorted by (win rate, or pick rate), quiet under the name. */
+.stat {
+  margin-top: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--text-3);
   white-space: nowrap;
 }

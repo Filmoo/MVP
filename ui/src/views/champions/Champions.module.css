@@ -163,6 +163,43 @@
   gap: var(--space-4) var(--space-6);
 }
 
+/* "Sort by" and its choices, kept together when the row wraps. */
+.sort {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  font-size: var(--text-sm);
+  color: var(--text-3);
+}
+
+/*
+ * The sort reads as words on the page rather than another pill: the same radio group (one tab
+ * stop, arrow keys) without its track and glass, the choice underlined by a short accent bar that
+ * glides under it (the group's thumb, its first child).
+ */
+[role="radiogroup"].sortTabs {
+  padding: 0;
+  border-color: transparent;
+  background: none;
+  box-shadow: none;
+}
+
+.sortTabs > span,
+:global(:root[data-effects]) .sortTabs > span {
+  background: linear-gradient(var(--accent), var(--accent)) 50% 100% / var(--space-6) 2px no-repeat;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.sortTabs > span::after {
+  display: none;
+}
+
+.sortTabs > button {
+  padding: 0 var(--space-4);
+}
+
 .scope {
   font-size: var(--text-sm);
   color: var(--text-3);
@@ -174,4 +211,25 @@
 
 .scope a:hover {
   color: var(--text-1);
+}
+
+/* Without stats: why, in the controls' place (same height), with a retry when it can help. */
+.notice {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  min-height: 36px;
+  font-size: var(--text-md);
+  color: var(--text-2);
+}
+
+.notice p {
+  flex: 1 1 280px;
+  min-width: 0;
+}
+
+.noticeIcon {
+  flex: none;
+  color: var(--text-3);
 }

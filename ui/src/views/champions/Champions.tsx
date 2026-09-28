@@ -5,22 +5,25 @@ import { useData } from "../../data/context";
 import type { ChampionPage } from "../../data/generated/ChampionPage";
 import type { Role } from "../../data/generated/Role";
 import { useAmbient } from "../../design/ambient";
+import { Button } from "../../design/Button";
 import { Card } from "../../design/Card";
 import { championArtUrl } from "../../design/GameIcon";
 import { Icon } from "../../design/Icon";
 import { Segmented } from "../../design/Segmented";
 import { EmptyState, Skeleton } from "../../design/States";
 import { t } from "../../i18n";
+import { GRID_SORTS, gridSort, setGridSort } from "../../lib/champion-grid";
+import { backendError } from "../../lib/players";
 import { createQuery } from "../../lib/query";
 import { ROLES } from "../../lib/roles";
-import { bracketLabel, buildFor, pickRole, roleFilterOptions, roleTabs, scopeLabel } from "../../lib/stats";
+import { bracketLabel, buildFor, pickRole, roleFilterOptions, roleTabs, scopeLabel, statsErrorWords } from "../../lib/stats";
 import { ARAM, filters, setFilter } from "../../lib/stats-filters";
 import { Widget } from "../../widgets/Widget";
 import { ImportBar, useImportModes } from "../draft/ImportBar";
 import page from "../page.module.css";
 import { ScopeSwitches, StatsProblem, useLinkFilters, useStatsIndex } from "../stats/common";
 import { ItemsCard, SkillsCard, SpellsCard } from "./Builds";
-import { ChampionGrid } from "./ChampionGrid";
+import { ChampionGrid, GridSkeleton } from "./ChampionGrid";
 import { ChampionHero } from "./ChampionHero";
 import styles from "./Champions.module.css";
 import { MatchupsCard } from "./Matchups";
@@ -194,7 +197,10 @@ function ChampionView(props: { championId: number }): JSX.Element {
   );
 }
 
-/** `/champions`: every champion, searchable, with its tier in the chosen role. */
+/**
+ * `/champions`: every champion by role (from the tier list's rows), sorted by tier, pick rate or
+ * name, filtered as you type. Without stats: grouped by class, and it says why.
+ */
 function ChampionIndex(): JSX.Element {
   const { transport } = useData();
   const { version } = useStatsIndex();
@@ -206,7 +212,9 @@ function ChampionIndex(): JSX.Element {
     (k) => transport.call("tier_list", { queue: k.queue, bracket: k.bracket }),
   );
   const [query, setQuery] = createSignal("");
-  const ranked = () => queue() !== ARAM && list.data() !== undefined;
+  // Why there are no stats (kept while a retry runs, so nothing flickers).
+  const failed = () => (list.data() || list.error() === undefined ? undefined : statsErrorWords(backendError(list.error())));
+  const role = () => (queue() === ARAM ? "all" : filters().role);
   return (
     <div class={page.page}>
       <div class={styles.indexHead}>
@@ -220,30 +228,64 @@ function ChampionIndex(): JSX.Element {
             aria-label={t().champions.search}
             value={query()}
             onInput={(e) => setQuery(e.currentTarget.value)}
+            // Enter opens the best match (Escape clears the field).
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && query().trim()) document.querySelector<HTMLElement>("[data-widget=champion-grid] a")?.click();
+            }}
             data-testid="champion-search"
           />
         </label>
       </div>
-      <div class={styles.indexFilters}>
-        <Show when={ranked()}>
-          <Segmented
-            label={t().stats.role}
-            options={roleFilterOptions()}
-            value={filters().role}
-            onChange={(r) => setFilter({ role: r })}
-            testId="role-filter"
-          />
-        </Show>
-        <Show when={list.data()}>
-          <p class={styles.scope}>
-            {t().champions.tiersFrom.before}
-            <a href="#/tier-list">{t().champions.tiersFrom.link}</a>
-            {t().champions.tiersFrom.after(scopeLabel(queue(), bracket()))}
-          </p>
-        </Show>
-      </div>
+      <Show
+        when={failed()}
+        fallback={
+          <div class={styles.indexFilters}>
+            <Show when={queue() !== ARAM}>
+              <Segmented
+                label={t().stats.role}
+                options={roleFilterOptions()}
+                value={filters().role}
+                onChange={(r) => setFilter({ role: r })}
+                testId="role-filter"
+              />
+            </Show>
+            <div class={styles.sort}>
+              <span aria-hidden="true">{t().champions.sort}</span>
+              <Segmented
+                label={t().champions.sort}
+                options={GRID_SORTS.map((value) => ({ value, label: t().champions.sorts[value] }))}
+                value={gridSort()}
+                onChange={setGridSort}
+                class={styles.sortTabs}
+              />
+            </div>
+            <Show when={list.data()}>
+              <p class={styles.scope}>
+                {t().champions.tiersFrom.before}
+                <a href="#/tier-list">{t().champions.tiersFrom.link}</a>
+                {t().champions.tiersFrom.after(scopeLabel(queue(), bracket()))}
+              </p>
+            </Show>
+          </div>
+        }
+      >
+        {(words) => (
+          <div class={styles.notice}>
+            <Icon name="info" size={16} class={styles.noticeIcon} />
+            <p>{t().champions.noStats(words().title)}</p>
+            <Show when={words().retry}>
+              <Button variant="ghost" onClick={list.refetch}>
+                <Icon name="refresh" size={16} />
+                {t().common.tryAgain}
+              </Button>
+            </Show>
+          </div>
+        )}
+      </Show>
       <Widget name="champion-grid">
-        <ChampionGrid list={list.data()} roleFilter={ranked() ? filters().role : "all"} query={query()} />
+        <Show when={list.data() || failed()} fallback={<GridSkeleton />}>
+          <ChampionGrid list={list.data()} roleFilter={role()} sort={gridSort()} query={query()} />
+        </Show>
       </Widget>
     </div>
   );
