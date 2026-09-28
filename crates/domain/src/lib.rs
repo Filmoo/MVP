@@ -23,7 +23,7 @@ pub use draft::{
     DataInfo, DraftPhase, DraftSlot, DraftView, Estimate, PersonalRecord, Reason, ReasonKind,
     RoleOdds, Suggestion,
 };
-pub use game_data::{ChampionInfo, GameData, ItemInfo, SpellInfo};
+pub use game_data::{ChampionInfo, GameData, ItemInfo, RuneInfo, RuneStyle, SpellInfo};
 pub use live::{LiveGame, LivePlayer, Scouting};
 pub use player::{Division, MatchSummary, PlayerProfile, RankedEntry, RiotId, Role, Tier};
 pub use remote::{
