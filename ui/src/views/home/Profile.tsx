@@ -1,4 +1,4 @@
-import { For, type JSX, Show } from "solid-js";
+import { createMemo, For, type JSX, Show } from "solid-js";
 import type { PlayerProfile } from "../../data/generated/PlayerProfile";
 import type { GameDataView } from "../../data/static-data";
 import { Card } from "../../design/Card";
@@ -10,8 +10,8 @@ import styles from "./Home.module.css";
 import { PerformanceSummary } from "./PerformanceSummary";
 import { ProfileHeader } from "./ProfileHeader";
 import hero from "./ProfileHeader.module.css";
-import { RecentMatches } from "./RecentMatches";
-import { summarize } from "./summary";
+import { createLateGrades, RecentMatches } from "./RecentMatches";
+import { summarize, withLateRoles } from "./summary";
 
 /** The art a profile page takes its colors from: the player's most played recent champion. */
 export function profileArt(gameData: GameDataView | undefined, profile: PlayerProfile | null | undefined): string | undefined {
@@ -21,17 +21,22 @@ export function profileArt(gameData: GameDataView | undefined, profile: PlayerPr
 /** A player's page: hero with the stat strip, match history, champions. Home and player lookups share it. */
 export function ProfileContent(props: { profile: PlayerProfile }): JSX.Element {
   const hasGames = () => props.profile.recentMatches.length > 0;
+  // Your own games' grades come after the list, each with the role worked out from the whole
+  // game: the main role and the roles bar follow them, so they agree with the grades.
+  const late = createLateGrades(() => props.profile.recentMatches);
+  const matches = createMemo(() => withLateRoles(props.profile.recentMatches, late()));
+  const profile = createMemo(() => ({ ...props.profile, recentMatches: matches() }));
   return (
     <div class={`${styles.grid} ${hasGames() ? "" : styles.solo}`}>
       <Widget name="profile-header" class={styles.header}>
-        <ProfileHeader profile={props.profile} />
+        <ProfileHeader profile={profile()} />
       </Widget>
       <Widget name="recent-matches" class={styles.matches}>
-        <RecentMatches matches={props.profile.recentMatches} focus={props.profile.riotId} />
+        <RecentMatches matches={props.profile.recentMatches} focus={props.profile.riotId} late={late} />
       </Widget>
       <Show when={hasGames()}>
         <Widget name="performance-summary" class={styles.summary}>
-          <PerformanceSummary matches={props.profile.recentMatches} />
+          <PerformanceSummary matches={matches()} />
         </Widget>
       </Show>
     </div>

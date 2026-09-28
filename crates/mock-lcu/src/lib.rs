@@ -10,13 +10,15 @@
 //! The client's write endpoints the app uses behave like the real ones (see `writes`): rune
 //! pages with the page limit, item sets, the champion-select spell selection, the ready check.
 //! Every request is recorded with its JSON body for assertions. [`history`] serves the local
-//! player's match history: the list and whole games.
+//! player's match history: the list and whole games. [`MockLcu::stop_answering`] plays a client
+//! whose every connection another app holds: requests get no answer, events still flow.
 
 pub mod history;
 mod writes;
 
 use std::collections::{HashMap, HashSet};
 use std::net::SocketAddr;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use axum::Router;
@@ -72,6 +74,11 @@ struct Shared {
     events: broadcast::Sender<ApiEvent>,
     /// Flipped on drop: open web sockets close, like when the real client quits.
     shutdown: watch::Sender<bool>,
+    /// Off: connections for requests are dropped unanswered, open ones and new ones; the event
+    /// socket stays up.
+    answering: watch::Sender<bool>,
+    /// Connections dropped unanswered.
+    refused: AtomicUsize,
 }
 
 impl Shared {
@@ -142,25 +149,40 @@ impl MockLcu {
             requests: Mutex::new(Vec::new()),
             events,
             shutdown: watch::channel(false).0,
+            answering: watch::channel(true).0,
+            refused: AtomicUsize::new(0),
         });
         let app = Router::new()
             .fallback(handle)
             .with_state(Arc::clone(&shared));
         let acceptor = TlsAcceptor::from(Arc::new(server_config));
+        let server_shared = Arc::clone(&shared);
         let server = tokio::spawn(async move {
+            let shared = server_shared;
             // Connections live in this set: aborting the server aborts them all.
             let mut connections = JoinSet::new();
             loop {
                 tokio::select! {
                     accepted = listener.accept() => {
                         let Ok((tcp, _)) = accepted else { break };
+                        if !*shared.answering.borrow() {
+                            shared.refused.fetch_add(1, Ordering::Relaxed);
+                            drop(tcp);
+                            continue;
+                        }
                         let acceptor = acceptor.clone();
                         let service = TowerToHyperService::new(app.clone());
+                        // An upgraded connection (the event socket) lives on in its own task.
+                        let mut answering = shared.answering.subscribe();
                         connections.spawn(async move {
                             let Ok(tls) = acceptor.accept(tcp).await else { return };
-                            let _ = ConnBuilder::new(TokioExecutor::new())
-                                .serve_connection_with_upgrades(TokioIo::new(tls), service)
-                                .await;
+                            let builder = ConnBuilder::new(TokioExecutor::new());
+                            let serve =
+                                builder.serve_connection_with_upgrades(TokioIo::new(tls), service);
+                            tokio::select! {
+                                _ = serve => {}
+                                _ = answering.wait_for(|answers| !*answers) => {}
+                            }
                         });
                     }
                     Some(_) = connections.join_next() => {}
@@ -277,6 +299,23 @@ impl MockLcu {
     pub fn end_ready_check(&self, phase: &str) {
         self.remove(READY_CHECK);
         self.set(GAMEFLOW_PHASE, json!(phase));
+    }
+
+    /// Another app holds every connection the client accepts: requests get no answer (their
+    /// connections are dropped, open ones and new ones) while the event socket stays up and
+    /// events still flow.
+    pub fn stop_answering(&self) {
+        self.shared.answering.send_replace(false);
+    }
+
+    /// The client answers requests again.
+    pub fn answer_again(&self) {
+        self.shared.answering.send_replace(true);
+    }
+
+    /// Connections dropped unanswered since the start.
+    pub fn refused(&self) -> usize {
+        self.shared.refused.load(Ordering::Relaxed)
     }
 }
 

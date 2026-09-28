@@ -134,6 +134,7 @@ export const en = {
       connected: "League client connected",
       connecting: "Connecting to League…",
       notRunning: "Waiting for League client",
+      notAnswering: "League client not responding",
     },
     minimize: "Minimize",
     maximize: "Maximize",
@@ -170,6 +171,8 @@ export const en = {
 
   home: {
     loadFailed: "Couldn't load your profile",
+    /** The League client didn't answer at all (the core asks it again by itself). */
+    notAnswering: "The League client isn't answering. It may be busy: MVP retries on its own.",
     waiting: {
       title: "Waiting for the League client",
       text: "Start League of Legends: your profile, live games and champion select help appear here automatically.",

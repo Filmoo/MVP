@@ -54,6 +54,7 @@ const fn map_connection(state: ConnectionState) -> ClientConnection {
         ConnectionState::NotRunning => ClientConnection::NotRunning,
         ConnectionState::Connecting => ClientConnection::Connecting,
         ConnectionState::Connected => ClientConnection::Connected,
+        ConnectionState::NotAnswering => ClientConnection::NotAnswering,
     }
 }
 
@@ -291,6 +292,8 @@ pub fn start_with_services(
     let mut connector = lcu::spawn(config);
     let client = connector.client.clone();
     let (tx, status) = watch::channel(ClientStatus::not_running());
+    // Your games' roles are worked out with the champions' published role shares.
+    let insights = matches::MatchInsights::new(stats.clone());
     // Sessions as mapped (teams only) → the draft helper → the UI.
     let helper = draft::spawn(client.clone(), stats, remote.clone(), settings.clone());
     let draft = helper.views.clone();
@@ -374,7 +377,7 @@ pub fn start_with_services(
         events,
         views: ViewReporter(views_tx),
         imports: importer,
-        matches: matches::MatchInsights::default(),
+        matches: insights,
         task,
     }
 }
@@ -433,7 +436,11 @@ fn apply(status: &mut ClientStatus, update: &ConnectorUpdate) -> bool {
     match update {
         ConnectorUpdate::State(state) => {
             status.connection = map_connection(*state);
-            if *state != ConnectionState::Connected {
+            // A client that doesn't answer requests still sends its events: the game goes on.
+            if !matches!(
+                state,
+                ConnectionState::Connected | ConnectionState::NotAnswering
+            ) {
                 status.phase = GameflowPhase::Idle;
             }
         }
@@ -492,5 +499,32 @@ mod tests {
             &mut status,
             &ConnectorUpdate::State(ConnectionState::NotRunning)
         ));
+    }
+
+    #[test]
+    fn a_client_not_answering_keeps_its_phase() {
+        let mut status = ClientStatus::not_running();
+        apply(
+            &mut status,
+            &ConnectorUpdate::State(ConnectionState::Connected),
+        );
+        apply(&mut status, &ConnectorUpdate::Phase("InProgress".into()));
+        assert!(apply(
+            &mut status,
+            &ConnectorUpdate::State(ConnectionState::NotAnswering)
+        ));
+        assert_eq!(
+            status,
+            ClientStatus {
+                connection: ClientConnection::NotAnswering,
+                phase: GameflowPhase::InGame,
+            },
+            "events still flow: the game goes on"
+        );
+        assert!(apply(
+            &mut status,
+            &ConnectorUpdate::State(ConnectionState::Connected)
+        ));
+        assert_eq!(status.phase, GameflowPhase::InGame);
     }
 }

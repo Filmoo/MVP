@@ -153,6 +153,47 @@ async fn your_games_are_read_whole_once() {
     assert_eq!(reads(&mock), 3);
 }
 
+/// The client's list guesses your role from your line alone; once the whole game is read, the
+/// row follows the role the grade was worked out with.
+#[tokio::test]
+async fn rows_follow_the_roles_of_the_whole_game() {
+    let (mock, client) = client_with_history().await;
+    // In your oldest game (Malphite, top) the client says you were in the jungle, without Smite.
+    let wrong = json!({ "lane": "JUNGLE", "role": "NONE" });
+    let mut list = mock.get(history::LIST).unwrap();
+    for entry in list["games"]["games"].as_array_mut().unwrap() {
+        if entry["gameId"] == json!(7_000_000_001_u64) {
+            entry["participants"][0]["timeline"] = wrong.clone();
+        }
+    }
+    mock.set(history::LIST, list);
+    let path = history::game_path(7_000_000_001);
+    let mut game = mock.get(&path).unwrap();
+    game["participants"][0]["timeline"] = wrong;
+    mock.set(&path, game);
+
+    let insights = MatchInsights::default();
+    let profile = insights.profile(&client).await.unwrap();
+    let row = |p: &domain::PlayerProfile| {
+        p.recent_matches
+            .iter()
+            .find(|m| m.match_id == "EUW1_7000000001")
+            .map(|m| m.role)
+    };
+    assert_eq!(row(&profile), Some(None), "the list's guess: no role");
+    let ids: Vec<String> = profile
+        .recent_matches
+        .iter()
+        .map(|m| m.match_id.clone())
+        .collect();
+    let graded = insights.grades(&client, &ids).await;
+    assert_eq!(graded[3].role, Some(domain::Role::Top), "{graded:?}");
+    assert_eq!(graded[0].role, Some(domain::Role::Middle));
+    assert_eq!(graded[2].role, None, "a remake isn't read");
+    let again = insights.profile(&client).await.unwrap();
+    assert_eq!(row(&again), Some(Some(domain::Role::Top)));
+}
+
 #[tokio::test]
 async fn a_game_the_client_lost_is_retried_later() {
     let (mock, client) = client_with_history().await;

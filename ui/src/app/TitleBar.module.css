@@ -80,6 +80,11 @@
 .connecting {
   background: var(--warn);
 }
+/* Up, but not answering requests: amber, and lit like a state that lasts. */
+.notAnswering {
+  background: var(--warn);
+  box-shadow: 0 0 8px var(--warn);
+}
 
 .controls {
   display: flex;

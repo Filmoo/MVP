@@ -131,6 +131,22 @@ test("home: an opened game and a grade's why lay out at every size", async ({ pa
   expect(errors).toEqual([]);
 });
 
+// An opened game on Howling Abyss (no vision column there) at every size.
+test("home: an opened game on Howling Abyss lays out at every size", async ({ page, locale }) => {
+  test.slow();
+  const errors = trackErrors(page);
+  await openApp(page, { scenario: "howling-abyss" });
+  await page.locator("[data-testid=match-row] > button").first().click();
+  await expect(page.getByTestId("game-player")).toHaveCount(10);
+  for (const size of SIZES) {
+    if (isFrench(locale) && !FRENCH_SIZES.has(size.name)) continue;
+    await page.setViewportSize({ width: size.width, height: size.height });
+    await settle(page);
+    expect(await page.evaluate(auditLayout), `${size.name} opened`).toEqual([]);
+  }
+  expect(errors).toEqual([]);
+});
+
 // An opened game's other states (longest names and biggest numbers, errors) at the extreme sizes.
 for (const scenario of ["extreme", "match-details-error", "match-details-gone"] as const) {
   for (const size of [SIZES[0], SIZES[3], SIZES[6]]) {

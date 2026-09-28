@@ -24,6 +24,14 @@ const SHOTS = [
   { scenario: "not-running", sizes: [[1280, 800]] },
   { scenario: "new-player", sizes: [[1280, 800]] },
   { scenario: "profile-error", sizes: [[1280, 800]] },
+  // The title bar's words at 1280 px, its amber dot alone below 1024 px.
+  {
+    scenario: "client-not-answering",
+    sizes: [
+      [1280, 800],
+      [820, 760],
+    ],
+  },
   {
     scenario: "extreme",
     sizes: [
@@ -547,6 +555,10 @@ for (const lang of ["en", "fr"] as const) {
         await gameShot(page, `${prefix}home-game-extreme`, { scenario: "extreme", width, height });
       });
     }
+    // ARAM: Mayhem on a wide window: no roles, no vision column.
+    test(`${prefix}home game howling abyss 1920x1080`, async ({ page }) => {
+      await gameShot(page, `${prefix}home-game-howling-abyss`, { scenario: "howling-abyss", width: 1920, height: 1080 });
+    });
     for (const scenario of ["match-details-error", "match-details-gone", "match-details-slow"] as const) {
       test(`${prefix}home ${scenario} 1280x800`, async ({ page }) => {
         await gameShot(page, `${prefix}home-${scenario}`, { scenario, width: 1280, height: 800 });
