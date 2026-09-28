@@ -4,6 +4,7 @@ import type { Page } from "@playwright/test";
 import type {} from "../src/data/mock";
 import { FIXTURE_NOW } from "../src/data/mock/fixtures";
 import { lockInImport } from "../src/data/mock/import-fixtures";
+import type { ScenarioName } from "../src/data/mock/scenarios";
 import { animationsDone, openApp, settle, test, VIEWS } from "./app";
 
 // Screenshots for human/UI-agent review. Not asserted: layout, coherence and
@@ -352,6 +353,67 @@ test("settings crash-reports-on 420x800", async ({ page }) => {
   await openApp(page, { view: "/settings", scenario: "crash-reports-on", width: 420, height: 800 });
   await capture(page, `${OUT}/settings-crash-reports-on-420x800.png`, true);
 });
+
+// Match rows: an opened game (its row scrolled to the top of the page), a grade's why, and the
+// game's other states, in English and French (`fr-…`). `row`: which row, newest first.
+async function gameShot(page: Page, name: string, opts: { scenario?: ScenarioName; width: number; height: number; row?: number }) {
+  await openApp(page, { scenario: opts.scenario ?? "default", width: opts.width, height: opts.height });
+  const row = page.locator("[data-testid=match-row] > button").nth(opts.row ?? 0);
+  await row.click();
+  if (opts.scenario !== "match-details-slow") {
+    await page.getByTestId("game").locator("[data-testid=game-player], [role=alert]").first().waitFor();
+  }
+  await row.evaluate((el) => el.scrollIntoView({ block: "start" }));
+  await page.locator("main").evaluate((main) => main.scrollBy(0, -12));
+  if (opts.scenario !== "match-details-slow") await settle(page);
+  await page.mouse.move(0, 0);
+  await page.screenshot({ path: `${OUT}/${name}-${opts.width}x${opts.height}.png` });
+}
+
+async function whyShot(page: Page, name: string, width: number, height: number, row: number) {
+  await openApp(page, { width, height });
+  const grade = page.locator("[data-grade]").nth(row);
+  await grade.evaluate((el) => el.scrollIntoView({ block: "center" }));
+  await grade.hover();
+  await page.getByTestId("grade-why").waitFor();
+  await settle(page);
+  await page.screenshot({ path: `${OUT}/${name}-${width}x${height}.png` });
+}
+
+for (const lang of ["en", "fr"] as const) {
+  test.describe(lang === "fr" ? "match rows in French" : "match rows", () => {
+    if (lang === "fr") test.use({ locale: "fr-FR" });
+    const prefix = lang === "fr" ? "fr-" : "";
+    for (const [width, height] of [
+      [1280, 800],
+      [420, 800],
+    ] as const) {
+      test(`${prefix}home game open ${width}x${height}`, async ({ page }) => {
+        await gameShot(page, `${prefix}home-game-open`, { width, height, row: 2 });
+      });
+      test(`${prefix}home grade why ${width}x${height}`, async ({ page }) => {
+        await whyShot(page, `${prefix}home-grade-why`, width, height, 1);
+      });
+      test(`${prefix}home game extreme ${width}x${height}`, async ({ page }) => {
+        await gameShot(page, `${prefix}home-game-extreme`, { scenario: "extreme", width, height });
+      });
+    }
+    for (const scenario of ["match-details-error", "match-details-gone", "match-details-slow"] as const) {
+      test(`${prefix}home ${scenario} 1280x800`, async ({ page }) => {
+        await gameShot(page, `${prefix}home-${scenario}`, { scenario, width: 1280, height: 800 });
+      });
+    }
+    test(`${prefix}player game open 1280x800`, async ({ page }) => {
+      await openApp(page, { view: "/player/euw1/Blade%20Dancer/IRE" });
+      const row = page.locator("[data-testid=match-row] > button").first();
+      await row.click();
+      await page.getByTestId("game-player").first().waitFor();
+      await row.evaluate((el) => el.scrollIntoView({ block: "start" }));
+      await settle(page);
+      await page.screenshot({ path: `${OUT}/${prefix}player-game-open-1280x800.png` });
+    });
+  });
+}
 
 // The main screens in French (the app follows the webview's language): fr-<screen>-<size>.png.
 test.describe("in French", () => {
