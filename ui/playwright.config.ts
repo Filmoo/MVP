@@ -27,7 +27,8 @@ export default defineConfig({
     colorScheme: "dark",
   },
   webServer: {
-    command: `pnpm run build && pnpm exec vite preview --port ${PORT} --strictPort`,
+    // The browser preview: the app with its mock scenarios (`pnpm build` is the desktop app's).
+    command: `pnpm run build:preview && pnpm exec vite preview --outDir dist-preview --port ${PORT} --strictPort`,
     url: `http://127.0.0.1:${PORT}`,
     reuseExistingServer: !CI,
     timeout: 120_000,

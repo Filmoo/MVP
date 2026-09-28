@@ -35,7 +35,8 @@ No in-game overlay for now (keep the architecture overlay-ready).
   routing, header-driven rate limits, 429/5xx retries, typed endpoints.
 - `crates/stats` pure statistics (smoothing, intervals, draft scoring) — property-tested.
 - `ui/` SolidJS app. `src/data/transport.ts` is the only door to the core:
-  Tauri IPC in the app, scripted **mock scenarios** (`src/data/mock/scenarios.ts`) in a browser.
+  Tauri IPC in the app, scripted **mock scenarios** (`src/data/mock/scenarios.ts`) in a browser
+  (dev server, `build:preview` for the UI tests; `pnpm build`, the desktop build, leaves them out).
 - `ui/tests/` Playwright suites; `ui/perf-budgets.json` budgets.
 - `fixtures/` shared fixture metadata. `.cache/` git-ignored dev assets (Data Dragon).
 
