@@ -30,6 +30,12 @@
   --bg-float: #13141ecc; /* panels floating over the page: search, toasts (80%) */
   --bg-lens: #b9a9ff14; /* clear lens over controls, a breath of the accent */
   --bg-lens-accent: #b9a9ff33; /* a lens marking a choice: the accent, as glass */
+  /* Drops of glass on controls (rail selection, thumbs, a held switch): evenly tinted glass. */
+  --bg-drop: #ffffff17; /* a neutral drop */
+  --bg-drop-accent: #b9a9ff2b; /* a drop marking a choice: the accent, lightly */
+  --bg-drop-sheen: #ffffff0f; /* the light on its upper half */
+  --line-drop: #ffffff1f; /* its rim */
+  --line-drop-lit: #ffffff38; /* its top edge, facing the light */
   --bg-field: #07080d8c; /* a field etched into glass (title bar search) */
   --line-rim: #ffffff42; /* specular rim, lit side */
   --line-rim-far: #ffffff12; /* specular rim, far side */

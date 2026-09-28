@@ -292,6 +292,19 @@ The Tier list and Champions pages read the published stats through the core only
   webview and, with *close to tray*, the app stays in the tray. A `navigate` event moves the UI; a
   window created for an intent opens directly on its view. *Launch at startup* uses
   tauri-plugin-autostart and starts in the tray (`--autostart`).
+- **Search** (the Settings page's field; `views/settings/search.ts`, pure and unit-tested): every
+  word typed must be found in a setting (its card's title counts for all its rows), folded like
+  the title bar's champion search (`lib/fuzzy`: case, accents, punctuation). Best is as typed at
+  a word's start (words run together too, "autoaccept"; plurals find the singular); only when a
+  word is found nowhere so do matches inside a word, left-out letters (`matchScore`) and one typo
+  (two from 8 letters) count. Words of one or two letters count only alone. Besides the words on
+  screen, a setting is found by what players call it (`settings.search.keywords`, per language)
+  and its control's labels (Emerald+, Light, Open log folder). A setting and the ones nested under
+  it show together; About's sections are its rows; only About found takes the settings' column.
+  The page hides what isn't found (cards stay mounted: nothing resets) and marks what is
+  (`design/Marked`); nothing found says so, with Clear search. Ctrl+F focuses the field on this
+  page only (Ctrl+K stays the title bar's), Escape empties it then leaves it; the query lives
+  with the page. No timers: it all runs on input.
 
 ## Languages (`ui/src/i18n`)
 English and French, for every word the player reads (views, states, toasts, tooltips,
@@ -384,18 +397,21 @@ functions) → the glass' tint → rim light.
   what is behind it, and razor-sharp it shows text upside down, which reads as a bug.
 - **Rim light** comes from the same map: red/green are the outward normal scaled by steepness,
   so a colour matrix gives `normal · light` (light from the top left, a third of it on the far
-  rim), sharpened with a gamma and added on top. The CSS `glass-rim` ring stays as the crisp edge.
+  rim), sharpened with a gamma, cut to the rim zone (× 1 − thickness: none where the glass is
+  full thickness, or its last few percent drew the map slices' edges as lines) and added on top.
+  The CSS `glass-rim` ring stays as the crisp edge.
 - The optical outline rounds corners at least as much as the bezel is wide (smooth normals, no
   crease along the corner diagonal); a drop is a stadium.
 - Kinds (`LIQUID`): `bar` (title bar: a 14 px lower rim bending strongly; content scrolling
   under it stretches along that rim, the rest is lightly frosted, 4 px), `dock` (the rail and the
   floating tab bar: 12 px rims, 6 px frost in the middle), `panel` (search results, toasts: 14 px
   rims, 6 px frost in the middle), `clear` (rank pane and champion tier over art: a wide 20 px bent rim, corners
-  `--radius-5` to match, a light frost in the middle for their captions), `lens` (rail selection,
-  segment thumbs, held switches: a flat pill whose edge bends what is under it ≈ 3 px, less than
-  the 4 px to a track's border; tinted with light so a choice reads lit, never as a hole; the CSS
-  rim ring is its one edge, no rim light of its own). No colour split over the page (over text it
-  reads as fringing).
+  `--radius-5` to match, a light frost in the middle for their captions), `lens` (the glass lab's
+  drop only). The app's small glass on controls (rail selection, segmented and
+  choice thumbs, a held switch's knob) isn't lensed: it is the CSS drop (`design/glass.css`
+  `.glass-drop`), an even light tint with a sheen over its upper half and a 1 px inset-shadow rim
+  brighter along the top, moving with its control without any backdrop filter. No colour split
+  over the page (over text it reads as fringing).
 - **Icons and text stay crisp**: a drop always sits *behind* the labels of the rail and of
   segmented controls, gliding or not, and nothing scales while it glides (the rail's move is a
   translate only). A held switch's knob swells into a drop over the track.

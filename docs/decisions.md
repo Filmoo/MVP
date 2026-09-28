@@ -109,12 +109,17 @@ faudrait un gradient plus doux". Design calls:
 - **Smooth refraction** (owner: "you can see lines in refraction"): rims are parabolic, not
   squircles. A squircle's bend jumped 20–28 px between two pixel rows at the rim, cutting what is
   behind into bands; a parabola bends as clearly (12–21 px) but at most ~2.5 px per row.
-- **Drops don't magnify** (owner: the rail's animation "isn't great… how big the icon gets and
-  shrinks, pixelated", "the same everywhere", plus "double contouring"): the selection drops on the
-  rail, segmented controls and choices are flat glass pills that glide behind the labels, with no
-  lift, no loupe and no stretch. The loupe enlarged icons through a displacement filter that
-  doesn't smooth (pixelated), swelled and shrank them as it passed, and drew the control's border
-  again inside the thumb; its own rim light doubled the CSS ring.
+- **Drops are evenly tinted glass** (owner: the rail's animation "isn't great… how big the icon
+  gets and shrinks, pixelated", "the same everywhere", "double contouring", then "it seems like
+  it's 2 bubbles… the glass being fully colored, but slightly… all glass buttons… not smooth enough
+  borders, put effort into it"): the selection on the rail, segmented controls and choices, and a
+  held switch's knob are one CSS material (`.glass-drop`): an even light tint (the accent for a
+  choice), a soft sheen over the upper half, and a 1 px rim drawn with inset shadows (anti-aliased
+  on every curve), brighter along the top. They glide behind the labels, never lifted, never
+  scaled on the way (a held knob swells ≈1.2×). No SVG lens on them: the loupe enlarged icons
+  through a displacement filter that doesn't smooth, swelled and shrank them, drew the track's
+  border again inside the thumb; tinted by thickness it read as a ring around a coloured middle;
+  and its backdrop filter settled a pixel off after each glide.
 
 ## 2026-09-28 — Rank emblems (owner asked, Claude designed)
 Owner: rank icons "look old/fake". Design calls:
