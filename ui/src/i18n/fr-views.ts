@@ -287,6 +287,7 @@ export const frViews = {
     rank: "Rang",
     role: "Rôle",
     all: "Tous",
+    allRoles: "Tous les rôles",
     queueN: (id: number) => `File ${id}`,
     errors: {
       notFound: {
@@ -343,6 +344,24 @@ export const frViews = {
       text: "Un champion a besoin d’assez de parties dans un rôle pour être classé. Essayez un autre rôle ou un autre rang.",
     },
     showAll: (n: number) => `Tout afficher (${n})`,
+    proto: {
+      champions: (n: number) => `${integer(n)} ${plural(n, "champion", "champions")}`,
+      average: (pct: string) => `moy. ${pct}`,
+      tileLabel: (name: string, role: string | undefined, winRate: string) => `${name}${role ? `, ${role}` : ""} : ${winRate} de victoires`,
+      rankN: (rank: number) => `${rank}${rank === 1 ? "er" : "e"}`,
+      rankIn: (rank: number, role: Role) => `${rank}${rank === 1 ? "er" : "e"} ${roleAt[role]}`,
+      podium: "Les trois premiers",
+      pointLabel: (name: string, winRate: string, pick: string) => `${name}\u00A0: ${winRate} de victoires, ${pick} de sélection`,
+      map: {
+        title: "Force et popularité",
+        strength: "Force",
+        popularity: "Popularité",
+        even: "50\u00A0%",
+        hidden: "Forts, peu choisis",
+        meta: "Forts et populaires",
+        traps: "Populaires, sous la moyenne",
+      },
+    },
   },
 
   champions: {

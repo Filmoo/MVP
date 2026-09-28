@@ -273,6 +273,7 @@ export const enViews = {
     rank: "Rank",
     role: "Role",
     all: "All",
+    allRoles: "All roles",
     queueN: (id: number) => `Queue ${id}`,
     errors: {
       notFound: {
@@ -324,6 +325,33 @@ export const enViews = {
       text: "Champions need enough games in a role to be ranked. Try another role or rank.",
     },
     showAll: (n: number) => `Show all ${n}`,
+    /** Words of the design directions (dev server prototypes, `?design=`). */
+    proto: {
+      /** A tier's size: `18 champions`. */
+      champions: (n: number) => `${integer(n)} ${plural(n, "champion", "champions")}`,
+      /** A tier's mean win rate: `avg 52.8%`. */
+      average: (pct: string) => `avg ${pct}`,
+      /** A champion's face, read aloud: `Zed, Mid: 52.6% win rate`. */
+      tileLabel: (name: string, role: string | undefined, winRate: string) => `${name}${role ? `, ${role}` : ""}: ${winRate} win rate`,
+      /** Rank in the list shown: `#3`. */
+      rankN: (rank: number) => `#${rank}`,
+      /** Rank within a role: `#3 in Mid`. */
+      rankIn: (rank: number, role: Role) => `#${rank} in ${roles[role]}`,
+      /** The first three, on cards. */
+      podium: "Top three",
+      /** A face on the meta map, read aloud. */
+      pointLabel: (name: string, winRate: string, pick: string) => `${name}: ${winRate} win rate, ${pick} pick rate`,
+      map: {
+        title: "Strength against popularity",
+        strength: "Strength",
+        popularity: "Popularity",
+        /** The dashed line at an even record. */
+        even: "50%",
+        hidden: "Strong, rarely picked",
+        meta: "Strong and popular",
+        traps: "Popular, below average",
+      },
+    },
   },
 
   champions: {

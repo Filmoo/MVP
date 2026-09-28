@@ -156,6 +156,18 @@ const samples = (): Record<string, unknown[][]> => ({
     [1234, 5000],
   ],
   "tierList.showAll": [[171]],
+  "tierList.proto.champions": [[1], [18]],
+  "tierList.proto.average": [[percent(0.528, 1)]],
+  "tierList.proto.tileLabel": [
+    ["Zed", "Mid", percent(0.526, 1)],
+    ["Ahri", undefined, percent(0.49, 1)],
+  ],
+  "tierList.proto.rankN": [[1], [3]],
+  "tierList.proto.rankIn": [
+    [1, "middle"],
+    [3, "jungle"],
+  ],
+  "tierList.proto.pointLabel": [["Zed", percent(0.526, 1), percent(0.079, 1)]],
   "champions.tiersFrom.after": [["Ranked Solo · Emerald+"]],
   "champions.noMatch": [["zzz"]],
   "champions.noBuild.text": [
@@ -271,6 +283,7 @@ const SAME = new Set([
   "tierList.columns.champion",
   "tierList.columns.tier",
   "tierList.columns.score",
+  "tierList.proto.champions",
   "champions.title",
   "champions.classes",
   "champions.patch",

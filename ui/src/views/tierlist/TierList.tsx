@@ -1,4 +1,5 @@
-import { createMemo, For, type JSX, Match, Show, Switch } from "solid-js";
+import { createMemo, For, type JSX, lazy, Match, Show, Switch } from "solid-js";
+import { queryParam } from "../../app/router";
 import { useData } from "../../data/context";
 import { Card } from "../../design/Card";
 import { Segmented } from "../../design/Segmented";
@@ -25,8 +26,12 @@ function TableSkeleton(): JSX.Element {
   );
 }
 
+// Design directions for this page (dev server only, left out of every build): `?design=shelves|ledger|map`.
+const Prototype = import.meta.env.DEV ? lazy(() => import("./proto/Prototype")) : undefined;
+
 /** Champion strength per role for the current patch: queue, rank and role filters, sortable. */
 export default function TierListView(): JSX.Element {
+  if (Prototype && queryParam("design")) return <Prototype />;
   const { transport } = useData();
   const { index, version } = useStatsIndex();
   useLinkFilters({ role: true });
