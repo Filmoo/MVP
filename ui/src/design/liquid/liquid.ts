@@ -284,6 +284,7 @@ export function liquid(el: HTMLElement, kind: LiquidKind | LiquidSpec): void {
   el.dataset.liquid = typeof kind === "string" ? kind : "custom";
   // The radius is read once the element is styled (it's mounted by then, or on the next frame).
   const measure = () => {
+    if (entries.get(el) !== entry) return; // unmounted before its first frame
     entry.radius = Number.parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0;
     apply(entry);
   };

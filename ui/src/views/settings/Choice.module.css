@@ -29,6 +29,13 @@
   pointer-events: none;
 }
 
+/* Full effects: the thumb is a lens over the chosen label (design/liquid, "lens"). */
+:global(:root[data-effects="shader"]) .thumb {
+  z-index: 3;
+  background: var(--bg-lens);
+  backdrop-filter: var(--lg-filter, none);
+}
+
 .option {
   position: relative;
   z-index: 2;
