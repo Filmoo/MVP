@@ -54,7 +54,7 @@ const SUGGESTIONS: usize = 15;
 const POOL_SIZE: usize = 10;
 /// Meta picks among the candidates, at least.
 const META_MIN: usize = 5;
-/// A mastered champion joins the pool for a role it plays this often (share of its games)…
+/// A mastered champion joins the pool for a role that holds at least this share of its games.
 const POOL_MIN_SHARE: f64 = 0.1;
 /// Summoner's Rift queues whose games count for the player's record.
 const RIFT_QUEUES: [u32; 7] = [400, 420, 430, 440, 480, 490, 700];

@@ -17,8 +17,9 @@ use automation::{Autopilot, CoreEvent};
 use backend::BackendClient;
 use domain::{ClientConnection, ClientStatus, DraftView, GameflowPhase, LiveGame, Settings};
 use lcu::{ConnectionState, ConnectorConfig, ConnectorUpdate, EventKind, LcuClient};
-use stats::StatsClient;
 use tokio::sync::{mpsc, watch};
+
+use crate::stats::StatsClient;
 use tokio::task::JoinHandle;
 
 /// Maps the client's gameflow phases onto the phases the UI distinguishes.
