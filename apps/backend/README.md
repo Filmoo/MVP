@@ -165,25 +165,38 @@ runs with `createUpdaterArtifacts` and the `TAURI_SIGNING_PRIVATE_KEY` /
 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` repository secrets, so the bundler writes
 `MVP_<version>_x64-setup.exe.sig` next to the NSIS installer; both go to a draft GitHub
 release and the job summary prints the `release add` command (URL + signature filled in).
-Publish the draft, then run the command. The key pair comes from
-`pnpm tauri signer generate -w ~/.tauri/mvp.key`; the private key and its password live only
-in the owner's password manager and the repository secrets (**never committed**; losing it
-means installed apps can't be updated any more), the public key goes in the app config.
+Publish the draft, then run the command.
 
-**Desktop app side** (apps/desktop, not done here): add `tauri-plugin-updater`, and in
-`tauri.conf.json`:
+**The signing key pair (once, by the owner).** Until it exists, builds don't update themselves
+(Settings says "doesn't update itself (no update key in this build)") and the release workflow
+refuses to run.
+
+1. `pnpm tauri signer generate -w ~/.tauri/mvp.key` (pick a password). It writes the private
+   key `~/.tauri/mvp.key` and the public key `~/.tauri/mvp.key.pub`.
+2. **Private half** — never committed, never on the VPS: the contents of `mvp.key` go in the
+   repository secret `TAURI_SIGNING_PRIVATE_KEY`, the password in
+   `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (GitHub → Settings → Secrets and variables → Actions),
+   and both in the owner's password manager. Losing them means installed apps can never be
+   updated again (they only accept updates signed by this key).
+3. **Public half** — committed: paste the contents of `mvp.key.pub` (one base64 line) as
+   `plugins.updater.pubkey` in `apps/desktop/tauri.conf.json`. That is the one place the app
+   reads it from; every build made after that verifies updates with it.
+
+**Desktop app side** (`apps/desktop/src/updater.rs`, following `companion::updates::UpdatePlan`):
+tauri-plugin-updater with the endpoint set at run time from the build's backend URL,
+`{MVP_BACKEND_URL}/v1/updates/{{target}}/{{arch}}/{{current_version}}?channel=stable`, and
+`X-MVP-Install`. It checks 30 s after start and every 6 h (at once when the config says
+`updateRequired`, or from Settings → About), downloads only while no ready check, champ select or
+game is running (and stops if one starts), then asks the player ("Update ready — Restart");
+otherwise the update installs when MVP quits, never during a game. `mandatory` makes the prompt
+stay. Debug builds and plain-HTTP backends never update. `tauri.conf.json`:
 
 ```json
 "plugins": { "updater": {
   "pubkey": "<contents of mvp.key.pub>",
-  "endpoints": ["https://api.example.com/v1/updates/{{target}}/{{arch}}/{{current_version}}?channel=stable"],
   "windows": { "installMode": "passive" }
 } }
 ```
-
-and check with `app.updater_builder().header("X-MVP-Install", id)?` (and
-`.endpoints(…channel=beta…)` for beta testers) → `.build()?.check().await`. Check at startup
-and when the config's `pollAfterSecs` elapses, never while a game or champ select is running.
 
 ## Remote config
 
@@ -215,18 +228,26 @@ empty or > 300-character texts, non-`https` links, `startsAt ≥ endsAt`, and a 
 Answers carry a strong `ETag` (hash of the bytes) and `Cache-Control: no-cache`; send it back in
 `If-None-Match` to get a bodiless 304.
 
-**Desktop app side:** fetch at startup and every `pollAfterSecs` (one timer in the Rust core,
-not the UI — idle stays idle), with `X-MVP-Install` and `If-None-Match`; keep the last answer on
-disk and start from it (or `RemoteConfig::default()`) when offline. A kill switch wins over the
-user's setting immediately; a disabled feature hides its entry points; `updateRequired`
-shows `minVersion.message` in the user's language with the update button; banners are
-dismissible by `id`.
+A banner may also say `"dismissible": false` (default `true`) to stay up while it lasts, e.g.
+during an outage.
+
+**Desktop app side** (`companion::remote`, done): fetched at startup and after every
+`pollAfterSecs` (one timer in the Rust core, not the UI — idle stays idle), with `X-MVP-Install`
+and `If-None-Match`; the last answer is kept on disk (`remote-config.json`) and applies from the
+next start, offline included. A kill switch wins over the user's setting immediately (auto-accept
+stops even mid-delay); `scouting` and `playerSearch` turn those lookups off; `updateRequired`
+blocks the UI behind `minVersion.message` (English for now) with the update button; banners
+show at the top of the page and close by `id` when dismissible; their `link` opens in the
+browser.
 
 ## Crash reports and privacy
 
 `POST /v1/reports` with a `CrashReport`:
 `{ appVersion, osVersion, kind: "panic" | "js" | "lcu", message, stack?, installId }` → 202.
-**Only sent when the user opted in** (off by default, in Settings).
+**Only sent when the user opted in** (off by default, Settings → App → "Send crash reports").
+The app (`companion::crash`) scrubs each report itself with the same rules (`crates/scrub`)
+before it leaves, sends panics saved by its panic hook at the next start (5 at most per start)
+and UI crashes once each per session; turning the setting off deletes reports not sent yet.
 
 - **Limits:** body ≤ 40 KB (413 above), `message` ≤ 2 KB, `stack` ≤ 16 KB, `osVersion` ≤ 64
   printable characters, `appVersion` semver, `installId` 8–64 of `[A-Za-z0-9-]`; per install a
@@ -241,7 +262,8 @@ dismissible by `id`.
   stack. **Not** the IP address, the Riot account, or anything else about the player.
 - **Retention:** 30 days. Day files older than that are deleted at startup and daily, or with
   `mvp-backend reports prune [--days N]`.
-- **Deletion (GDPR):** the app shows its install id in Settings; on request run
+- **Deletion (GDPR):** the app shows its install id in Settings ("Report ID", under the
+  crash-reports switch once it's on); on request run
   `mvp-backend reports forget --install-id <id>` (rewrites the day files without that id's
   lines; a report arriving during the rewrite may be lost). Uninstalling the app removes the id.
 - Logs keep method, route, status and duration per request, never bodies or the install id.

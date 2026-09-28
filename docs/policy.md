@@ -49,3 +49,17 @@ detection, composite player scores, live win probability, sending data to third-
 - **Window follows the game (not gray, noted for completeness).** Bringing MVP to the front in
   champ select and switching views only moves our own window; both can be turned off, and a view
   the player opened themselves is never switched away from.
+- **Crash reports (2026-09-28, shipped): data leaving the machine, opt-in only.** Off by default
+  (Settings → App → "Send crash reports", with the wording of what is sent). A report holds the
+  error (message, stack), the app and OS/webview versions and the random install id, which is not
+  linked to the Riot account; never LCU payloads, game data or the Riot account. Scrubbed twice:
+  in the app before it leaves and on the server before it's stored (`crates/scrub`: Riot IDs,
+  PUUIDs, user names in paths, e-mails, credentials such as the LCU password, IPs). Kept 30 days,
+  erasable per install id (shown in Settings once reports are on). Turning reports off deletes
+  the ones not sent yet; nothing is written or sent while off.
+- **Remote config and self-updates (2026-09-28, shipped).** The app asks our server for its
+  config and for updates with its version and install id only (no Riot data). Kill switches can
+  only turn features **off**: they stop our own automations (auto-accept today; imports later)
+  when a client change makes them misbehave. Updates never download or install during a ready
+  check, champ select or a game, and never restart the app without the player's click (else
+  they install when MVP quits).

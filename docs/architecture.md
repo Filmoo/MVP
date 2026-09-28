@@ -103,10 +103,54 @@ The app reaches the backend **from the core**, never from the webview: the UI ca
   `MVP_BACKEND_URL=http://127.0.0.1:8787 pnpm app`. The CSP's `connect-src` lists the local origin;
   add the production origin there once it exists (only needed if the webview ever calls it directly).
 - **Install id**: a random 128-bit hex id in `install-id` next to `settings.json`, sent as
-  `X-MVP-Install` on every request (anonymous; lets the server rate-limit per install).
+  `X-MVP-Install` on every request, the update check included (anonymous; lets the server
+  rate-limit per install, stage rollouts and erase an install's crash reports). Settings shows it
+  next to the crash-reports switch (`app_info.installId`) for deletion requests.
 - **Timeouts**: connect 5 s, lookups 20 s, scouting batches 35 s (the server gives up at 30 s).
 - **Errors** map to `domain::BackendError` (`notFound`, `rateLimited { retryAfter }`,
   `unavailable { message }`, `network { message }`); commands reject with it and the UI words it.
+
+## Remote config, app updates and crash reports (app side)
+All three run in the core, so they work with the window closed; the UI only shows them.
+- **Remote config** (`companion::remote::RemoteConfigStore`): `GET /v1/config?version=&channel=stable`
+  at start, then again after each answer's `pollAfterSecs` (one tokio timer in the core, 10 min
+  after a failure), revalidated with `If-None-Match`. The last answer is kept in
+  `remote-config.json` next to the settings and applies from the next start, before (or without)
+  the network: a kill switch stays on while offline. A copy fetched for an older app version gets
+  its `updateRequired` recomputed. The core applies it as it changes (`companion::start_full`):
+  the `autoAccept` kill switch or feature flag stops a pending accept at once and wins over the
+  player's setting; `scouting: false` skips the batch (the teams still show); `playerSearch:
+  false` makes `search_player` answer `unavailable`. Other flags (`draftHelper`, the import kill
+  switches) are exposed for their features to honor. UI: `remote_config` + `remote-config`.
+- **App updates** (`companion::updates::UpdatePlan`, pure and unit-tested; carried out by
+  `apps/desktop/src/updater.rs` with tauri-plugin-updater): first check 30 s after start, then every
+  6 h, at once when the config says `updateRequired`, or when the player asks (`check_for_updates`).
+  Endpoint `{backend}/v1/updates/{{target}}/{{arch}}/{{current_version}}?channel=stable` with
+  `X-MVP-Install`; `mandatory` is read from the manifest. **Never during a game**: nothing downloads
+  or installs in ready check, champ select, loading or in game; a running download stops when one
+  starts and resumes after. A downloaded update (verified with the public key) waits: the player
+  restarts into it ("Update ready — Restart", `install_update`; the NSIS installer runs passive and
+  reopens MVP), otherwise it installs when MVP quits (tray Quit, or closing without *close to
+  tray*), without reopening it. The public key is `plugins.updater.pubkey` in
+  `apps/desktop/tauri.conf.json` (empty until the key pair exists; how to make it: backend README,
+  App updates). Debug builds, builds without that key and plain-HTTP backends report
+  `unavailable` and never check. UI: `update_status` + `app-update` (`domain::UpdateStatus`).
+- **Crash reports** (`companion::crash`, opt-in: `Settings.crashReports`, off by default): a panic
+  hook writes a report to `crash-reports/` next to the settings (release builds abort right after;
+  it goes out at the next start) or sends it at once when the app survives; the UI forwards its
+  crashes (uncaught errors, rejections, crashed widgets, not expected failures) with `report_error`,
+  and only while the setting is on (the core checks again). Reports are scrubbed before they
+  leave (`crates/scrub`, the server's own rules), bounded to the server's limits, at most 10
+  waiting and 5 sent per start; refused ones are dropped, rate-limited ones kept. Turning reports
+  off deletes what waits. A report holds the error, the app and OS/webview versions and the
+  install id, nothing about the Riot account.
+- **UI** (`ui/src/app/Banners.tsx`, loaded lazily, and `app/notices/`): active banners at the top of
+  the page frame (English text for now; `dismissible` ones close and stay closed by id in
+  `localStorage`), the update prompt (hidden during a game, "Later" until the next launch), and,
+  below the minimum version, a blocking-but-polite card over everything under the title bar with
+  `minVersion.message` and the one action that fits (restart, check again, wait for the game to
+  end). Links open in the browser through the core (`open_banner_link` takes a banner id, never a
+  URL). Settings → About shows the update status with "Check for updates" / "Restart to update".
 
 ## Loading-screen scouting (`companion::live`)
 When the phase reaches Loading or InGame the core reads `GET /lol-gameflow/v1/session` once per
@@ -118,7 +162,8 @@ The client's PUUIDs stay in the core (they identify the local player and pair sp
 backend's API key can't read them. Streamer-mode players (`nameVisibilityType: HIDDEN`) are
 dropped before anything else: no Riot ID, no PUUID, no lookup; players without a Riot ID (bots)
 aren't looked up either. Champion select is never read for identities. The game ending clears
-the view; a failed batch is shown in the page head with a retry (`retry_scouting`).
+the view; a failed batch is shown in the page head with a retry (`retry_scouting`). The remote
+config's `scouting` flag turns lookups off (the teams still show, without cards).
 
 ## Search (title bar)
 Champions match locally and instantly (fuzzy: prefix, word, initials, subsequence); a Riot ID
@@ -131,7 +176,8 @@ Recent searches (max 8) and the region live in `localStorage`.
 - **Settings** (`domain::Settings`) are owned by the core: `companion::settings::SettingsStore` loads
   `settings.json` from the app config dir at start (missing/corrupt → defaults), saves every change
   atomically (temp file + fsync + rename) and publishes it on a watch channel. The UI reads and
-  writes them with `get_settings` / `update_settings` and follows the `settings` event.
+  writes them with `get_settings` / `update_settings` and follows the `settings` event. Opt-ins
+  (`autoAccept`, `crashReports`) are off by default.
 - **Automations** run in the core (`companion::automation`), so they work with the window closed:
   auto-accept (opt-in, delayed, once per ready check, see policy.md) and the `Autopilot`, which
   turns gameflow phases into window intents: focus in champ select, Draft → Live → Home as the game
@@ -226,7 +272,8 @@ systemd timer) for crawl + publish; per-platform crawls merged for more volume.
 | `domain` | UI-facing types (serde + ts-rs) |
 | `lcu` | League client: discovery, pinned TLS, REST, WAMP events, connector lifecycle |
 | `mock-lcu` | fake League client for tests and development |
-| `companion` | Tauri-free core: client status, champ select → `DraftView`, loading screen → `LiveGame`, settings, automations, backend client |
+| `companion` | Tauri-free core: client status, champ select → `DraftView`, loading screen → `LiveGame`, settings, automations, backend client, remote config, crash reports, update policy |
+| `scrub` | removes personal data (Riot IDs, PUUIDs, user names in paths, e-mails, credentials, IPs) from crash reports, in the app and on the server |
 | `static-data` | Data Dragon download + per-patch cache + offline fallback |
 | `stats` | statistics and the draft model |
 | `aggregate` | stats pipeline core: Match-V5 → facts → mergeable aggregates → published JSON |
