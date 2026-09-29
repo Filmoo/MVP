@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 90" preserveAspectRatio="none">
+  <title>Pen loop</title>
+  <!-- A quick hand-drawn loop around a word, used as a CSS mask. -->
+  <filter id="r" x="-5%" y="-10%" width="110%" height="120%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.05" numOctaves="2" seed="4"/>
+    <feDisplacementMap in="SourceGraphic" scale="4" xChannelSelector="R" yChannelSelector="G"/>
+  </filter>
+  <path filter="url(#r)" fill="none" stroke="#000" stroke-width="4.5" stroke-linecap="round"
+    d="M30 60 C 8 42 40 11 112 9 C 180 7 214 25 208 47 C 202 70 140 83 96 81 C 48 79 9 67 15 45 C 19 30 50 18 86 14"/>
+</svg>

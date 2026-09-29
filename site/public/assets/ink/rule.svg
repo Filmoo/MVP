@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="16" viewBox="0 0 160 16">
+  <title>Wavy ink line</title>
+  <!-- A wavy ink line that tiles seamlessly (same point and slope at both ends), used as a CSS mask. -->
+  <path fill="none" stroke="#000" stroke-width="2.2" stroke-linecap="round" d="M0 8 C 20 2 60 14 80 8 C 100 2 140 14 160 8"/>
+</svg>

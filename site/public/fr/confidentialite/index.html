@@ -1,0 +1,203 @@
+<!doctype html>
+<!-- DRAFT privacy policy (French): written on 2026-09-29 from the code and docs (docs/policy.md, docs/architecture.md,
+     apps/backend/README.md, crates/companion) for the owner to review before launch. Not legal advice.
+     To fill in: the maintainer's name and country, the contact e-mail, the governing law.
+     To check: OVHcloud's data-centre country, how long the crawler keeps its list of ladder accounts,
+     that Caddy keeps no access logs for mvpgg.com (site/README.md). Keep in step with /privacy/index.html. -->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src https://api.github.com; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<title>Politique de confidentialité · MVP</title>
+<meta name="description" content="Ce que font l’application MVP et mvpgg.com des données&nbsp;: ce qui reste sur votre PC, ce qui va au serveur de MVP et pourquoi, et vos droits.">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f3ecdd">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1b1a20">
+<link rel="canonical" href="https://mvpgg.com/fr/confidentialite/">
+<link rel="alternate" hreflang="en" href="https://mvpgg.com/privacy/">
+<link rel="alternate" hreflang="fr" href="https://mvpgg.com/fr/confidentialite/">
+<link rel="alternate" hreflang="x-default" href="https://mvpgg.com/privacy/">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/assets/icon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/assets/icon-256.png">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="MVP">
+<meta property="og:title" content="Politique de confidentialité · MVP">
+<meta property="og:description" content="Ce que font l’application MVP et mvpgg.com des données&nbsp;: ce qui reste sur votre PC, ce qui va au serveur de MVP et pourquoi, et vos droits.">
+<meta property="og:url" content="https://mvpgg.com/fr/confidentialite/">
+<meta property="og:locale" content="fr_FR">
+<meta property="og:locale:alternate" content="en_GB">
+<link rel="preload" href="/assets/fonts/fraunces.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/assets/fonts/caveat.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/assets/site.css">
+<noscript><link rel="stylesheet" href="/assets/noscript.css"></noscript>
+<script type="module" src="/assets/site.js"></script>
+</head>
+<body data-page="legal">
+<a class="skip" href="#main">Aller au contenu</a>
+
+<svg class="defs" aria-hidden="true" focusable="false">
+  <filter id="rough" x="-10%" y="-10%" width="120%" height="120%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="4" result="n"/>
+    <feDisplacementMap in="SourceGraphic" in2="n" scale="3" xChannelSelector="R" yChannelSelector="G"/>
+  </filter>
+  <filter id="rough-wm" x="-5%" y="-10%" width="110%" height="120%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="2" seed="9" result="n"/>
+    <feDisplacementMap in="SourceGraphic" in2="n" scale="12" xChannelSelector="R" yChannelSelector="G"/>
+  </filter>
+  <filter id="ink" x="-10%" y="-10%" width="120%" height="120%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.75" numOctaves="2" seed="3" result="g"/>
+    <feColorMatrix in="g" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -14 10.6" result="dry"/>
+    <feComposite in="SourceGraphic" in2="dry" operator="in"/>
+  </filter>
+  <filter id="wash" x="-8%" y="-20%" width="116%" height="140%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="3" seed="12" result="n"/>
+    <feDisplacementMap in="SourceGraphic" in2="n" scale="8" xChannelSelector="R" yChannelSelector="G"/>
+  </filter>
+  <filter id="deckle" x="-3%" y="-3%" width="106%" height="106%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.07" numOctaves="3" seed="7" result="n"/>
+    <feDisplacementMap in="SourceGraphic" in2="n" scale="7" xChannelSelector="R" yChannelSelector="G"/>
+  </filter>
+  <linearGradient id="pg-bib" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#ffd494" stop-opacity="0.9"/>
+    <stop offset="0.42" stop-color="#ffd494" stop-opacity="0"/>
+  </linearGradient>
+</svg>
+
+<header class="top wrap">
+  <a class="brand" href="/fr/">
+    <svg class="wordmark" viewBox="-14 -46 376 196" aria-hidden="true" focusable="false">
+      <g filter="url(#rough-wm)">
+        <path class="wm-letters" d="M10 88 V42 A29 29 0 0 1 68 42 V88 M68 42 A29 29 0 0 1 126 42 V88"/>
+        <ellipse class="wm-ripple" cx="194" cy="100" rx="37" ry="10"/>
+        <path class="wm-v" d="M-40 0 L0 18 L40 0 L0 95 Z" transform="translate(194 2)"/>
+        <path class="wm-letters" d="M265 12 V132 M265 50 A40 40 0 1 0 345 50 A40 40 0 1 0 265 50"/>
+        <path class="wm-crown" d="M-17 12 V-9 L-9 -1 L0 -14 L9 -1 L17 -9 V12 Z" transform="translate(194 -26) scale(1.3)"/>
+      </g>
+    </svg>
+    <span class="visually-hidden">MVP, accueil</span>
+  </a>
+  <nav class="nav" aria-label="Principal">
+    <a href="/fr/#download">Télécharger</a>
+    <a href="/fr/versions/">Versions</a>
+    <a href="https://github.com/Filmoo/MVP">GitHub</a>
+  </nav>
+  <nav class="lang" aria-label="Langue">
+    <a href="/privacy/" hreflang="en" lang="en" aria-label="English">EN</a>
+    <a href="/fr/confidentialite/" hreflang="fr" lang="fr" aria-current="page" aria-label="Français">FR</a>
+  </nav>
+</header>
+
+<main id="main" class="wrap">
+  <header class="page-head">
+    <h1 id="title" class="brush">Politique de confidentialité</h1>
+    <p class="updated hand">Dernière mise à jour&nbsp;: 29 septembre 2026</p>
+  </header>
+  <div class="short paper">
+    <p><strong>En bref.</strong> MVP n’a ni compte, ni pub, ni mesure d’audience. L’essentiel se passe sur votre PC, à partir de votre client League. Quelques fonctions interrogent le serveur de MVP, qui interroge Riot Games&#8239;; les rapports de plantage ne partent que si vous les activez. Ce site ne dépose aucun cookie, et sa seule requête vers un autre site est l’API de GitHub, pour la liste des versions.</p>
+  </div>
+  <nav class="toc" aria-labelledby="toc-title">
+    <h2 id="toc-title" class="hand">Sur cette page</h2>
+    <ol>
+        <li><a href="#responsable">Qui est responsable</a></li>
+        <li><a href="#application">L’application sur votre PC</a></li>
+        <li><a href="#serveur">Ce que l’application envoie au serveur de MVP</a></li>
+        <li><a href="#conservation">Ce que garde le serveur, et combien de temps</a></li>
+        <li><a href="#statistiques">Statistiques</a></li>
+        <li><a href="#services">Les services que l’application contacte directement</a></li>
+        <li><a href="#riot">Riot Games</a></li>
+        <li><a href="#site">Ce site</a></li>
+        <li><a href="#hebergement">Hébergement</a></li>
+        <li><a href="#bases">Bases légales</a></li>
+        <li><a href="#droits">Vos droits</a></li>
+        <li><a href="#changements">Changements</a></li>
+    </ol>
+  </nav>
+  <div class="prose">
+      <h2 id="responsable">Qui est responsable</h2>
+      <p>MVP est un projet gratuit et open source mené par <span class="placeholder">[nom du mainteneur]</span>, <span class="placeholder">[pays]</span> («&nbsp;nous&nbsp;»). Pour toute question sur vos données, écrivez à <span class="placeholder">[adresse e-mail de contact, à ajouter avant la mise en ligne]</span>. Pour une question qui n’a rien de personnel, vous pouvez aussi ouvrir une <a href="https://github.com/Filmoo/MVP/issues">issue sur GitHub</a>.</p>
+
+      <h2 id="application">L’application sur votre PC</h2>
+      <p>MVP lit votre client League par l’interface locale que le client ouvre sur votre PC. Il lit&nbsp;:</p>
+      <ul>
+        <li>le Riot ID, le rang et l’historique de votre compte, votre maîtrise des champions et les champions que vous pouvez choisir&#8239;;</li>
+        <li>la sélection des champions&nbsp;: les champions choisis, survolés et bannis, et les rôles (jamais le nom des joueurs que le jeu masque)&#8239;;</li>
+        <li>la partie, une fois qu’elle charge&nbsp;: les Riot ID, champions et sorts d’invocateur qu’affiche l’écran de chargement&#8239;;</li>
+        <li>vos pages de runes et vos sets d’objets, quand vous importez un build.</li>
+      </ul>
+      <p>Il n’écrit dans le client que si vous le lui demandez, ou si vous activez une automatisation&nbsp;: la page de runes de MVP, le set d’objets de MVP, les sorts d’invocateur en sélection des champions, et l’acceptation d’une partie trouvée (désactivée par défaut). Il ne modifie jamais vos propres pages de runes ni vos sets d’objets.</p>
+      <p>Sur votre PC, MVP garde ses paramètres, un identifiant d’installation aléatoire, une copie de la dernière configuration à distance, les données de jeu et les statistiques téléchargées, les images des emblèmes de rang, les journaux de ses deux dernières sessions et, seulement tant que les rapports de plantage sont activés, ceux qui attendent d’être envoyés. Ils sont dans <code>%APPDATA%\gg.mvp.companion</code> et <code>%LOCALAPPDATA%\gg.mvp.companion</code>&#8239;; supprimer ces dossiers les efface. Les journaux restent sur votre PC&nbsp;: Paramètres → À propos → Copier le diagnostic les copie pour un rapport de bug, noms et identifiants retirés, et vous seul décidez où les coller.</p>
+
+      <h2 id="serveur">Ce que l’application envoie au serveur de MVP</h2>
+      <p>Le serveur de MVP (<code>api.mvpgg.com</code>) détient la clé d’API de Riot, pour que l’application n’en ait jamais besoin. Chaque requête porte la version de l’application et son identifiant d’installation aléatoire, sans lien avec votre compte Riot&nbsp;: il nous sert à limiter la fréquence des demandes d’une installation, à déployer les mises à jour progressivement et à retrouver les rapports de plantage à supprimer sur demande.</p>
+      <ul>
+        <li><strong>Recherche de joueur</strong>&nbsp;: le Riot ID et la région recherchés.</li>
+        <li><strong>Cartes de l’écran de chargement</strong>&nbsp;: les Riot ID des joueurs visibles de votre partie (le vôtre compris) et la région, une fois par partie. Les joueurs en mode streamer ne sont jamais envoyés.</li>
+        <li><strong>Une partie de quelqu’un d’autre que vous ouvrez</strong>&nbsp;: son identifiant de partie.</li>
+        <li><strong>Statistiques</strong>&nbsp;: le téléchargement des statistiques publiées (tier list, builds, matchups).</li>
+        <li><strong>Configuration à distance</strong>&nbsp;: au démarrage puis toutes les quelques heures, pour les mises à jour, les annonces et les fonctions mises en pause pour tout le monde.</li>
+        <li><strong>Mises à jour</strong>&nbsp;: une vérification au démarrage puis toutes les six heures.</li>
+        <li><strong>Rapports de plantage, seulement si vous les activez</strong> (Paramètres → Application, désactivés par défaut)&nbsp;: le message d’erreur et la pile d’appels, les versions de l’application, de Windows et de WebView2, et l’identifiant d’installation. Les noms de joueurs, identifiants, chemins de fichiers, adresses e-mail, mots de passe et adresses IP sont retirés dans l’application, puis à nouveau sur le serveur.</li>
+      </ul>
+
+      <h2 id="conservation">Ce que garde le serveur, et combien de temps</h2>
+      <ul>
+        <li><strong>Les réponses de l’API de Riot</strong>, en cache&nbsp;: les profils de joueurs et les cartes de l’écran de chargement 2 minutes, le compte derrière un Riot ID un jour, et les fiches de partie (le tableau des scores de chaque partie&nbsp;: champions, objets, statistiques et Riot ID de ses dix joueurs) jusqu’à ce que de plus récentes les remplacent, 20 000 parties au plus. Ce cache est enregistré sur le disque du serveur quand celui-ci redémarre.</li>
+        <li><strong>Les rapports de plantage</strong>&nbsp;: 30 jours, puis ils sont supprimés. Pour faire supprimer les vôtres plus tôt, envoyez-nous l’ID de rapport affiché dans les Paramètres, sous l’interrupteur.</li>
+        <li><strong>Les journaux des requêtes</strong>&nbsp;: l’heure, le type de requête («&nbsp;recherche de joueur&nbsp;», pas le nom cherché), le statut de la réponse et sa durée. Ni adresse IP, ni identifiant d’installation, ni contenu des requêtes.</li>
+        <li><strong>Les limites de fréquence</strong>&nbsp;: le serveur compte les requêtes par identifiant d’installation (ou par adresse IP, à défaut) en mémoire seulement, jamais sur disque.</li>
+      </ul>
+
+      <h2 id="statistiques">Statistiques</h2>
+      <p>Pour calculer ses statistiques, le serveur de MVP lit les classements publics (Émeraude et au-delà) et les parties de ces joueurs via l’API de Riot. Il garde la liste de ces comptes sous forme d’identifiants chiffrés de Riot, sans nom, pour savoir quelles parties il a déjà lues&#8239;; et de chaque partie, seulement des faits sans identité&nbsp;: champions, rôles, objets, runes, sorts, ordre des compétences, résultat, durée et chiffres de dégâts. Les statistiques publiées sont des totaux et des moyennes sur de nombreuses parties&nbsp;: personne ne peut y être retrouvé. La liste des comptes est gardée tant que des statistiques en sont calculées.</p>
+
+      <h2 id="services">Les services que l’application contacte directement</h2>
+      <ul>
+        <li><strong>Data Dragon de Riot Games</strong> (<code>ddragon.leagueoflegends.com</code>)&nbsp;: les données, noms et icônes du jeu.</li>
+        <li><strong>CommunityDragon</strong> (<code>raw.communitydragon.org</code>)&nbsp;: les images des emblèmes de rang.</li>
+        <li><strong>GitHub</strong> (<code>github.com</code>)&nbsp;: le manifeste de mise à jour de la dernière version, et les installateurs.</li>
+      </ul>
+      <p>Comme tout site web, chacun voit votre adresse IP quand l’application y télécharge quelque chose. Aucune de ces requêtes ne porte d’information sur votre compte.</p>
+
+      <h2 id="riot">Riot Games</h2>
+      <p>MVP n’est pas fait par Riot Games. Il utilise l’API de Riot au travers de notre serveur, dans le cadre des règles de Riot pour les développeurs. MVP ne demande jamais votre mot de passe Riot et n’a pas de connexion par compte Riot. Ce que Riot fait de vos données relève de sa <a href="https://www.riotgames.com/fr/privacy-notice">politique de confidentialité</a>.</p>
+
+      <h2 id="site">Ce site</h2>
+      <p><code>mvpgg.com</code> ne dépose aucun cookie, n’a ni mesure d’audience, ni pub, ni traceur, et ne charge ni police ni script depuis d’autres sites. Pour afficher les versions, votre navigateur demande la liste des releases à l’API de GitHub (<code>api.github.com</code>)&nbsp;: GitHub voit votre adresse IP et votre navigateur, comme pour toute visite sur GitHub, et la <a href="https://docs.github.com/fr/site-policy/privacy-policies/github-general-privacy-statement">déclaration de confidentialité de GitHub</a> s’applique. La réponse est gardée 10 minutes dans le stockage de session de votre navigateur, pour que les pages ne la redemandent pas&#8239;; elle disparaît quand vous fermez l’onglet. Les téléchargements viennent de GitHub. Le serveur du site ne garde pas de journal des visites.</p>
+
+      <h2 id="hebergement">Hébergement</h2>
+      <p>Le serveur de MVP tourne sur un serveur virtuel loué chez OVHcloud. Le trafic vers <code>mvpgg.com</code> et <code>api.mvpgg.com</code> passe par Cloudflare, qui l’achemine et le protège des attaques, et voit pour cela les adresses IP. Le code et les installateurs sont hébergés par GitHub. Ces prestataires peuvent traiter des données hors de l’Union européenne, avec leurs propres garanties, comme les clauses contractuelles types de l’UE.</p>
+
+      <h2 id="bases">Bases légales</h2>
+      <ul>
+        <li><strong>Les fonctions que vous utilisez</strong> (recherche de joueur, cartes de l’écran de chargement, parties ouvertes, statistiques, mises à jour, configuration à distance)&nbsp;: notre intérêt légitime à fournir l’application que vous avez installée, et à la garder fonctionnelle et sûre (RGPD, art. 6.1.f).</li>
+        <li><strong>Les rapports de plantage</strong>&nbsp;: votre consentement, donné avec l’interrupteur des Paramètres et retiré avec lui (art. 6.1.a).</li>
+        <li><strong>Les statistiques tirées de parties publiques, et la mise en cache des réponses de Riot</strong>&nbsp;: notre intérêt légitime à fournir des statistiques sans redemander deux fois la même chose à Riot&#8239;; les données sont minimales et gardées peu de temps (art. 6.1.f).</li>
+      </ul>
+
+      <h2 id="droits">Vos droits</h2>
+      <p>Vous pouvez demander l’accès à vos données, leur rectification ou leur effacement, vous opposer à leur utilisation ou en demander la limitation, et saisir une autorité de protection des données (aux Pays-Bas, l’Autoriteit Persoonsgegevens&#8239;; en France, la CNIL). Écrivez à <span class="placeholder">[adresse e-mail de contact]</span>&#8239;; pour les rapports de plantage, joignez l’ID de rapport des Paramètres. L’essentiel de ce que traite MVP n’est pas lié à votre nom&nbsp;: l’identifiant d’installation est aléatoire, et les caches contiennent ce que l’API de Riot renvoie sur des Riot ID. Pour faire retirer votre Riot ID de nos caches, dites-nous lequel.</p>
+
+      <h2 id="changements">Changements</h2>
+      <p>Nous modifions cette politique quand MVP change. La date en haut dit quand&#8239;; chaque version précédente est dans l’historique public du projet sur GitHub.</p>
+  </div>
+</main>
+
+<footer class="foot wrap">
+  <nav aria-label="Site">
+    <ul>
+      <li><a href="/fr/">Accueil</a></li>
+      <li><a href="/fr/versions/">Versions</a></li>
+      <li><a href="/fr/confidentialite/">Confidentialité</a></li>
+      <li><a href="/fr/conditions/">Conditions</a></li>
+      <li><a href="https://github.com/Filmoo/MVP">GitHub</a></li>
+    </ul>
+  </nav>
+  <p class="free">MVP est un logiciel libre sous licence <a href="https://github.com/Filmoo/MVP/blob/main/LICENSE">GNU AGPL-3.0</a>.</p>
+  <p class="legal">MVP n’est pas approuvé par Riot Games et ne reflète pas les opinions de Riot Games ni de quiconque officiellement impliqué dans la production ou la gestion des propriétés de Riot Games. Riot Games et toutes les propriétés associées sont des marques commerciales ou des marques déposées de Riot Games, Inc.</p>
+  <p class="sign hand">dessiné à l’encre, construit en Rust</p>
+</footer>
+</body>
+</html>
