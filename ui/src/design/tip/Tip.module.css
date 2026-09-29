@@ -48,6 +48,11 @@
   margin-inline-start: 0;
 }
 
+/* Until its place has settled (Tip.tsx): never seen where it doesn't belong. */
+.tip:not([data-placed]) {
+  visibility: hidden;
+}
+
 @supports (position-visibility: anchors-valid anchors-visible) {
   .tip {
     position-visibility: anchors-valid anchors-visible;
@@ -92,36 +97,30 @@
 }
 
 /*
- * The thing's own picture, much larger, blurred and dimmed: its light behind the name only. It
- * ends at the divider, so the text reads on the card's even tint. Without a picture (a stat
- * shard, a tier, a page): a glow in its colour around its mark.
+ * The thing's own light behind its header: its picture (`--art`), much larger, blurred and
+ * dimmed, or without one (a stat shard, a tier, a page) a glow of its colour (`--glow`) around
+ * its icon. It fades out by the divider, so the text reads on the card's even tint. Drawn by the
+ * card itself: clipped by it, and no element of its own (nothing for layout checks to trip on).
  */
-.backdrop {
+.tip::before {
+  --glow-x: calc(var(--space-9) + var(--space-6) + 20px);
+  --glow-y: var(--glow-x);
+  content: "";
   position: absolute;
   top: calc(-1 * var(--space-9));
   inset-inline: calc(-1 * var(--space-9));
-  bottom: calc(-1 * var(--space-5));
-  z-index: -1;
+  height: var(--glow-h, calc(var(--space-9) + var(--space-12) + var(--space-2)));
+  z-index: 0;
   opacity: 0.3;
-  color: var(--accent);
+  background:
+    var(--art, radial-gradient(circle var(--space-12) at var(--glow-x) var(--glow-y), var(--glow, transparent), transparent)) center / cover
+    no-repeat;
+  filter: blur(28px) saturate(140%);
   mask-image: linear-gradient(180deg, #000 40%, transparent);
   pointer-events: none;
 }
 
-.backdrop img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  filter: blur(28px) saturate(140%);
-}
-
-/* Centred on the icon (40 px; a compact card's mark, 20 px: `--glow-at` on its heading). */
-.backdrop:empty {
-  --at: var(--glow-at, calc(var(--space-9) + 20px));
-  background: radial-gradient(circle var(--space-12) at var(--at) var(--at), currentColor, transparent);
-}
-
-:root[data-effects="flat"] .backdrop {
+:root[data-effects="flat"] .tip::before {
   display: none;
 }
 
@@ -132,9 +131,15 @@
   padding: var(--space-4) var(--space-5);
 }
 
+/* Its glow around the mark (20 px, at the compact padding), fading before the lines. */
+.tip:has(> .hintHead)::before {
+  --glow-x: calc(var(--space-9) + var(--space-5) + 10px);
+  --glow-y: calc(var(--space-9) + var(--space-4) + 10px);
+  --glow-h: calc(var(--space-9) * 2);
+}
+
 /* The heading, after the thing's mark when it has one (a tier's letter, a page's icon…). */
 .hintHead {
-  --glow-at: calc(var(--space-9) + 10px);
   display: flex;
   align-items: center;
   gap: var(--space-3);

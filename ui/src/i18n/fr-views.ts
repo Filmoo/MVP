@@ -472,6 +472,7 @@ export const frViews = {
       connected: "MVP y suit vos parties, la sélection des champions et la partie en cours.",
       connecting: "Le client League démarre\u00A0: MVP s’y connecte tout seul.",
       notRunning: "Lancez League of Legends\u00A0: MVP s’y connecte tout seul, rien à régler.",
+      notAnswering: "Il est lancé mais ne répond pas, peut-être occupé\u00A0: MVP réessaie tout seul.",
     },
   },
 

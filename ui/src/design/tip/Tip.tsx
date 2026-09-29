@@ -35,6 +35,9 @@ export interface Tip {
   quiet?: boolean;
   /** What it explains (`nav`, `item`…): where it sits (the rail's pages: beside the rail). */
   kind?: string;
+  /** The thing's picture, its light behind the card's header; else a glow of this colour. */
+  art?: string | undefined;
+  glow?: string | undefined;
 }
 
 const [shown, setShown] = createSignal<Tip>();
@@ -43,9 +46,14 @@ let host: HTMLElement | undefined;
 
 function Pane(props: Tip): JSX.Element {
   // One pane per tooltip (`keyed` below): nothing here changes while it shows.
-  const { id, anchor, body, kind } = props;
+  const { id, anchor, body, kind, art, glow } = props;
   let el!: HTMLDivElement;
-  onMount(() => el.showPopover());
+  onMount(() => {
+    el.showPopover();
+    // Shown once placed: right after a scroll, a new card's first frame still sees the anchor
+    // where it was (Chromium places it with the last frame's scroll), the next one corrects it.
+    requestAnimationFrame(() => requestAnimationFrame(() => el.setAttribute("data-placed", "")));
+  });
   return (
     <div
       ref={el}
@@ -55,6 +63,8 @@ function Pane(props: Tip): JSX.Element {
       popover="auto"
       role="tooltip"
       class={/*@once*/ styles.tip}
+      // The light behind the header is the card's own `::before` (Tip.module.css): no element.
+      style={/*@once*/ { "--art": art && `url(${JSON.stringify(art)})`, "--glow": glow }}
       onToggle={(e) => e.newState === "closed" && untip(anchor)}
     >
       {body()}
@@ -185,7 +195,13 @@ export function hint(e: Event, context: TipContext): void {
       const tone = from && !(from instanceof SVGElement) ? tint(from) : undefined;
       if (text) {
         void intent.then(() =>
-          show({ id: "hint", kind, quiet, body: () => <Hint title={title} lines={text.split("\n")} mark={mark} tone={tone} /> }),
+          show({
+            id: "hint",
+            kind,
+            quiet,
+            glow: title && mark ? tone : undefined,
+            body: () => <Hint title={title} lines={text.split("\n")} mark={mark} />,
+          }),
         );
       }
       return;
@@ -210,6 +226,8 @@ export function hint(e: Event, context: TipContext): void {
       show({
         id: "game-tip",
         kind,
+        art,
+        glow: art ? undefined : tone,
         body: () => <GameTip kind={kind} id={id} row={row} data={data} text={text()} art={art} glyph={glyph} tone={tone} />,
       });
       placed = true;
@@ -249,21 +267,15 @@ function idea(kind: string, key: string): [string | undefined, string | undefine
 }
 
 /**
- * A plain explanation: a heading when it helps (after the thing's mark, in a glow of its colour,
- * when it has one), then its lines.
+ * A plain explanation: a heading when it helps (after the thing's mark, which the card lights in
+ * its colour, when it has one), then its lines.
  */
-function Hint(props: {
-  title: string | undefined;
-  lines: readonly string[];
-  mark: Node | undefined;
-  tone: string | undefined;
-}): JSX.Element {
-  const { title, lines, mark, tone } = props;
+function Hint(props: { title: string | undefined; lines: readonly string[]; mark: Node | undefined }): JSX.Element {
+  const { title, lines, mark } = props;
   return (
     <>
       {title && (
         <div class={/*@once*/ styles.hintHead}>
-          {mark && <span class={/*@once*/ styles.backdrop} style={/*@once*/ tone ? { color: tone } : undefined} aria-hidden="true" />}
           {mark && (
             <span class={/*@once*/ styles.mark} aria-hidden="true">
               {mark}
@@ -321,9 +333,9 @@ function heading({ kind, id, row, data, text }: GameTipProps): [string, string, 
 }
 
 /**
- * A rune, stat shard, rune tree, summoner spell or item as a card: its own picture blurred
- * behind, its icon, name (with an item's cost) and what it is, then what it does in full when
- * the core has the text.
+ * A rune, stat shard, rune tree, summoner spell or item as a card: its icon, name (with an item's
+ * cost) and what it is, then what it does in full when the core has the text. Its own picture,
+ * blurred, lights the header from behind (the pane's `art`).
  */
 export function GameTip(props: GameTipProps): JSX.Element {
   // The thing and its picture stay while the card shows (only its text may come later): set once.
@@ -338,10 +350,6 @@ export function GameTip(props: GameTipProps): JSX.Element {
   return (
     <>
       <div class={/*@once*/ styles.head}>
-        {/* Its light behind the header only: the text below reads on the card's even tint. */}
-        <span class={/*@once*/ styles.backdrop} style={/*@once*/ color} aria-hidden="true">
-          {art && <img src={art} alt="" />}
-        </span>
         <span class={/*@once*/ styles.icon} data-kind={kind} style={/*@once*/ color} aria-hidden="true">
           {art ? <img src={art} alt="" /> : glyph}
         </span>

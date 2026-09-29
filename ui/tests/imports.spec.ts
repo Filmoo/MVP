@@ -259,7 +259,7 @@ test("champion page: without the League client, every button says why and nothin
   for (const part of ["runes", "itemSet", "spells"] as const) {
     const button = champion.getByRole("button", { name: t.imports.importPart(part) });
     await expect(button).toBeDisabled();
-    await expect(button).toHaveAttribute("title", t.imports.needsClient);
+    await expect(button).toHaveAttribute("data-hint", t.imports.needsClient);
   }
   // The same reason for every button: said once without a hover.
   await expect(status(page)).toHaveText(`${t.imports.needsClient}.`);

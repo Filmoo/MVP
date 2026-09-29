@@ -2,6 +2,7 @@ import type { Locator, Page } from "@playwright/test";
 import type { TierGrade } from "../src/data/generated/TierGrade";
 import { integer } from "../src/lib/format";
 import { expect, openApp, test, trackErrors } from "./app";
+import { auditLayout } from "./layout-rules";
 
 // Tooltips (design/tip): the game's things (runes, stat shards, summoner spells, items) say what
 // they are and what they do; everything else explains itself in a compact card. On hover and on
@@ -297,7 +298,10 @@ for (const size of [
       await page.mouse.move(0, 0);
       await thing.hover();
       await expect(page.locator("[role=tooltip]")).toBeVisible();
-      await expectInWindow(page, `${what}: ${await thing.evaluate((el) => el.outerHTML.slice(0, 80))}`);
+      const where = `${what}: ${await thing.evaluate((el) => el.outerHTML.slice(0, 80))}`;
+      await expectInWindow(page, where);
+      // The open card leaves the page's layout sound (nothing of it out of the window, spilling…).
+      expect(await page.evaluate(auditLayout), where).toEqual([]);
     };
     // Every page with tooltips, near both of its ends and in its middle. (Match rows and opened
     // games show no items under 560 px: Home has fewer at 420.)

@@ -468,6 +468,7 @@ export const enViews = {
       connected: "MVP follows your games, champion select and live game from it.",
       connecting: "The League client is starting: MVP connects by itself.",
       notRunning: "Start League of Legends: MVP connects by itself, nothing to set up.",
+      notAnswering: "It's running but doesn't answer, maybe busy: MVP keeps trying by itself.",
     },
   },
 
