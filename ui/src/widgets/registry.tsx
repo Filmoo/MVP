@@ -121,7 +121,8 @@ export const widgetRegistry: Record<string, () => JSX.Element> = {
     />
   ),
   "tier-list": () => <TierTable list={tierList} roleFilter="all" />,
-  "champion-grid": () => <ChampionGrid list={tierList} roleFilter="all" query="" />,
+  // Sorted by name, its heaviest first slice: every tile has a badge (by tier, a heading has it).
+  "champion-grid": () => <ChampionGrid list={tierList} roleFilter="all" sort="name" query="" />,
   "champion-hero": () => (
     <ChampionHero
       championId={99}

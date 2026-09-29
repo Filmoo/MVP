@@ -80,6 +80,11 @@
 .connecting {
   background: var(--warn);
 }
+/* Up, but not answering requests: amber, and lit like a state that lasts. */
+.notAnswering {
+  background: var(--warn);
+  box-shadow: 0 0 8px var(--warn);
+}
 
 .controls {
   display: flex;
@@ -107,6 +112,15 @@
 .statusText {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Wide windows: the status keeps one width whatever it says ("not responding" is longer than
+   "connected"), so the search field between them never shifts. */
+@media (min-width: 1024px) {
+  .status {
+    min-width: 220px;
+    justify-content: flex-end;
+  }
 }
 
 /* Narrower windows keep the dot; the words are in its tooltip. */

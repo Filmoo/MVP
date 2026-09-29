@@ -319,6 +319,7 @@ impl AppState {
         let mut stats = vec![
             ("profiles", self.0.profiles.stats()),
             ("scoutCards", self.0.cards.stats()),
+            ("liveGames", self.0.live.stats()),
         ];
         if let Some(riot) = &self.0.riot {
             let (by_riot_id, by_puuid, matches) = riot.caches();

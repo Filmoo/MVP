@@ -4,10 +4,10 @@ use companion::mayhem::MayhemClient;
 use companion::settings::SettingsStore;
 use companion::stats::StatsClient;
 use domain::{
-    AppInfo, BackendError, Bracket, ChampionPage, ClientStatus, DraftView, GameData, GradedMatch,
-    ImportRequest, ImportResult, Language, LiveGame, MatchDetails, MayhemAugments, MayhemChampion,
-    MayhemOverview, PlayerProfile, RankEmblems, RemoteConfig, RiotId, Settings, StatsIndex,
-    TierList, UpdateStatus,
+    AppInfo, BackendError, Bracket, ChampionPage, ClientError, ClientStatus, DraftView, GameData,
+    GradedMatch, ImportRequest, ImportResult, Language, LiveGame, MatchDetails, MayhemAugments,
+    MayhemChampion, MayhemOverview, PlayerProfile, RankEmblems, RemoteConfig, RiotId, Settings,
+    StatsIndex, TierList, UpdateStatus,
 };
 use tauri::{Emitter as _, Manager as _};
 use tauri_plugin_autostart::ManagerExt as _;
@@ -138,13 +138,14 @@ pub fn client_status(app: tauri::AppHandle) -> ClientStatus {
 }
 
 /// The logged-in player's own profile from the League client; `None` while it isn't running.
-/// Games already read whole carry their grade (`match_grades` reads the others).
+/// Games already read whole carry their grade (`match_grades` reads the others). Fails with a
+/// `ClientError` the UI words (`notAnswering`: the client didn't answer at all).
 #[tauri::command]
 #[allow(
     clippy::needless_pass_by_value,
     reason = "Tauri injects command arguments by value"
 )]
-pub async fn current_profile(app: tauri::AppHandle) -> Result<Option<PlayerProfile>, String> {
+pub async fn current_profile(app: tauri::AppHandle) -> Result<Option<PlayerProfile>, ClientError> {
     let Some(core) = app.try_state::<Core>() else {
         return Ok(None);
     };
@@ -156,7 +157,7 @@ pub async fn current_profile(app: tauri::AppHandle) -> Result<Option<PlayerProfi
         .profile(&client)
         .await
         .map(Some)
-        .map_err(|error| error.to_string())
+        .map_err(|error| companion::profile::client_error(&error))
 }
 
 /// Your grade in each of your listed games (`current_profile`'s ids): the League client's
@@ -177,6 +178,7 @@ pub async fn match_grades(app: tauri::AppHandle, match_ids: Vec<String>) -> Vec<
             .map(|match_id| GradedMatch {
                 match_id,
                 grade: None,
+                role: None,
             })
             .collect(),
     }

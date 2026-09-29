@@ -71,6 +71,8 @@ for (const { view, scenario } of [
   { view: "/live", scenario: "live" },
   { view: "/live", scenario: "live-extreme" },
   { view: "/live", scenario: "live-failed" },
+  { view: "/live", scenario: "live-filtered" },
+  { view: "/live", scenario: "live-bots" },
   { view: "/player/euw1/Blade%20Dancer/IRE", scenario: "default" },
   { view: "/player/euw1/Busy/429", scenario: "default" },
   { view: "/player/euw1/Nobody/404", scenario: "default" },
@@ -83,6 +85,9 @@ for (const { view, scenario } of [
   { view: "/tier-list?queue=450", scenario: "default" },
   { view: "/tier-list", scenario: "stats-empty" },
   { view: "/tier-list", scenario: "stats-offline" },
+  { view: "/champions", scenario: "stats-offline" },
+  { view: "/champions", scenario: "stats-empty" },
+  { view: "/champions?queue=450", scenario: "default" },
   { view: "/__harness?show=build-summary", scenario: "default" },
 ] as const) {
   test(`${view}/${scenario} only uses design tokens`, async ({ page }) => {
@@ -110,6 +115,18 @@ test("stats pages after switching (all rows, a role, duos, another rune page) on
   // Segments and pills glide to their new colors: audit the settled ones.
   await animationsDone(page);
   expect(await page.evaluate(auditTokens), "champion page").toEqual([]);
+  // The champion list in a role by pick rate (tiles with a badge and a rate), a tile hovered.
+  await openApp(page, { view: "/champions?role=bottom" });
+  await page.getByRole("radiogroup", { name: t.champions.sort }).getByRole("radio", { name: t.champions.sorts.pickRate }).click();
+  await page.getByTestId("champion-tile").first().hover();
+  await animationsDone(page);
+  expect(await page.evaluate(auditTokens), "champion list").toEqual([]);
+});
+
+test("the champion list's skeleton only uses design tokens", async ({ page }) => {
+  await page.goto("/?scenario=stats-slow#/champions");
+  await page.locator("main [data-state=loading]").first().waitFor();
+  expect(await page.evaluate(auditTokens)).toEqual([]);
 });
 
 test("live cards while scouting only use design tokens", async ({ page }) => {

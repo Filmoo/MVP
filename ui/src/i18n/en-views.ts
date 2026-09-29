@@ -232,6 +232,14 @@ export const enViews = {
     show: "Show",
     tabs: { players: "Players", build: "My build" },
     lookingUp: "Looking players up…",
+    /**
+     * Riot's live game had no names for this game: the game itself gives them once loaded.
+     * When first, why after: narrow windows cut the end of the line.
+     */
+    names: {
+      waiting: "Names after the loading screen",
+      filtered: (queue: string) => `Names after the loading screen: Riot doesn't share live ${queue} games`,
+    },
     readFailed: "Couldn't read the game",
     idle: {
       title: "Not in a game",
@@ -258,6 +266,8 @@ export const enViews = {
     streamer: "Streamer mode",
     mains: (roles: string) => `${roles} main`,
     hidden: "Hidden player",
+    /** Not just "Bot": the bottom lane is "Bot" too. */
+    bot: "AI bot",
     unknown: "Unknown player",
     cardUnavailable: "Card unavailable",
     noRankedData: "No ranked data",
@@ -337,6 +347,12 @@ export const enViews = {
     noneYet: "No champion here yet",
     checkSpelling: "Check the spelling, or clear the search.",
     whenLoaded: "Champions show once game data and stats are loaded.",
+    sort: "Sort by",
+    sorts: { tier: "Tier", pickRate: "Pick rate", name: "A–Z" },
+    /** The group of champions without a tier: not enough games in their role. */
+    fewGames: "Too few games",
+    /** Why the grid is grouped by class: `reason` is why stats are missing (`Can't reach MVP's servers`). */
+    noStats: (reason: string) => `${reason}. Champions are grouped by class until tiers and pick rates are available.`,
     noBuild: {
       title: "No build data yet",
       text: (champion: string, role: Role | undefined) =>

@@ -139,6 +139,7 @@ export const fr = {
       connected: "Client League connecté",
       connecting: "Connexion à League…",
       notRunning: "En attente du client League",
+      notAnswering: "Le client League ne répond pas",
     },
     minimize: "Réduire",
     maximize: "Agrandir",
@@ -175,6 +176,10 @@ export const fr = {
 
   home: {
     loadFailed: "Impossible de charger votre profil",
+    notAnswering: {
+      text: "Il est peut-être occupé. MVP continue d’essayer : votre profil s’affiche dès qu’il répond.",
+      retry: "Réessayer maintenant",
+    },
     waiting: {
       title: "En attente du client League",
       text: "Lancez League of Legends\u00A0: votre profil, vos parties en cours et l’aide à la sélection des champions s’affichent ici automatiquement.",

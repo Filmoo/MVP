@@ -177,10 +177,11 @@ impl Game {
             (SEATS[lane].1, SEATS[lane].2)
         };
         let minions = bonus(pace[0] * minutes) + n(4) * 3;
+        // The support holds the support item (Dream Maker), as in real games.
         let items = [
-            [6655, 3078, 6672, 3870][lane % 4],
-            [3020, 3047, 3006, 3158][lane % 4],
-            [4645, 3053, 3031, 3190][lane % 4],
+            [3078, 3071, 6655, 6672, 3870][lane],
+            [3047, 3047, 3020, 3006, 3158][lane],
+            [3053, 3053, 4645, 3031, 3190][lane],
             if won { 3089 } else { 0 },
         ];
         let trinket = if lane == 4 { 3364 } else { 3340 };

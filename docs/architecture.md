@@ -21,7 +21,7 @@ flowchart LR
 
   UI <-- "Tauri IPC: commands + events" --> Core
   Core <-- "pinned-root TLS, loopback only" --> LCU
-  Core -. "later: in-game view" .-> Game
+  Core -- "player list, once per game<br/>(names when Riot has none)" --> Game
   Core --> Cache
   Core -- "versions + JSON" --> DD
   UI -- "icons (img)" --> DD
@@ -64,6 +64,7 @@ TypeScript types); failures answer `ApiError` `{ error, message, retryAfter? }`.
 | `GET /health` | `Health` `{ ok, version, riotKey }` |
 | `GET /v1/players/{platform}/{gameName}/{tagLine}` | `PlayerProfile` · 400 bad platform · 404 · 429 + `retryAfter` · 503 without key |
 | `POST /v1/players/batch` `{ platform, players: RiotId[] }` (≤ 10; older apps: `puuids`) | `ScoutCard[]` for loading-screen scouting |
+| `GET /v1/live/{platform}/{gameName}/{tagLine}?gameId=` | `ActiveGame`: the game that player is in as Riot shows it (Spectator-V5: streamer-mode players anonymous), with the visible players' cards · 404 `notFound` / `filtered` |
 | `GET /v1/matches/{platform}/{matchId}` | `MatchDetails` (both teams, every player's grade) from the match cache · 400 bad platform or id · 404 |
 | `GET /v1/stats/index` | `StatsIndex` (published patches, `current`) · ETag, `max-age=300` |
 | `GET /v1/stats/{patch}/{queue}/{file…}` | published stats files (below) · ETag/304, `max-age=3600` · 404 when absent |
@@ -76,7 +77,12 @@ Scouting batches name players by **Riot ID**: the League client's PUUIDs are not
 (Riot encrypts PUUIDs per key), so the server resolves each Riot ID with account-v1 (cached a
 day) and builds the card from our key's PUUID. Cards carry the account's Riot ID next to that
 PUUID and positive/neutral tags only (OTP, main role, hot streak, veteran); players nobody
-knows get no card. Caches in memory with request coalescing: profiles and cards 2 min,
+knows get no card. Live games (`/v1/live`, Spectator-V5) are asked with the local player's own
+Riot ID and kept an hour under each visible player's PUUID, never served for another `gameId`:
+everyone else in that game costs no Riot call, and the accounts Riot showed go to the account
+cache for the batch that may follow; cards not built within 5 s are left to that batch
+(`cardsComplete: false`) while their lookups carry on. Caches in memory with request
+coalescing: profiles and cards 2 min,
 accounts 1 day, compacted match documents forever (LRU-bounded: the 28 participant fields the
 profile, the grade and match details read, keystone and rune trees only, kept as JSON text);
 accounts and matches are snapshotted to the data dir on shutdown (snapshot format 2: an older
@@ -100,6 +106,20 @@ Platform services (`apps/backend/src/ops.rs` and siblings) sit next to the Riot 
   in production; graceful shutdown.
 
 Run, deploy, data dir layout and privacy: `apps/backend/README.md`.
+
+## League client status (`lcu::connector`, `ClientStatus`)
+`connection` is `notRunning` (no lockfile), `connecting` (handshake), `connected` (REST answers,
+events subscribed) or `notAnswering`: the event socket is up but requests get no answer (seen on
+a real client whose every connection another app held; the WebSocket stayed up and MVP said
+"connected" while each request failed). Every `LcuClient` request reports whether it got an
+answer (any HTTP status is one); a transport failure anywhere in the core flips the state to
+`notAnswering` (the phase stays: events still flow), the next answer flips it back. While it
+lasts, one cheap `GET /lol-gameflow/v1/gameflow-phase` asks again after the poll interval (2 s),
+then twice as long each time up to 30 s; nothing is polled while the client answers. UI: the
+title bar says "League client not responding" with an amber dot; Home's profile error says the
+client isn't answering and MVP retries (`current_profile` rejects with `ClientError`
+`notAnswering`, never the request's URL), and the profile reloads by itself once the status turns
+`connected` again. Mock: `MockLcu::stop_answering`/`answer_again`, scenario `client-not-answering`.
 
 ## Backend client (`companion::backend`)
 The app reaches the backend **from the core**, never from the webview: the UI calls Tauri commands
@@ -164,16 +184,45 @@ All three run in the core, so they work with the window closed; the UI only show
 
 ## Loading-screen scouting (`companion::live`)
 When the phase reaches Loading or InGame the core reads `GET /lol-gameflow/v1/session` once per
-game (both teams: PUUID, Riot ID, champion, position; spells from `playerChampionSelections`),
-publishes a `LiveGame` (our team first), then asks `POST /v1/players/batch` for the visible
-players **by Riot ID** and fills the cards in place (`live` event), matching each card back to
-its seat by Riot ID (case-insensitive: the server answers with the account's own spelling).
-The client's PUUIDs stay in the core (they identify the local player and pair spells): our
-backend's API key can't read them. Streamer-mode players (`nameVisibilityType: HIDDEN`) are
-dropped before anything else: no Riot ID, no PUUID, no lookup; players without a Riot ID (bots)
-aren't looked up either. Champion select is never read for identities. The game ending clears
-the view; a failed batch is shown in the page head with a retry (`retry_scouting`). The remote
-config's `scouting` flag turns lookups off (the teams still show, without cards).
+game (both teams: champion, position, the client's PUUIDs; spells from
+`playerChampionSelections`) and publishes a `LiveGame` (our team first). The session names
+nobody but the local player (2026-09: no `gameName`/`tagLine`, bots not listed in custom
+games; the local player's Riot ID comes from `current-summoner`), so `LiveGame.names` says
+where the others' names are, and the core fills them in, publishing each step (`live` event):
+1. **Riot's live game** (`names: asking`): `GET /v1/live/{platform}/{me}?gameId=` with the
+   local player's own Riot ID, asked once more after 8 s if Riot doesn't list the game yet
+   (`LiveConfig.riot_retry`). The answer names every visible player, keeps streamer-mode ones
+   anonymous, marks bots, and brings the visible players' cards.
+2. **The game itself** (`names: waiting { filtered }`) when Riot has none (no backend, not
+   listed, `filtered` for Ranked Flex and Arena, an error): `companion::live::GameClient` reads
+   `GET https://127.0.0.1:2999/liveclientdata/allgamedata` (the League client's root; debug
+   builds: `SCOUT_GAME_CLIENT`) every 2 s (every 10 s after 90 s) until it lists the players,
+   which it does once the loading screen is over (≈ 23 s after `InProgress` on the real
+   client), then never again. The task is aborted with the game, so nothing asks outside one.
+   Meanwhile the local player's own card is asked for at once (it needs no one else's name).
+   Players it can't name reliably (streamer mode: a missing or partial Riot ID, a champion's
+   name, a name shared by several players) are hidden; champions and spells are read from
+   their Data Dragon keys (`rawChampionName`, `rawDisplayName`) through `GameIds` (the loaded
+   game data).
+Both lists are matched to seats by side (where the list names the local player, else the way
+round more champions match, else the session's first team is blue) then champion, a champion
+twice on one side in order (`live::seats`); players the session didn't list (bots) get seats of
+their own; a seat already hidden stays hidden and the local player keeps their own name. Then
+`POST /v1/players/batch` asks **by Riot ID** for the cards still missing (none when Riot's
+answer brought them all) and fills them in place, matching each card back to its seat by Riot
+ID (case-insensitive: the server answers with the account's own spelling). The client's PUUIDs
+stay in the core (they identify the local player and pair spells): our backend's API key can't
+read them. Champion select is never read for identities. The game ending clears the view; a
+failed batch is shown in the page head with a retry (`retry_scouting`: names already in are
+kept, only the cards are asked again). The remote config's `scouting` flag turns our server's
+lookups off (Riot's live game and the cards): the names still come from the game, without
+cards. UI: the page head says where the names are in a slot that is always there (so the head
+never wraps and the teams never move when the line changes): `Looking players up…`, or that
+the names come after the loading screen, plainly saying when Riot doesn't share the queue. Seats
+show a name placeholder until theirs arrives, pulsing while it is asked for and still while the
+game hasn't loaded (a minute or two); bots read "AI bot" with their champion, streamer-mode
+players "Hidden player" with their lane; a visible player's Riot ID links to their player page
+(`#/player/{platform}/{gameName}/{tagLine}`, as the search opens it).
 
 ## Match insights (`stats::grade`, `companion::matches`, `ui/src/views/home`)
 Every finished game in a match history gets a grade, and a match row opens on the whole game.
@@ -205,13 +254,27 @@ Every finished game in a match history gets a grade, and a match row opens on th
   profile answered: the match list asks `match_grades { matchIds }` for its rows without one and
   the core answers from its cache or reads what's missing; the next `current_profile` fills them
   from the cache. A game the client doesn't return is asked again later, never a finished game
-  twice. LCU roles (`timeline.lane/role`) are fixed up: the Smite holder jungles, of the bottom
-  pair the one with fewer lane minions supports, duplicates are dropped, the last free role goes
-  to the last unknown player; ARAM has none.
+  twice.
+- **Roles of your games** (`companion::matches::roles`): the client's `timeline.lane/role` is
+  Riot's legacy guess (real games: a mid Kennen called TOP, an Ezreal "in the jungle" without
+  Smite, a roaming support called MIDDLE), and a wrong role grades against another role's
+  references. Each Summoner's Rift team gets one of each role: the most likely of all 120
+  assignments, the product per player of the champion's role share (the published ranked
+  `champions.json`, Emerald+, of the index at hand — nothing is requested just for roles — each
+  champion's games shrunk toward a built-in prior of usual roles with 50 pseudo-games; the prior
+  alone without stats, equal shares for a champion it doesn't know, 1 % floor), the client's
+  lane as weak evidence (×3 the lane it names, ×2 the jungle and both bottom roles, ×1.5 the
+  bottom role it names), lane minions and monsters per minute (laners ≥ 4, supports ≤ 2.5,
+  junglers ≥ 3 monsters; ×e⁻¹ per one short or over) and a support item (×20). Smite is a rule:
+  with Smite on the team the jungler holds it. Howling Abyss has no roles. The match list's rows
+  guess from your line alone (`profile::listed_role`) until the whole game is read: then
+  `match_grades` answers each game's role with its grade (`GradedMatch.role`) and the next
+  `current_profile` carries it, so the rows, "Main role" and the roles bar agree with the grades.
 - **Match details**: `match_details { matchId }` → `MatchDetails`: both teams (blue first, lanes
   in order), each player's Riot ID (none when hidden: `nameVisibilityType: HIDDEN` in the client,
-  no name in Match-V5), champion and level, role, K/D/A, CS, gold, damage to champions, vision,
-  items and trinket, spells, keystone and secondary tree, grade, `isMe`. Your listed games come
+  no name in Match-V5), champion and level, role, K/D/A, CS, gold, damage to champions, vision
+  (no column on Howling Abyss — ARAM, ARAM: Mayhem… `lib/queues.ts` — or whenever everyone's is
+  0), items and trinket, spells, keystone and secondary tree, grade, `isMe`. Your listed games come
   from the client (the same read as their grades, cached); any other game from
   `GET /v1/matches/{platform}/{matchId}` (the backend's match cache); failures aren't cached.
 - **UI**: a match row is a button (`aria-expanded`) with the grade chip (`GradeChip`, the tier
@@ -260,15 +323,28 @@ The Tier list and Champions pages read the published stats through the core only
   skill max order and first points (keycaps), items (starting, core in order, boots, 4th/5th/6th),
   every option with win rate, games and pick share; matchups best/worst by the shrunk effect `d`
   (lane, vs jungler, duos; rows open the other champion). ARAM: no roles, no bans, no matchups.
-  `/champions` without an id is a searchable grid with each champion's tier, built a slice at a
-  time (`lib/progressive.ts`: 40 tiles with the view, 40 more whenever the page is idle, again
-  from the start when a filter changes; `aria-busy` meanwhile): switching to it doesn't wait for
-  ~170 tiles, the first screen shows at once.
+- **Champion list** (`/champions` without an id; `lib/champion-grid.ts`, `views/champions/ChampionGrid.tsx`):
+  every champion as a tile (icon, name, and the number it's sorted by). A role shows the champions
+  with a tier-list row in it, so one played in two roles is in both (the tier list's role filter,
+  shared and remembered); "all" takes each champion's most played role for its tier and adds its
+  roles up for its pick rate. Sorted by tier (default), pick rate or name, the choice remembered in
+  `localStorage["mvp.champion-sort.v1"]`; by tier, groups read like a tier list (the letter and
+  the group's size in a column left of its tiles, sticky while the group scrolls by, champions
+  with too few games last) and tiles leave their badge to the heading. The field filters as you
+  type (fuzzy, best match first, ungrouped; Enter opens the first; the sort waits, dimmed, until
+  the field is empty). Without stats (offline, nothing published) the page still works: one line
+  says why ("Try again" ending it when that can help), the role and sort go away and the
+  champions are grouped by Data Dragon class. The grid is built a slice at a time
+  (`lib/progressive.ts`: 36 tiles with the view, 36 more whenever the page is idle, again from the
+  start when a filter changes; `aria-busy` meanwhile; a group shows once some of its tiles are
+  built): switching to it doesn't wait for ~170 tiles, the first screen shows at once.
 - **Runes** come from `GameData.runes` (Data Dragon `runesReforged.json`, cached with the patch;
   icons under `artBase/img/…`). Stat shards (5001–5013) aren't in Data Dragon: `lib/runes.ts` names
   them and `design/RuneIcon.tsx` draws them as glyphs (no Riot art).
 - **Controls**: `design/Segmented.tsx` is the radio group used for every filter and tab (one tab
-  stop, arrow keys, Home/End; the selection is a separate thumb element).
+  stop, arrow keys, Home/End; the selection is a separate thumb element). Not every choice should
+  look like a pill: the champion list's sort is the same group restyled as words with a gliding
+  accent bar (`.sortTabs` in `Champions.module.css`).
 - **For later**: `views/champions/BuildSummary.tsx` (keystone + secondary tree, spells, max order,
   core items) is ready for the Live page (the local player's champion and role, the game's queue);
   an "Import" action (rune page, item set: HANDOFF job 5) belongs in the Runes card header, next to

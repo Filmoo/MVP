@@ -5,6 +5,9 @@
 //! - `GET /v1/players/{platform}/{gameName}/{tagLine}` → `PlayerProfile`
 //! - `POST /v1/players/batch` (`ScoutRequest`: Riot IDs, or the older PUUIDs) → `ScoutCard[]`
 //!   for loading-screen scouting
+//! - `GET /v1/live/{platform}/{gameName}/{tagLine}?gameId=` → `ActiveGame`: the game a player
+//!   is in as Riot shows it (Spectator-V5, streamer-mode players anonymous), with the cards of
+//!   its visible players (see `live`)
 //! - `GET /v1/matches/{platform}/{matchId}` → `MatchDetails`: one finished game in full, with
 //!   every player's grade (from the match cache the profiles fill)
 //! - `GET /v1/stats/index` → `StatsIndex`; `GET /v1/stats/{patch}/{queue}/{file…}` → the
@@ -21,6 +24,7 @@
 
 mod cache;
 mod error;
+mod live;
 mod source;
 mod stats_files;
 
@@ -67,7 +71,7 @@ use axum::{Json, Router};
 use domain::{Health, MatchDetails, PlayerProfile, RiotId, ScoutCard, ScoutRequest};
 use futures_util::future::join_all;
 use players::RiotSource as _;
-use riot_api::{ApiKey, Config, Platform, RiotClient, RiotError};
+use riot_api::{Account, ApiKey, Config, Platform, RiotClient, RiotError};
 use tower_http::cors::{AllowOrigin, CorsLayer};
 
 pub use cache::Cache;
@@ -146,6 +150,8 @@ struct Inner {
     /// Keyed by platform and lower-cased Riot ID.
     profiles: Cache<(Platform, String, String), PlayerProfile>,
     cards: Cache<(Platform, String), ScoutCard>,
+    /// Live games by each visible player's PUUID (our key's), for the game's duration.
+    live: Cache<(Platform, String), Arc<live::LiveEntry>>,
     stats_dir: Option<PathBuf>,
 }
 
@@ -165,6 +171,7 @@ impl AppState {
             riot: riot.map(CachedRiot::new),
             profiles: Cache::new(Some(PROFILE_TTL), PROFILES_MAX),
             cards: Cache::new(Some(CARD_TTL), CARDS_MAX),
+            live: Cache::new(Some(live::LIVE_TTL), live::LIVE_MAX),
             stats_dir,
         }))
     }
@@ -211,6 +218,10 @@ pub fn app(state: AppState, allowed_origins: &[String]) -> Router {
             get(player_profile),
         )
         .route("/v1/players/batch", post(scout_batch))
+        .route(
+            "/v1/live/{platform}/{game_name}/{tag_line}",
+            get(live::live_game),
+        )
         .route("/v1/matches/{platform}/{match_id}", get(match_details))
         .route("/v1/stats/index", get(stats_files::index))
         .route("/v1/stats/{patch}/{queue}/{*file}", get(stats_files::file))
@@ -238,21 +249,30 @@ async fn with_timeout<T>(fut: impl Future<Output = Result<T, RiotError>>) -> Res
     }
 }
 
+/// A Riot ID from path segments (`…/{gameName}/{tagLine}`), trimmed and bounded.
+fn riot_id_in_path(game_name: &str, tag_line: &str) -> Result<RiotId, Failure> {
+    let (game_name, tag_line) = (game_name.trim(), tag_line.trim());
+    if game_name.is_empty() || tag_line.is_empty() || game_name.len() > 64 || tag_line.len() > 16 {
+        return Err(Failure::bad_request("expected a Riot ID: gameName/tagLine"));
+    }
+    Ok(RiotId {
+        game_name: game_name.to_owned(),
+        tag_line: tag_line.to_owned(),
+    })
+}
+
 async fn player_profile(
     State(state): State<AppState>,
     Path((platform_id, game_name, tag_line)): Path<(String, String, String)>,
 ) -> Result<Json<PlayerProfile>, Failure> {
     let platform = platform(&platform_id)?;
-    let (game_name, tag_line) = (game_name.trim(), tag_line.trim());
-    if game_name.is_empty() || tag_line.is_empty() || game_name.len() > 64 || tag_line.len() > 16 {
-        return Err(Failure::bad_request("expected a Riot ID: gameName/tagLine"));
-    }
+    let riot_id = riot_id_in_path(&game_name, &tag_line)?;
     let riot = state.riot()?;
-    let riot_id = RiotId {
-        game_name: game_name.to_owned(),
-        tag_line: tag_line.to_owned(),
-    };
-    let key = (platform, game_name.to_lowercase(), tag_line.to_lowercase());
+    let key = (
+        platform,
+        riot_id.game_name.to_lowercase(),
+        riot_id.tag_line.to_lowercase(),
+    );
     let profile = with_timeout(state.0.profiles.get_or_try_insert(key, || async {
         players::fetch_profile(riot, platform, &riot_id, PROFILE_GAMES)
             .await
@@ -370,46 +390,60 @@ fn wanted(request: ScoutRequest) -> Result<Vec<Wanted>, Failure> {
     Ok(out)
 }
 
-/// One player's card; `None` when our key doesn't know them.
+/// A card as a batch answers it: `None` for nobody by that Riot ID, or a PUUID our key can't
+/// read (another key's, or the League client's: Riot answers 400 when it can't decrypt it).
+fn known(card: Result<ScoutCard, RiotError>) -> Result<Option<ScoutCard>, RiotError> {
+    match card {
+        Ok(card) => Ok(Some(card)),
+        Err(RiotError::NotFound | RiotError::Unavailable(400)) => Ok(None),
+        Err(e) => Err(e),
+    }
+}
+
+/// The card of an account already looked up (built once per 2 minutes, shared by every
+/// caller); `None` when Riot doesn't know the player.
+async fn card_for(
+    state: &AppState,
+    riot: &CachedRiot,
+    platform: Platform,
+    account: Account,
+) -> Result<Option<ScoutCard>, RiotError> {
+    known(
+        state
+            .0
+            .cards
+            .get_or_try_insert((platform, account.puuid.clone()), || {
+                players::fetch_scout_card_for(riot, platform, account)
+            })
+            .await,
+    )
+}
+
+/// One player's card; `None` when our key doesn't know them (the others still come).
 async fn scout_one(
     state: &AppState,
     riot: &CachedRiot,
     platform: Platform,
     wanted: &Wanted,
 ) -> Result<Option<ScoutCard>, RiotError> {
-    let card = match wanted {
-        Wanted::Puuid(puuid) if client_puuid(puuid) => return Ok(None),
-        Wanted::Puuid(puuid) => {
+    match wanted {
+        Wanted::Puuid(puuid) if client_puuid(puuid) => Ok(None),
+        Wanted::Puuid(puuid) => known(
             state
                 .0
                 .cards
                 .get_or_try_insert((platform, puuid.clone()), || {
                     players::fetch_scout_card(riot, platform, puuid)
                 })
-                .await
-        }
+                .await,
+        ),
         Wanted::RiotId(id) => match riot
             .account_by_riot_id(platform, &id.game_name, &id.tag_line)
             .await
         {
-            Ok(account) => {
-                state
-                    .0
-                    .cards
-                    .get_or_try_insert((platform, account.puuid.clone()), || {
-                        players::fetch_scout_card_for(riot, platform, account)
-                    })
-                    .await
-            }
-            Err(e) => Err(e),
+            Ok(account) => card_for(state, riot, platform, account).await,
+            Err(e) => known(Err(e)),
         },
-    };
-    match card {
-        Ok(card) => Ok(Some(card)),
-        // Nobody by that Riot ID, or a PUUID our key can't read (another key's, or the League
-        // client's: Riot answers 400 when it can't decrypt it). No card, the others still come.
-        Err(RiotError::NotFound | RiotError::Unavailable(400)) => Ok(None),
-        Err(e) => Err(e),
     }
 }
 

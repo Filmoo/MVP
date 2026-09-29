@@ -1,11 +1,16 @@
 //! `cargo run -p mock-lcu` — a fake League client for developing the app without League.
 //!
-//! Writes `.cache/mock-lcu/{lockfile,ca.pem}` and loops through a whole game cycle
+//! Writes `.cache/mock-lcu/{lockfile,ca.pem,game-client}` and loops through a whole game cycle
 //! (lobby → queue → champ select → game → end of game), with a game session from the loading
-//! screen on (loading-screen scouting). The local player has champion mastery, recent games and
-//! a pickable-champion list, which the draft helper builds its pool-first picks from. Point a
-//! debug build of the app at it:
-//!   SCOUT_LCU_LOCKFILE=.cache/mock-lcu/lockfile SCOUT_LCU_CA=.cache/mock-lcu/ca.pem pnpm app
+//! screen on (loading-screen scouting) in the real client's shape: nobody named but the local
+//! player (through `current-summoner`). The game's own Live Client Data API is played too, on
+//! another port: it answers 6 s into the game with everyone's Riot ID, one enemy in streamer
+//! mode. The local player has champion mastery, recent games and a pickable-champion list,
+//! which the draft helper builds its pool-first picks from. Point a debug build of the app at it:
+//! ```sh
+//! SCOUT_LCU_LOCKFILE=.cache/mock-lcu/lockfile SCOUT_LCU_CA=.cache/mock-lcu/ca.pem \
+//!   SCOUT_GAME_CLIENT=$(cat .cache/mock-lcu/game-client) pnpm app
+//! ```
 //!
 //! The player has rune pages (two presets, two of their own, room for one more), item sets and
 //! Flash on F in their recent games (each whole game served too: grades and match details); in champion select they lock in, then finalization runs,
@@ -39,11 +44,14 @@ const CYCLE: &[(&str, u64)] = &[
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt().with_env_filter("info").init();
     let mock = MockLcu::start().await?;
+    let game = mock.start_game().await?;
     let dir = PathBuf::from(".cache/mock-lcu");
     std::fs::create_dir_all(&dir)?;
     std::fs::write(dir.join("lockfile"), mock.lockfile())?;
     std::fs::write(dir.join("ca.pem"), mock.ca_pem())?;
+    std::fs::write(dir.join("game-client"), game.url())?;
     tracing::info!(port = mock.port(), dir = %dir.display(), "mock League client running (Ctrl+C to stop)");
+    tracing::info!(url = game.url(), "the game's API (SCOUT_GAME_CLIENT)");
 
     mock.set(
         "/lol-summoner/v1/current-summoner",
@@ -112,6 +120,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             } else if *phase == "GameStart" {
                 mock.remove(CHAMP_SELECT);
                 mock.set(GAME_SESSION, game_session(queue));
+            } else if *phase == "InProgress" {
+                // The loading screen: the game's API answers once the game has loaded.
+                tokio::time::sleep(Duration::from_secs(GAME_LOADS_AFTER)).await;
+                game.set_players(&game_players());
+                tracing::info!("the game has loaded: its API lists the players");
+                tokio::time::sleep(Duration::from_secs(
+                    seconds.saturating_sub(GAME_LOADS_AFTER),
+                ))
+                .await;
+                continue;
+            } else if *phase == "WaitingForStats" {
+                game.clear();
             } else if *phase == "None" {
                 mock.remove(GAME_SESSION);
             }
@@ -122,17 +142,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 const CHAMP_SELECT: &str = "/lol-champ-select/v1/session";
 const GAME_SESSION: &str = "/lol-gameflow/v1/session";
+/// Seconds into `InProgress` before the game's API answers (the real one took 23 s).
+const GAME_LOADS_AFTER: u64 = 6;
 
-/// The game the draft led to, as the client shows it from the loading screen on: both teams
-/// with champions, positions and spells. One enemy plays in streamer mode (identity hidden).
-/// PUUIDs are made up, so a real backend answers without cards for them. `queue`: 420 (the
-/// Rift), 450 (ARAM) or 2400 (ARAM: Mayhem), both on Howling Abyss.
+/// The game the draft led to, as the client shows it from the loading screen on (the real
+/// client's shape, 2026-09): champions, positions and spells, the client's PUUIDs, and no
+/// names at all — only `current-summoner` names the local player. `queue`: 420 (the Rift),
+/// 450 (ARAM) or 2400 (ARAM: Mayhem), both on Howling Abyss.
 fn game_session(queue: u32) -> serde_json::Value {
-    let member = |puuid: &str, name: &str, champion: u32, position: &str| {
-        let (game_name, tag_line) = name.split_once('#').unwrap_or((name, ""));
-        json!({ "puuid": puuid, "gameName": game_name, "tagLine": tag_line, "championId": champion, "selectedPosition": position })
+    let member = |participant: u32, puuid: &str, champion: u32, position: &str| {
+        json!({ "championId": champion, "lastSelectedSkinIndex": 0, "profileIconId": 29, "puuid": puuid,
+                "selectedPosition": position, "selectedRole": format!("{position}.PRIMARY.{position}.UNSELECTED"),
+                "summonerId": 2_000_000 + participant, "summonerInternalName": "", "summonerName": "",
+                "teamOwner": false, "teamParticipantId": participant })
     };
-    let spells = |puuid: &str, champion: u32, spell1: u32, spell2: u32| json!({ "puuid": puuid, "championId": champion, "spell1Id": spell1, "spell2Id": spell2 });
+    let spells = |puuid: &str, champion: u32, spell1: u32, spell2: u32| json!({ "puuid": puuid, "championId": champion, "selectedSkinIndex": 0, "spell1Id": spell1, "spell2Id": spell2 });
     let (map, mode, kind) = match queue {
         history::MAYHEM_QUEUE => (12, "KIWI", "KIWI"),
         450 => (12, "ARAM", "ARAM_UNRANKED_5x5"),
@@ -145,33 +169,121 @@ fn game_session(queue: u32) -> serde_json::Value {
             "gameId": 7_100_000_001_u64,
             "queue": { "id": queue, "mapId": map, "gameMode": mode, "type": kind, "isRanked": queue == 420 },
             "teamOne": [
-                member("00000000-mock-0000-0000-000000000000", "Fillmo#7272", 54, "TOP"),
-                member("mock-ally-2", "Treeline Tom#EUW", 64, "JUNGLE"),
-                member("mock-ally-3", "Quiet Storm#0412", 103, "MIDDLE"),
-                member("mock-ally-4", "Lane Kingdom#EUW", 222, "BOTTOM"),
-                member("mock-ally-5", "Wardwalker#FR1", 412, "UTILITY")
+                member(1, "00000000-mock-0000-0000-000000000000", 54, "TOP"),
+                member(2, "5c1e0a52-2f0e-4c8e-9a41-7d1b3c9e0a02", 64, "JUNGLE"),
+                member(3, "5c1e0a52-2f0e-4c8e-9a41-7d1b3c9e0a03", 103, "MIDDLE"),
+                member(4, "5c1e0a52-2f0e-4c8e-9a41-7d1b3c9e0a04", 222, "BOTTOM"),
+                member(5, "5c1e0a52-2f0e-4c8e-9a41-7d1b3c9e0a05", 412, "UTILITY")
             ],
             "teamTwo": [
-                member("mock-enemy-1", "Blade Dancer#IRE", 39, "TOP"),
-                { "puuid": "", "championId": 234, "selectedPosition": "JUNGLE", "nameVisibilityType": "HIDDEN" },
-                member("mock-enemy-3", "Zed Is Life#1v9", 910, "MIDDLE"),
-                member("mock-enemy-4", "Crit Happens#ADC", 51, "BOTTOM"),
-                member("mock-enemy-5", "Hook City#BLTZ", 53, "UTILITY")
+                member(6, "5c1e0a52-2f0e-4c8e-9a41-7d1b3c9e0a06", 39, "TOP"),
+                member(7, "5c1e0a52-2f0e-4c8e-9a41-7d1b3c9e0a07", 234, "JUNGLE"),
+                member(8, "5c1e0a52-2f0e-4c8e-9a41-7d1b3c9e0a08", 910, "MIDDLE"),
+                member(9, "5c1e0a52-2f0e-4c8e-9a41-7d1b3c9e0a09", 51, "BOTTOM"),
+                member(10, "5c1e0a52-2f0e-4c8e-9a41-7d1b3c9e0a10", 53, "UTILITY")
             ],
             "playerChampionSelections": [
                 spells("00000000-mock-0000-0000-000000000000", 54, 4, 12),
-                spells("mock-ally-2", 64, 11, 4),
-                spells("mock-ally-3", 103, 4, 14),
-                spells("mock-ally-4", 222, 4, 7),
-                spells("mock-ally-5", 412, 4, 14),
-                spells("mock-enemy-1", 39, 12, 4),
-                spells("", 234, 11, 4),
-                spells("mock-enemy-3", 910, 4, 14),
-                spells("mock-enemy-4", 51, 4, 21),
-                spells("mock-enemy-5", 53, 4, 14)
+                spells("5c1e0a52-2f0e-4c8e-9a41-7d1b3c9e0a02", 64, 11, 4),
+                spells("5c1e0a52-2f0e-4c8e-9a41-7d1b3c9e0a03", 103, 4, 14),
+                spells("5c1e0a52-2f0e-4c8e-9a41-7d1b3c9e0a04", 222, 4, 7),
+                spells("5c1e0a52-2f0e-4c8e-9a41-7d1b3c9e0a05", 412, 4, 14),
+                spells("5c1e0a52-2f0e-4c8e-9a41-7d1b3c9e0a06", 39, 12, 4),
+                spells("5c1e0a52-2f0e-4c8e-9a41-7d1b3c9e0a07", 234, 11, 4),
+                spells("5c1e0a52-2f0e-4c8e-9a41-7d1b3c9e0a08", 910, 4, 14),
+                spells("5c1e0a52-2f0e-4c8e-9a41-7d1b3c9e0a09", 51, 4, 21),
+                spells("5c1e0a52-2f0e-4c8e-9a41-7d1b3c9e0a10", 53, 4, 14)
             ]
         }
     })
+}
+
+/// The same game as the game's own API lists it once loaded: invented Riot IDs, and the enemy
+/// jungler in streamer mode (the game shows their champion's name instead).
+fn game_players() -> Vec<serde_json::Value> {
+    use mock_lcu::game::player;
+    vec![
+        player(
+            Some("Fillmo#7272"),
+            "Malphite",
+            "ORDER",
+            "TOP",
+            ["SummonerFlash", "SummonerTeleport"],
+            false,
+        ),
+        player(
+            Some("Treeline Tom#EUW"),
+            "LeeSin",
+            "ORDER",
+            "JUNGLE",
+            ["SummonerSmite", "SummonerFlash"],
+            false,
+        ),
+        player(
+            Some("Quiet Storm#0412"),
+            "Ahri",
+            "ORDER",
+            "MIDDLE",
+            ["SummonerFlash", "SummonerDot"],
+            false,
+        ),
+        player(
+            Some("Lane Kingdom#EUW"),
+            "Jinx",
+            "ORDER",
+            "BOTTOM",
+            ["SummonerFlash", "SummonerHeal"],
+            false,
+        ),
+        player(
+            Some("Wardwalker#FR1"),
+            "Thresh",
+            "ORDER",
+            "UTILITY",
+            ["SummonerFlash", "SummonerDot"],
+            false,
+        ),
+        player(
+            Some("Blade Dancer#IRE"),
+            "Irelia",
+            "CHAOS",
+            "TOP",
+            ["SummonerTeleport", "SummonerFlash"],
+            false,
+        ),
+        player(
+            None,
+            "Viego",
+            "CHAOS",
+            "JUNGLE",
+            ["SummonerSmite", "SummonerFlash"],
+            false,
+        ),
+        player(
+            Some("Zed Is Life#1v9"),
+            "Hwei",
+            "CHAOS",
+            "MIDDLE",
+            ["SummonerFlash", "SummonerDot"],
+            false,
+        ),
+        player(
+            Some("Crit Happens#ADC"),
+            "Caitlyn",
+            "CHAOS",
+            "BOTTOM",
+            ["SummonerFlash", "SummonerBarrier"],
+            false,
+        ),
+        player(
+            Some("Hook City#BLTZ"),
+            "Blitzcrank",
+            "CHAOS",
+            "UTILITY",
+            ["SummonerFlash", "SummonerDot"],
+            false,
+        ),
+    ]
 }
 
 const SUMMONER_ID: u64 = 2_345_678;

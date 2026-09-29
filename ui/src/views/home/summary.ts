@@ -1,6 +1,20 @@
+import type { GradedMatch } from "../../data/generated/GradedMatch";
 import type { MatchSummary } from "../../data/generated/MatchSummary";
 import type { Role } from "../../data/generated/Role";
 import { REMAKE_MAX_SECONDS } from "../../lib/format";
+
+/**
+ * `matches` with the role each whole game gave (`late`: the core's answers for your own games,
+ * read after the list): the list only guesses roles, the grades use the whole game's. Rows the
+ * core hasn't read, or read without a role, keep theirs.
+ */
+export function withLateRoles(matches: MatchSummary[], late: ReadonlyMap<string, GradedMatch> | undefined): MatchSummary[] {
+  if (!late) return matches;
+  return matches.map((m) => {
+    const role = late.get(m.matchId)?.role;
+    return role && role !== m.role ? { ...m, role } : m;
+  });
+}
 
 export interface ChampionLine {
   championId: number;

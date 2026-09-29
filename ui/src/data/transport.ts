@@ -27,11 +27,20 @@ import type { ViewRoute } from "./generated/ViewRoute";
 /** Commands answered by the core. Keep in sync with `apps/desktop/src/commands.rs`. */
 export interface Commands {
   app_info: { args: undefined; result: AppInfo };
+  /**
+   * The League client's connection and phase (`client-status` events follow): `notAnswering`
+   * while it is up but doesn't answer requests (the core asks it again by itself).
+   */
   client_status: { args: undefined; result: ClientStatus };
-  /** Your profile from the League client; games already read whole carry their grade. */
+  /**
+   * Your profile from the League client (`null` while it isn't running); games already read
+   * whole carry their grade. Rejects with a `ClientError` as the error's `detail`
+   * (`notAnswering`: no answer at all).
+   */
   current_profile: { args: undefined; result: PlayerProfile | null };
   /**
-   * Your grade in each of your listed games (`current_profile`'s ids): the core reads each game
+   * Your grade in each of your listed games (`current_profile`'s ids), and the role you played
+   * there as worked out from the whole game (the list only guesses it): the core reads each game
    * whole from the League client once, a few at a time. Remakes, modes without two teams of five
    * and ids that aren't your listed games answer `grade: null` (the last without any read).
    */

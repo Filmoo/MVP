@@ -30,6 +30,7 @@ use domain::{
 };
 use imports::{BuildSource, ChampionNames, Importer, LockIn, NoBuilds};
 use lcu::{ConnectionState, ConnectorConfig, ConnectorUpdate, EventKind, LcuClient};
+use live::{GameClient, GameIds, LiveConfig, NoGameIds};
 use tokio::sync::{mpsc, watch};
 
 use crate::stats::StatsClient;
@@ -55,6 +56,7 @@ const fn map_connection(state: ConnectionState) -> ClientConnection {
         ConnectionState::NotRunning => ClientConnection::NotRunning,
         ConnectionState::Connecting => ClientConnection::Connecting,
         ConnectionState::Connected => ClientConnection::Connected,
+        ConnectionState::NotAnswering => ClientConnection::NotAnswering,
     }
 }
 
@@ -99,6 +101,11 @@ pub struct Services {
     /// The UI's language (`auto` resolved by the UI), for the words MVP writes into the League
     /// client (its item set's block titles). English until the UI says.
     pub language: watch::Receiver<Language>,
+    /// Where the players of a game are named when Riot's live game has none: the game's own
+    /// API ([`LiveConfig::for_the_game`] in the app; never asked by default).
+    pub live: LiveConfig,
+    /// Champion and spell ids of the names the game uses (its player list).
+    pub game_ids: Arc<dyn GameIds>,
     /// ARAM: Mayhem data; with a backend, the player's Mayhem games are shared when they opted
     /// in (`None`: no sharing).
     pub mayhem: Option<mayhem::MayhemClient>,
@@ -113,6 +120,8 @@ impl Default for Services {
             builds: Arc::new(NoBuilds),
             names: Arc::new(|_| None),
             language: watch::channel(Language::En).1,
+            live: LiveConfig::default(),
+            game_ids: Arc::new(NoGameIds),
             mayhem: None,
         }
     }
@@ -125,6 +134,7 @@ impl std::fmt::Debug for Services {
             .field("remote", &*self.remote.borrow())
             .field("stats", &self.stats)
             .field("language", &*self.language.borrow())
+            .field("live", &self.live)
             .finish_non_exhaustive()
     }
 }
@@ -149,16 +159,44 @@ impl ScoutingHandle {
     }
 }
 
-/// Follows the game from the loading screen to the end: one scouting task per game.
+/// Follows the game from the loading screen to the end: one scouting task per game. Nothing
+/// runs outside a game: the task (and its questions to the game's API) ends with it.
 struct LiveFollower {
     tx: watch::Sender<Option<LiveGame>>,
     backend: Option<BackendClient>,
     /// The `scouting` feature flag can turn lookups off.
     remote: watch::Receiver<RemoteConfig>,
+    /// The game's own API (`None`: not asked).
+    game: Option<GameClient>,
+    game_ids: Arc<dyn GameIds>,
+    riot_retry: std::time::Duration,
     task: Option<JoinHandle<()>>,
 }
 
 impl LiveFollower {
+    /// `tls`: the League client's, which the game's own API serves on too.
+    fn new(
+        tx: watch::Sender<Option<LiveGame>>,
+        services: &Services,
+        tls: &Arc<rustls::ClientConfig>,
+    ) -> Self {
+        let config = &services.live;
+        let game = config.game_client.as_deref().and_then(|url| {
+            GameClient::new(url, config.game_poll, Arc::clone(tls))
+                .inspect_err(|error| tracing::error!(%error, "cannot build the game API client"))
+                .ok()
+        });
+        Self {
+            tx,
+            backend: services.backend.clone(),
+            remote: services.remote.clone(),
+            game,
+            game_ids: Arc::clone(&services.game_ids),
+            riot_retry: config.riot_retry,
+            task: None,
+        }
+    }
+
     const fn in_game(phase: GameflowPhase) -> bool {
         matches!(phase, GameflowPhase::Loading | GameflowPhase::InGame)
     }
@@ -174,17 +212,19 @@ impl LiveFollower {
         // Loading → in game: same game. Read again only if the first read found nothing.
         let running = self.task.as_ref().is_some_and(|t| !t.is_finished());
         if !running && self.tx.borrow().is_none() {
-            self.spawn(client);
+            self.spawn(client, None);
         }
     }
 
+    /// Asks again for what's missing: the cards when the names are in, else everything.
     fn retry(&mut self, phase: GameflowPhase, client: &watch::Receiver<Option<LcuClient>>) {
         if Self::in_game(phase) {
-            self.spawn(client);
+            let previous = self.tx.borrow().clone();
+            self.spawn(client, previous);
         }
     }
 
-    fn spawn(&mut self, client: &watch::Receiver<Option<LcuClient>>) {
+    fn spawn(&mut self, client: &watch::Receiver<Option<LcuClient>>, previous: Option<LiveGame>) {
         if let Some(task) = self.task.take() {
             task.abort();
         }
@@ -192,10 +232,17 @@ impl LiveFollower {
             return;
         };
         let lookups = self.remote.borrow().features.scouting;
+        let sources = live::Sources {
+            backend: self.backend.clone().filter(|_| lookups),
+            game: self.game.clone(),
+            ids: Arc::clone(&self.game_ids),
+            riot_retry: self.riot_retry,
+        };
         self.task = Some(tokio::spawn(live::scout_game(
             lcu,
-            self.backend.clone().filter(|_| lookups),
+            sources,
             self.tx.clone(),
+            previous,
         )));
     }
 }
@@ -282,6 +329,8 @@ pub fn start_with_services(
     mut settings: watch::Receiver<Settings>,
     services: Services,
 ) -> Companion {
+    let (live_tx, live) = watch::channel(None);
+    let mut game = LiveFollower::new(live_tx, &services, &config.tls);
     let Services {
         backend,
         mut remote,
@@ -290,17 +339,19 @@ pub fn start_with_services(
         names,
         language,
         mayhem,
+        ..
     } = services;
     follow_champ_select(&mut config);
     let mut connector = lcu::spawn(config);
     let client = connector.client.clone();
     let (tx, status) = watch::channel(ClientStatus::not_running());
+    // Your games' roles are worked out with the champions' published role shares.
+    let insights = matches::MatchInsights::new(stats.clone());
     // Sessions as mapped (teams only) → the draft helper → the UI.
     let helper = draft::spawn(client.clone(), stats, remote.clone(), settings.clone());
     let draft = helper.views.clone();
     let (events_tx, events) = mpsc::channel(32);
     let (views_tx, mut views_rx) = mpsc::unbounded_channel::<String>();
-    let (live_tx, live) = watch::channel(None);
     let (retry_tx, mut retry_rx) = mpsc::unbounded_channel::<()>();
     let lcu_client = client.clone();
     let importer = Importer::new(
@@ -313,22 +364,9 @@ pub fn start_with_services(
         language,
     );
     let mut lock_in = LockIn::new(importer.clone(), events_tx.clone());
-    let sharing = spawn_sharing(
-        backend.clone(),
-        mayhem,
-        &client,
-        &status,
-        &settings,
-        &remote,
-    );
+    let sharing = spawn_sharing(backend, mayhem, &client, &status, &settings, &remote);
     let task = tokio::spawn(async move {
         let mut autopilot = Autopilot::default();
-        let mut game = LiveFollower {
-            tx: live_tx,
-            backend,
-            remote: remote.clone(),
-            task: None,
-        };
         let mut accept = AutoAccept {
             client: lcu_client.clone(),
             settings: settings.clone(),
@@ -386,7 +424,7 @@ pub fn start_with_services(
         events,
         views: ViewReporter(views_tx),
         imports: importer,
-        matches: matches::MatchInsights::default(),
+        matches: insights,
         task,
     }
 }
@@ -474,7 +512,11 @@ fn apply(status: &mut ClientStatus, update: &ConnectorUpdate) -> bool {
     match update {
         ConnectorUpdate::State(state) => {
             status.connection = map_connection(*state);
-            if *state != ConnectionState::Connected {
+            // A client that doesn't answer requests still sends its events: the game goes on.
+            if !matches!(
+                state,
+                ConnectionState::Connected | ConnectionState::NotAnswering
+            ) {
                 status.phase = GameflowPhase::Idle;
             }
         }
@@ -533,5 +575,32 @@ mod tests {
             &mut status,
             &ConnectorUpdate::State(ConnectionState::NotRunning)
         ));
+    }
+
+    #[test]
+    fn a_client_not_answering_keeps_its_phase() {
+        let mut status = ClientStatus::not_running();
+        apply(
+            &mut status,
+            &ConnectorUpdate::State(ConnectionState::Connected),
+        );
+        apply(&mut status, &ConnectorUpdate::Phase("InProgress".into()));
+        assert!(apply(
+            &mut status,
+            &ConnectorUpdate::State(ConnectionState::NotAnswering)
+        ));
+        assert_eq!(
+            status,
+            ClientStatus {
+                connection: ClientConnection::NotAnswering,
+                phase: GameflowPhase::InGame,
+            },
+            "events still flow: the game goes on"
+        );
+        assert!(apply(
+            &mut status,
+            &ConnectorUpdate::State(ConnectionState::Connected)
+        ));
+        assert_eq!(status.phase, GameflowPhase::InGame);
     }
 }

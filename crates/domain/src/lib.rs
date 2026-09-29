@@ -22,7 +22,7 @@ mod stats;
 mod update;
 
 pub use backend::{ApiError, ApiErrorCode, BackendError, Health};
-pub use client::{AppInfo, ClientConnection, ClientStatus, GameflowPhase};
+pub use client::{AppInfo, ClientConnection, ClientError, ClientStatus, GameflowPhase};
 pub use draft::{
     CompMember, CompReading, Compositions, DamageMix, DataInfo, DraftPhase, DraftSlot, DraftView,
     Estimate, GameMode, Mastery, PersonalRecord, Reason, ReasonKind, RoleOdds, Suggestion,
@@ -35,7 +35,7 @@ pub use imports::{
     FailReason, FlashKey, FlashNote, ImportMode, ImportOutcome, ImportPart, ImportRequest,
     ImportResult, PartResult, SkipReason, SpellKey,
 };
-pub use live::{LiveGame, LivePlayer, Scouting};
+pub use live::{ActiveGame, ActiveParticipant, LiveGame, LiveNames, LivePlayer, Scouting};
 pub use matches::{
     GradeBadge, GradeFactor, GradeFactorKind, GradeLetter, GradedMatch, MatchDetails, MatchGrade,
     MatchPlayer, MatchTeam,
