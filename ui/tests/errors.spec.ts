@@ -321,21 +321,27 @@ test("only ARAM published: ranked says so, ARAM shows its tier list", async ({ p
   expect(errors).toEqual([]);
 });
 
-// An opened game: it fails in its sheet (its head still says which game), nothing else does.
+// An opened game: it fails in its window (its head still says which game), nothing else does,
+// not even its neighbours.
 const firstGame = (page: Page) => page.locator("[data-testid=match-row] > button").first();
+const current = (page: Page) => page.locator("[data-testid=game-window][data-current]");
 
 test("an opened game that can't load: its error in place, and a retry asks again", async ({ page, t }) => {
   const errors = trackErrors(page);
   await openApp(page, { scenario: "match-details-error" });
   await firstGame(page).click();
-  const sheet = page.getByTestId("game-sheet");
-  const alert = sheet.getByRole("alert");
+  const alert = current(page).getByRole("alert");
   await expect(alert).toContainText(t.players.network.title);
   await expect(alert).toContainText(t.players.network.text);
-  await expect(sheet.getByRole("heading", { level: 2 })).toContainText(t.matches.outcome.win);
+  await expect(current(page).getByRole("heading", { level: 2 })).toContainText(t.matches.outcome.win);
+  // No tabs for a game that can't show.
+  await expect(current(page).getByTestId("game-tabs")).toHaveCount(0);
+  const asked = () => page.evaluate(() => window.__SCOUT_MOCK__?.calls.filter((c) => c === "match_details").length);
+  // Its window and its neighbour below: two games asked for, each failing in its own window.
+  await expect.poll(asked).toBe(2);
   await alert.getByRole("button", { name: t.common.tryAgain }).click();
-  await expect.poll(() => page.evaluate(() => window.__SCOUT_MOCK__?.calls.filter((c) => c === "match_details").length)).toBe(2);
-  await expect(sheet.getByTestId("game-stats")).toHaveCount(0);
+  await expect.poll(asked).toBe(3);
+  await expect(current(page).getByTestId("game-stats")).toHaveCount(0);
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("match-row").nth(1)).toBeVisible();
   expect(errors).toEqual([]);
@@ -345,7 +351,7 @@ test("a game that isn't there anymore says so, without a retry", async ({ page, 
   const errors = trackErrors(page);
   await openApp(page, { scenario: "match-details-gone" });
   await firstGame(page).click();
-  const alert = page.getByTestId("game-sheet").getByRole("alert");
+  const alert = current(page).getByRole("alert");
   await expect(alert).toContainText(t.matchDetails.errors.notFound);
   await expect(alert.getByRole("button", { name: t.common.tryAgain })).toHaveCount(0);
   expect(errors).toEqual([]);
@@ -355,7 +361,7 @@ test("MVP's server can't open games right now: says so, with a retry", async ({ 
   const errors = trackErrors(page);
   await openApp(page, { scenario: "match-details-unavailable" });
   await firstGame(page).click();
-  const alert = page.getByTestId("game-sheet").getByRole("alert");
+  const alert = current(page).getByRole("alert");
   await expect(alert).toContainText(t.matchDetails.errors.title);
   await expect(alert).toContainText(t.matchDetails.errors.unavailable);
   await expect(alert.getByRole("button", { name: t.common.tryAgain })).toBeVisible();
@@ -366,15 +372,17 @@ test("a slow game: its head at once, a skeleton the tables' height, then the tab
   const errors = trackErrors(page);
   await openApp(page, { scenario: "match-details-slow" });
   await firstGame(page).click();
-  const sheet = page.getByTestId("game-sheet");
-  await expect(sheet.getByRole("heading", { level: 2 })).toContainText(t.matches.outcome.win);
-  const skeleton = sheet.locator("[data-widget=match-details] [data-state=loading]");
+  await expect(current(page).getByRole("heading", { level: 2 })).toContainText(t.matches.outcome.win);
+  // Its grade and LP too, from the row.
+  await expect(current(page).getByTestId("game-grade")).toBeVisible();
+  const skeleton = current(page).locator("[data-widget=match-details] [data-state=loading]");
   await expect(skeleton).toBeVisible();
   const loading = await skeleton.boundingBox();
-  await expect(sheet.getByTestId("game-player")).toHaveCount(10, { timeout: 5_000 });
-  const loaded = await sheet.locator("[data-widget=match-details]").boundingBox();
-  // Measured through the sheet's rise: a transformed box is off by a hair.
+  await expect(current(page).getByTestId("game-player")).toHaveCount(10, { timeout: 5_000 });
+  const loaded = await current(page).locator("[data-widget=match-details]").boundingBox();
+  // Measured through the stack's rise: a transformed box is off by a hair.
   expect(loaded?.height, "the teams' height, loading then loaded").toBeCloseTo(loading?.height ?? 0, 0);
-  await expect(sheet.getByTestId("game-stats")).toBeVisible();
+  await current(page).getByTestId("game-tabs").getByRole("radio").nth(1).click();
+  await expect(current(page).getByTestId("game-stats")).toBeVisible();
   expect(errors).toEqual([]);
 });

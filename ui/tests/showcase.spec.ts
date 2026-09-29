@@ -6,6 +6,7 @@ import { FIXTURE_NOW } from "../src/data/mock/fixtures";
 import { lockInImport, tradedWarning } from "../src/data/mock/import-fixtures";
 import type { ScenarioName } from "../src/data/mock/scenarios";
 import { animationsDone, openApp, settle, test, VIEWS } from "./app";
+import { current, notches, rows, stack, toEdge } from "./stack";
 
 // Screenshots for human/UI-agent review. Not asserted: layout, coherence and
 // error specs are the gates. Output: reports/screenshots/<view>-<scenario>-<size>.png
@@ -550,59 +551,78 @@ for (const lang of ["en", "fr"] as const) {
   });
 }
 
-// Match rows: an opened game in its sheet over the page (its top, its end-of-game stats, pulled
-// past its end by the wheel), a grade's why, and the game's other states, in English and French
-// (`fr-…`). `row`: which row, newest first.
+// Match rows: the stack of opened games over the page (a game's window at its top, its end-of-game
+// stats, pulled on toward the next game, pulled past the newest to close, older games on their
+// way), a grade's why, and the game's other states, in English and French (`fr-…`). `row`: which
+// row, newest first (the third has a neighbour peeking at each edge).
 async function gameShot(
   page: Page,
   name: string,
-  opts: { scenario?: ScenarioName; view?: string; width: number; height: number; row?: number; part?: "top" | "stats" | "pull" },
+  opts: {
+    scenario?: ScenarioName;
+    view?: string;
+    width: number;
+    height: number;
+    row?: number;
+    part?: "top" | "details" | "pull" | "close" | "older";
+  },
 ) {
-  // Two settles and a sheet's worth of images: more than 30 s on a busy machine.
+  // Two settles and three windows' worth of images: more than 30 s on a busy machine.
   test.slow();
   await openApp(page, { scenario: opts.scenario ?? "default", view: opts.view ?? "/", width: opts.width, height: opts.height });
-  await page
-    .locator("[data-testid=match-row] > button")
+  await rows(page)
     .nth(opts.row ?? 0)
     .click();
-  const sheet = page.getByTestId("game-sheet");
   const path = `${OUT}/${name}-${opts.width}x${opts.height}.png`;
   if (opts.scenario === "match-details-slow") {
     // Still loading: its head and the skeleton, once it has risen in (the skeleton pulses for good).
-    await sheet.locator("[data-state=loading]").first().waitFor();
-    await page.getByTestId("game").evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
+    await current(page).locator("[data-state=loading]").first().waitFor();
+    await stack(page)
+      .locator("div")
+      .first()
+      .evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
     await page.mouse.move(0, 0);
     await page.screenshot({ path });
     return;
   }
-  await sheet.locator("[data-testid=game-player], [role=alert]").first().waitFor();
+  await current(page).locator("[data-testid=game-player], [role=alert]").first().waitFor();
   await settle(page);
   await animationsDone(page);
-  if (opts.part === "stats") {
-    await sheet.locator("[data-widget=match-stats]").evaluate((el) => el.scrollIntoView({ block: "start" }));
+  if (opts.part === "details") {
+    await current(page).getByTestId("game-tabs").getByRole("radio").nth(1).click();
+    await current(page).getByTestId("game-stats").waitFor();
+    await animationsDone(page);
   }
-  if (opts.part !== "pull") {
+  if (opts.part === "older") {
+    // The last game loaded, pulled on: older games on their way.
+    await page.keyboard.press("End");
+    await animationsDone(page);
+  }
+  if (!opts.part || opts.part === "top" || opts.part === "details") {
     await page.mouse.move(0, 0);
     await page.screenshot({ path });
     return;
   }
-  // Scrolled to its end, then two notches on (at once: a busy machine spaces awaited ones out):
-  // the sheet follows, the hint shows. Captured before it springs back, else again.
-  await sheet.getByTestId("game-body").evaluate((el) => {
-    el.scrollTop = el.scrollHeight;
-  });
-  const box = await page.getByTestId("game").boundingBox();
-  const at = { x: (box?.x ?? 0) + (box?.width ?? 0) / 2, y: (box?.y ?? 0) + (box?.height ?? 0) / 2 };
-  await page.mouse.move(at.x, at.y);
-  const cdp = await page.context().newCDPSession(page);
+  // Pulled past an edge by two notches (at once: a busy machine spaces awaited ones out): the
+  // stack follows, the hint says what more would do. Captured before it springs back, else again.
+  const up = opts.part === "close";
   for (let attempt = 0; attempt < 4; attempt++) {
-    await sheet.and(page.locator(":not([data-pulling])")).waitFor();
-    await page.waitForTimeout(300);
-    await Promise.all([0, 1].map(() => cdp.send("Input.dispatchMouseEvent", { type: "mouseWheel", ...at, deltaX: 0, deltaY: 100 })));
-    await sheet.and(page.locator("[data-pulling]")).waitFor();
+    await toEdge(page, up ? "top" : "end");
+    await notches(page, opts.part === "older" ? 2 : 1, up ? -100 : 100);
+    if (opts.part === "older") {
+      await stack(page).and(page.locator("[data-status]")).waitFor();
+      await page.mouse.move(0, 0);
+      await animationsDone(page);
+      await page.screenshot({ path });
+      return;
+    }
+    await stack(page).and(page.locator("[data-pulling]")).waitFor();
+    // Away from the game's hints (the pull holds a moment after the wheel stops).
+    await page.mouse.move(0, 0);
     await page.waitForTimeout(150);
     await page.screenshot({ path });
-    if (await sheet.and(page.locator("[data-pulling]")).count()) return;
+    if (await stack(page).and(page.locator("[data-pulling]")).count()) return;
+    await stack(page).and(page.locator(":not([data-pulling])")).waitFor();
   }
 }
 
@@ -628,8 +648,8 @@ for (const lang of ["en", "fr"] as const) {
       test(`${prefix}home game open ${width}x${height}`, async ({ page }) => {
         await gameShot(page, `${prefix}home-game-open`, { width, height, row: 2 });
       });
-      test(`${prefix}home game stats ${width}x${height}`, async ({ page }) => {
-        await gameShot(page, `${prefix}home-game-stats`, { width, height, row: 2, part: "stats" });
+      test(`${prefix}home game details ${width}x${height}`, async ({ page }) => {
+        await gameShot(page, `${prefix}home-game-details`, { width, height, row: 2, part: "details" });
       });
       test(`${prefix}home grade why ${width}x${height}`, async ({ page }) => {
         await whyShot(page, `${prefix}home-grade-why`, width, height, 1);
@@ -641,16 +661,22 @@ for (const lang of ["en", "fr"] as const) {
     test(`${prefix}home game pulled 1280x800`, async ({ page }) => {
       await gameShot(page, `${prefix}home-game-pulled`, { width: 1280, height: 800, row: 2, part: "pull" });
     });
-    // ARAM: Mayhem on a wide window: no roles, no vision column, no vision or monster stats.
+    test(`${prefix}home game pulled to close 1280x800`, async ({ page }) => {
+      await gameShot(page, `${prefix}home-game-pulled-to-close`, { width: 1280, height: 800, row: 0, part: "close" });
+    });
+    test(`${prefix}home game older games loading 1280x800`, async ({ page }) => {
+      await gameShot(page, `${prefix}home-game-older-loading`, { scenario: "history-more-slow", width: 1280, height: 800, part: "older" });
+    });
+    // ARAM: Mayhem on a wide window: no roles, no vision or monster stats.
     test(`${prefix}home game howling abyss 1920x1080`, async ({ page }) => {
       await gameShot(page, `${prefix}home-game-howling-abyss`, { scenario: "howling-abyss", width: 1920, height: 1080 });
     });
-    test(`${prefix}home game howling abyss stats 1920x1080`, async ({ page }) => {
-      await gameShot(page, `${prefix}home-game-howling-abyss-stats`, {
+    test(`${prefix}home game howling abyss details 1920x1080`, async ({ page }) => {
+      await gameShot(page, `${prefix}home-game-howling-abyss-details`, {
         scenario: "howling-abyss",
         width: 1920,
         height: 1080,
-        part: "stats",
+        part: "details",
       });
     });
     for (const scenario of ["match-details-error", "match-details-gone", "match-details-unavailable", "match-details-slow"] as const) {
@@ -662,12 +688,12 @@ for (const lang of ["en", "fr"] as const) {
     test(`${prefix}player game open 1280x800`, async ({ page }) => {
       await gameShot(page, `${prefix}player-game-open`, { view: "/player/euw1/Blade%20Dancer/IRE", width: 1280, height: 800 });
     });
-    test(`${prefix}player game stats 1280x800`, async ({ page }) => {
-      await gameShot(page, `${prefix}player-game-stats`, {
+    test(`${prefix}player game details 1280x800`, async ({ page }) => {
+      await gameShot(page, `${prefix}player-game-details`, {
         view: "/player/euw1/Blade%20Dancer/IRE",
         width: 1280,
         height: 800,
-        part: "stats",
+        part: "details",
       });
     });
   });
@@ -925,9 +951,9 @@ for (const lang of ["en", "fr"] as const) {
   });
 }
 
-// Home after a game and its history: the last game's summary (a win with its LP, a demotion, an
-// unknown LP, the LP on its way, ARAM), the filters (a champion, none left), older games
-// (loading, failed, the end), in English and French (`fr-…`).
+// Home after a game and its history: the game that just ended, open by itself (a win with its LP,
+// a demotion, an unknown LP, the LP on its way, ARAM), the filters (a champion, none left), older
+// games (loading, failed, the end), in English and French (`fr-…`).
 async function historyShot(page: Page, name: string, width: number, height: number, act: (page: Page) => Promise<void>) {
   await act(page);
   await page.mouse.move(0, 0);
@@ -962,9 +988,14 @@ for (const lang of ["en", "fr"] as const) {
         "post-game-lp-pending",
         "post-game-aram",
       ] as const) {
+        // The game that just ended opens by itself in the stack, its LP and your grade on top.
         test(`${prefix}home ${scenario} ${width}x${height}`, async ({ page }) => {
           await openApp(page, { scenario, width, height });
-          await capture(page, `${OUT}/${prefix}home-${scenario}-${width}x${height}.png`, width < 900);
+          await current(page).getByTestId("game-player").first().waitFor();
+          await settle(page);
+          await animationsDone(page);
+          await page.mouse.move(0, 0);
+          await page.screenshot({ path: `${OUT}/${prefix}home-${scenario}-${width}x${height}.png` });
         });
       }
       test(`${prefix}home history filtered empty ${width}x${height}`, async ({ page }) => {

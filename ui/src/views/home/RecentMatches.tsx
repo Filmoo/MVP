@@ -1,4 +1,4 @@
-import { type Accessor, createEffect, createSignal, For, type JSX, lazy, Show, Suspense } from "solid-js";
+import { type Accessor, createEffect, createSignal, For, type JSX, lazy, Show, Suspense, untrack } from "solid-js";
 import { useData } from "../../data/context";
 import type { GradedMatch } from "../../data/generated/GradedMatch";
 import type { LpGame } from "../../data/generated/LpGame";
@@ -13,14 +13,12 @@ import { groupByDay } from "../../lib/days";
 import { duration, kda, kdaRatio, perMinute, queueName, REMAKE_MAX_SECONDS, signedPoints, timeAgo } from "../../lib/format";
 import { GradeChip } from "./GradeChip";
 import styles from "./RecentMatches.module.css";
+import type { More } from "./stack";
 
 const ITEM_SLOTS = 6;
 
-/**
- * What an opened game, a grade's why and the last game's summary need (`GameSheet.tsx`,
- * `PostGame.tsx`), loaded on first use.
- */
-type Details = Pick<typeof import("./GameSheet") & typeof import("./PostGame"), "GameSheet" | "hint" | "PostGameCard">;
+/** What the stack of opened games and a grade's why need (`GameStack.tsx`), loaded on first use. */
+type Details = Pick<typeof import("./GameStack"), "GameStack" | "hint">;
 let load: () => Promise<Details>;
 let loading: Promise<Details> | undefined;
 
@@ -29,7 +27,25 @@ export function provideDetails(from: () => Promise<Details>): void {
   load = from;
 }
 export const chunk = () => (loading ??= load());
-const Sheet = lazy(() => chunk().then((m) => ({ default: m.GameSheet })));
+const Stack = lazy(() => chunk().then((m) => ({ default: m.GameStack })));
+
+/** The game that just ended (Home, from the core's summary until closed or the next game). */
+export interface LastGame {
+  matchId: string;
+  /** The client hasn't counted its LP yet. */
+  lpPending: boolean;
+  /** Its window opened by itself and was closed, or had no need to (the stack was open): once is enough. */
+  seen: () => void;
+}
+
+/** Older games of a history (Home): what there is to load, and loading them. */
+export interface OlderGames {
+  state: () => More;
+  load: () => void;
+}
+
+/** Games whose window opened by itself, this session: once per game. */
+const autoOpened = new Set<string>();
 
 /** DPM-style KDA coloring: perfect, great ≥ 5, good ≥ 3, poor < 1.5. */
 function kdaBand(value: number | null): string {
@@ -171,6 +187,10 @@ export function RecentMatches(props: {
   late?: LateGrades | undefined;
   /** The LP each game was worth, when known (your ranked games). */
   lp?: ((matchId: string) => LpGame | undefined) | undefined;
+  /** The game that just ended: its window opens by itself, once. */
+  lastGame?: LastGame | undefined;
+  /** Older games: the stack loads them when pulled past its last game. */
+  more?: OlderGames | undefined;
   /** Above the list: the history's filters. */
   filters?: JSX.Element;
   /** Instead of the empty state: when filters leave no game. */
@@ -179,9 +199,29 @@ export function RecentMatches(props: {
   footer?: JSX.Element;
 }): JSX.Element {
   const hasMatches = () => props.matches.length > 0;
-  // A row opens its game in a sheet over the page (GameSheet.tsx), one at a time.
-  const [open, setOpen] = createSignal<MatchSummary>();
+  // A row opens the stack of opened games on its game (GameStack.tsx): the list's games, in order.
+  const [open, setOpen] = createSignal<{ match: MatchSummary; auto: boolean }>();
   const gradeOf = (m: MatchSummary) => m.grade ?? props.late?.()?.get(m.matchId)?.grade ?? null;
+  // The game that just ended opens by itself once it is in the list, once; when the stack is open
+  // already the game is simply on top of it.
+  createEffect(() => {
+    const last = props.lastGame;
+    if (!last || autoOpened.has(last.matchId)) return;
+    const match = props.matches.find((m) => m.matchId === last.matchId);
+    if (!match) return;
+    autoOpened.add(last.matchId);
+    if (untrack(open)) last.seen();
+    else setOpen({ match, auto: true });
+  });
+  // The next champion select stops it: the core no longer has that game to show.
+  createEffect(() => {
+    if (!props.lastGame && untrack(open)?.auto) setOpen(undefined);
+  });
+  const closed = () => {
+    const was = open();
+    setOpen(undefined);
+    if (was?.auto) props.lastGame?.seen();
+  };
   // A grade's why shows while it's hovered, or its row has the keyboard focus: the chunk follows
   // the list's pointer and focus events.
   const find = (id: string) => {
@@ -213,8 +253,8 @@ export function RecentMatches(props: {
                         match={match}
                         grade={gradeOf(match)}
                         lp={props.lp?.(match.matchId)}
-                        open={open()?.matchId === match.matchId}
-                        onOpen={() => setOpen(match)}
+                        open={open()?.match.matchId === match.matchId}
+                        onOpen={() => setOpen({ match, auto: false })}
                       />
                     )}
                   </For>
@@ -223,11 +263,20 @@ export function RecentMatches(props: {
             )}
           </For>
         </ol>
-        <Show when={open()}>
-          {(match) => (
+        <Show when={open()} keyed>
+          {(opened) => (
             // Nothing to see while its code loads, but the page says it is loading (tests wait).
             <Suspense fallback={<div data-state="loading" hidden />}>
-              <Sheet match={match()} focus={props.focus} onClosed={() => setOpen(undefined)} />
+              <Stack
+                games={() => props.matches}
+                start={opened.match}
+                focus={props.focus}
+                grade={gradeOf}
+                lp={props.lp}
+                lpPending={(id) => props.lastGame?.matchId === id && props.lastGame.lpPending}
+                more={props.more}
+                onClosed={closed}
+              />
             </Suspense>
           )}
         </Show>

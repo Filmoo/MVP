@@ -8,7 +8,7 @@ import { liveGame } from "../data/mock/live-fixtures";
 import { gameFor, withGrades } from "../data/mock/match-fixtures";
 import { mayhemAugments, mayhemChampion, mayhemOverview } from "../data/mock/mayhem-fixtures";
 import { outageBanner, patchBanner, requiredConfig, updateReady } from "../data/mock/platform-fixtures";
-import { lpFor, masteryFixture, winPostGame } from "../data/mock/progress-fixtures";
+import { lpFor, masteryFixture } from "../data/mock/progress-fixtures";
 import { defaultSettings } from "../data/mock/settings-fixtures";
 import { mockChampionPage, mockStatsIndex, mockTierList } from "../data/mock/stats-fixtures";
 import { ShardIcon } from "../design/RuneIcon";
@@ -32,7 +32,6 @@ import { MatchTable, markedIn } from "../views/home/MatchDetails";
 import { MatchHistory } from "../views/home/MatchHistory";
 import { MatchStats } from "../views/home/MatchStats";
 import { PerformanceSummary } from "../views/home/PerformanceSummary";
-import { PostGameCard } from "../views/home/PostGame";
 import { ProfileHeader } from "../views/home/ProfileHeader";
 import { LiveTeam } from "../views/live/LiveTeam";
 import { AugmentTiers } from "../views/mayhem/Mayhem";
@@ -133,8 +132,6 @@ export const widgetRegistry: Record<string, () => JSX.Element> = {
   "match-details": () => <MatchTable game={firstGame} focus={profile.riotId} />,
   "match-stats": () => <MatchStats game={firstGame} marked={markedIn(firstGame, profile.riotId)} />,
   "performance-summary": () => <PerformanceSummary matches={profile.recentMatches} mastery={masteryFixture} />,
-  // A ranked win with its LP, a lane opponent and the grade's why: every part shown.
-  "post-game": () => <PostGameCard game={winPostGame} onClose={() => {}} />,
   "draft-teams": () => <Teams draft={champSelectDraft} />,
   "draft-suggestions": () => (
     <Suggestions

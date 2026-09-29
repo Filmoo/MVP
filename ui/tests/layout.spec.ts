@@ -2,6 +2,7 @@ import type { Page } from "@playwright/test";
 import { scenarioNames } from "../src/data/mock/scenarios";
 import { expect, FRENCH_SIZES, isFrench, openApp, SIZES, settle, test, trackErrors, VIEWS } from "./app";
 import { auditLayout } from "./layout-rules";
+import { body, current, openGame, rows, stack } from "./stack";
 
 const EXPECTED_ERRORS: Record<string, RegExp> = {
   "widget-crash": /widget:recent-matches|Cannot read properties/,
@@ -127,40 +128,55 @@ for (const { view, scenario } of SCENARIO_VIEWS) {
   }
 }
 
-/** An opened game's sheet: the whole window stays inside the window, at its top and at its end. */
-async function auditSheet(page: Page, size: { name: string; width: number; height: number }): Promise<void> {
+/**
+ * The stack of opened games: the current window inside the room beside the rail and under the
+ * title bar, laid out on its scoreboard (at its top and its end) and its details (at their end).
+ */
+async function auditStack(page: Page, size: { name: string; width: number; height: number }): Promise<void> {
   // Once it has risen in (its own animations only: a loading skeleton pulses for good).
-  await page.getByTestId("game").evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
-  const box = await page.getByTestId("game").boundingBox();
-  const inside = box && box.x >= 0 && box.y >= 0 && box.x + box.width <= size.width && box.y + box.height <= size.height;
-  expect(inside, `${size.name}: the sheet inside the window: ${JSON.stringify(box)}`).toBe(true);
+  await stack(page)
+    .locator("div")
+    .first()
+    .evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
+  const box = await current(page).boundingBox();
+  const inside = box && box.x >= 0 && box.y >= 40 && box.x + box.width <= size.width && box.y + box.height <= size.height;
+  expect(inside, `${size.name}: the window under the title bar, inside the window: ${JSON.stringify(box)}`).toBe(true);
   expect(await page.evaluate(auditLayout), `${size.name} opened`).toEqual([]);
-  await page.getByTestId("game-body").evaluate((el) => {
-    el.scrollTop = el.scrollHeight;
-  });
-  expect(await page.evaluate(auditLayout), `${size.name} scrolled to its stats`).toEqual([]);
-  await page.getByTestId("game-body").evaluate((el) => {
-    el.scrollTop = 0;
-  });
+  const end = () =>
+    body(page).evaluate((el) => {
+      el.scrollTop = el.scrollHeight;
+    });
+  await end();
+  expect(await page.evaluate(auditLayout), `${size.name} at its end`).toEqual([]);
+  const tabs = current(page).getByTestId("game-tabs").getByRole("radio");
+  if ((await tabs.count()) === 0) return;
+  await tabs.nth(1).click();
+  await end();
+  expect(await page.evaluate(auditLayout), `${size.name} its details`).toEqual([]);
+  await tabs.nth(0).click();
 }
 
-// An opened game at every size (its sheet at its top, then scrolled to its stats), and a grade's
-// why in it: a popover, which the audit leaves out (fixed), so it is held inside the window here.
-test("home: an opened game and a grade's why lay out at every size", async ({ page, locale }) => {
-  // Eight sizes, each settled, audited twice and hovered twice: more than 30 s on a busy machine.
+// An opened game at every size (its window at its top, its end, its details), and a grade's why
+// in it: a popover, which the audit leaves out (fixed), so it is held inside the window here.
+test("home: the stack of opened games and a grade's why lay out at every size", async ({ page, locale }) => {
+  // Eight sizes, each settled, audited three times and hovered twice: more than 30 s on a busy machine.
   test.slow();
   const errors = trackErrors(page);
   await openApp(page);
-  await page.locator("[data-testid=match-row] > button").first().click();
-  await expect(page.getByTestId("game-player")).toHaveCount(10);
+  await openGame(page, 2);
   for (const size of SIZES) {
     if (isFrench(locale) && !FRENCH_SIZES.has(size.name)) continue;
     await page.mouse.move(0, 0);
     await page.setViewportSize({ width: size.width, height: size.height });
     await settle(page);
-    await auditSheet(page, size);
+    await auditStack(page, size);
+    await body(page).evaluate((el) => {
+      el.scrollTop = 0;
+    });
     for (const at of [0, 6]) {
-      await page.getByTestId("game").locator("[data-grade]").nth(at).hover();
+      const grade = current(page).locator("[data-grade]").nth(at);
+      await grade.evaluate((el) => el.scrollIntoView({ block: "nearest" }));
+      await grade.hover();
       const why = await page.getByTestId("grade-why").boundingBox();
       expect(why, `${size.name} why ${at}`).not.toBeNull();
       const inside = why && why.x >= 0 && why.y >= 0 && why.x + why.width <= size.width && why.y + why.height <= size.height;
@@ -170,18 +186,17 @@ test("home: an opened game and a grade's why lay out at every size", async ({ pa
   expect(errors).toEqual([]);
 });
 
-// An opened game on Howling Abyss (no vision column, no vision stats there) at every size.
+// An opened game on Howling Abyss (no vision stats there) at every size.
 test("home: an opened game on Howling Abyss lays out at every size", async ({ page, locale }) => {
   test.slow();
   const errors = trackErrors(page);
   await openApp(page, { scenario: "howling-abyss" });
-  await page.locator("[data-testid=match-row] > button").first().click();
-  await expect(page.getByTestId("game-player")).toHaveCount(10);
+  await openGame(page, 0);
   for (const size of SIZES) {
     if (isFrench(locale) && !FRENCH_SIZES.has(size.name)) continue;
     await page.setViewportSize({ width: size.width, height: size.height });
     await settle(page);
-    await auditSheet(page, size);
+    await auditStack(page, size);
   }
   expect(errors).toEqual([]);
 });
@@ -200,11 +215,11 @@ for (const { scenario, view } of [
     test(`${view}/${scenario}, a game opened @ ${size.name}`, async ({ page }) => {
       const errors = trackErrors(page);
       await openApp(page, { scenario, view, width: size.width, height: size.height });
-      await page.locator("[data-testid=match-row] > button").first().click();
-      const shown = page.getByTestId("game").locator("[data-testid=game-player], [role=alert], [data-state=loading]");
+      await rows(page).first().click();
+      const shown = current(page).locator("[data-testid=game-player], [role=alert], [data-state=loading]");
       await expect(shown.first()).toBeVisible();
       if (scenario !== "match-details-slow") await settle(page);
-      await auditSheet(page, size);
+      await auditStack(page, size);
       expect(errors).toEqual([]);
     });
   }

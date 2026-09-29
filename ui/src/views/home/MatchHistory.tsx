@@ -12,12 +12,13 @@ import { EmptyState } from "../../design/States";
 import { t } from "../../i18n";
 import { gameIdOf, PAGE, QUEUES, type QueueFilter, queueGroup } from "./history";
 import styles from "./MatchHistory.module.css";
-import { createLateGrades, type LateGrades, RecentMatches } from "./RecentMatches";
+import { createLateGrades, type LastGame, type LateGrades, RecentMatches } from "./RecentMatches";
 
 /**
  * The match history with its filters (queue, champion) and, on Home, older games a page at a
- * time. Filters only choose among the games loaded; grades stay lazy (the rows shown ask).
- * Links can set the filters: `#/?queue=flex&champion=103`.
+ * time (the button under the list, or the stack of opened games pulled past its last game).
+ * Filters only choose among the games loaded; grades stay lazy (the rows shown ask). Links can
+ * set the filters: `#/?queue=flex&champion=103`.
  */
 export function MatchHistory(props: {
   matches: readonly MatchSummary[];
@@ -28,6 +29,8 @@ export function MatchHistory(props: {
   lp?: readonly LpGame[] | undefined;
   /** Games from `begIndex` on, further back (Home: your League client's history). */
   older?: ((begIndex: number) => Promise<MatchSummary[]>) | undefined;
+  /** The game that just ended (Home): its window opens by itself, once. */
+  lastGame?: LastGame | undefined;
 }): JSX.Element {
   const { gameData } = useData();
   const [queue, setQueue] = createSignal<QueueFilter>(QUEUES.find((q) => q === queryParam("queue")) ?? "all");
@@ -127,6 +130,8 @@ export function MatchHistory(props: {
       focus={props.focus}
       late={late}
       lp={(id) => lpById().get(gameIdOf(id))}
+      lastGame={props.lastGame}
+      more={props.older ? { state: more, load: () => void loadMore() } : undefined}
       filters={all().length > 0 ? filters : undefined}
       empty={
         all().length > 0 ? (

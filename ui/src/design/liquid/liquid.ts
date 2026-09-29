@@ -56,7 +56,7 @@ export const LIQUID = {
     brightness: 1,
     specular: 0.8,
   },
-  /** Floating panels holding text (search results, toasts): the page bends along a clear rim. */
+  /** Floating panels holding text (search results, toasts, opened games' windows): the page bends along a clear rim. */
   panel: {
     glass: { profile: "parabola", bezel: 14, thickness: 13, elevation: 18 },
     frost: 1,

@@ -114,7 +114,12 @@ export function statRows(game: MatchDetails): Array<{ group: keyof Words["groups
   });
 }
 
-export function MatchStats(props: { game: MatchDetails; marked: MatchPlayer | undefined }): JSX.Element {
+export function MatchStats(props: {
+  game: MatchDetails;
+  marked: MatchPlayer | undefined;
+  /** The id of the heading that names the table. */
+  labelledBy?: string | undefined;
+}): JSX.Element {
   const { gameData } = useData();
   const words = () => t().matchDetails.stats;
   const columns = () => props.game.teams.flatMap((team) => team.players.map((player, i) => ({ player, win: team.win, first: i === 0 })));
@@ -162,7 +167,7 @@ export function MatchStats(props: { game: MatchDetails; marked: MatchPlayer | un
   });
   return (
     // A region: on narrow sheets it scrolls sideways, and takes the keyboard's arrows for it.
-    <section ref={region} class={styles.scroll} tabindex="0" aria-labelledby="game-stats" data-testid="game-stats">
+    <section ref={region} class={styles.scroll} tabindex="0" aria-labelledby={props.labelledBy} data-testid="game-stats">
       <table class={`${styles.table} num`}>
         <thead>
           <tr>

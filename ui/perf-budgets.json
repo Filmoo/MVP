@@ -21,10 +21,6 @@
       "renderMs": 4,
       "domNodes": 140
     },
-    "post-game": {
-      "renderMs": 4,
-      "domNodes": 110
-    },
     "draft-teams": {
       "renderMs": 6,
       "domNodes": 180

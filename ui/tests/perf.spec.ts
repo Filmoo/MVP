@@ -109,12 +109,18 @@ for (const view of ["/tier-list", "/champions?id=103", "/champions"]) {
   });
 }
 
-// An opened game (its sheet of glass, the whole game, the stats table): once it has risen in,
-// as quiet as the page under it; closed, too.
+// The stack of opened games (three windows of glass, the whole game, its stats table), once it has
+// risen in and after it moved on to the next game: as quiet as the page under it; closed, too.
 test("idle with a game open: no scripts, layouts or style work", async ({ page }) => {
   await openApp(page, { freezeClock: false });
-  await page.locator("[data-testid=match-row] > button").first().click();
-  await expect(page.getByTestId("game-stats")).toBeVisible();
+  await page.locator("[data-testid=match-row] > button").nth(1).click();
+  const current = page.locator("[data-testid=game-window][data-current]");
+  await current.getByTestId("game-tabs").getByRole("radio").nth(1).click();
+  await expect(current.getByTestId("game-stats")).toBeVisible();
+  // On to the oldest game (none below it then).
+  await current.getByTestId("game-body").focus();
+  await page.keyboard.press("End");
+  await expect(page.locator("[data-testid=game-window][data-place=older]")).toHaveCount(0);
   await settle(page);
   await page.waitForTimeout(800);
   const measure = async () => {
@@ -131,7 +137,7 @@ test("idle with a game open: no scripts, layouts or style work", async ({ page }
   };
   const open = await measure();
   await page.keyboard.press("Escape");
-  await expect(page.getByTestId("game-sheet")).toHaveCount(0);
+  await expect(page.getByTestId("game-stack")).toHaveCount(0);
   await page.waitForTimeout(800);
   const closed = await measure();
   results.idleGame = { open, closed };

@@ -14,7 +14,7 @@ import { MatchHistory } from "./MatchHistory";
 import { PerformanceSummary } from "./PerformanceSummary";
 import { ProfileHeader } from "./ProfileHeader";
 import hero from "./ProfileHeader.module.css";
-import { createLateGrades } from "./RecentMatches";
+import { createLateGrades, type LastGame } from "./RecentMatches";
 import { summarize, withLateRoles } from "./summary";
 
 /** The art a profile page takes its colors from: the player's most played recent champion. */
@@ -30,6 +30,8 @@ export interface OwnExtras {
   mastery?: readonly ChampionMastery[] | undefined;
   /** Games further back in your history. */
   older?: ((begIndex: number) => Promise<MatchSummary[]>) | undefined;
+  /** The game that just ended: its window opens by itself, once. */
+  lastGame?: LastGame | undefined;
 }
 
 /** A player's page: hero with the stat strip, match history, champions. Home and player lookups share it. */
@@ -46,7 +48,14 @@ export function ProfileContent(props: { profile: PlayerProfile } & OwnExtras): J
         <ProfileHeader profile={profile()} lp={props.lp} />
       </Widget>
       <Widget name="recent-matches" class={styles.matches}>
-        <MatchHistory matches={props.profile.recentMatches} focus={props.profile.riotId} late={late} lp={props.lp} older={props.older} />
+        <MatchHistory
+          matches={props.profile.recentMatches}
+          focus={props.profile.riotId}
+          late={late}
+          lp={props.lp}
+          older={props.older}
+          lastGame={props.lastGame}
+        />
       </Widget>
       <Show when={hasGames()}>
         <Widget name="performance-summary" class={styles.summary}>

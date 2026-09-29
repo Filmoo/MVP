@@ -52,9 +52,23 @@ export const frViews = {
   },
 
   matchDetails: {
-    columns: { damage: "Dégâts", gold: "Or", cs: "CS", vision: "Vision", grade: "Note" },
+    columns: {
+      damage: "Dégâts",
+      cs: "CS",
+      grade: "Note",
+      kdaHint:
+        "Éliminations / morts / assistances, puis le ratio KDA et la participation aux éliminations : la part des éliminations de l’équipe auxquelles le joueur a pris part.",
+    },
+    kp: (pct: string) => `${pct} KP`,
     level: (n: number) => `Niveau ${n}`,
     damageTitle: (damage: string) => `${damage} dégâts aux champions`,
+    tabs: { label: "Afficher", scoreboard: "Tableau des scores", details: "Détails" },
+    outOf: "sur 10",
+    lp: {
+      promoted: "Promu",
+      demoted: "Rétrogradé",
+      pending: "Calcul des PL…",
+    },
     errors: {
       title: "Impossible d’ouvrir cette partie",
       notFound: "Cette partie n’est plus disponible.",
@@ -63,7 +77,15 @@ export const frViews = {
     note: "Chaque note compare le joueur aux neuf autres de la partie (participation aux éliminations, KDA, dégâts, vision et objectifs, CS et or face à l’adversaire de voie), selon son rôle. Elle juge une partie, pas un joueur.",
     playedAt: (day: string, hours: number, minutes: number) => `${day} à ${hours} h ${String(minutes).padStart(2, "0")}`,
     close: "Fermer",
-    keepScrolling: "Continuez à défiler pour fermer",
+    stack: {
+      newer: "Continuez à défiler pour une partie plus récente",
+      older: "Continuez à défiler pour une partie plus ancienne",
+      close: "Continuez à défiler pour fermer",
+      load: "Continuez à défiler pour charger des parties plus anciennes",
+      failed: "Impossible de charger les parties plus anciennes. Continuez à défiler pour réessayer.",
+      endHere: "Aucune partie plus ancienne sur cette page",
+    },
+    peek: { newer: "Partie plus récente", older: "Partie plus ancienne" },
     stats: {
       title: "Statistiques de fin de partie",
       groups: {
@@ -120,25 +142,6 @@ export const frViews = {
       visionShare: (pct: string) => `${pct} du score de vision de l’équipe`,
       csLead: (diff: string) => `${diff} CS face à l’adversaire de voie`,
       goldLead: (diff: string) => `${diff} d’or face à l’adversaire de voie`,
-    },
-  },
-
-  postGame: {
-    title: "Votre dernière partie",
-    close: "Fermer ce résumé",
-    outOf: "sur 10",
-    why: "Ce qui a pesé sur votre note",
-    remake: "Un remake : pas de note, et la partie ne compte pas.",
-    you: "Vous",
-    laneOpponent: "Adversaire de voie",
-    closestDamage: "Part de dégâts la plus proche",
-    noOpponent: "Pas d’adversaire de voie à qui vous comparer dans cette partie.",
-    rows: { kda: "KDA", cs: "CS", damage: "Dégâts", gold: "Or", vision: "Vision" },
-    lp: {
-      promoted: "Promu",
-      demoted: "Rétrogradé",
-      pending: "Calcul des PL de cette partie…",
-      unknown: "PL non suivis pour cette partie",
     },
   },
 

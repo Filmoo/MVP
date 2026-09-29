@@ -37,7 +37,7 @@
   --line-drop: #ffffff1f; /* its rim */
   --line-drop-lit: #ffffff38; /* its top edge, facing the light */
   --bg-field: #07080d8c; /* a field etched into glass (title bar search) */
-  --bg-scrim: #07080d99; /* the page dimmed behind a sheet of glass (an opened game), still seen bent through its rim (60%) */
+  --bg-scrim: #07080d66; /* the page dimmed behind the stack of opened games, still seen around it and bent through its glass (40%) */
   --line-rim: #ffffff42; /* specular rim, lit side */
   --line-rim-far: #ffffff12; /* specular rim, far side */
   --line-glint: #ffffff5c; /* where the rim turns to the pointer */
