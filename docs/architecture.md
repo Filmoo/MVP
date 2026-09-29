@@ -921,7 +921,10 @@ rate** (policy.md, "ARAM: Mayhem augments"; decisions.md).
   rates, and a champion filter (`?champion=`) with that champion's priorities, most picked
   augments and common items. `parts.tsx` holds what the other views share: the champion page's
   Mayhem tab (`/champions?id=…&mode=mayhem`, then ARAM's build labelled as ARAM data), Draft's
-  *Augments* tab and rows, Live's "My build" in a Mayhem game. Mock scenarios `mayhem-*`
+  *Augments* tab and rows, Live's "My build" in a Mayhem game. Hovers are the app's tooltip cards
+  (`data-hint`, "Tooltips"): an augment row says what it does (also on keyboard focus), `S · 2`
+  and the page's tier marks what MVP's tiers are (their own mark: the stats pages' grade badge
+  explains a win-rate tier). Mock scenarios `mayhem-*`
   (`empty`, `unbuilt`, `offline`, `slow`, `extreme`, `champ-select`, `live`); `?augments=dev`
   (dev server and screenshots only) shows the real catalog from `.cache/mayhem`.
 - **mock-lcu** `--mayhem`: champion selects and games of queue 2400; the newest listed game is a
