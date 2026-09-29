@@ -1,11 +1,75 @@
 # Handoff — finishing MVP on a machine with a League client
 
-Written 2026-09-27, updated 2026-09-28 at the end of the third cloud session. Read `CLAUDE.md`
-first (rules, layout, commands), then `docs/decisions.md` (the owner's product calls),
-`docs/policy.md` (Riot red lines) and `docs/architecture.md`. Work on branch
-`claude/upbeat-hamilton-0bms1t`.
+Written 2026-09-27, updated 2026-09-29 during the fourth session (on the owner's Windows PC with
+a real League client). Read `CLAUDE.md` first (rules, layout, commands), then `docs/decisions.md`
+(the owner's product calls), `docs/policy.md` (Riot red lines) and `docs/architecture.md`. Work on
+branch `claude/upbeat-hamilton-0bms1t`.
 
-## Summary for the next agent (2026-09-28, end of the third session)
+## Summary for the next agent (2026-09-29, fourth session: the owner's PC, a real client)
+Branch `claude/upbeat-hamilton-0bms1t`, not pushed (the owner decides when). Budgets: startup JS
+40.8 / 46 KB, total 135.2 / 136 KB. The last full gate on main was green except timing-only
+failures under load (each green alone): rerun `check.mjs full` on a quiet machine, the perf
+suite's boot test is load-sensitive.
+
+**Working with the owner:** they play League on this PC. Run heavy work (cargo, gates,
+Playwright) at low priority with 2 workers, and never while the client is in champion select or a
+game (`GET /lol-gameflow/v1/gameflow-phase`). One or two helper agents at a time: with 8–10 the
+session hit the usage limit five times.
+
+**Merged this session** (the why in decisions.md):
+- Settings search.
+- The champion list sorted and grouped by tier (being folded into the Tier list hub, below).
+- Your games' roles (the most likely assignment per team), a "client not responding" state with
+  Home's waiting card, no vision column on Howling Abyss.
+- Live names: Riot's live game (Spectator-V5 on our server), then the game's own API; Riot IDs
+  open player pages.
+- Auto import once at lock-in, then a warning when the champion or role changes (per-part
+  switches).
+- Hover cards: what runes, shards, spells and items do, and a designed card for every hover (with
+  build savings: constant classes set once, short class names).
+- The last game's summary, LP per game, history filters and "load more", mastery.
+- ARAM: Mayhem: an editorial tier file on our server, opt-in anonymous sharing for pick rates,
+  augment priorities per champion and rarity.
+- The website (`site/`, for mvpgg.com) and the private roadmap (`apps/roadmap`, for
+  dev.mvpgg.com): neither deployed. `docs/riot-application.md`: the production key application.
+
+**Verified on the real client (EUW, 2026-09-28/29)**
+- Imports and auto import at lock-in: only MVP's own rune page and item set are replaced, the
+  player's are untouched; spells land. In a custom lobby the client assigns the lobby position
+  (e.g. middle) and MVP follows it.
+- DPM's app auto-imports too and made its page current after MVP's: two apps fight over the
+  current page; MVP never imports again by itself (by design).
+- Draft's countdown matches the client's timer. Tooltips read the real Data Dragon (16.19.1).
+- Live names in a real ARAM: Mayhem game: all ten players named. Their cards failed on the dev
+  key: `/v1/players/batch` answered 504 after 30 s (a cold 10-player scout is ~90 calls against
+  100 per 2 minutes). Expect it until the production key.
+- Custom games: Spectator-V5 lists them without bots, and the client's gameflow session lists no
+  bots either, so Live shows only the humans (to do: bot seats from the game's API).
+- A game started while the PC was at 100% CPU never loaded: a remake at 3:05 (not MVP).
+- An installed MVP in the tray made newer dev builds hand over and quit (known issue 2 below).
+
+**In progress, on branches not merged yet**
+- `worktree-agent-aac82646dd1131931`: the Tier list hub (Shelves with the top-3 podium and a mini
+  meta map, a DPM-like sortable Table, compact lane icons, a rank dropdown with emblems, tier
+  medallions, League-like Jungle and Support icons, the penguin). Stopped with 4 files
+  uncommitted.
+- `worktree-agent-a81fa7b74de5da1fc`: the opened game as a glass sheet (a long scroll, Escape or a
+  click outside closes it), clickable Riot IDs, the end-of-game stats table. Stopped with 1 file
+  uncommitted.
+- `worktree-agent-af4bb73c493248211`: one more commit (50eae94, the roadmap's design review) to
+  merge; keep main's `FeatureSheet.tsx`, `playwright.config.ts` and `roadmap.spec.ts` (b4ef9a8).
+
+**Next**
+1. Merge the three branches above, then a full gate on a quiet machine.
+2. Deploy the backend (new routes `/v1/live`, `/v1/mayhem/*`), the website and the roadmap
+   (a GitHub OAuth app and a `dev` DNS record: `apps/roadmap/README.md`). The legal pages need the
+   owner's name, country, contact e-mail and governing law.
+3. The production key: `docs/riot-application.md` (the site live with its terms and privacy
+   policy plus `riot.txt`, a public installer, a 2–3 minute video).
+4. Live: seats for bots from the game's API when Riot's list is shorter than the game.
+5. Planned for 0.4: after-game graphs and heatmaps (on the roadmap).
+
+## Summary for the previous session (2026-09-28, end of the third session)
 Branch `claude/upbeat-hamilton-0bms1t`, version 0.2.0, `check.mjs full` green. CI: runs 26–40 failed
 on the crawler image (fixed), 41–42 green, 43 failed once on a new match test (fixed in c85ceaf);
 check the latest run before building on it.
