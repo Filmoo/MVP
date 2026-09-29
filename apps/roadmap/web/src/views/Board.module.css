@@ -10,6 +10,9 @@
 .track {
   display: grid;
   grid-template-columns: repeat(var(--versions), minmax(var(--column-w), 380px));
+  /* One row as tall as the board: a column's max-height then holds, and its body scrolls
+     (an auto row grew with the longest column, which the board clips, out of reach). */
+  grid-template-rows: minmax(0, 1fr);
   justify-content: safe center;
   gap: var(--space-6);
   align-items: start;

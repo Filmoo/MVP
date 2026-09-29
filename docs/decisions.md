@@ -337,6 +337,24 @@ nothing to crawl. Offered editorial tiers or opt-in sharing, the owner took both
   0.1 KB, chunking 0.3 KB. The total budget went 131 → 136 KB in its own commit when it merged
   (startup unchanged at 40.8 of 46 KB).
 
+## 2026-09-28 — A server, open source and contributions (owner)
+- **A small server after all**: player search and scouting need the Riot key at request time, and
+  the key may never be in the app. OVHcloud VPS-2 (4 vCores, 8 GB, ~€11/month with VAT and the
+  domain) behind Cloudflare's free plan, at `api.mvpgg.com`. OVH over Hetzner: Hetzner's 2026 price
+  rises made its equivalent ~4× dearer. Costs stay flat with players (traffic is included); the
+  first limit is Riot's rate limit, not money.
+- **Safe by construction**: web ports open to Cloudflare only, SSH with keys only, secrets readable
+  by root only, automatic security updates with a nightly restart when needed, Cloudflare Full
+  (strict) with an origin certificate. The server's configuration lives in `deploy/`, public and
+  reviewed like code; its address and secrets never do.
+- **Open source under AGPL-3.0**: every fork, a server included, stays open. MVP stays free and
+  ad-free; the licence doesn't cover the name and logo.
+- **Contributions go through the owner**: pull requests into a protected `main`, the owner's
+  review on every change (CODEOWNERS), CI without secrets for pull requests, only the owner tags
+  releases, the update-signing key behind the `release` environment's approval, and the server
+  runs only release tags of `main` (`mvp-deploy`). `scripts/check-secrets.mjs` (in `check.mjs`)
+  refuses keys and tokens, Riot's included.
+
 ## 2026-09-30 — Opened games are a stack of windows (owner asked, Claude designed)
 Owner: "It should be a proper window, that takes the whole window but still have previous
 background behind (with glass of course). I want to be able to scroll between those windows. It

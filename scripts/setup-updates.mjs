@@ -8,8 +8,9 @@
 //    has them can ship an update to every installed MVP.
 // 2. Puts the public key in apps/desktop/tauri.conf.json (plugins.updater.pubkey): installed apps
 //    check every update against it. Commit that file.
-// 3. Stores the private key and its password as the repository's GitHub secrets (with `gh`, if it
-//    is installed and logged in; otherwise it says what to paste where), for release.yml.
+// 3. Stores the private key and its password as secrets of the repository's `release` environment
+//    (with `gh`, if it is installed and logged in; otherwise it says what to click and paste), for
+//    release.yml. The environment only serves `v*` tags, and the owner approves every run.
 //
 // Then: commit, push, tag the version in Cargo.toml (`git tag v0.2.0 && git push origin v0.2.0`).
 // Install that release once by hand; every later release (a new version, tagged) installs itself.
@@ -56,24 +57,50 @@ if (!/"pubkey":/.test(before)) {
 writeFileSync(config, after);
 console.log(after === before ? "tauri.conf.json already has this public key." : "Public key written to apps/desktop/tauri.conf.json.");
 
-// 3. The GitHub secrets release.yml signs with.
+// 3. The secrets release.yml signs with, on the `release` environment only: never on the
+//    repository, where any workflow could read them.
+const environment = "release";
 const secrets = {
   TAURI_SIGNING_PRIVATE_KEY: readFileSync(key, "utf8").trim(),
   TAURI_SIGNING_PRIVATE_KEY_PASSWORD: readFileSync(passwordFile, "utf8").trim(),
 };
 const gh = run("gh", ["auth", "status"], { stdio: "ignore" });
 if (gh.status === 0) {
+  // The owner reviews every run of the environment, which only `v*` tags may use.
+  const me = run("gh", ["api", "user", "--jq", ".id"]);
+  const protection = {
+    reviewers: [{ type: "User", id: Number(me.stdout.trim()) }],
+    deployment_branch_policy: { protected_branches: false, custom_branch_policies: true },
+  };
+  const made = run("gh", ["api", "--method", "PUT", `repos/${repo}/environments/${environment}`, "--input", "-"], {
+    input: JSON.stringify(protection),
+    stdio: ["pipe", "ignore", "inherit"],
+  });
+  if (me.status !== 0 || made.status !== 0) {
+    console.error(`Could not set up the ${environment} environment with gh.`);
+    process.exit(1);
+  }
+  // Answers an error when the rule already exists, which is fine.
+  const policies = `repos/${repo}/environments/${environment}/deployment-branch-policies`;
+  run("gh", ["api", "--method", "POST", policies, "-f", "name=v*", "-f", "type=tag"], { stdio: "ignore" });
   for (const [name, value] of Object.entries(secrets)) {
-    const set = run("gh", ["secret", "set", name, "--repo", repo], { input: value, stdio: ["pipe", "ignore", "inherit"] });
+    const set = run("gh", ["secret", "set", name, "--repo", repo, "--env", environment], {
+      input: value,
+      stdio: ["pipe", "ignore", "inherit"],
+    });
     if (set.status !== 0) {
       console.error(`Could not set the ${name} secret with gh.`);
       process.exit(1);
     }
+    // A repository-level copy (from an older version of this script) would be readable by any workflow.
+    run("gh", ["secret", "delete", name, "--repo", repo], { stdio: "ignore" });
   }
-  console.log(`GitHub secrets set on ${repo}.`);
+  console.log(`Secrets set on ${repo}'s ${environment} environment: you approve every release run.`);
 } else {
   console.log(`
-Add two repository secrets at https://github.com/${repo}/settings/secrets/actions (New repository secret):
+At https://github.com/${repo}/settings/environments, create the environment "${environment}":
+  Required reviewers: you. Deployment branches and tags: Selected, add a tag rule "v*".
+Then add its two environment secrets (never repository secrets):
   TAURI_SIGNING_PRIVATE_KEY           the contents of ${key}
   TAURI_SIGNING_PRIVATE_KEY_PASSWORD  the contents of ${passwordFile}
 (or install the GitHub CLI, run \`gh auth login\`, and run this script again).`);
