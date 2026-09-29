@@ -283,8 +283,8 @@ The Tier list and Champions pages read the published stats through the core only
   Master+; files saved before it load with the default) is whose games the stats count: the draft
   helper, its compositions and build imports switch to it at once; the stats pages start from it.
 - **Automations** run in the core (`companion::automation`), so they work with the window closed:
-  auto-accept (opt-in, delayed, once per ready check, see policy.md), build imports on lock-in
-  (opt-in per part, see "Build imports" below) and the `Autopilot`, which
+  auto-accept (opt-in, delayed, once per ready check, see policy.md), the automatic build import
+  at the first lock-in (opt-in per part, see "Build imports" below) and the `Autopilot`, which
   turns gameflow phases into window intents: focus in champ select, Draft → Live → Home as the game
   goes. The UI reports every view it shows (`view_changed`), so a page the player opened is never
   switched away from.
@@ -456,11 +456,18 @@ fixed, `z-index: -1`, `aria-hidden`, `data-free-style`), drawn **on demand only*
 ## Build imports (`companion::imports`)
 MVP writes a champion's build into the League client: its own rune page, its item set for the
 champion, the summoner spells (policy: docs/policy.md, "Build imports"). The UI asks with
-`import_build { request: ImportRequest { championId, role, queue, parts } }` and gets an
-`ImportResult`, one outcome per part: `saved { name }`, `spellsSet { spellIds, changed, flash }`,
-`skipped { reason }` or `failed { reason }` (structured; the UI words them in
-`ui/src/lib/imports.ts`). The lock-in automation sends the same result as an `import` event
-(`automatic: true`): a toast anywhere, and the Draft bar's buttons.
+`import_build { request: ImportRequest { championId, role, queue, bracket, parts, champSelect } }`
+and gets an `ImportResult`, one outcome per part: `saved { name }`,
+`spellsSet { spellIds, changed, flash }`, `skipped { reason }` or `failed { reason }` (structured;
+the UI words them in `ui/src/lib/imports.ts`). The buttons (Runes, Item set, Spells) are always
+there, in Draft's import bar and on champion pages. The automatic import sends the same result
+as an `import` event (`automatic: true`): a toast anywhere, and the Draft bar's buttons.
+- **`champSelect`**: Draft's clicks and the automatic import are for the current champion select;
+  if it has ended when the import runs (the core left `ChampSelect`, the session is gone, or its
+  timer says `GAME_STARTING`; checked before anything is read, after the build is looked up and
+  before each part), every part is `skipped { champSelectEnded }` and nothing is tried. Seen on
+  a real client: a click as the game started said "No build for this champion and role".
+  Champion pages send `false` (their build is for any game).
 - **Builds** come from a `BuildSource` trait: `build(champion, role, queue, bracket) ->
   Option<BuildStats>` (`role: None` = the most played role; queue 420 for every Summoner's Rift
   mode, 450 for ARAM, from the gameflow session's `gameData.queue.mapId` when the request has
@@ -484,12 +491,39 @@ champion, the summoner spells (policy: docs/policy.md, "Build imports"). The UI 
   the setting (D/F), else the key Flash sat on in most of the client's recent Summoner's Rift and
   ARAM games, else where it is now, else F with a `guessed` note; `keptOnYourKey` when the build
   lists it on the other key, `notInBuild` without Flash. Already set: no write.
-- **On lock-in** (`LockIn`, fed with every champion select session the core loop sees): a lock is
-  the local player's completed pick action (or no pick action at all, as in ARAM) with a
-  champion. `LockTracker` handles each locked champion once per champion select; a new champion
-  (trade, ARAM swap) aborts the previous import and starts its own. The parts set to "on
-  lock-in" run in one task. Spells locked with 7 s or less left in a phase before finalization
-  wait for the next session event with time on the clock (the next turn, or finalization).
+- **Auto import, once** (`imports::lock_in`, fed with every champion select session the core
+  loop sees): Settings → Imports has one "Auto import" switch per part (`Settings.autoImportRunes`,
+  `autoImportItemSet`, `autoImportSpells`, all off by default). A lock is the local player's
+  completed pick action (or no pick action at all, as in ARAM, where the first champion given is
+  the lock) with a champion, and its role (`assignedPosition`; an empty one in a session sent
+  again keeps the role known so far). At the **first** lock of a champion select the parts
+  switched on (and not paused by the server) run in one task. MVP never imports again by itself
+  in that champion select.
+- **The warning**: `LockTracker` remembers, per part imported by itself, the lock MVP last
+  imported it for. When the player's lock changes afterwards (a trade, an ARAM reroll or bench
+  swap, a role swap), the parts not for the new lock become the `ImportWarning { builtFor, now,
+  parts }` (only parts whose switch is still on), published on `Companion.import_warning`: the
+  desktop forwards it as the `import-warning` event and answers `import_warning`. The automatic
+  import still running for the old lock is aborted (Ahri's spells never land on Lux), deferred
+  spells too. Draft shows the warning in its import bar ("MVP's build is for Ahri Mid, you're now
+  on Lux" + "Import for Lux"), a toast with the same one click shows elsewhere in the app. Every
+  import (`Importer::reporting`: a click, the warning's click, the automatic one) reaches the
+  tracker: an import of a part for the lock the player has now takes it off the warning, whatever
+  its outcome (the player asked and was told how it went); an import for another champion (a
+  champion page) never raises one. Only a change of lock does: MVP never reads the player's
+  pages, sets or spells to compare, so what they change themselves never warns. Trading back to
+  what the build is for clears it; so does the end of champion select.
+- Spells of a first lock with 7 s or less left in a phase before finalization wait for the next
+  session event with time on the clock (the next turn, or finalization).
+- **Settings files up to 0.2** had a mode per part (`importRunes: "off" | "oneClick" |
+  "onLockIn"`): they load in place (`alias` + a lenient reader in `domain::settings`): "on
+  lock-in" turns the part's switch on, the others leave it off, nothing else changes, and the
+  next save writes the new keys.
+- **Draft's bar keeps its results for the champion select** (`draftImports` in
+  `ui/src/lib/imports.ts`, reset when the client status leaves champion select): a session the
+  client sends again after an import (seen on a real client after a spells change), a view that
+  briefly has no champion or position, or Draft closing and opening again keep them; another
+  champion or role starts afresh.
 
 ## Window backdrop (`ui/src/design/backdrop`)
 The ambient light behind the shell is one WebGL 1 canvas (first child of `[data-ambient-host]`,

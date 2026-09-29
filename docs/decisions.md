@@ -147,3 +147,26 @@ Owner: rank icons "look old/fake". Design calls:
 - **Notices load lazily**: the banners, update prompt and update-required card cost nothing at
   first paint; banner links open through the core by banner id, never from a URL the UI gives.
 
+## 2026-09-29 — Auto import, once (owner decided, Claude built)
+Owner: "I want an auto import toggle instead. Auto import needs to import once, and warn if
+different, not enforce. No warning if manual changes to a rune page." Asked to choose, the owner
+picked per-part switches.
+- **One "Auto import" switch per part** (Rune page, Item set, Summoner spells) replaces the
+  Off / One click / On lock-in choice. The buttons are always there (Draft's import bar, champion
+  pages), whatever the switches. Off by default. Settings files of 0.2 migrate in place: "on
+  lock-in" → on, "one click" and "off" → off, nothing else touched.
+- **Once**: the parts switched on are imported by themselves at the first lock-in of a champion
+  select (in ARAM, the first champion given), never again by MVP in that champion select.
+- **Warn, don't enforce**: if the champion or role changes after that (a trade, an ARAM reroll
+  or bench swap, a role swap), Draft says "MVP's build is for Ahri Mid, you're now on Lux" with a
+  one-click "Import for Lux" (a toast with the same click elsewhere in MVP). The warning goes once
+  imported for the new one (by that click or the part buttons), when trading back, or when
+  champion select ends.
+- **Never watched**: MVP doesn't read the player's pages, sets or spells to compare; only a
+  change of lock warns, so what the player changes themselves never does.
+- Spells keep their rules (never in the last 5 s, Flash on the player's key); the server's kill
+  switches still pause each part.
+- With it, two real-client fixes (Claude): Draft's import results survive the client sending its
+  session again (they went back to the idle hint after a spells change), and an import clicked as
+  champion select ends says so instead of "No build for this champion and role".
+
