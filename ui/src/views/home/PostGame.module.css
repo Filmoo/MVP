@@ -347,6 +347,19 @@
   }
 }
 
+/* Narrow: who the opponent is goes on its own line over their name, which keeps its room. */
+@container postgame (max-width: 559px) {
+  .them {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    row-gap: var(--space-1);
+  }
+  .caption {
+    flex-basis: 100%;
+    text-align: right;
+  }
+}
+
 @container postgame (max-width: 419px) {
   .row {
     grid-template-columns: 52px 64px minmax(32px, 1fr) 64px;
