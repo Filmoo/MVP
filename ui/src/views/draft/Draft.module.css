@@ -23,14 +23,6 @@
   gap: var(--space-6);
 }
 
-/* Every import turned off in Settings: no bar, no empty row. */
-.noImports {
-  grid-template-rows: auto minmax(0, max-content);
-  grid-template-areas:
-    "teams teams"
-    "picks why";
-}
-
 .teams {
   grid-area: teams;
   min-width: 0;
@@ -73,12 +65,6 @@
     grid-template-rows: auto;
     grid-template-areas:
       "imports"
-      "picks"
-      "teams"
-      "why";
-  }
-  .noImports {
-    grid-template-areas:
       "picks"
       "teams"
       "why";

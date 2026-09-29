@@ -106,6 +106,11 @@ const samples = (): Record<string, unknown[][]> => ({
   "comps.noteAram": [["Emerald+", "26.19"]],
   "imports.importPart": [["runes"], ["itemSet"], ["spells"]],
   "imports.idle": [["Flash"]],
+  "imports.warning.text": [
+    ["Ahri Mid", "Lux"],
+    ["Ahri Mid", "Ahri Support"],
+  ],
+  "imports.warning.importFor": [["Lux"], ["Ahri Support"]],
   "imports.mostPlayedIn": [[420, "Emerald+"]],
   "imports.failed": [["MVP is still starting"]],
   "imports.fail.client": [["Busy (HTTP 503)"]],

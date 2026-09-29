@@ -1,5 +1,6 @@
 //! Build imports: MVP writes a champion's build into the League client — a rune page, an item
-//! set and the summoner spells — on a click, or once on lock-in when the player opted in.
+//! set and the summoner spells — on a click, or by itself once, at the first lock-in of a
+//! champion select, for the parts whose "Auto import" switch is on.
 //! Policy (docs/policy.md): these are client writes, so they are user-triggered or opted-in,
 //! and never touch the player's own pages and sets.
 
@@ -25,18 +26,31 @@ impl ImportPart {
     pub const ALL: [Self; 3] = [Self::Runes, Self::ItemSet, Self::Spells];
 }
 
-/// When a part of the build is imported.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
+/// The local player's lock-in: a champion and the role it is played in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
-pub enum ImportMode {
-    /// Never: no button, no automation.
-    Off,
-    /// When the player clicks its button.
-    #[default]
-    OneClick,
-    /// Also automatically, once, when the player locks in a champion.
-    OnLockIn,
+pub struct Lock {
+    pub champion_id: u32,
+    /// Assigned position; `None` in blind pick and ARAM.
+    pub role: Option<Role>,
+}
+
+/// Draft's warning after an automatic import: the player's champion or role changed since (a
+/// trade, an ARAM reroll or bench swap, a role swap). MVP never imports again by itself; the
+/// player imports for the new one in one click, or keeps what they have. Gone once imported for
+/// the new one, or when champion select ends.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ImportWarning {
+    /// What MVP's build is for: the lock it was imported for.
+    pub built_for: Lock,
+    /// The player's lock now.
+    pub now: Lock,
+    /// What the one click imports for `now`: the parts MVP imported by itself that aren't for
+    /// `now` yet and whose switch is still on.
+    pub parts: Vec<ImportPart>,
 }
 
 /// The key the player keeps Flash on: D (first summoner spell) or F (second).
@@ -88,10 +102,15 @@ pub struct ImportRequest {
     #[serde(default)]
     pub bracket: Option<Bracket>,
     pub parts: Vec<ImportPart>,
+    /// For the current champion select (Draft, the automatic import): once it has ended (the
+    /// game is starting), nothing is imported and every part says so
+    /// ([`SkipReason::ChampSelectEnded`]). A champion page's import isn't (it's for any game).
+    #[serde(default)]
+    pub champ_select: bool,
 }
 
 /// What an import did, part by part: the answer to `import_build`, and the `import` event of
-/// the lock-in automation.
+/// the automatic import.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
@@ -100,7 +119,7 @@ pub struct ImportResult {
     pub role: Option<Role>,
     /// Stats queue the build came from (420 or 450).
     pub queue: u32,
-    /// Made by the lock-in automation rather than a click.
+    /// Made by the automatic import (first lock-in) rather than a click.
     pub automatic: bool,
     /// One entry per requested part, in request order.
     pub parts: Vec<PartResult>,
@@ -145,12 +164,13 @@ impl ImportOutcome {
 #[serde(tag = "kind", rename_all = "camelCase")]
 #[ts(export)]
 pub enum SkipReason {
-    /// Turned off in Settings.
-    Off,
     /// Paused for everyone by MVP (remote config), e.g. while a League client update breaks it.
     Paused,
     /// Summoner spells can only change during champion select.
     NotInChampSelect,
+    /// An import for the champion select came as it ended (the game is starting): nothing was
+    /// tried, it couldn't apply to this game any more.
+    ChampSelectEnded,
     /// Too close to the end of the champion select timer to change spells safely.
     #[serde(rename_all = "camelCase")]
     TooLate { seconds_left: u32 },
@@ -222,11 +242,42 @@ mod tests {
         .expect("deserializable");
         assert_eq!(request.parts, ImportPart::ALL.to_vec());
         assert_eq!(request.role, Some(Role::Middle));
+        assert!(!request.champ_select, "a champion page's, by default");
+        let draft: ImportRequest = serde_json::from_str(
+            r#"{"championId":103,"role":null,"queue":null,"bracket":null,"parts":["runes"],"champSelect":true}"#,
+        )
+        .expect("deserializable");
+        assert!(draft.champ_select);
     }
 
     #[test]
-    fn one_click_by_default_never_automatic() {
-        assert_eq!(ImportMode::default(), ImportMode::OneClick);
+    fn warnings_say_what_the_build_is_for_and_what_you_play() {
+        let warning = ImportWarning {
+            built_for: Lock {
+                champion_id: 103,
+                role: Some(Role::Middle),
+            },
+            now: Lock {
+                champion_id: 99,
+                role: Some(Role::Middle),
+            },
+            parts: vec![ImportPart::Runes, ImportPart::Spells],
+        };
+        assert_eq!(
+            serde_json::to_string(&warning).expect("serializable"),
+            r#"{"builtFor":{"championId":103,"role":"middle"},"now":{"championId":99,"role":"middle"},"parts":["runes","spells"]}"#
+        );
+        let ended = ImportOutcome::Skipped {
+            reason: SkipReason::ChampSelectEnded,
+        };
+        assert_eq!(
+            serde_json::to_string(&ended).expect("serializable"),
+            r#"{"kind":"skipped","reason":{"kind":"champSelectEnded"}}"#
+        );
+    }
+
+    #[test]
+    fn flash_follows_the_players_games_by_default() {
         assert_eq!(FlashKey::default(), FlashKey::Auto);
         assert_eq!(SpellKey::D.other(), SpellKey::F);
     }

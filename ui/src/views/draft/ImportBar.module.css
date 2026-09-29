@@ -159,6 +159,73 @@
   color: var(--text-3);
 }
 
+/* Nothing to say (the warning speaks): no row of its own, the live region stays for what comes. */
+.status:empty {
+  position: absolute;
+}
+
+/* After the automatic import, the champion or role changed: the card's second row, under a
+   hairline, what changed and the one click that imports for the new one. The icon sits under
+   the portrait, the words on the subtitle's edge. */
+.warning {
+  flex: 1 1 100%;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-5);
+  min-width: 0;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line-1);
+}
+
+.warningIcon {
+  flex: none;
+  margin: 0 var(--space-4);
+  color: var(--warn);
+}
+
+.warningText {
+  flex: 0 1 auto;
+  min-width: 0;
+  font-size: var(--text-md);
+  color: var(--text-1);
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
+.warningAction {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: 32px;
+  padding: 0 var(--space-5);
+  border: 0;
+  border-radius: var(--radius-3);
+  background: var(--accent);
+  color: var(--text-on-accent);
+  box-shadow: inset 0 1px 0 var(--line-rim);
+  font-size: var(--text-md);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--dur-1) var(--ease);
+}
+
+.warningAction:hover:not([aria-busy]) {
+  background: var(--accent-strong);
+}
+
+.warningAction[aria-busy] {
+  cursor: progress;
+}
+
+/* On the accent, the spinner turns in the button's ink. */
+.warningAction .spinner {
+  border-color: var(--accent-strong);
+  border-top-color: var(--text-on-accent);
+}
+
 @container imports (max-width: 639px) {
   .who,
   .buttons,
@@ -169,5 +236,18 @@
     flex: 1 1 0;
     min-width: 0;
     padding: 0 var(--space-4);
+  }
+  /* The icon stays on the first line; the one click goes under the words, as wide as the
+     buttons above. */
+  .warningIcon {
+    align-self: flex-start;
+    margin-top: var(--space-1);
+  }
+  .warningText {
+    flex: 1 1 0;
+  }
+  .warningAction {
+    flex: 1 1 100%;
+    justify-content: center;
   }
 }

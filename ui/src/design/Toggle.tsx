@@ -16,6 +16,8 @@ export function Toggle(props: {
   labelledBy?: string;
   describedBy?: string;
   testId?: string;
+  /** For a `<label for>` whose words flip it too. */
+  id?: string;
 }): JSX.Element {
   const [pressed, setPressed] = createSignal(false);
   const release = () => setPressed(false);
@@ -23,6 +25,7 @@ export function Toggle(props: {
     <button
       type="button"
       role="switch"
+      id={props.id}
       class={styles.toggle}
       aria-checked={props.checked}
       aria-label={props.label}

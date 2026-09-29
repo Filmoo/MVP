@@ -3,7 +3,7 @@ import type { Page } from "@playwright/test";
 // Brings the window.__SCOUT_MOCK__ declaration into scope.
 import type {} from "../src/data/mock";
 import { FIXTURE_NOW } from "../src/data/mock/fixtures";
-import { lockInImport } from "../src/data/mock/import-fixtures";
+import { lockInImport, tradedWarning } from "../src/data/mock/import-fixtures";
 import type { ScenarioName } from "../src/data/mock/scenarios";
 import { animationsDone, openApp, settle, test, VIEWS } from "./app";
 
@@ -119,6 +119,27 @@ test("draft import lock-in 1280x800", async ({ page }) => {
   await page.getByTestId("toast").waitFor();
   await settle(page);
   await capture(page, `${OUT}/draft-import-lock-in-1280x800.png`, false);
+});
+
+// After a trade: Draft's warning with its one click, wide and narrow; elsewhere, its toast.
+for (const [width, height] of [
+  [1280, 800],
+  [420, 800],
+] as const) {
+  test(`draft import warning ${width}x${height}`, async ({ page }) => {
+    await openApp(page, { view: "/draft", scenario: "import-warning", width, height });
+    await page.getByTestId("import-warning").waitFor();
+    await settle(page);
+    await capture(page, `${OUT}/draft-import-warning-${width}x${height}.png`, false);
+  });
+}
+
+test("import warning toast 1280x800", async ({ page }) => {
+  await openApp(page, { scenario: "import-warning" });
+  await page.evaluate((warning) => window.__SCOUT_MOCK__?.emit("import-warning", warning), tradedWarning);
+  await page.getByTestId("toast-action").waitFor();
+  await settle(page);
+  await capture(page, `${OUT}/import-warning-toast-1280x800.png`, false);
 });
 
 test("draft no stats 1280x800", async ({ page }) => {
@@ -672,6 +693,13 @@ test.describe("in French", () => {
     await page.getByTestId("toast").waitFor();
     await settle(page);
     await capture(page, `${OUT}/fr-draft-import-lock-in-1280x800.png`, false);
+  });
+
+  test("fr draft import warning 1280x800", async ({ page }) => {
+    await openApp(page, { view: "/draft", scenario: "import-warning" });
+    await page.getByTestId("import-warning").waitFor();
+    await settle(page);
+    await capture(page, `${OUT}/fr-draft-import-warning-1280x800.png`, false);
   });
 
   for (const scenario of ["champ-select", "aram-champ-select", "draft-planning"] as const) {
