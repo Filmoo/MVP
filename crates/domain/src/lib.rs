@@ -35,8 +35,8 @@ pub use imports::{
 };
 pub use live::{ActiveGame, ActiveParticipant, LiveGame, LiveNames, LivePlayer, Scouting};
 pub use matches::{
-    GradeBadge, GradeFactor, GradeFactorKind, GradeLetter, GradedMatch, MatchDetails, MatchGrade,
-    MatchPlayer, MatchTeam,
+    EndOfGameStats, GradeBadge, GradeFactor, GradeFactorKind, GradeLetter, GradedMatch,
+    MatchDetails, MatchGrade, MatchPlayer, MatchTeam,
 };
 pub use player::{Division, MatchSummary, PlayerProfile, RankedEntry, RiotId, Role, Tier};
 pub use remote::{

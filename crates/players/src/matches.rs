@@ -3,7 +3,7 @@
 //! Names come from the game document only: a player it doesn't name (hidden by Riot) stays
 //! unnamed, and nothing here ever looks a player up.
 
-use domain::{MatchDetails, MatchGrade, MatchPlayer, MatchTeam, RiotId, Role};
+use domain::{EndOfGameStats, MatchDetails, MatchGrade, MatchPlayer, MatchTeam, RiotId, Role};
 use serde_json::Value;
 use stats::grade::{Lobby, LobbyPlayer, grade};
 
@@ -85,6 +85,18 @@ pub fn grade_of(game: &Value, puuid: &str) -> Option<MatchGrade> {
     grades(game)?.into_iter().nth(index)
 }
 
+/// The participant's end-of-game numbers (absent fields stay `None`).
+fn end_of_game(p: &Value) -> EndOfGameStats {
+    EndOfGameStats::read(
+        |key| {
+            p.get(key)
+                .and_then(Value::as_u64)
+                .and_then(|n| u32::try_from(n).ok())
+        },
+        |key| p.get(key).and_then(Value::as_bool),
+    )
+}
+
 fn items(p: &Value) -> Vec<u32> {
     (0..6)
         .map(|i| u32_at(p, &format!("item{i}")))
@@ -129,6 +141,7 @@ fn match_player(p: &Value, grade: Option<MatchGrade>) -> MatchPlayer {
         keystone: perk("/perks/styles/0/selections/0/perk"),
         secondary_tree: perk("/perks/styles/1/style"),
         grade,
+        stats: end_of_game(p),
     }
 }
 
@@ -181,7 +194,7 @@ pub(crate) mod tests {
                     9 => ("", "", BOT_PUUID.to_owned()),
                     _ => ("Player", "EUW", format!("puuid-{i}")),
                 };
-                json!({
+                let mut player = json!({
                     "puuid": puuid, "riotIdGameName": name, "riotIdTagline": tag,
                     "teamId": if blue { 100 } else { 200 }, "win": blue,
                     "teamPosition": positions[lane], "championId": 100 + i, "champLevel": 16,
@@ -197,7 +210,25 @@ pub(crate) mod tests {
                         { "style": 8100, "selections": [{ "perk": 8112 }, { "perk": 8139 }] },
                         { "style": 8200, "selections": [{ "perk": 8233 }] }
                     ] }
-                })
+                });
+                // The end-of-game stats (one `json!` would be too deep for the macro).
+                let end_of_game = json!({
+                    "largestKillingSpree": if carry { 8 } else { 2 },
+                    "largestMultiKill": if carry { 3 } else { 1 }, "firstBloodKill": carry,
+                    "physicalDamageDealtToChampions": if carry { 4_000 } else { 9_000 },
+                    "magicDamageDealtToChampions": if carry { 28_000 } else { 6_000 },
+                    "trueDamageDealtToChampions": if carry { 2_000 } else { 1_000 },
+                    "damageDealtToTurrets": 3_000, "totalHeal": 2_500,
+                    "totalHealsOnTeammates": if lane == 4 { 4_000 } else { 0 },
+                    "totalDamageShieldedOnTeammates": if lane == 4 { 6_000 } else { 0 },
+                    "wardsPlaced": 10, "wardsKilled": 3, "visionWardsBoughtInGame": 2,
+                    "goldSpent": if carry { 14_100 } else { 10_500 }, "timeCCingOthers": 21,
+                    "turretKills": u32::from(blue), "inhibitorKills": 0
+                });
+                if let (Some(player), Value::Object(more)) = (player.as_object_mut(), end_of_game) {
+                    player.extend(more);
+                }
+                player
             })
             .collect();
         json!({
@@ -256,6 +287,31 @@ pub(crate) mod tests {
         assert_eq!(mid.spells, vec![4, 14]);
         assert_eq!((mid.keystone, mid.secondary_tree), (Some(8112), Some(8200)));
         assert!(mid.grade.is_some() && !mid.is_me && !mid.hidden);
+        // The end-of-game stats, as Riot counts them.
+        let stats = &mid.stats;
+        assert_eq!(
+            (stats.largest_killing_spree, stats.largest_multi_kill),
+            (Some(8), Some(3))
+        );
+        assert_eq!(stats.first_blood, Some(true));
+        assert_eq!(
+            (
+                stats.physical_damage_to_champions,
+                stats.magic_damage_to_champions,
+                stats.true_damage_to_champions
+            ),
+            (Some(4_000), Some(28_000), Some(2_000))
+        );
+        assert_eq!((stats.damage_taken, stats.damage_self_mitigated), (Some(20_000), Some(8_000)));
+        assert_eq!((stats.minions, stats.monsters), (Some(180), Some(10)));
+        assert_eq!((stats.gold_spent, stats.crowd_control_seconds), (Some(14_100), Some(21)));
+        assert_eq!((stats.turrets_destroyed, stats.inhibitors_destroyed), (Some(1), Some(0)));
+        let support = &blue.players[4].stats;
+        assert_eq!(
+            (support.healing_on_teammates, support.shielding_on_teammates),
+            (Some(4_000), Some(6_000))
+        );
+        assert_eq!(red.players[0].stats.first_blood, Some(false));
 
         // Unnamed players stay unnamed: hidden (streamer mode), or a bot.
         let jungler = &red.players[1];

@@ -73,7 +73,8 @@ with `If-None-Match` rather than refetching a whole patch at once.
 
 ### Caching
 In memory, per process: profiles and scout cards 2 min, account lookups 1 day, match documents
-forever (compacted to the fields we read, LRU-bounded to 20,000). Concurrent identical lookups
+forever (compacted to the fields we read, end-of-game stats included, under 11 KB each;
+LRU-bounded to 12,000, about 130 MB). Concurrent identical lookups
 share one upstream call, so scouting the same lobby twice costs no Riot calls. A live game is
 kept an hour (longer than games last) under each visible player's PUUID, never served for
 another `gameId`: the other players of that game (and retries) cost no Spectator-V5 call, and
