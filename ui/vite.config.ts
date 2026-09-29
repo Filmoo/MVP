@@ -121,6 +121,28 @@ function startupChunks(): { plugins: Plugin[]; loaded: Set<string> } {
 }
 
 /**
+ * A CSS module's class names never change: an element's `class={styles.x}`, or a template of
+ * such names and plain words, is set once when the element is made (Solid's `@once`) instead of
+ * being watched like a reactive expression, an effect per element in the bundle. Written at build
+ * time, before Solid compiles the file, so the source stays plain; the dev server leaves it be.
+ */
+function onceClasses(): Plugin {
+  return {
+    name: "scout-once-classes",
+    enforce: "pre",
+    apply: "build",
+    transform(code, id) {
+      if (!id.endsWith(".tsx")) return null;
+      const modules = [...code.matchAll(/^import (\w+) from "[^"]+\.module\.css";$/gm)].map((m) => m[1]);
+      if (modules.length === 0) return null;
+      const name = `(?:${modules.join("|")})\\.[A-Za-z_$][\\w$]*`;
+      const constant = new RegExp(`(?<![\\w-])class=\\{(${name}|\`(?:[^\`$\\\\]|\\$\\{${name}\\})*\`)\\}`, "g");
+      return { code: code.replace(constant, (_, value: string) => `class={/*@once*/ ${value}}`), map: null };
+    },
+  };
+}
+
+/**
  * `vite build --mode app` is what ships in the desktop app (`pnpm build`, Tauri's before-build
  * command): it leaves out the browser mock (scripted scenarios, stats fixtures, the widget
  * harness), which only the browser preview, the dev server and the UI tests use.
@@ -128,7 +150,8 @@ function startupChunks(): { plugins: Plugin[]; loaded: Set<string> } {
 const startup = startupChunks();
 
 export default defineConfig(({ mode }) => ({
-  plugins: [solid(), devAssets(), ...startup.plugins],
+  // onceClasses before solid(): both run first (`pre`), in this order.
+  plugins: [onceClasses(), solid(), devAssets(), ...startup.plugins],
   define: { __MVP_MOCK__: JSON.stringify(mode !== "app") },
   clearScreen: false,
   css: { modules: { generateScopedName: scopedName } },

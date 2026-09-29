@@ -62,7 +62,7 @@ function Pane(props: Tip): JSX.Element {
       data-kind={kind}
       popover="auto"
       role="tooltip"
-      class={/*@once*/ styles.tip}
+      class={styles.tip}
       // The light behind the header is the card's own `::before` (Tip.module.css): no element.
       style={/*@once*/ { "--art": art && `url(${JSON.stringify(art)})`, "--glow": glow }}
       onToggle={(e) => e.newState === "closed" && untip(anchor)}
@@ -275,17 +275,17 @@ function Hint(props: { title: string | undefined; lines: readonly string[]; mark
   return (
     <>
       {title && (
-        <div class={/*@once*/ styles.hintHead}>
+        <div class={styles.hintHead}>
           {mark && (
-            <span class={/*@once*/ styles.mark} aria-hidden="true">
+            <span class={styles.mark} aria-hidden="true">
               {mark}
             </span>
           )}
-          <p class={/*@once*/ styles.hintTitle}>{title}</p>
+          <p class={styles.hintTitle}>{title}</p>
         </div>
       )}
       {lines.map((line) => (
-        <p class={/*@once*/ styles.hintLine}>{line}</p>
+        <p class={styles.hintLine}>{line}</p>
       ))}
     </>
   );
@@ -349,25 +349,25 @@ export function GameTip(props: GameTipProps): JSX.Element {
   };
   return (
     <>
-      <div class={/*@once*/ styles.head}>
-        <span class={/*@once*/ styles.icon} data-kind={kind} style={/*@once*/ color} aria-hidden="true">
+      <div class={styles.head}>
+        <span class={styles.icon} data-kind={kind} style={/*@once*/ color} aria-hidden="true">
           {art ? <img src={art} alt="" /> : glyph}
         </span>
-        <div class={/*@once*/ styles.titles}>
-          <p class={/*@once*/ styles.nameRow}>
-            <span class={/*@once*/ styles.name}>{head()[0]}</span>
+        <div class={styles.titles}>
+          <p class={styles.nameRow}>
+            <span class={styles.name}>{head()[0]}</span>
             <Show when={head()[2]}>
-              <span class={/*@once*/ `${styles.figure} num`}>{head()[2]}</span>
+              <span class={`${styles.figure} num`}>{head()[2]}</span>
             </Show>
           </p>
           <Show when={head()[1]}>
-            <p class={/*@once*/ styles.what}>{head()[1]}</p>
+            <p class={styles.what}>{head()[1]}</p>
           </Show>
         </div>
       </div>
       <Show when={lines().length}>
         {/* Line by line (an empty one is the space between two paragraphs); drawn anew if the text changes. */}
-        <div class={/*@once*/ styles.text}>
+        <div class={styles.text}>
           {lines().map((line) => (
             <p>{line.map(({ text, tone }) => (tone ? <span data-tone={tone}>{text}</span> : text))}</p>
           ))}

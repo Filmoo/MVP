@@ -46,7 +46,9 @@ flowchart LR
   (Tauri IPC in the app, scripted mock scenarios in a browser, HTTP later for a web version).
   The mock only ships in browser builds (`pnpm dev`, `build:preview` for the UI tests, into
   `ui/dist-preview`); the desktop build (`pnpm build` = `vite build --mode app`, into `ui/dist`,
-  the one the bundle budgets measure) leaves it out with the widget harness.
+  the one the bundle budgets measure) leaves it out with the widget harness. Both builds shrink
+  the same code (`ui/vite.config.ts`): short CSS module class names, lazy views' preload lists
+  without the startup files, constant classes set once (Solid's `@once`, written at build time).
 - **Light next to League.** No overlay, no injection, no polling loops in the UI; the webview can
   be closed while the core keeps following the client from the tray. Budgets and an idle-work
   test guard this in CI, plus a real-app memory/CPU check on Windows.

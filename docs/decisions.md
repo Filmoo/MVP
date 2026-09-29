@@ -238,3 +238,6 @@ summoner hovered + description". Design calls:
   are keyboard-reachable; hints that only restore a cut name stay hover-only, so the tab order
   isn't doubled. A short hover intent (200 ms, then instant while moving along) keeps sweeping
   the pointer across a table calm.
+- **Budgets not raised**: the tooltips' ~2.7 KB of JS (words in both languages included) are paid
+  by build savings on the same code (shorter CSS module class names, preload lists without the
+  startup files, constant classes set once): 128.6 KB of 131 in all, 43.7 of 46 at startup.

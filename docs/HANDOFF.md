@@ -54,17 +54,20 @@ check the latest run before building on it.
    composition readings and ARAM length buckets (job 9), the draft model (job 4).
 7. Crawl again for `compositions.json` (older games lack the numbers); check real published files
    against the pages (sizes, thin Master+ data, `n = 0` sections).
-8. Bundle: startup JS 44.5 / 46 KB, startup CSS 10.4 / 12 KB, total JS 124.3 / 125 KB after the
-   tooltips (they cost ~2.7 KB of JS in all, words in both languages included). Two savings paid
-   for them: CSS modules' class names are the local name and one hash of the file (`tip_k3Zq9`,
-   `scopedName` in `ui/vite.config.ts`; the default added each class's line number, ~2.1 KB of JS
-   and 0.6 KB of startup CSS), and the lazy views' preload lists no longer re-list the startup
-   files, JS or CSS (`startupChunks`, ~0.4 KB). The next feature needs savings first, or the
-   owner's OK to raise the total. Known traps: shared startup code splits into a new chunk
-   whenever a lazy chunk imports part of it (the tooltips ride in the player page's chunk for that
-   reason: a chunk of their own split `solid-js/web` out of the startup chunk, +0.3 KB); Solid
-   compiles `class={styles.x}` into an effect, `class={/*@once*/ styles.x}` into one assignment
-   (a build-time pass adding `@once` to every constant class might save ~1 KB more: not tried).
+8. Bundle: startup JS 43.7 / 46 KB, startup CSS 10.8 / 12 KB, total JS 128.6 / 131 KB with the
+   tooltips (they cost ~2.7 KB of JS in all, words in both languages included; the app before
+   them and the savings below measured 45.5 / 11.4 / 130.4 at 9472c3c). Three build savings paid
+   for them, the same code made smaller: CSS modules' class names are the local name and one hash
+   of the file (`tip_k3Zq9`, `scopedName` in `ui/vite.config.ts`; the default added each class's
+   line number, ~2.1 KB of JS and 0.6 KB of startup CSS); the lazy views' preload lists no longer
+   re-list the startup files, JS or CSS (`startupChunks`, ~0.4 KB); and constant classes
+   (`class={styles.x}`, or a template of such names and plain words) are set once: `onceClasses`
+   writes Solid's `/*@once*/` on them at build time, where Solid compiled each into an effect
+   (~2.7 KB of JS, 1.0 KB of it at startup). Known traps: shared startup code splits into a new
+   chunk whenever a lazy chunk imports part of it (the tooltips ride in the player page's chunk
+   for that reason: a chunk of their own split `solid-js/web` out of the startup chunk, +0.3 KB);
+   Solid drops `@once` on JSX inside an expression (`{open() && <p class=…>}`, `{list.map(…)}`),
+   whose classes stay effects.
 9. Production Riot key: register the product (policy.md lists the endpoints to declare); a dev
    key crawls ~2k games a day.
 
