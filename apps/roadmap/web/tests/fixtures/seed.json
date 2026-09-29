@@ -1,8 +1,8 @@
 {
   "$comment": "A small, stable roadmap for the UI tests (the committed seed changes with the docs).",
   "areas": [
-    { "key": "draft", "name": "Draft", "color": "accent" },
-    { "key": "live", "name": "Live", "color": "win" },
+    { "key": "draft", "name": "Draft", "color": "rank-diamond" },
+    { "key": "live", "name": "Live", "color": "rank-platinum" },
     { "key": "design", "name": "Design & glass", "color": "rank-master" },
     { "key": "platform", "name": "Platform & server", "color": "rank-bronze" }
   ],

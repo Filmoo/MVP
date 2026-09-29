@@ -2,7 +2,7 @@ import { type JSX, Show, splitProps } from "solid-js";
 import styles from "./Button.module.css";
 import { Icon, type IconName } from "./Icon";
 
-export type Variant = "primary" | "secondary" | "ghost" | "danger" | "good";
+export type Variant = "primary" | "secondary" | "ghost" | "danger" | "good" | "goodSoft";
 
 export function Button(
   props: JSX.ButtonHTMLAttributes<HTMLButtonElement> & {

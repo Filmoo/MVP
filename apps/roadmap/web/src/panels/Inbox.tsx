@@ -1,4 +1,4 @@
-import { createSignal, For, type JSX, Show } from "solid-js";
+import { createSignal, For, type JSX, onMount, Show } from "solid-js";
 import { ago } from "../lib/format";
 import { areaName, data, proposals } from "../state/data";
 import { accept, reject } from "../state/ops";
@@ -15,6 +15,10 @@ import styles from "./Inbox.module.css";
 /** Claude's proposals waiting for the owner: accept (into a version) or reject, one click each. */
 export function Inbox(): JSX.Element {
   useGrid(() => [proposals().map((f) => f.id)]);
+  onMount(() => {
+    const waiting = proposals();
+    if (!waiting.some((f) => f.id === selected())) setSelected(waiting[0]?.id ?? null);
+  });
   return (
     <Sheet
       label="Proposals"

@@ -73,8 +73,10 @@
   list-style: none;
 }
 
+/* As tall as its own thread (not the row's tallest), so the thread ends at its last node. */
 .stop {
   position: relative;
+  align-self: start;
   min-width: 0;
 }
 
@@ -173,13 +175,15 @@
 }
 
 .when {
-  margin-top: var(--space-2);
   color: var(--text-3);
   font-size: var(--text-xs);
+  font-weight: var(--weight-regular);
 }
 
+/* Three lines always, written or not, so every thread starts at the same height. */
 .goal {
   margin-top: var(--space-3);
+  min-height: calc(3 * 1.45em);
   color: var(--text-3);
   font-size: var(--text-sm);
   line-height: 1.45;
@@ -279,6 +283,22 @@
   background: var(--area);
 }
 
+/* A station's done work as one row: a mint node for the lot. */
+.node[data-summary] {
+  --area: var(--good);
+  --n: 0;
+}
+
+.fold {
+  flex: none;
+  color: var(--text-3);
+  font-size: var(--text-xs);
+}
+
+.nodeButton:hover .fold {
+  color: var(--accent-strong);
+}
+
 .node[data-status="in_progress"] .dot {
   background: conic-gradient(var(--area) 0 50%, var(--bg-1) 0);
   box-shadow:
@@ -331,9 +351,17 @@
   .page {
     padding: var(--space-3) var(--space-5) var(--space-11);
   }
+  /* One row that scrolls sideways: the stations start on the first screen. */
   .legend {
+    flex-wrap: nowrap;
     justify-content: flex-start;
-    margin-bottom: var(--space-8);
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin: 0 calc(-1 * var(--space-5)) var(--space-7);
+    padding: 0 var(--space-5);
+  }
+  .chip {
+    flex: none;
   }
   .stops {
     grid-template-columns: minmax(0, 1fr);
@@ -356,7 +384,8 @@
   .stop[data-state="active"]::after {
     background: linear-gradient(180deg, var(--accent), var(--line-2));
   }
-  .stop::before {
+  /* The track carries on as the thread, except under the last station (no track below it). */
+  .stop:not([data-last="true"])::before {
     display: none;
   }
   .thread {

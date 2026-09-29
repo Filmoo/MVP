@@ -571,7 +571,7 @@ async fn areas_take_the_next_free_colour() {
     assert_eq!(area.status, StatusCode::CREATED);
     assert_eq!(
         area.json(),
-        json!({ "key": "tier-list-builds", "name": "Tier list & builds", "color": "good", "position": 2 })
+        json!({ "key": "tier-list-builds", "name": "Tier list & builds", "color": "rank-master", "position": 2 })
     );
     assert_eq!(
         app.post(

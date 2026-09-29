@@ -221,8 +221,8 @@ function Fields(props: { feature: Feature; owner: boolean }): JSX.Element {
   const [newArea, setNewArea] = createSignal(false);
   return (
     <dl class={styles.fields}>
-      <dt>Status</dt>
-      <dd>
+      <dt class={styles.wideLabel}>Status</dt>
+      <dd class={styles.wide}>
         <div class={styles.statuses} role="radiogroup" aria-label="Status">
           <For each={STATUSES}>
             {(status: Status) => (
@@ -257,9 +257,11 @@ function Fields(props: { feature: Feature; owner: boolean }): JSX.Element {
           <For each={data.versions}>{(v) => <option value={String(v.id)}>{v.name}</option>}</For>
         </select>
       </dd>
-      <dt>Area</dt>
-      <dd class={styles.areaField}>
+      <dt class={styles.areaLabel}>
         <AreaDot area={f().area} />
+        Area
+      </dt>
+      <dd class={styles.areaField}>
         <Show
           when={newArea()}
           fallback={

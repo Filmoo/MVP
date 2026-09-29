@@ -97,10 +97,15 @@
 }
 
 .titleCell {
+  align-items: baseline;
   gap: var(--space-4);
   flex-wrap: wrap;
   white-space: normal;
   padding: var(--space-3) 0;
+}
+
+.titleCell > svg {
+  align-self: center;
 }
 
 .title {
@@ -142,6 +147,8 @@
 }
 
 .mobileMeta {
+  align-items: center;
+  gap: var(--space-3);
   display: none;
   flex-basis: 100%;
   padding-left: calc(14px + var(--space-4));
@@ -181,7 +188,7 @@
     display: none;
   }
   .mobileMeta {
-    display: block;
+    display: flex;
   }
 }
 

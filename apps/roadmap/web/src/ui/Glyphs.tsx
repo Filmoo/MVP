@@ -73,7 +73,6 @@ export function Ring(props: { size: number; stroke?: number; done: number; activ
         r={r()}
         fill="none"
         stroke-width={stroke()}
-        stroke-linecap="round"
         stroke-dasharray={`${full()}`}
         style={{ ...arc(props.active), "--turn": `${props.done * 360}deg` }}
       />
@@ -84,7 +83,6 @@ export function Ring(props: { size: number; stroke?: number; done: number; activ
         r={r()}
         fill="none"
         stroke-width={stroke()}
-        stroke-linecap="round"
         stroke-dasharray={`${full()}`}
         style={arc(props.done)}
       />

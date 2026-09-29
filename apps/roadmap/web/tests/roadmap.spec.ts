@@ -355,7 +355,7 @@ test("every view lays out from 400 to 2560 px: no sideways page, nothing overlap
       expect(layout.pageWidth, `${at}: the page scrolls sideways`).toBeLessThanOrEqual(layout.width);
       expect(layout.headerRight, `${at}: the top bar spills`).toBeLessThanOrEqual(layout.width);
       expect(layout.overlaps, `${at}: top bar items overlap`).toBe(false);
-      expect(layout.first, `${at}: a feature shows`).not.toBeNull();
+      expect(layout.first, `${at}: a feature shows whole in the window`).not.toBeNull();
       expect(layout.first?.left ?? -1, at).toBeGreaterThanOrEqual(0);
       expect(layout.first?.top ?? 9999, at).toBeLessThan(size.height);
     }

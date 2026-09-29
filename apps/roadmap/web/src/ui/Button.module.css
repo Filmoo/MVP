@@ -94,6 +94,17 @@
   background: color-mix(in oklab, var(--good) 85%, white);
 }
 
+/* The same yes, quietly: many at once on the board must not outshine the work. */
+.goodSoft {
+  background: color-mix(in oklab, var(--good) 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--good) 30%, transparent);
+  color: var(--good);
+}
+
+.goodSoft:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--good) 24%, transparent);
+}
+
 .kbd {
   margin-left: var(--space-2);
   font-size: var(--text-xs);

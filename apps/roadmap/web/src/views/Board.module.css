@@ -334,29 +334,19 @@
   outline: 2px solid var(--accent);
 }
 
-.card[data-status="in_progress"]::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: var(--space-4);
-  bottom: var(--space-4);
-  width: 3px;
-  border-radius: 0 var(--radius-full) var(--radius-full) 0;
-  background: var(--accent);
-  box-shadow: 0 0 10px var(--accent);
-}
-
 .card[data-lifted="true"] {
   opacity: 0.35;
 }
 
 .cardTop {
   display: flex;
-  align-items: flex-start;
+  align-items: baseline;
   gap: var(--space-4);
 }
 
 .cardTop > svg {
+  flex: none;
+  align-self: flex-start;
   margin-top: 2px;
 }
 
@@ -406,6 +396,12 @@
   gap: var(--space-3);
   min-width: 0;
   white-space: nowrap;
+}
+
+.claude {
+  display: inline-grid;
+  place-items: center;
+  color: var(--accent-strong);
 }
 
 .counts {

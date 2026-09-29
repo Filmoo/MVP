@@ -3,7 +3,8 @@ import type { JSX } from "solid-js";
 /** Line icons on a 24 grid with a 1.75 stroke, the app's family (ui/src/design/Icon.tsx). */
 const paths = {
   board: "M4 4h5v16H4zM10.5 4h5v10h-5zM17 4h3v7h-3z",
-  roadmap: "M3 12h18M6 12a2 2 0 1 0 0 .01M12 12a2 2 0 1 0 0 .01M18 12a2 2 0 1 0 0 .01M6 14v5M12 14v3M18 14v6",
+  roadmap:
+    "M2 7h2M8 7h2M14 7h2M20 7h2M4 7a2 2 0 1 0 4 0a2 2 0 1 0-4 0M10 7a2 2 0 1 0 4 0a2 2 0 1 0-4 0M16 7a2 2 0 1 0 4 0a2 2 0 1 0-4 0M6 9v11M12 9v7M18 9v9",
   list: "M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01",
   inbox: "M3 13l3-8h12l3 8M3 13v6h18v-6M3 13h5l1.5 2.5h5L16 13h5",
   plus: "M12 5v14M5 12h14",
