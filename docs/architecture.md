@@ -21,7 +21,7 @@ flowchart LR
 
   UI <-- "Tauri IPC: commands + events" --> Core
   Core <-- "pinned-root TLS, loopback only" --> LCU
-  Core -. "later: in-game view" .-> Game
+  Core -- "player list, once per game<br/>(names when Riot has none)" --> Game
   Core --> Cache
   Core -- "versions + JSON" --> DD
   UI -- "icons (img)" --> DD
@@ -64,6 +64,7 @@ TypeScript types); failures answer `ApiError` `{ error, message, retryAfter? }`.
 | `GET /health` | `Health` `{ ok, version, riotKey }` |
 | `GET /v1/players/{platform}/{gameName}/{tagLine}` | `PlayerProfile` · 400 bad platform · 404 · 429 + `retryAfter` · 503 without key |
 | `POST /v1/players/batch` `{ platform, players: RiotId[] }` (≤ 10; older apps: `puuids`) | `ScoutCard[]` for loading-screen scouting |
+| `GET /v1/live/{platform}/{gameName}/{tagLine}?gameId=` | `ActiveGame`: the game that player is in as Riot shows it (Spectator-V5: streamer-mode players anonymous), with the visible players' cards · 404 `notFound` / `filtered` |
 | `GET /v1/matches/{platform}/{matchId}` | `MatchDetails` (both teams, every player's grade) from the match cache · 400 bad platform or id · 404 |
 | `GET /v1/stats/index` | `StatsIndex` (published patches, `current`) · ETag, `max-age=300` |
 | `GET /v1/stats/{patch}/{queue}/{file…}` | published stats files (below) · ETag/304, `max-age=3600` · 404 when absent |
@@ -76,7 +77,12 @@ Scouting batches name players by **Riot ID**: the League client's PUUIDs are not
 (Riot encrypts PUUIDs per key), so the server resolves each Riot ID with account-v1 (cached a
 day) and builds the card from our key's PUUID. Cards carry the account's Riot ID next to that
 PUUID and positive/neutral tags only (OTP, main role, hot streak, veteran); players nobody
-knows get no card. Caches in memory with request coalescing: profiles and cards 2 min,
+knows get no card. Live games (`/v1/live`, Spectator-V5) are asked with the local player's own
+Riot ID and kept an hour under each visible player's PUUID, never served for another `gameId`:
+everyone else in that game costs no Riot call, and the accounts Riot showed go to the account
+cache for the batch that may follow; cards not built within 5 s are left to that batch
+(`cardsComplete: false`) while their lookups carry on. Caches in memory with request
+coalescing: profiles and cards 2 min,
 accounts 1 day, compacted match documents forever (LRU-bounded: the 28 participant fields the
 profile, the grade and match details read, keystone and rune trees only, kept as JSON text);
 accounts and matches are snapshotted to the data dir on shutdown (snapshot format 2: an older
@@ -178,16 +184,45 @@ All three run in the core, so they work with the window closed; the UI only show
 
 ## Loading-screen scouting (`companion::live`)
 When the phase reaches Loading or InGame the core reads `GET /lol-gameflow/v1/session` once per
-game (both teams: PUUID, Riot ID, champion, position; spells from `playerChampionSelections`),
-publishes a `LiveGame` (our team first), then asks `POST /v1/players/batch` for the visible
-players **by Riot ID** and fills the cards in place (`live` event), matching each card back to
-its seat by Riot ID (case-insensitive: the server answers with the account's own spelling).
-The client's PUUIDs stay in the core (they identify the local player and pair spells): our
-backend's API key can't read them. Streamer-mode players (`nameVisibilityType: HIDDEN`) are
-dropped before anything else: no Riot ID, no PUUID, no lookup; players without a Riot ID (bots)
-aren't looked up either. Champion select is never read for identities. The game ending clears
-the view; a failed batch is shown in the page head with a retry (`retry_scouting`). The remote
-config's `scouting` flag turns lookups off (the teams still show, without cards).
+game (both teams: champion, position, the client's PUUIDs; spells from
+`playerChampionSelections`) and publishes a `LiveGame` (our team first). The session names
+nobody but the local player (2026-09: no `gameName`/`tagLine`, bots not listed in custom
+games; the local player's Riot ID comes from `current-summoner`), so `LiveGame.names` says
+where the others' names are, and the core fills them in, publishing each step (`live` event):
+1. **Riot's live game** (`names: asking`): `GET /v1/live/{platform}/{me}?gameId=` with the
+   local player's own Riot ID, asked once more after 8 s if Riot doesn't list the game yet
+   (`LiveConfig.riot_retry`). The answer names every visible player, keeps streamer-mode ones
+   anonymous, marks bots, and brings the visible players' cards.
+2. **The game itself** (`names: waiting { filtered }`) when Riot has none (no backend, not
+   listed, `filtered` for Ranked Flex and Arena, an error): `companion::live::GameClient` reads
+   `GET https://127.0.0.1:2999/liveclientdata/allgamedata` (the League client's root; debug
+   builds: `SCOUT_GAME_CLIENT`) every 2 s (every 10 s after 90 s) until it lists the players,
+   which it does once the loading screen is over (≈ 23 s after `InProgress` on the real
+   client), then never again. The task is aborted with the game, so nothing asks outside one.
+   Meanwhile the local player's own card is asked for at once (it needs no one else's name).
+   Players it can't name reliably (streamer mode: a missing or partial Riot ID, a champion's
+   name, a name shared by several players) are hidden; champions and spells are read from
+   their Data Dragon keys (`rawChampionName`, `rawDisplayName`) through `GameIds` (the loaded
+   game data).
+Both lists are matched to seats by side (where the list names the local player, else the way
+round more champions match, else the session's first team is blue) then champion, a champion
+twice on one side in order (`live::seats`); players the session didn't list (bots) get seats of
+their own; a seat already hidden stays hidden and the local player keeps their own name. Then
+`POST /v1/players/batch` asks **by Riot ID** for the cards still missing (none when Riot's
+answer brought them all) and fills them in place, matching each card back to its seat by Riot
+ID (case-insensitive: the server answers with the account's own spelling). The client's PUUIDs
+stay in the core (they identify the local player and pair spells): our backend's API key can't
+read them. Champion select is never read for identities. The game ending clears the view; a
+failed batch is shown in the page head with a retry (`retry_scouting`: names already in are
+kept, only the cards are asked again). The remote config's `scouting` flag turns our server's
+lookups off (Riot's live game and the cards): the names still come from the game, without
+cards. UI: the page head says where the names are in a slot that is always there (so the head
+never wraps and the teams never move when the line changes): `Looking players up…`, or that
+the names come after the loading screen, plainly saying when Riot doesn't share the queue. Seats
+show a name placeholder until theirs arrives, pulsing while it is asked for and still while the
+game hasn't loaded (a minute or two); bots read "AI bot" with their champion, streamer-mode
+players "Hidden player" with their lane; a visible player's Riot ID links to their player page
+(`#/player/{platform}/{gameName}/{tagLine}`, as the search opens it).
 
 ## Match insights (`stats::grade`, `companion::matches`, `ui/src/views/home`)
 Every finished game in a match history gets a grade, and a match row opens on the whole game.

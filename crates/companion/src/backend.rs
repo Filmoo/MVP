@@ -18,8 +18,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use domain::{
-    ApiError, ApiErrorCode, BackendError, CrashReport, MatchDetails, PlayerProfile, RemoteConfig,
-    RiotId, ScoutCard, ScoutRequest,
+    ActiveGame, ApiError, ApiErrorCode, BackendError, CrashReport, MatchDetails, PlayerProfile,
+    RemoteConfig, RiotId, ScoutCard, ScoutRequest,
 };
 use reqwest::header::{CACHE_CONTROL, ETAG, HeaderMap, HeaderValue, IF_NONE_MATCH, RETRY_AFTER};
 use reqwest::{StatusCode, Url};
@@ -245,6 +245,42 @@ impl BackendClient {
         receive(request.send().await).await
     }
 
+    /// The game the local player `me` is in, as Riot shows it to apps
+    /// (`GET /v1/live/{platform}/{gameName}/{tagLine}?gameId=`). Only the local player's own
+    /// Riot ID and the game's id are sent.
+    pub async fn active_game(
+        &self,
+        platform: &str,
+        me: &RiotId,
+        game_id: u64,
+    ) -> Result<ActiveGameAnswer, BackendError> {
+        let mut url = self.url(&["v1", "live", platform, &me.game_name, &me.tag_line]);
+        url.query_pairs_mut()
+            .append_pair("gameId", &game_id.to_string());
+        let response = self
+            .0
+            .http
+            .get(url)
+            .timeout(self.0.timeout)
+            .send()
+            .await
+            .map_err(|e| network(&e))?;
+        if response.status() == StatusCode::NOT_FOUND {
+            let body: Option<ApiError> = response
+                .bytes()
+                .await
+                .ok()
+                .and_then(|bytes| serde_json::from_slice(&bytes).ok());
+            let filtered = body.is_some_and(|b| b.error == ApiErrorCode::Filtered);
+            return Ok(if filtered {
+                ActiveGameAnswer::Filtered
+            } else {
+                ActiveGameAnswer::NotListed
+            });
+        }
+        receive_response(response).await.map(ActiveGameAnswer::Game)
+    }
+
     /// `GET base/segments…` of a cacheable file, revalidating the copy tagged `etag` when one
     /// is given (`If-None-Match`: the server answers 304 while it is current).
     pub async fn get_file(
@@ -348,6 +384,18 @@ impl BackendClient {
             Err(ReportRefused::Rejected(error))
         }
     }
+}
+
+/// The answer to [`BackendClient::active_game`].
+#[derive(Debug, Clone, PartialEq)]
+pub enum ActiveGameAnswer {
+    /// Riot's view of the game: streamer-mode players anonymous, with the visible ones' cards.
+    Game(ActiveGame),
+    /// Riot lists no game for the player (not yet, or never for this kind of game), or the
+    /// backend doesn't know this route.
+    NotListed,
+    /// Riot doesn't share live games of this queue with apps (Ranked Flex, Arena).
+    Filtered,
 }
 
 /// The answer to [`BackendClient::get_file`].
