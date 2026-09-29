@@ -67,6 +67,7 @@ pub fn run() {
             commands::lp_history,
             commands::champion_mastery,
             commands::game_data,
+            commands::game_description,
             commands::rank_emblems,
             commands::draft_state,
             commands::get_settings,

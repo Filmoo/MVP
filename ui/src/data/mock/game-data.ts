@@ -21,17 +21,6 @@ interface DdRune {
   key: string;
   name: string;
   icon: string;
-  shortDesc?: string;
-}
-
-/** Same as the core's `plain_text`: markup dropped, a line break read as a space. */
-export function plainText(markup: string): string {
-  return markup
-    .replace(/<br\s*\/?>/gi, " ")
-    .replace(/<[^>]*>/g, "")
-    .split(/\s+/)
-    .filter(Boolean)
-    .join(" ");
 }
 
 function runeStyles(
@@ -42,9 +31,7 @@ function runeStyles(
     key: s.key,
     name: s.name,
     icon: s.icon,
-    slots: s.slots.map((slot) =>
-      slot.runes.map((r) => ({ id: r.id, key: r.key, name: r.name, icon: r.icon, shortDesc: plainText(r.shortDesc ?? "") })),
-    ),
+    slots: s.slots.map((slot) => slot.runes.map((r) => ({ id: r.id, key: r.key, name: r.name, icon: r.icon }))),
   }));
 }
 

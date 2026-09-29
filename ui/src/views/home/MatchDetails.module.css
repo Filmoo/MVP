@@ -161,34 +161,7 @@
   }
 }
 
-/* ---- A grade's why: a floating pane next to its chip ---------------------------------------- */
-
-.why {
-  position: fixed;
-  position-anchor: --grade-why;
-  position-area: bottom;
-  /* Centred under the chip; else over it, or to one side of it where the window ends. */
-  position-try-fallbacks:
-    flip-block,
-    bottom span-left,
-    bottom span-right,
-    top span-left,
-    top span-right;
-  position-visibility: anchors-visible;
-  inset: auto;
-  margin: var(--space-2) 0;
-  max-width: min(320px, calc(100vw - var(--space-6)));
-  padding: var(--space-5) var(--space-6);
-  border: 0;
-  border-radius: var(--radius-4);
-  overflow: visible;
-  background: var(--bg-float);
-  backdrop-filter: var(--blur-glass);
-  box-shadow: var(--shadow-float);
-  color: var(--text-1);
-  font-size: var(--text-md);
-  pointer-events: none;
-}
+/* ---- A grade's why, in a tooltip next to its chip (design/tip) ---------------------------------- */
 
 .whyTitle {
   display: flex;

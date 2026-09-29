@@ -30,7 +30,12 @@ function Pairs(props: { title: string; entries: readonly MatchupEntry[]; showRol
         <ol class={styles.rows}>
           <For each={props.entries}>
             {(e) => (
-              <li class={styles.row}>
+              // What its numbers mean, on hover of the row or focus of its link (design/tip).
+              <li
+                class={styles.row}
+                data-hint-title={name(e.id)}
+                data-hint={`${t().stats.winsInGames(e.w, e.g)}\n${t().champions.effectOf(signedPoints(e.d))}`}
+              >
                 <a class={styles.link} href={`#/champions?id=${e.id}&role=${e.role}`}>
                   <ChampionIcon championId={e.id} size={32} />
                   <span class={styles.names}>
@@ -40,10 +45,8 @@ function Pairs(props: { title: string; entries: readonly MatchupEntry[]; showRol
                     </Show>
                   </span>
                 </a>
-                <span class={`${styles.delta} ${e.d >= 0 ? styles.up : styles.down} num`} title={t().champions.effectTitle}>
-                  {signedPoints(e.d)}
-                </span>
-                <span class={`${styles.stat} num`} title={t().stats.winsInGames(e.w, e.g)}>
+                <span class={`${styles.delta} ${e.d >= 0 ? styles.up : styles.down} num`}>{signedPoints(e.d)}</span>
+                <span class={`${styles.stat} num`}>
                   <span class={styles.wr}>{percent(e.g > 0 ? e.w / e.g : 0, 1)}</span>
                   <span class={styles.caption}>{t().common.games(e.g)}</span>
                 </span>

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+  <url>
+    <loc>https://mvpgg.com/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://mvpgg.com/"/>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://mvpgg.com/fr/"/>
+  </url>
+  <url>
+    <loc>https://mvpgg.com/fr/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://mvpgg.com/"/>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://mvpgg.com/fr/"/>
+  </url>
+  <url>
+    <loc>https://mvpgg.com/versions/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://mvpgg.com/versions/"/>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://mvpgg.com/fr/versions/"/>
+  </url>
+  <url>
+    <loc>https://mvpgg.com/fr/versions/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://mvpgg.com/versions/"/>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://mvpgg.com/fr/versions/"/>
+  </url>
+  <url>
+    <loc>https://mvpgg.com/privacy/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://mvpgg.com/privacy/"/>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://mvpgg.com/fr/confidentialite/"/>
+  </url>
+  <url>
+    <loc>https://mvpgg.com/fr/confidentialite/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://mvpgg.com/privacy/"/>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://mvpgg.com/fr/confidentialite/"/>
+  </url>
+  <url>
+    <loc>https://mvpgg.com/terms/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://mvpgg.com/terms/"/>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://mvpgg.com/fr/conditions/"/>
+  </url>
+  <url>
+    <loc>https://mvpgg.com/fr/conditions/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://mvpgg.com/terms/"/>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://mvpgg.com/fr/conditions/"/>
+  </url>
+</urlset>

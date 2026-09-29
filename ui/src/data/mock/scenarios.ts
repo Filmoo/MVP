@@ -13,6 +13,7 @@ import type { Settings } from "../generated/Settings";
 import type { TierList } from "../generated/TierList";
 import { DEFAULT_REMOTE_CONFIG } from "../remote-defaults";
 import { CommandError, type CommandName, type Commands, type EventName, type Events } from "../transport";
+import { devDescription } from "./descriptions";
 import {
   aramDraft,
   champSelectDraft,
@@ -112,7 +113,7 @@ export type MockResponse<T, A = undefined> =
   | { error: string; detail?: unknown; delayMs?: number }
   | { load: () => Promise<T>; delayMs?: number }
   /** Answers from the command's arguments (e.g. echoes saved settings). */
-  | { handle: (args: A) => T; delayMs?: number };
+  | { handle: (args: A) => T | Promise<T>; delayMs?: number };
 
 export interface Scenario {
   description: string;
@@ -134,6 +135,7 @@ let savedSettings: Settings | undefined;
 const gradedSearch = (args: Commands["search_player"]["args"]) => withGrades(searchPlayer(args));
 /** The games behind Home's and the player pages' rows. */
 const details = detailsFrom([profile, otherProfile]);
+const describeFromDevCache = (args: Commands["game_description"]["args"]) => devDescription(args.kind, args.id);
 const gameError = (message: string, detail: BackendError) => ({ error: message, detail, delayMs: 200 });
 
 const base: Scenario["responses"] = {
@@ -152,6 +154,8 @@ const base: Scenario["responses"] = {
   dismiss_post_game: { data: null },
   // Riot's emblems come from the core (downloaded at run time): the preview draws MVP's crests.
   rank_emblems: { data: null },
+  // What runes, shards, spells and items do: read from the dev cache like the core reads its own.
+  game_description: { handle: describeFromDevCache },
   draft_state: { data: null },
   // The browser preview has no core to persist settings: they last as long as the page, and the
   // effects and language choices live in localStorage.
@@ -550,6 +554,14 @@ export const scenarios = {
       tier_list: { handle: aramOnly("tier_list", tierList) },
       champion_stats: { handle: aramOnly("champion_stats", championStats) },
     },
+  },
+  "descriptions-missing": {
+    description: "The core has no texts (offline before their download): tooltips name each thing, shards in the UI's words.",
+    responses: { ...base, game_description: { data: null } },
+  },
+  "descriptions-slow": {
+    description: "Texts take 1.5 s (a first download): the tooltip shows what it knows, then the text in place.",
+    responses: { ...base, game_description: { handle: describeFromDevCache, delayMs: 1_500 } },
   },
 } satisfies Record<string, Scenario>;
 

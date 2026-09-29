@@ -1,0 +1,1834 @@
+/*
+ * mvpgg.com: paper and ink. One stylesheet for every page, English and French.
+ * Day: cream paper, aubergine ink (the logo's #29253f), lavender watercolour (the app's
+ * #b9a9ff), gold for crowns. Night (prefers-color-scheme: dark): charcoal paper, chalk strokes.
+ * Every text colour is AA (4.5:1 or more) on every paper it sits on. Motion only with
+ * prefers-reduced-motion: no-preference, and only once: nothing moves at rest.
+ */
+
+@font-face {
+  font-family: "Fraunces";
+  src: url("fonts/fraunces.woff2") format("woff2");
+  font-weight: 300 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Caveat";
+  src: url("fonts/caveat.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Local look-alikes with Fraunces' and Caveat's metrics: nothing moves when the fonts arrive. */
+@font-face {
+  font-family: "Fraunces fallback";
+  src: local("Georgia");
+  size-adjust: 114.2%;
+  ascent-override: 85.7%;
+  descent-override: 22.3%;
+  line-gap-override: 0%;
+}
+
+@font-face {
+  font-family: "Caveat fallback";
+  src: local("Ink Free");
+  size-adjust: 79.6%;
+  ascent-override: 120.7%;
+  descent-override: 37.7%;
+  line-gap-override: 0%;
+}
+
+:root {
+  color-scheme: light dark;
+  --paper: #f3ecdd;
+  --paper-card: #fbf7ee;
+  --paper-note: #fdfaf2;
+  --paper-sticky: #fbe9b8;
+  --paper-edge: #e3d8c1;
+  --grain: url("ink/grain.svg");
+  --ink: #29253f;
+  --ink-2: #4b4562;
+  --ink-3: #615a78;
+  --line: #29253f2e;
+  --rule: #7b9fd33d;
+  --margin-rule: #e0707059;
+  --lav: #b9a9ff;
+  --lav-wash: #b9a9ff80;
+  --lav-soft: #b9a9ff38;
+  --lav-ink: #5a46c4;
+  --gold: #ffd494;
+  --gold-deep: #eeb04a;
+  --peach: #f6a67f;
+  --rose-ink: #a63a22;
+  --on-wash: #1f1b33;
+  --focus: #5a46c4;
+  --shade: 0 1px 1px #29253f1f, 0 10px 22px -14px #29253f73;
+  /* The penguin: black back in ink, white front on paper; at night a chalk outline. */
+  --pg-back: #29253f;
+  --pg-rim: #29253f;
+  --pg-front: #fffaf1;
+  --pg-light: #fffaf1;
+  --pg-eye: #fffaf1;
+  --pg-pupil: #1a1728;
+
+  --serif: "Fraunces", "Fraunces fallback", Georgia, "Times New Roman", serif;
+  --hand: "Caveat", "Caveat fallback", "Segoe Print", "Bradley Hand", cursive;
+  --mono: ui-monospace, "Cascadia Mono", Consolas, "SF Mono", Menlo, monospace;
+  --page: 72rem;
+  --gutter: clamp(1rem, 4vw, 2.5rem);
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #1b1a20;
+    --paper-card: #25242c;
+    --paper-note: #27262e;
+    --paper-sticky: #3a3326;
+    --paper-edge: #0f0e13;
+    --grain: url("ink/grain-dark.svg");
+    --ink: #f1ebdf;
+    --ink-2: #d3ccd9;
+    --ink-3: #aaa3b8;
+    --line: #f1ebdf2e;
+    --rule: #93b4ff26;
+    --margin-rule: #ff8f8f40;
+    --lav-wash: #b9a9ff5c;
+    --lav-soft: #b9a9ff26;
+    --lav-ink: #cdc2ff;
+    --gold-deep: #e8b058;
+    --rose-ink: #ffab8f;
+    --on-wash: #1b1730;
+    --focus: #cdc2ff;
+    --shade: 0 1px 1px #00000066, 0 12px 26px -14px #000000c0;
+    --pg-back: #0e0d12;
+    --pg-rim: #f1ebdf;
+    --pg-front: #ece5d8;
+    --pg-light: #f1ebdf;
+    --pg-eye: #f7f2e8;
+    --pg-pupil: #0e0d12;
+  }
+}
+
+/* ---------- Base ---------- */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--paper) var(--grain);
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  scroll-padding-top: 1.5rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  color: var(--ink);
+  font: 400 1.125rem / 1.6 var(--serif);
+  font-optical-sizing: auto;
+  font-variant-numeric: oldstyle-nums;
+  -webkit-font-smoothing: antialiased;
+}
+
+main {
+  flex: 1 0 auto;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  margin: 0;
+  line-height: 1.1;
+  letter-spacing: -0.012em;
+  text-wrap: balance;
+}
+
+h1 {
+  font-size: clamp(2.45rem, 1.5rem + 4.1vw, 4.6rem);
+  font-weight: 760;
+}
+
+h2 {
+  font-size: clamp(1.85rem, 1.35rem + 2vw, 2.75rem);
+  font-weight: 720;
+}
+
+h3 {
+  font-size: 1.32rem;
+  font-weight: 680;
+  line-height: 1.2;
+}
+
+h4 {
+  font-size: 1.1rem;
+  font-weight: 680;
+  line-height: 1.25;
+}
+
+p {
+  margin: 0 0 1em;
+  text-wrap: pretty;
+}
+
+a {
+  color: inherit;
+  text-decoration-line: underline;
+  text-decoration-color: var(--lav);
+  text-decoration-thickness: 0.12em;
+  text-underline-offset: 0.2em;
+  border-radius: 3px;
+  transition:
+    background-color 160ms var(--ease),
+    text-decoration-color 160ms var(--ease);
+}
+
+a:hover {
+  background-color: var(--lav-soft);
+  text-decoration-color: var(--lav-ink);
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+code,
+kbd,
+time,
+.num {
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+code,
+kbd,
+pre {
+  font-family: var(--mono);
+  font-size: 0.86em;
+}
+
+svg {
+  overflow: visible;
+}
+
+.wrap {
+  width: min(100% - 2 * var(--gutter), var(--page));
+  margin-inline: auto;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+.hand {
+  font-family: var(--hand);
+  font-weight: 500;
+  font-synthesis: none;
+  line-height: 1.15;
+}
+
+.skip {
+  position: absolute;
+  left: 1rem;
+  top: -4rem;
+  z-index: 10;
+  padding: 0.6rem 1rem;
+  background: var(--paper-card);
+  color: var(--ink);
+  box-shadow: var(--shade);
+}
+
+.skip:focus {
+  top: 1rem;
+}
+
+/* ---------- The penguin ---------- */
+
+.penguin {
+  --look-x: 0px;
+  --look-y: 0px;
+}
+
+.pg-ripple {
+  fill: var(--lav-wash);
+  stroke: var(--lav);
+  stroke-width: 3.5;
+}
+
+.pg-ripple-far {
+  fill: none;
+  stroke: var(--lav);
+  stroke-width: 2;
+  stroke-linecap: round;
+  opacity: 0.7;
+}
+
+.pg-back {
+  fill: var(--pg-back);
+}
+
+.pg-rim {
+  fill: none;
+  stroke: var(--pg-rim);
+  stroke-width: 2.6;
+  stroke-linejoin: round;
+}
+
+.pg-front {
+  fill: var(--pg-front);
+  stroke: var(--pg-front);
+  stroke-width: 3;
+  stroke-linejoin: round;
+}
+
+.pg-shade {
+  fill: var(--lav);
+  opacity: 0.2;
+}
+
+.pg-gold {
+  fill: var(--gold);
+  stroke: var(--gold-deep);
+  stroke-width: 0.8;
+}
+
+.pg-bib {
+  fill: url("#pg-bib");
+}
+
+.pg-light {
+  fill: none;
+  stroke: var(--pg-light);
+  stroke-width: 2;
+  stroke-linecap: round;
+  opacity: 0.5;
+}
+
+.pg-eye {
+  fill: var(--pg-eye);
+}
+
+.pg-pupil {
+  fill: var(--pg-pupil);
+  transform: translate(var(--look-x), var(--look-y));
+}
+
+.pg-glint {
+  fill: #fff;
+  transform: translate(var(--look-x), var(--look-y));
+}
+
+.pg-eyes {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.pg-beak,
+.pg-feet {
+  fill: var(--peach);
+  stroke: var(--pg-rim);
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+}
+
+.pg-feet {
+  stroke: var(--ink);
+}
+
+.pg-crown {
+  fill: var(--gold);
+  stroke: var(--ink);
+  stroke-width: 2.8;
+  stroke-linejoin: round;
+}
+
+.pg-mark {
+  fill: none;
+  stroke: var(--ink-2);
+  stroke-width: 2.6;
+  stroke-linecap: round;
+}
+
+.pg-mark-dot {
+  fill: var(--ink-2);
+}
+
+.penguin.waiting {
+  --look-x: 1.6px;
+  --look-y: -2px;
+}
+
+.penguin.lost {
+  --look-x: -2.2px;
+  --look-y: 0.4px;
+}
+
+/* ---------- Header ---------- */
+
+.top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1.5rem;
+  padding-block: 1.4rem 0.5rem;
+}
+
+.brand {
+  display: inline-flex;
+  margin-right: auto;
+  color: var(--ink);
+  border-radius: 8px;
+}
+
+.brand:hover {
+  background: none;
+}
+
+.wordmark {
+  width: auto;
+  height: 2.35rem;
+}
+
+.wm-letters {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 20;
+  stroke-linecap: round;
+}
+
+.wm-v {
+  fill: currentColor;
+  stroke: currentColor;
+  stroke-width: 8;
+  stroke-linejoin: round;
+}
+
+.wm-ripple {
+  fill: none;
+  stroke: var(--lav);
+  stroke-width: 7;
+}
+
+.wm-crown {
+  fill: var(--gold);
+  stroke: var(--ink);
+  stroke-width: 5;
+  stroke-linejoin: round;
+}
+
+.nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.2rem 1.1rem;
+  font-size: 1.02rem;
+}
+
+.nav a {
+  text-decoration-color: transparent;
+  padding: 0.3rem 0.15rem;
+}
+
+.nav a:hover,
+.nav a[aria-current="page"] {
+  text-decoration-color: var(--lav);
+}
+
+.lang {
+  display: inline-flex;
+  gap: 0.35rem;
+  align-items: center;
+  font-family: var(--hand);
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.lang a {
+  position: relative;
+  padding: 0.2rem 0.35rem;
+  text-decoration-color: transparent;
+}
+
+.lang a:hover {
+  text-decoration-color: var(--lav);
+}
+
+.lang a[aria-current="page"] {
+  text-decoration: none;
+}
+
+/* The language you are reading is circled in ink. */
+.lang a[aria-current="page"]::after,
+.lang a.hinted::after {
+  content: "";
+  position: absolute;
+  inset: -0.15rem -0.35rem -0.2rem;
+  background-color: var(--lav-ink);
+  -webkit-mask: url("ink/circle.svg") center / 100% 100% no-repeat;
+  mask: url("ink/circle.svg") center / 100% 100% no-repeat;
+  pointer-events: none;
+}
+
+/* Your browser prefers the other language: a light pencil loop suggests it. */
+.lang a.hinted::after {
+  background-color: var(--ink-3);
+  opacity: 0.7;
+}
+
+/* Wordmark and language on the first row; on phones the links take a row of their own. */
+.top .nav {
+  order: 3;
+  flex-basis: 100%;
+}
+
+.top .lang {
+  order: 2;
+}
+
+@media (min-width: 40rem) {
+  .top .nav {
+    order: 2;
+    flex-basis: auto;
+  }
+
+  .top .lang {
+    order: 3;
+  }
+}
+
+/* ---------- Hero ---------- */
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: clamp(1.5rem, 4vw, 3rem);
+  align-items: center;
+  padding-block: clamp(1.75rem, 5vw, 4.5rem) clamp(1.5rem, 4vw, 3rem);
+}
+
+@media (min-width: 54rem) {
+  .hero {
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 0.7fr);
+  }
+}
+
+.eyebrow {
+  display: inline-block;
+  margin: 0 0 0.8rem;
+  font-size: 1.5rem;
+  color: var(--ink-2);
+  transform: rotate(-2deg);
+  transform-origin: left bottom;
+}
+
+.circled {
+  position: relative;
+  white-space: nowrap;
+}
+
+.circled > svg {
+  position: absolute;
+  inset: -0.2em -0.28em -0.12em -0.3em;
+  width: calc(100% + 0.58em);
+  height: calc(100% + 0.32em);
+  pointer-events: none;
+}
+
+.circled path {
+  fill: none;
+  stroke: var(--lav-ink);
+  stroke-width: 3.2;
+  stroke-linecap: round;
+}
+
+.lead {
+  max-width: 35rem;
+  margin: 1.4rem 0 0;
+  font-size: clamp(1.14rem, 1.04rem + 0.4vw, 1.3rem);
+  color: var(--ink-2);
+}
+
+.cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem 1.6rem;
+  margin-top: 2rem;
+}
+
+.cta-note {
+  margin: 0.9rem 0 0;
+  font-size: 1.35rem;
+  color: var(--ink-3);
+  transform: rotate(-1deg);
+}
+
+.hero-art {
+  position: relative;
+  justify-self: center;
+  width: min(62vw, 20rem);
+  margin: 0;
+}
+
+@media (min-width: 54rem) {
+  .hero-art {
+    width: min(100%, 21rem);
+  }
+}
+
+.hero-art .penguin {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.hero-note {
+  position: absolute;
+  top: 2%;
+  right: 88%;
+  width: 9.5rem;
+  margin: 0;
+  font-size: 1.3rem;
+  color: var(--ink-2);
+  text-align: right;
+  transform: rotate(-4deg);
+}
+
+.hero-note svg {
+  position: absolute;
+  right: -3.1rem;
+  top: 1.4rem;
+  width: 3.6rem;
+  height: 2.6rem;
+}
+
+@media (max-width: 53.99rem) {
+  .hero-note {
+    top: auto;
+    bottom: 12%;
+    right: auto;
+    left: 96%;
+    width: 7.5rem;
+    font-size: 1.15rem;
+    text-align: left;
+    transform: rotate(3deg);
+  }
+
+  .hero-note svg {
+    display: none;
+  }
+}
+
+@media (max-width: 30rem) {
+  .hero-art {
+    width: min(58vw, 13rem);
+    justify-self: start;
+    margin-left: 6%;
+  }
+}
+
+.arrow path {
+  fill: none;
+  stroke: var(--ink-2);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ---------- Buttons ---------- */
+
+.btn {
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  min-height: 3.2rem;
+  padding: 0.7rem 1.45rem;
+  color: var(--on-wash);
+  font: 680 1.12rem / 1.15 var(--serif);
+  text-decoration: none;
+  border-radius: 1.2rem 1.5rem 1.1rem 1.6rem / 1.5rem 1.1rem 1.6rem 1.2rem;
+  transition: transform 180ms var(--ease);
+}
+
+/* The watercolour wash, then the ink outline drawn a little off, like by hand. */
+.btn::before,
+.btn::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+/* The paint bleeds a little past the ink line, as watercolour does. */
+.btn::before {
+  inset: -3px -4px -2px -3px;
+  background: var(--lav);
+  filter: url("#wash");
+}
+
+.btn::after {
+  inset: -2px -3px -3px -2px;
+  border: 2.5px solid var(--ink);
+  border-radius: 1.4rem 1.2rem 1.7rem 1.1rem / 1.2rem 1.6rem 1.1rem 1.5rem;
+}
+
+.btn:hover {
+  background: none;
+  transform: rotate(-0.8deg) translateY(-1px);
+}
+
+.btn:active {
+  transform: translateY(1px);
+}
+
+.btn:focus-visible {
+  outline-offset: 6px;
+}
+
+.btn svg {
+  flex: none;
+  width: 1.35em;
+  height: 1.35em;
+}
+
+.btn svg path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.btn-big {
+  min-height: 3.8rem;
+  padding: 0.85rem 1.8rem;
+  font-size: 1.25rem;
+}
+
+@media (max-width: 30rem) {
+  .btn-big {
+    padding-inline: 1.1rem;
+    font-size: 1.12rem;
+  }
+}
+
+.btn-ghost {
+  color: var(--ink);
+}
+
+.btn-ghost::before {
+  background: transparent;
+  filter: none;
+}
+
+.btn-ghost:hover::before {
+  background: var(--lav-soft);
+}
+
+.more {
+  font-weight: 600;
+}
+
+.more::after {
+  content: " →";
+}
+
+/* ---------- Sections ---------- */
+
+.section {
+  padding-block: clamp(2rem, 4.5vw, 3.5rem);
+}
+
+/* A heading with a brush stroke under its first line. */
+.brush {
+  position: relative;
+  isolation: isolate;
+  display: inline-block;
+  padding-bottom: 0.3em;
+}
+
+.brush::after {
+  content: "";
+  position: absolute;
+  left: -0.2em;
+  right: -0.35em;
+  bottom: -0.05em;
+  height: 0.42em;
+  background-color: var(--lav);
+  -webkit-mask: url("ink/underline.svg") center / 100% 100% no-repeat;
+  mask: url("ink/underline.svg") center / 100% 100% no-repeat;
+  z-index: -1;
+}
+
+.section-lead {
+  max-width: 40rem;
+  margin: 1rem 0 0;
+  color: var(--ink-2);
+}
+
+/* A piece of paper laid on the page: deckled edges, a lift, its own grain. */
+.paper {
+  position: relative;
+  isolation: isolate;
+}
+
+.paper::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--paper-card) var(--grain);
+  filter: url("#deckle") drop-shadow(0 6px 10px #29253f1f);
+  transform: rotate(var(--tilt, 0deg));
+}
+
+@media (prefers-color-scheme: dark) {
+  .paper::before {
+    filter: url("#deckle") drop-shadow(0 8px 14px #00000080);
+  }
+}
+
+/* ---------- What it does ---------- */
+
+.features {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15.5rem), 1fr));
+  gap: 1.4rem;
+  margin: 2.25rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.feature {
+  padding: 1.35rem 1.3rem 1.2rem;
+}
+
+.feature:nth-child(4n + 1) {
+  --tilt: -0.7deg;
+}
+
+.feature:nth-child(4n + 2) {
+  --tilt: 0.5deg;
+}
+
+.feature:nth-child(4n + 3) {
+  --tilt: -0.3deg;
+}
+
+.feature:nth-child(4n) {
+  --tilt: 0.8deg;
+}
+
+.feature h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin-bottom: 0.65rem;
+}
+
+.feature p {
+  margin: 0;
+  font-size: 1.02rem;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+
+.doodle {
+  flex: none;
+  width: 2.5rem;
+  height: 2.5rem;
+  color: var(--ink);
+}
+
+.doodle .s {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.doodle .w {
+  fill: var(--lav-wash);
+  stroke: none;
+}
+
+.doodle .gs {
+  fill: var(--gold);
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linejoin: round;
+}
+
+/* ---------- Download ---------- */
+
+.get {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2.25rem;
+  margin-top: 2.25rem;
+}
+
+@media (min-width: 60rem) {
+  .get {
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+    align-items: start;
+    gap: 2.5rem 3rem;
+  }
+}
+
+.ticket {
+  --tilt: -0.4deg;
+  min-height: 22.5rem;
+  padding: clamp(1.4rem, 3.5vw, 2.1rem);
+}
+
+.ticket h3 {
+  font-size: 1.55rem;
+  margin: 0 0 1.2rem;
+}
+
+.ticket .btn-big {
+  width: 100%;
+  max-width: 24rem;
+}
+
+.file {
+  margin: 1.1rem 0 0.6rem;
+  font-size: 0.98rem;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+.file time,
+.file .num,
+.meta time {
+  white-space: nowrap;
+}
+
+.small {
+  margin: 0.4rem 0 0;
+  font-size: 0.98rem;
+  color: var(--ink-2);
+}
+
+.digest {
+  margin: 0.7rem 0 0;
+  font-size: 0.82rem;
+  color: var(--ink-3);
+  overflow-wrap: anywhere;
+}
+
+/* Every state of a block sits in the same cell, the inactive ones invisible: the block is as
+   tall as its tallest state from the first frame, so nothing moves when GitHub answers. */
+.states {
+  display: grid;
+}
+
+.states > [data-state] {
+  grid-area: 1 / 1;
+  min-width: 0;
+}
+
+.states > [data-state]:not(.on) {
+  visibility: hidden;
+}
+
+.state-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 1rem 1.5rem;
+}
+
+.state-row > div {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+.ticket-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  margin-bottom: 1.2rem;
+}
+
+.ticket-head h3 {
+  margin: 0;
+}
+
+.penguin-small {
+  flex: none;
+  width: 6.5rem;
+  height: auto;
+}
+
+/* Pencil sketches while GitHub answers: the same room as what replaces them. */
+.sketch {
+  display: grid;
+  gap: 0.85rem;
+  padding-top: 0.4rem;
+}
+
+.sketch span {
+  display: block;
+  height: 0.8rem;
+  border-radius: 999px;
+  background: var(--line);
+}
+
+.sketch .tall {
+  height: 3.4rem;
+  width: min(100%, 24rem);
+  border-radius: 1.3rem;
+}
+
+.sketch span:nth-child(1) {
+  width: 45%;
+  height: 1.4rem;
+}
+
+.sketch span:nth-child(3) {
+  width: 70%;
+}
+
+.sketch span:nth-child(4) {
+  width: 88%;
+}
+
+.sketch span:nth-child(5) {
+  width: 60%;
+}
+
+/* Only while GitHub is being asked: the pulse stops with the answer. */
+@media (prefers-reduced-motion: no-preference) {
+  .on > .sketch span,
+  .on .release .sketch span {
+    animation: pencil 1.4s var(--ease) infinite alternate;
+  }
+}
+
+@keyframes pencil {
+  to {
+    opacity: 0.45;
+  }
+}
+
+.asides {
+  display: grid;
+  gap: 1.2rem;
+  margin-top: 1.9rem;
+}
+
+.sticky {
+  --tilt: 1.2deg;
+  max-width: 26rem;
+  padding: 1.1rem 1.2rem 1rem;
+}
+
+.sticky::before {
+  background: var(--paper-sticky) var(--grain);
+}
+
+.sticky .hand {
+  display: block;
+  margin: 0 0 0.3rem;
+  font-size: 1.45rem;
+  color: var(--ink);
+}
+
+.sticky p {
+  margin: 0;
+  font-size: 0.98rem;
+  line-height: 1.5;
+}
+
+.os-note {
+  margin: 0;
+  font-size: 1.35rem;
+  color: var(--ink-2);
+  transform: rotate(-1deg);
+}
+
+/* ---------- Latest version: a page torn from a notebook ---------- */
+
+.notebook {
+  --tilt: 0.6deg;
+  --line-h: 1.75rem;
+  min-height: 22.5rem;
+  padding: 1.3rem 1.3rem 1.2rem 3.1rem;
+}
+
+.notebook::before {
+  background:
+    linear-gradient(
+      90deg,
+      transparent 2.2rem,
+      var(--margin-rule) 2.2rem,
+      var(--margin-rule) calc(2.2rem + 1.5px),
+      transparent calc(2.2rem + 1.5px)
+    ),
+    repeating-linear-gradient(transparent 0 calc(var(--line-h) - 1px), var(--rule) calc(var(--line-h) - 1px) var(--line-h)),
+    var(--paper-note) var(--grain);
+  background-position:
+    0 0,
+    0 1.2rem,
+    0 0;
+}
+
+/* A strip of lavender tape holds it. */
+.notebook::after {
+  content: "";
+  position: absolute;
+  top: -0.75rem;
+  left: 50%;
+  width: 7.5rem;
+  height: 1.6rem;
+  background: var(--lav-wash);
+  transform: translateX(-50%) rotate(-3deg);
+  clip-path: polygon(
+    0 8%,
+    4% 0,
+    9% 10%,
+    14% 2%,
+    100% 0,
+    97% 18%,
+    100% 35%,
+    96% 52%,
+    100% 70%,
+    97% 88%,
+    100% 100%,
+    0 100%,
+    3% 80%,
+    0 62%,
+    4% 44%,
+    0 26%
+  );
+}
+
+.notebook h3 {
+  margin: 0 0 0.35rem;
+  line-height: var(--line-h);
+}
+
+.notebook .meta {
+  margin: 0 0 var(--line-h);
+  line-height: var(--line-h);
+  font-size: 1.3rem;
+  color: var(--ink-2);
+}
+
+.clamp {
+  line-height: var(--line-h);
+  max-height: calc(var(--line-h) * 8);
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(#000 70%, transparent);
+  mask-image: linear-gradient(#000 70%, transparent);
+}
+
+.notebook .more {
+  display: inline-block;
+  margin-top: 0.6rem;
+}
+
+.pinned {
+  font-size: 1.45rem;
+  color: var(--ink-2);
+  line-height: var(--line-h);
+  max-width: 24rem;
+}
+
+/* ---------- What it won't do, and open source ---------- */
+
+.pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem clamp(2rem, 6vw, 5rem);
+}
+
+@media (min-width: 60rem) {
+  .pair {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+  }
+}
+
+.wont {
+  display: grid;
+  gap: 1.05rem;
+  margin: 1.9rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wont li {
+  position: relative;
+  padding-left: 2.4rem;
+  color: var(--ink-2);
+}
+
+.wont li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.1em;
+  width: 1.45rem;
+  height: 1.45rem;
+  background-color: var(--rose-ink);
+  -webkit-mask: url("ink/cross.svg") center / contain no-repeat;
+  mask: url("ink/cross.svg") center / contain no-repeat;
+}
+
+.wont strong {
+  color: var(--ink);
+  font-weight: 650;
+}
+
+.letter p {
+  margin-top: 1.9rem;
+  color: var(--ink-2);
+}
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1.4rem;
+  margin: 1.2rem 0 0;
+  padding: 0;
+  list-style: none;
+  font-weight: 600;
+}
+
+/* ---------- Footer ---------- */
+
+.foot {
+  position: relative;
+  margin-top: clamp(2rem, 6vw, 4rem);
+  padding-block: 2.4rem 2.2rem;
+  font-size: 0.98rem;
+  color: var(--ink-2);
+}
+
+.foot::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 16px;
+  background-color: var(--ink-3);
+  -webkit-mask: url("ink/rule.svg") 0 50% / 160px 16px repeat-x;
+  mask: url("ink/rule.svg") 0 50% / 160px 16px repeat-x;
+}
+
+.foot ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.3rem;
+  margin: 0 0 1.3rem;
+  padding: 0;
+  list-style: none;
+}
+
+.foot .free {
+  margin: 0 0 0.7rem;
+}
+
+.legal {
+  max-width: 52rem;
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.55;
+  color: var(--ink-3);
+}
+
+.sign {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 1.4rem 0 0;
+  font-size: 1.3rem;
+  color: var(--ink-3);
+}
+
+.sign::before {
+  content: "";
+  flex: none;
+  width: 1.3rem;
+  height: 1.6rem;
+  background-color: var(--ink-3);
+  -webkit-mask: url("ink/penguin-mark.svg") center / contain no-repeat;
+  mask: url("ink/penguin-mark.svg") center / contain no-repeat;
+}
+
+/* ---------- Stamps (version badges) ---------- */
+
+.stamp {
+  display: inline-block;
+  padding: 0.28em 0.7em 0.24em;
+  color: var(--lav-ink);
+  font: 760 1.05rem / 1.1 var(--serif);
+  font-variant-numeric: lining-nums;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  border: 2.5px solid currentColor;
+  border-radius: 9px 12px 8px 11px;
+  box-shadow:
+    inset 0 0 0 2px transparent,
+    inset 0 0 0 3.5px currentColor;
+  transform: rotate(-6deg);
+  -webkit-mask: url("ink/grunge.svg") 0 0 / 160px 160px;
+  mask: url("ink/grunge.svg") 0 0 / 160px 160px;
+  mix-blend-mode: multiply;
+}
+
+@media (prefers-color-scheme: dark) {
+  .stamp {
+    mix-blend-mode: screen;
+  }
+}
+
+.stamp-pre {
+  color: var(--rose-ink);
+}
+
+.stamp-small {
+  font-size: 0.85rem;
+  transform: rotate(-3deg);
+}
+
+/* ---------- Versions page ---------- */
+
+.page-head {
+  padding-block: clamp(1.75rem, 5vw, 3.5rem) 0.5rem;
+}
+
+.page-head .lead {
+  max-width: 40rem;
+}
+
+.page-head .small {
+  margin-top: 1rem;
+}
+
+/* The footer starts below the first screen: nothing visible moves when the list arrives. */
+.versions .states {
+  min-height: 70vh;
+  align-content: start;
+}
+
+.release-side .sketch {
+  width: 100%;
+}
+
+.releases {
+  display: grid;
+  gap: 2.4rem;
+  margin: 2.5rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.release {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.1rem 2.25rem;
+  padding: clamp(1.3rem, 3vw, 2rem);
+}
+
+.release:nth-child(odd) {
+  --tilt: -0.35deg;
+}
+
+.release:nth-child(even) {
+  --tilt: 0.3deg;
+}
+
+@media (min-width: 48rem) {
+  .release {
+    grid-template-columns: 10.5rem minmax(0, 1fr);
+  }
+}
+
+.release-side {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1rem;
+}
+
+@media (min-width: 48rem) {
+  .release-side {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+.release-side .stamp {
+  font-size: 1.3rem;
+}
+
+.release-date {
+  font-size: 1.35rem;
+  color: var(--ink-2);
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: var(--hand);
+  font-size: 1.3rem;
+  line-height: 1;
+  color: var(--ink-2);
+}
+
+.tag[hidden] {
+  display: none;
+}
+
+.tag svg {
+  width: 1.5rem;
+  height: 1.2rem;
+}
+
+.release h2 {
+  font-size: clamp(1.45rem, 1.2rem + 1vw, 1.9rem);
+  margin: 0 0 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.release-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.9rem 1.4rem;
+  margin-top: 1.2rem;
+}
+
+.release-actions .btn {
+  min-height: 2.8rem;
+  padding: 0.5rem 1.15rem;
+  font-size: 1.02rem;
+}
+
+.lonely {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1.5rem 2.5rem;
+  margin-top: 2.5rem;
+  padding: clamp(1.4rem, 4vw, 2.4rem);
+  min-height: 16rem;
+}
+
+.lonely > div {
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+
+.lonely h2 {
+  font-size: clamp(1.6rem, 1.3rem + 1.2vw, 2.1rem);
+  margin-bottom: 0.8rem;
+}
+
+.lonely .penguin {
+  flex: none;
+  width: 8.5rem;
+  height: auto;
+}
+
+/* ---------- Legal pages ---------- */
+
+.updated {
+  font-size: 1.35rem;
+  color: var(--ink-3);
+}
+
+.toc {
+  margin: 1.8rem 0 0;
+  padding: 1.1rem 1.3rem;
+  max-width: 42rem;
+}
+
+.toc h2 {
+  margin: 0 0 0.4rem;
+  font-size: 1.45rem;
+}
+
+.toc ol {
+  margin: 0;
+  padding-left: 1.3rem;
+  columns: 2 15rem;
+  column-gap: 2rem;
+}
+
+.toc li {
+  break-inside: avoid;
+}
+
+.prose {
+  max-width: 42rem;
+  padding-bottom: 1rem;
+}
+
+.prose h2 {
+  margin: 2.4rem 0 0.8rem;
+  font-size: clamp(1.4rem, 1.2rem + 0.8vw, 1.75rem);
+}
+
+.prose h3 {
+  margin: 1.6rem 0 0.5rem;
+  font-size: 1.15rem;
+}
+
+.prose ul {
+  padding-left: 1.4rem;
+}
+
+.prose li + li {
+  margin-top: 0.35em;
+}
+
+.prose li::marker {
+  color: var(--ink-3);
+}
+
+.short {
+  --tilt: -0.4deg;
+  margin: 1.8rem 0 0.5rem;
+  padding: 1.2rem 1.4rem;
+}
+
+.short p:last-child {
+  margin-bottom: 0;
+}
+
+/* What the owner still has to fill in (drafts). */
+.placeholder {
+  padding: 0 0.2em;
+  border-radius: 3px;
+  background: var(--lav-soft);
+  font-weight: 600;
+}
+
+/* ---------- 404 ---------- */
+
+.lost-page {
+  display: grid;
+  justify-items: center;
+  gap: 1.2rem;
+  padding-block: clamp(2.5rem, 8vw, 6rem);
+  text-align: center;
+}
+
+.lost-page .penguin {
+  width: min(52vw, 13rem);
+  height: auto;
+}
+
+.lost-page p {
+  max-width: 30rem;
+  margin: 0;
+  color: var(--ink-2);
+}
+
+.lost-page .cta {
+  justify-content: center;
+  margin-top: 0.8rem;
+}
+
+/* ---------- Rendered release notes (markdown from GitHub) ---------- */
+
+.md {
+  font-size: 1.02rem;
+  overflow-wrap: break-word;
+}
+
+.md > :first-child {
+  margin-top: 0;
+}
+
+.md p,
+.md ul,
+.md ol,
+.md pre,
+.md blockquote {
+  margin: 0 0 0.9em;
+}
+
+.md h3,
+.md h4,
+.md h5,
+.md h6 {
+  margin: 1.1em 0 0.45em;
+  font-size: 1.12rem;
+}
+
+.md ul,
+.md ol {
+  padding-left: 1.5rem;
+}
+
+.md ul {
+  list-style: none;
+}
+
+.md ul > li {
+  position: relative;
+}
+
+.md ul > li::before {
+  content: "";
+  position: absolute;
+  left: -1.35rem;
+  top: 0.62em;
+  width: 0.95rem;
+  height: 0.5rem;
+  background-color: var(--ink-2);
+  -webkit-mask: url("ink/dash.svg") center / contain no-repeat;
+  mask: url("ink/dash.svg") center / contain no-repeat;
+}
+
+.md li + li {
+  margin-top: 0.2em;
+}
+
+.md li > ul,
+.md li > ol {
+  margin: 0.2em 0 0;
+}
+
+.md code {
+  padding: 0.05em 0.3em;
+  border-radius: 4px;
+  background: var(--lav-soft);
+}
+
+.md pre {
+  padding: 0.8rem 1rem;
+  overflow-x: auto;
+  border-radius: 8px;
+  background: var(--lav-soft);
+  line-height: 1.5;
+}
+
+.md pre code {
+  padding: 0;
+  background: none;
+}
+
+.md blockquote {
+  padding-left: 1rem;
+  border-left: 3px solid var(--lav);
+  color: var(--ink-2);
+}
+
+.md hr {
+  height: 16px;
+  margin: 1rem 0;
+  border: 0;
+  background-color: var(--line);
+  -webkit-mask: url("ink/rule.svg") 0 50% / 160px 16px repeat-x;
+  mask: url("ink/rule.svg") 0 50% / 160px 16px repeat-x;
+}
+
+/* ---------- Motion: drawn once on load, never at rest ---------- */
+
+@media (prefers-reduced-motion: no-preference) {
+  .draw {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    animation: draw 900ms var(--ease) forwards;
+  }
+
+  .d1 {
+    animation-delay: 250ms;
+  }
+
+  .d2 {
+    animation-delay: 550ms;
+  }
+
+  .d3 {
+    animation-delay: 850ms;
+  }
+
+  .d4 {
+    animation-delay: 1150ms;
+  }
+
+  .ink-in {
+    opacity: 0;
+    animation: ink-in 600ms var(--ease) forwards;
+  }
+
+  .brush::after {
+    clip-path: inset(0 100% 0 0);
+    animation: wipe 800ms var(--ease) 200ms forwards;
+  }
+
+  .lang a[aria-current="page"]::after,
+  .lang a.hinted::after {
+    clip-path: inset(0 100% 0 0);
+    animation: wipe 700ms var(--ease) 400ms forwards;
+  }
+
+  .penguin.hello .pg-eyes {
+    animation: blink 5.2s linear 1.6s 1;
+  }
+
+  .penguin.hello {
+    transform-origin: 50% 96%;
+    animation: waddle 900ms var(--ease) 1;
+  }
+
+  .penguin.hello:hover {
+    animation: hop 520ms var(--ease) 1;
+  }
+}
+
+@keyframes draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes ink-in {
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes wipe {
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@keyframes blink {
+  0%,
+  2%,
+  4%,
+  70%,
+  72%,
+  74%,
+  100% {
+    transform: scaleY(1);
+  }
+
+  3%,
+  73% {
+    transform: scaleY(0.1);
+  }
+}
+
+@keyframes waddle {
+  0% {
+    transform: rotate(0deg);
+  }
+
+  25% {
+    transform: rotate(-3deg);
+  }
+
+  60% {
+    transform: rotate(2.2deg);
+  }
+
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+@keyframes hop {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  40% {
+    transform: translateY(-6px) rotate(-1.5deg);
+  }
+}
+
+/* ---------- Other preferences ---------- */
+
+@media (prefers-contrast: more) {
+  :root {
+    --ink-2: var(--ink);
+    --ink-3: var(--ink);
+    --line: currentColor;
+  }
+
+  html {
+    background-image: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .paper::before,
+  .btn::before,
+  .notebook::after {
+    display: none;
+  }
+
+  .btn::after {
+    border-color: ButtonText;
+  }
+
+  .stamp {
+    -webkit-mask: none;
+    mask: none;
+  }
+}
+
+@media print {
+  html {
+    background: #fff;
+  }
+
+  .top nav,
+  .cta,
+  .get,
+  .skip {
+    display: none;
+  }
+}

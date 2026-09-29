@@ -37,12 +37,12 @@ function Slot(props: { slot: DraftSlot; enemy: boolean }): JSX.Element {
         props.slot.championId === null ? "" : styles.filled
       } ${props.slot.isMe ? styles.me : ""}`}
       data-testid={props.enemy ? "enemy-slot" : "ally-slot"}
-      title={props.slot.isMe && props.slot.hovering ? t().draft.youHover : undefined}
+      data-hint={props.slot.isMe && props.slot.hovering ? t().draft.youHover : undefined}
     >
       <Show when={props.slot.championId} fallback={<div class={styles.empty} aria-hidden="true" />}>
         {(id) => <ChampionIcon championId={id()} size={48} />}
       </Show>
-      <span class={`${styles.name} ${name() ? "" : styles.muted}`} title={name()}>
+      <span class={`${styles.name} ${name() ? "" : styles.muted}`} data-hint={name()}>
         {name() ?? (props.slot.picking ? t().draft.picking : t().draft.waiting)}
       </span>
       <span class={`${styles.detail} num`}>{text()[0]}</span>

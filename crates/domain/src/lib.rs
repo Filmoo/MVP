@@ -28,7 +28,8 @@ pub use draft::{
     Estimate, Mastery, PersonalRecord, Reason, ReasonKind, RoleOdds, Suggestion, TeamComp,
 };
 pub use game_data::{
-    ChampionInfo, GameData, ItemInfo, RankEmblem, RankEmblems, RuneInfo, RuneStyle, SpellInfo,
+    ChampionInfo, Description, DescriptionKind, GameData, ItemInfo, RankEmblem, RankEmblems,
+    RuneInfo, RuneStyle, SpellInfo, TextSpan, TextTone,
 };
 pub use imports::{
     FailReason, FlashKey, FlashNote, ImportOutcome, ImportPart, ImportRequest, ImportResult,

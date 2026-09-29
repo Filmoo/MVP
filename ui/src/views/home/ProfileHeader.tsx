@@ -101,7 +101,7 @@ export function ProfileHeader(props: { profile: PlayerProfile; lp?: readonly LpG
           </div>
           <div class={styles.identity}>
             <h1 class={styles.name}>
-              <span class={styles.gameName} title={props.profile.riotId.gameName}>
+              <span class={styles.gameName} data-hint={props.profile.riotId.gameName}>
                 {props.profile.riotId.gameName}
               </span>
               <span class={styles.tag}>#{props.profile.riotId.tagLine}</span>
