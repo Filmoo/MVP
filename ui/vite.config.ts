@@ -1,8 +1,28 @@
 /// <reference types="vitest/config" />
+import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { relative, resolve } from "node:path";
 import { defineConfig, type Plugin } from "vite";
 import solid from "vite-plugin-solid";
+
+/**
+ * The desktop build's CSS module class names: the class and a hash of its file
+ * (`_statsTitle_rt7mq`), without the line number Vite's default adds (`_statsTitle_rt7mq_199`):
+ * spelled out in every chunk's class map and stylesheet, the digits were what gzip couldn't
+ * squeeze (2 KB of JS in all). A module's classes are unique within it; two files hashing alike
+ * fail the build. The browser preview (the UI tests, the dev server) keeps Vite's names.
+ */
+function shortClassNames(): (local: string, file: string) => string {
+  const owners = new Map<string, string>();
+  return (local, file) => {
+    const path = relative(import.meta.dirname, file.split("?")[0] ?? file).replaceAll("\\", "/");
+    const suffix = createHash("sha256").update(path).digest("base64url").slice(0, 5);
+    const owner = owners.get(suffix);
+    if (owner && owner !== path) throw new Error(`CSS modules ${owner} and ${path} both hash to ${suffix}`);
+    owners.set(suffix, path);
+    return `_${local}_${suffix}`;
+  };
+}
 
 // Dev/test only: serve Data Dragon assets downloaded by `scripts/fetch-dev-assets.mjs`
 // under /dd/. Riot assets are never committed or bundled; the shipped app loads them at runtime.
@@ -51,6 +71,7 @@ function serveFrom(dir: string) {
 export default defineConfig(({ mode }) => ({
   plugins: [solid(), devAssets()],
   define: { __MVP_MOCK__: JSON.stringify(mode !== "app") },
+  css: mode === "app" ? { modules: { generateScopedName: shortClassNames() } } : {},
   clearScreen: false,
   server: { port: 1420, strictPort: true, host: "127.0.0.1" },
   preview: { port: 4173, strictPort: true, host: "127.0.0.1" },
