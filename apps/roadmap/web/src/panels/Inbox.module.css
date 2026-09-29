@@ -29,6 +29,12 @@
   font-size: var(--text-md);
 }
 
+@media (pointer: coarse) {
+  .keys {
+    display: none;
+  }
+}
+
 .keys {
   display: flex;
   flex-wrap: wrap;

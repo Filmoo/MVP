@@ -29,8 +29,8 @@ pub const T0: i64 = 1_790_683_200;
 /// A small roadmap: two versions, two areas, four features (one of them Claude's proposal).
 pub const SEED: &str = r#"{
   "areas": [
-    { "key": "draft", "name": "Draft", "color": "accent" },
-    { "key": "live", "name": "Live", "color": "win" }
+    { "key": "draft", "name": "Draft", "color": "rank-diamond" },
+    { "key": "live", "name": "Live", "color": "rank-platinum" }
   ],
   "versions": [
     { "name": "0.3", "goal": "This batch", "releasedOn": null },

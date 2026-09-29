@@ -95,7 +95,7 @@
 
 .area {
   flex: none;
-  max-width: 140px;
+  width: 140px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -105,8 +105,11 @@
 
 .hint {
   flex: none;
+  min-width: 112px;
   color: var(--text-3);
   font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
   white-space: nowrap;
 }
 

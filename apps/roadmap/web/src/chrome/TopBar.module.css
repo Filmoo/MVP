@@ -151,6 +151,17 @@
   pointer-events: none;
 }
 
+/* While typing, the hint has done its job. */
+.searchInput:focus + .searchHint {
+  display: none;
+}
+
+@media (max-width: 899px) {
+  .searchHint {
+    display: none;
+  }
+}
+
 .actions {
   flex: none;
   display: flex;

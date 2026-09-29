@@ -17,6 +17,11 @@ const STATE_LABEL = { released: "Released", active: "In progress", planned: "Pla
 /** Area (hovered in the legend) whose nodes stand out. */
 const [lit, setLit] = createSignal<string | null>(null);
 
+/** Stations whose done work was unfolded by hand. */
+const [unfolded, setUnfolded] = createSignal<Record<number, boolean>>({});
+/** Past this many done features, a station shows them as one row. */
+const DONE_FOLD = 6;
+
 function nodesOf(versionId: number): Feature[] {
   const filters = route().filters;
   const areaOrder = (key: string) => area(key)?.position ?? 99;
@@ -25,8 +30,19 @@ function nodesOf(versionId: number): Feature[] {
     .sort((a, b) => RANK[a.status] - RANK[b.status] || areaOrder(a.area) - areaOrder(b.area) || a.position - b.position);
 }
 
+function doneFolded(versionId: number, done: number): boolean {
+  return done > DONE_FOLD && !unfolded()[versionId] && route().filters.query.trim() === "";
+}
+
+/** The nodes a station shows: its done work left out while folded. */
+function shownOf(versionId: number): Feature[] {
+  const nodes = nodesOf(versionId);
+  const done = nodes.filter((f) => f.status === "done").length;
+  return doneFolded(versionId, done) ? nodes.filter((f) => f.status !== "done") : nodes;
+}
+
 export function Roadmap(): JSX.Element {
-  useGrid(() => data.versions.map((v) => nodesOf(v.id).map((f) => f.id)));
+  useGrid(() => data.versions.map((v) => shownOf(v.id).map((f) => f.id)));
   const legend = createMemo(() =>
     data.areas.map((a) => ({
       ...a,
@@ -66,7 +82,9 @@ export function Roadmap(): JSX.Element {
 
 function Stop(props: { version: Version; index: number; last: boolean }): JSX.Element {
   const counts = createMemo(() => progress(liveIn(props.version.id)));
-  const nodes = createMemo(() => nodesOf(props.version.id));
+  const done = createMemo(() => nodesOf(props.version.id).filter((f) => f.status === "done").length);
+  const folded = () => doneFolded(props.version.id, done());
+  const nodes = createMemo(() => shownOf(props.version.id));
   const state = () => versionState(props.version);
   return (
     <li class={styles.stop} data-state={state()} data-last={props.last} style={{ "--i": props.index }}>
@@ -79,23 +97,43 @@ function Stop(props: { version: Version; index: number; last: boolean }): JSX.El
           <p class={styles.stateLine}>
             <span class={styles.state} data-state={state()}>
               {STATE_LABEL[state()]}
+              <Show when={props.version.releasedOn}>{(on) => <> · {day(on())}</>}</Show>
             </span>
             <span class="num">
               {counts().done}/{counts().total}
             </span>
+            <Show when={!props.version.releasedOn && props.version.targetDate}>
+              {(on) => <span class={styles.when}>Target {day(on())}</span>}
+            </Show>
           </p>
-          <Show when={props.version.releasedOn ?? props.version.targetDate}>
-            {(on) => <p class={styles.when}>{props.version.releasedOn ? day(on()) : `Target ${day(on())}`}</p>}
-          </Show>
-          <Show when={props.version.goal}>
-            <p class={styles.goal} title={props.version.goal}>
-              {props.version.goal}
-            </p>
-          </Show>
+          <p class={styles.goal} title={props.version.goal || undefined}>
+            {props.version.goal}
+          </p>
         </div>
       </div>
       <ol class={styles.thread} aria-label={`Version ${props.version.name}`}>
-        <For each={nodes()} fallback={<li class={styles.none}>Nothing here matches.</li>}>
+        <Show when={done() > DONE_FOLD && route().filters.query.trim() === ""}>
+          <li class={styles.node} data-status="done" data-summary>
+            <button
+              type="button"
+              class={styles.nodeButton}
+              aria-expanded={!folded()}
+              onClick={() => setUnfolded((all) => ({ ...all, [props.version.id]: folded() }))}
+            >
+              <i class={styles.dot} aria-hidden="true" />
+              <span class={styles.title}>{done()} done</span>
+              <span class={styles.fold}>{folded() ? "Show" : "Hide"}</span>
+            </button>
+          </li>
+        </Show>
+        <For
+          each={nodes()}
+          fallback={
+            <Show when={done() === 0 || !folded()}>
+              <li class={styles.none}>Nothing here matches.</li>
+            </Show>
+          }
+        >
           {(f, i) => (
             <li
               class={styles.node}

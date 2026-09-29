@@ -17,6 +17,9 @@ import { VersionMenu } from "./VersionMenu";
 
 const STATE_LABEL = { released: "Released", active: "In progress", planned: "Planned" } as const;
 
+/** The board reads what is being built first, then what is agreed, then what waits for a call. */
+const LANE_ORDER: readonly Status[] = ["in_progress", "accepted", "proposed", "done", "rejected"];
+
 /** Lanes folded by hand (`versionId:status`); done lanes of more than six start folded. */
 const [folded, setFolded] = createSignal<Record<string, boolean>>({});
 
@@ -35,7 +38,7 @@ function laneOf(versionId: number, status: Status): Feature[] {
 export function Board(): JSX.Element {
   let board: HTMLDivElement | undefined;
   const owner = () => me()?.kind === "owner";
-  const lanes = () => shownStatuses(route().filters);
+  const lanes = () => [...shownStatuses(route().filters)].sort((a, b) => LANE_ORDER.indexOf(a) - LANE_ORDER.indexOf(b));
 
   const drop = (id: number, target: DropTarget) => {
     const f = data.features[id];
@@ -99,7 +102,12 @@ function Column(props: {
   const state = () => versionState(props.version);
   const shown = () => props.lanes.reduce((sum, status) => sum + laneOf(props.version.id, status).length, 0);
   return (
-    <section class={styles.column} data-state={state()} data-version={props.version.id} aria-label={`Version ${props.version.name}`}>
+    <section
+      class={`${styles.column} glass-rim`}
+      data-state={state()}
+      data-version={props.version.id}
+      aria-label={`Version ${props.version.name}`}
+    >
       <header class={styles.head}>
         <div class={styles.titleRow}>
           <h2 class={styles.name}>{props.version.name}</h2>
@@ -165,7 +173,7 @@ function Column(props: {
             )}
           </For>
         </Show>
-        <Show when={props.owner}>
+        <Show when={props.owner && !props.version.releasedOn}>
           <button
             type="button"
             class={styles.add}
@@ -260,7 +268,11 @@ export function Card(props: { feature: Feature; lifted?: boolean; drop?: "before
           {areaName(f().area)}
         </span>
         <Show when={f().proposedBy === "claude"}>
-          <ClaudeBadge />
+          <Show when={f().status === "proposed"} fallback={<ClaudeBadge />}>
+            <span class={styles.claude} title="Proposed by Claude">
+              <Icon name="sparkles" size={14} label="Proposed by Claude" />
+            </span>
+          </Show>
         </Show>
         <Show when={f().links.length > 0 || f().comments > 0}>
           <span class={styles.counts}>
@@ -283,7 +295,7 @@ export function Card(props: { feature: Feature; lifted?: boolean; drop?: "before
         <div class={styles.decide}>
           <Button
             size="sm"
-            variant="good"
+            variant={isSelected() ? "good" : "goodSoft"}
             icon="check"
             onClick={(event) => {
               event.stopPropagation();

@@ -34,14 +34,26 @@ export function FeatureSheet(props: { id: number }): JSX.Element {
     () => (props.id > 0 ? props.id : null),
     (id) => api.feature(id).catch(() => null),
   );
-  // Refresh the history when the feature changes (status, move, edit).
-  createEffect(
-    on(
-      () => f()?.updatedAt,
-      () => void refetch(),
-      { defer: true },
-    ),
-  );
+  // Refresh the history when the feature changes (status, move, edit): two changes in one
+  // second keep the same `updatedAt`, so the fields themselves are watched too.
+  const changes = () => {
+    const x = f();
+    return x
+      ? [
+          x.updatedAt,
+          x.status,
+          x.versionId,
+          x.position,
+          x.title,
+          x.area,
+          x.description.length,
+          x.links.length,
+          x.comments,
+          x.removedAt,
+        ].join("|")
+      : "";
+  };
+  createEffect(on(changes, () => void refetch(), { defer: true }));
 
   return (
     <Show
@@ -219,8 +231,8 @@ function Fields(props: { feature: Feature; owner: boolean }): JSX.Element {
   const [newArea, setNewArea] = createSignal(false);
   return (
     <dl class={styles.fields}>
-      <dt>Status</dt>
-      <dd>
+      <dt class={styles.wideLabel}>Status</dt>
+      <dd class={styles.wide}>
         <div class={styles.statuses} role="radiogroup" aria-label="Status">
           <For each={STATUSES}>
             {(status: Status) => (
@@ -255,9 +267,11 @@ function Fields(props: { feature: Feature; owner: boolean }): JSX.Element {
           <For each={data.versions}>{(v) => <option value={String(v.id)}>{v.name}</option>}</For>
         </select>
       </dd>
-      <dt>Area</dt>
-      <dd class={styles.areaField}>
+      <dt class={styles.areaLabel}>
         <AreaDot area={f().area} />
+        Area
+      </dt>
+      <dd class={styles.areaField}>
         <Show
           when={newArea()}
           fallback={

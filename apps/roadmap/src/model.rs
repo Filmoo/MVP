@@ -182,24 +182,24 @@ impl Serialize for Timestamp {
 }
 
 /// Area colours are design tokens of the app (`ui/src/design/tokens.css`), by name: the UI
-/// paints an area with `var(--<color>)`. New areas take the first colour not in use.
-pub const AREA_COLORS: [&str; 16] = [
-    "accent",
-    "win",
-    "good",
-    "role-top",
+/// paints an area with `var(--<color>)`. None of them is a status colour (the accent is in
+/// progress, `win` accepted, `good` done, `loss` rejected), so a dot's colour never reads as a
+/// status. New areas take the first colour not in use.
+pub const AREA_COLORS: [&str; 14] = [
+    "rank-master",
+    "rank-diamond",
+    "rank-platinum",
     "role-support",
     "warn",
+    "role-top",
     "rank-silver",
-    "rank-master",
-    "rank-platinum",
-    "rank-diamond",
     "rank-bronze",
-    "loss",
+    "rank-iron",
     "rank-grandmaster",
     "rank-gold",
     "rank-emerald",
-    "accent-strong",
+    "rank-challenger",
+    "tier-c",
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

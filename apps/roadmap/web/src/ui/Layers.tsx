@@ -13,7 +13,7 @@ export function Sheet(props: {
   testId?: string;
 }): JSX.Element {
   return (
-    <aside class={styles.sheet} aria-label={props.label} data-testid={props.testId}>
+    <aside class={`${styles.sheet} glass-rim`} aria-label={props.label} data-testid={props.testId}>
       <header class={styles.sheetHead}>
         <div class={styles.sheetTitle}>{props.head}</div>
         <Button variant="ghost" square icon="close" aria-label="Close" title="Close (Esc)" onClick={() => props.onClose()} />
@@ -48,7 +48,7 @@ export function Modal(props: { label: string; onClose: () => void; children: JSX
     >
       <div
         ref={dialog}
-        class={`${styles.modal} ${props.class ?? ""}`}
+        class={`${styles.modal} glass-rim ${props.class ?? ""}`}
         role="dialog"
         aria-modal="true"
         aria-label={props.label}

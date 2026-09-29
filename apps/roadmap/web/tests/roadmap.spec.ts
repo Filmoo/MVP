@@ -332,14 +332,15 @@ test("every view lays out from 400 to 2560 px: no sideways page, nothing overlap
       await settle(page);
       const at = `${view} @ ${size.width}`;
       const layout = await page.evaluate(() => {
-        const box = (selector: string) => document.querySelector(selector)?.getBoundingClientRect();
         const header = [...document.querySelectorAll("[data-testid=topbar] > *")]
           .map((el) => el.getBoundingClientRect())
           .filter((r) => r.width > 0);
         const overlaps = header.some((a, i) =>
           header.some((b, j) => j > i && a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1),
         );
-        const first = box("[data-view] [data-feature]");
+        const first = [...document.querySelectorAll("[data-view] [data-feature]")]
+          .map((el) => el.getBoundingClientRect())
+          .find((r) => r.width > 0 && r.left >= 0 && r.right <= window.innerWidth + 1);
         return {
           pageWidth: document.documentElement.scrollWidth,
           width: window.innerWidth,
@@ -351,7 +352,7 @@ test("every view lays out from 400 to 2560 px: no sideways page, nothing overlap
       expect(layout.pageWidth, `${at}: the page scrolls sideways`).toBeLessThanOrEqual(layout.width);
       expect(layout.headerRight, `${at}: the top bar spills`).toBeLessThanOrEqual(layout.width);
       expect(layout.overlaps, `${at}: top bar items overlap`).toBe(false);
-      expect(layout.first, `${at}: a feature shows`).not.toBeNull();
+      expect(layout.first, `${at}: a feature shows whole in the window`).not.toBeNull();
       expect(layout.first?.left ?? -1, at).toBeGreaterThanOrEqual(0);
       expect(layout.first?.top ?? 9999, at).toBeLessThan(size.height);
     }

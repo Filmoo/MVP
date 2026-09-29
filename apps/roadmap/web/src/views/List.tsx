@@ -55,7 +55,7 @@ export function List(): JSX.Element {
   return (
     <div class={styles.page} data-testid="list">
       {/* biome-ignore lint/a11y/useSemanticElements: an ARIA table of grid rows: each row lays its cells out per width, which <table> rows can't */}
-      <div class={styles.table} role="table" aria-label="Features" aria-rowcount={rows().length}>
+      <div class={`${styles.table} glass-rim`} role="table" aria-label="Features" aria-rowcount={rows().length}>
         {/* biome-ignore lint/a11y/useSemanticElements: a row of the ARIA table */}
         {/* biome-ignore lint/a11y/useFocusableInteractive: the header row isn't a stop; its sort buttons are */}
         <div class={styles.header} role="row">
@@ -162,7 +162,9 @@ function Row(props: { feature: Feature }): JSX.Element {
         </Show>
         <span class={styles.id}>#{f().id}</span>
         <span class={styles.mobileMeta}>
-          {version(f().versionId)?.name} · {areaName(f().area)}
+          {version(f().versionId)?.name} ·
+          <AreaDot area={f().area} />
+          {areaName(f().area)}
         </span>
       </Cell>
       <Cell col="status">{STATUS_LABEL[f().status]}</Cell>

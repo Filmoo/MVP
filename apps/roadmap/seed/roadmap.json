@@ -1,18 +1,18 @@
 {
   "$comment": "MVP's roadmap as the docs described it on 2026-09-29 (docs/HANDOFF.md, decisions.md, architecture.md, riot-application.md, policy.md, and the commits), written by Claude for mvp-roadmap. Imported only into an empty database (mvp-roadmap seed, or the server's first start); after that the roadmap lives in the server's database, never here.",
   "areas": [
-    { "key": "draft", "name": "Draft", "color": "accent" },
-    { "key": "live", "name": "Live", "color": "win" },
-    { "key": "profile", "name": "Profile & history", "color": "good" },
-    { "key": "tier-list", "name": "Tier list & builds", "color": "role-top" },
-    { "key": "imports", "name": "Imports", "color": "role-support" },
-    { "key": "aram", "name": "ARAM & Mayhem", "color": "warn" },
-    { "key": "settings", "name": "Settings", "color": "rank-silver" },
+    { "key": "draft", "name": "Draft", "color": "rank-diamond" },
+    { "key": "live", "name": "Live", "color": "rank-platinum" },
+    { "key": "profile", "name": "Profile & history", "color": "role-support" },
+    { "key": "tier-list", "name": "Tier list & builds", "color": "warn" },
+    { "key": "imports", "name": "Imports", "color": "rank-emerald" },
+    { "key": "aram", "name": "ARAM & Mayhem", "color": "rank-challenger" },
+    { "key": "settings", "name": "Settings", "color": "role-top" },
     { "key": "design", "name": "Design & glass", "color": "rank-master" },
-    { "key": "desktop", "name": "Desktop app", "color": "rank-platinum" },
-    { "key": "stats", "name": "Stats engine", "color": "rank-diamond" },
+    { "key": "desktop", "name": "Desktop app", "color": "rank-silver" },
+    { "key": "stats", "name": "Stats engine", "color": "rank-iron" },
     { "key": "platform", "name": "Platform & server", "color": "rank-bronze" },
-    { "key": "website", "name": "Website", "color": "loss" },
+    { "key": "website", "name": "Website", "color": "rank-gold" },
     { "key": "riot", "name": "Riot & policy", "color": "rank-grandmaster" }
   ],
   "versions": [

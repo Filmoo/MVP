@@ -192,7 +192,7 @@ mod tests {
         let unknown = r#"{"areas":[],"versions":[],"features":[],"extra":1}"#;
         assert!(SeedFile::parse(unknown).is_err());
 
-        let link = r#"{"areas":[{"key":"x","name":"X","color":"accent"}],"versions":[{"name":"0.1"}],"features":[{"key":"a","title":"A","version":"0.1","status":"done","area":"x","proposedBy":"owner","links":[{"url":"javascript:alert(1)"}]}]}"#;
+        let link = r#"{"areas":[{"key":"x","name":"X","color":"rank-master"}],"versions":[{"name":"0.1"}],"features":[{"key":"a","title":"A","version":"0.1","status":"done","area":"x","proposedBy":"owner","links":[{"url":"javascript:alert(1)"}]}]}"#;
         assert!(SeedFile::parse(link).is_err());
     }
 }

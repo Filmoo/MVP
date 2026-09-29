@@ -1,4 +1,5 @@
-/* Sheets (right side), modals (centered) and dropdowns: glass floating over the page. */
+/* Sheets (right side), modals (centered) and dropdowns: glass floating over the page, dense
+   enough that what is behind never competes with their text (the app's rule for panels). */
 .sheet {
   position: fixed;
   z-index: 40;
@@ -10,7 +11,7 @@
   display: flex;
   flex-direction: column;
   border-radius: var(--radius-5);
-  background: linear-gradient(180deg, var(--bg-sheen), transparent 160px), var(--bg-float);
+  background: linear-gradient(180deg, var(--bg-sheen), transparent 160px), color-mix(in oklab, var(--bg-2) 96%, transparent);
   backdrop-filter: var(--blur-glass);
   box-shadow:
     var(--shadow-float),
@@ -48,10 +49,13 @@
 }
 
 @media (max-width: 639px) {
+  /* A whole screen: opaque, nothing of the page behind shows. */
   .sheet {
     inset: 0;
     width: 100vw;
     border-radius: 0;
+    background: linear-gradient(180deg, var(--bg-sheen), transparent 160px), var(--bg-1);
+    backdrop-filter: none;
   }
   .sheetHead {
     padding: var(--space-6) var(--space-6) var(--space-4);
@@ -70,23 +74,26 @@
   align-items: start;
   padding: 12vh var(--space-6) var(--space-6);
   background: color-mix(in oklab, var(--bg-0) 55%, transparent);
-  animation: fade-in var(--dur-2) var(--ease) both;
+  animation: scrim-in var(--dur-2) var(--ease) both;
 }
 
-@keyframes fade-in {
+/* The colour fades in, not the opacity: an element fading its opacity cuts its children's
+   backdrop blur off from the page. */
+@keyframes scrim-in {
   from {
-    opacity: 0;
+    background-color: transparent;
   }
 }
 
 .modal {
+  position: relative;
   width: min(100%, 620px);
   max-height: 76vh;
   display: flex;
   flex-direction: column;
   border-radius: var(--radius-5);
-  background: linear-gradient(180deg, var(--bg-sheen), transparent 120px), var(--bg-float);
-  backdrop-filter: var(--blur-glass);
+  /* Opaque: a list of text over a page of text (the scrim gives the depth). */
+  background: linear-gradient(180deg, var(--bg-sheen), transparent 120px), var(--bg-2);
   box-shadow:
     var(--shadow-float),
     inset 0 1px 0 var(--line-rim),
