@@ -169,6 +169,17 @@ detection, composite player scores, live win probability, sending data to third-
   stay `null`), and the details stay. LCU endpoint (read, declare at product registration):
   `GET /lol-match-history/v1/games/{gameId}` (your listed games only, each read once), next to
   the match list already declared.
+- **LP per game and the post-game summary (2026-09-29, built; not gray, noted for the reasoning
+  and the endpoint list).** The League client never says what a game was worth: MVP reads the
+  player's own standing before a ranked game and after the client has counted it, and shows the
+  difference (100 LP per division, apex tiers plain LP). Two numbers the player saw and their
+  difference, kept on their machine only: **no MMR, no hidden-rating estimate**, no prediction.
+  The post-game summary uses the end-of-game numbers everyone in the game saw (the grade's rules
+  above apply); the lane opponent's Riot ID links to their page, a hidden player stays hidden.
+  LCU endpoints (reads, declare at product registration): `GET /lol-ranked/v1/current-ranked-stats`
+  (and its event), `GET /lol-gameflow/v1/session` (the game's id and queue at its start),
+  `GET /lol-match-history/v1/games/{gameId}`, `GET /lol-match-history/v1/products/lol/current-summoner/matches`
+  with `begIndex`/`endIndex` (older games), `GET /lol-champion-mastery/v1/local-player/champion-mastery`.
 - **Remote config and self-updates (2026-09-28, shipped).** The app asks our server for its
   config and for updates with its version and install id only (no Riot data). Kill switches can
   only turn features **off**: they stop our own automations (auto-accept, each build import

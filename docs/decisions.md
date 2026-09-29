@@ -268,9 +268,11 @@ every column sorts. Calls:
   **the penguin** waiting for the client, when nothing is published, and in About.
 - **Trends** only where data allows: the previous patch's published list (kept on disk with the
   current one); nothing shows on a first patch.
-- **Budget** (Claude): the hub's code is roughly 11 KB of gzipped JS; the build pays for most of
-  it. The first screen's code is one chunk (it was ~20 small ones), and the small controls the
-  views share are one more. Main at 4b8e381: 128.6 KB in total, 43.7 KB at startup; with the hub:
-  130.7 of 131 KB in total, 37.2 of 46 KB at startup (startup CSS 10.8 → 8.9 KB of 12).
+- **Budget** (Claude, for the owner to decide): the hub costs ~10.4 KB of gzipped JS, all in
+  lazy chunks; the first screen is unchanged. Main at b7b203b: 126.1 KB of JS in total, 40.6 KB at
+  startup; with the hub: 136.5 of 131 KB in total, 40.6 of 46 at startup. The build savings found
+  on the way (the first screen as one chunk, short class names) landed on main by other branches
+  too, so they no longer pay for the hub. Not raised here: raise to 137 KB, group the views' shared
+  code (134.3 KB, each view then loading code it doesn't use), or cut a part.
 - **Tooltips** (main's cards, design/tip): the medallions say what their tier means, the columns
   what they count, the lanes and the view switch their names, the rank button whose games count.

@@ -7,6 +7,7 @@ import { profile } from "../data/mock/fixtures";
 import { liveGame } from "../data/mock/live-fixtures";
 import { gameFor, withGrades } from "../data/mock/match-fixtures";
 import { outageBanner, patchBanner, requiredConfig, updateReady } from "../data/mock/platform-fixtures";
+import { lpFor, masteryFixture, winPostGame } from "../data/mock/progress-fixtures";
 import { defaultSettings } from "../data/mock/settings-fixtures";
 import { mockChampionPage, mockPreviousTierList, mockStatsIndex, mockTierList } from "../data/mock/stats-fixtures";
 import { ShardIcon } from "../design/RuneIcon";
@@ -26,9 +27,10 @@ import { Suggestions } from "../views/draft/Suggestions";
 import { Teams } from "../views/draft/Teams";
 import { Why } from "../views/draft/Why";
 import { MatchTable } from "../views/home/MatchDetails";
+import { MatchHistory } from "../views/home/MatchHistory";
 import { PerformanceSummary } from "../views/home/PerformanceSummary";
+import { PostGameCard } from "../views/home/PostGame";
 import { ProfileHeader } from "../views/home/ProfileHeader";
-import { RecentMatches } from "../views/home/RecentMatches";
 import { LiveTeam } from "../views/live/LiveTeam";
 import { About, AppSettings, AutomationSettings, ImportSettings, NoMatch, StatsSettings } from "../views/settings/sections";
 import { NoStatsChampions } from "../views/tierlist/NoStats";
@@ -113,16 +115,21 @@ const graded = withGrades(profile);
 const firstMatch = profile.recentMatches[0];
 if (!firstMatch) throw new Error("the profile fixture has games");
 const firstGame = gameFor(firstMatch, profile.riotId);
+/** The LP of the fixture's ranked games, as Home gets it (computed once, not measured). */
+const lp = lpFor(profile);
 
 /**
  * Every widget with representative data, for isolated performance measurement
  * (tests/perf.spec.ts). The perf suite fails if a widget rendered anywhere is missing here.
  */
 export const widgetRegistry: Record<string, () => JSX.Element> = {
-  "profile-header": () => <ProfileHeader profile={profile} />,
-  "recent-matches": () => <RecentMatches matches={graded.recentMatches} focus={graded.riotId} />,
+  // Your own profile: the LP graph in the ranked pane, filters over the list, mastery.
+  "profile-header": () => <ProfileHeader profile={profile} lp={lp} />,
+  "recent-matches": () => <MatchHistory matches={graded.recentMatches} focus={graded.riotId} lp={lp} />,
   "match-details": () => <MatchTable game={firstGame} focus={profile.riotId} />,
-  "performance-summary": () => <PerformanceSummary matches={profile.recentMatches} />,
+  "performance-summary": () => <PerformanceSummary matches={profile.recentMatches} mastery={masteryFixture} />,
+  // A ranked win with its LP, a lane opponent and the grade's why: every part shown.
+  "post-game": () => <PostGameCard game={winPostGame} onClose={() => {}} />,
   "draft-teams": () => <Teams draft={champSelectDraft} />,
   "draft-suggestions": () => (
     <Suggestions

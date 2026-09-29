@@ -5,7 +5,10 @@ import type { Bracket } from "../generated/Bracket";
 import type { ChampionPage } from "../generated/ChampionPage";
 import type { ClientError } from "../generated/ClientError";
 import type { ClientStatus } from "../generated/ClientStatus";
+import type { LpGame } from "../generated/LpGame";
+import type { MatchSummary } from "../generated/MatchSummary";
 import type { PlayerProfile } from "../generated/PlayerProfile";
+import type { PostGame } from "../generated/PostGame";
 import type { Settings } from "../generated/Settings";
 import type { TierList } from "../generated/TierList";
 import { DEFAULT_REMOTE_CONFIG } from "../remote-defaults";
@@ -44,6 +47,24 @@ import {
   updateReady,
   upToDate,
 } from "./platform-fixtures";
+import {
+  aramGameProfile,
+  aramPostGame,
+  demotionLp,
+  demotionPostGame,
+  demotionProfile,
+  longHistory,
+  longProfile,
+  lpFor,
+  masteryFixture,
+  olderFrom,
+  pendingPostGame,
+  unknownLp,
+  unknownPostGame,
+  winLp,
+  winPostGame,
+  winProfile,
+} from "./progress-fixtures";
 import { autoImportSettings, customSettings, defaultSettings, saveSettings } from "./settings-fixtures";
 import { mockChampionPage, mockPreviousTierList, mockStatsIndex, mockTierList } from "./stats-fixtures";
 
@@ -126,6 +147,13 @@ const base: Scenario["responses"] = {
   // Your grades come after the list: the core reads each game whole from the client once.
   match_grades: { handle: gradesFrom([profile]), delayMs: 300 },
   match_details: { handle: details, delayMs: 250 },
+  // The fixture's history is its whole history (12 games): nothing further back.
+  older_matches: { data: [], delayMs: 300 },
+  // The LP MVP kept for your ranked games, your mastery; no game just ended.
+  lp_history: { data: lpFor(profile) },
+  champion_mastery: { data: masteryFixture },
+  post_game: { data: null },
+  dismiss_post_game: { data: null },
   // Riot's emblems come from the core (downloaded at run time): the preview draws MVP's crests.
   rank_emblems: { data: null },
   // What runes, shards, spells and items do: read from the dev cache like the core reads its own.
@@ -192,6 +220,43 @@ function answersAfterFirstRead(): () => PlayerProfile {
 
 const inGame: ClientStatus = { connection: "connected", phase: "inGame" };
 
+/** Home right after a game: `p`'s history with that game first, its summary on top. */
+function afterGame(p: PlayerProfile, post: PostGame, lp: LpGame[] | (() => LpGame[])): Scenario["responses"] {
+  // Like the core: a summary closed stays closed (while the page lives).
+  let dismissed = false;
+  return {
+    ...base,
+    current_profile: { data: p },
+    match_grades: { handle: gradesFrom([p]), delayMs: 300 },
+    match_details: { handle: detailsFrom([p]), delayMs: 250 },
+    lp_history: typeof lp === "function" ? { handle: lp } : { data: lp },
+    post_game: { handle: () => (dismissed ? null : post) },
+    dismiss_post_game: {
+      handle: () => {
+        dismissed = true;
+        return null;
+      },
+    },
+  };
+}
+
+/** The LP arrives with the summary's update: the first ask doesn't have it yet. */
+let lpAsked = 0;
+const lpOnceCounted = () => (lpAsked++ === 0 ? unknownLp : winLp);
+
+/** A history with pages further back: `older` answers them. */
+function longHistoryWith(older: MockResponse<MatchSummary[], { begIndex: number }>): Scenario["responses"] {
+  const all = { ...longProfile, recentMatches: longHistory };
+  return {
+    ...base,
+    current_profile: { data: longProfile },
+    older_matches: older,
+    match_grades: { handle: gradesFrom([all]), delayMs: 300 },
+    match_details: { handle: detailsFrom([all]), delayMs: 250 },
+    lp_history: { data: lpFor(longProfile) },
+  };
+}
+
 /** Mid-draft, with imports that work (each takes a moment, like the real client). */
 const champSelect: Scenario["responses"] = {
   ...base,
@@ -212,6 +277,8 @@ export const scenarios = {
       current_profile: { load: loadCapturedProfile },
       match_grades: { handle: (args) => gradesFrom([captured])(args), delayMs: 300 },
       match_details: { handle: (args) => detailsFrom([captured, otherProfile])(args), delayMs: 250 },
+      // MVP never followed these games: no LP.
+      lp_history: { data: [] },
     },
   },
   "champ-select": {
@@ -309,6 +376,7 @@ export const scenarios = {
       current_profile: { data: extremeProfile },
       match_grades: { handle: gradesFrom([extremeProfile], true), delayMs: 300 },
       match_details: { handle: detailsFrom([extremeProfile], true), delayMs: 250 },
+      lp_history: { data: lpFor(extremeProfile) },
     },
   },
   "howling-abyss": {
@@ -336,6 +404,39 @@ export const scenarios = {
   "match-details-gone": {
     description: "The game isn't available anymore: says so, no retry.",
     responses: { ...base, match_details: gameError("not found", { kind: "notFound" }) },
+  },
+  "post-game": {
+    description: "A ranked win just ended: its summary tops Home (grade and why, you against your lane opponent), +21 LP.",
+    responses: afterGame(winProfile, winPostGame, winLp),
+  },
+  "post-game-demotion": {
+    description: "A ranked loss that demoted you: −35 LP, from Emerald IV to Platinum I.",
+    responses: afterGame(demotionProfile, demotionPostGame, demotionLp),
+  },
+  "post-game-lp-unknown": {
+    description: "A ranked game MVP didn't see start: its summary says the LP isn't known.",
+    responses: afterGame(winProfile, unknownPostGame, unknownLp),
+  },
+  "post-game-lp-pending": {
+    description:
+      "The client hasn't counted the game yet: the summary says so. Tests then emit `post-game` with the LP (`winPostGame`): the summary and the row follow.",
+    responses: afterGame(winProfile, pendingPostGame, lpOnceCounted),
+  },
+  "post-game-aram": {
+    description: "An ARAM game just ended: no LP, you against the enemy whose share of damage was closest to yours.",
+    responses: afterGame(aramGameProfile, aramPostGame, lpFor(aramGameProfile)),
+  },
+  "history-long": {
+    description: "47 games: 20 on Home, the rest two pages further back (Load more); flex and ARAM among them.",
+    responses: longHistoryWith({ handle: olderFrom, delayMs: 300 }),
+  },
+  "history-more-slow": {
+    description: "Loading older games takes 2.5 s: the button says it's loading, the list doesn't move.",
+    responses: longHistoryWith({ handle: olderFrom, delayMs: 2_500 }),
+  },
+  "history-more-error": {
+    description: "Older games can't be read (the client stopped answering): the button says so and tries again.",
+    responses: longHistoryWith({ error: "League client stopped answering (HTTP 503)", delayMs: 200 }),
   },
   "settings-custom": {
     description: "Automations on (auto-accept after 4 s), app defaults changed.",

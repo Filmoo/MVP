@@ -171,18 +171,11 @@ export default defineConfig(({ mode }) => ({
     reportCompressedSize: false,
     rolldownOptions: {
       output: {
-        codeSplitting: {
-          groups: [
-            // Everything the first screen loads in one chunk (the entry included). Left to itself,
-            // Rolldown cut it into ~20 small chunks wherever a lazy view shares a piece of it, each
-            // importing the others. No module of it may await at its top level (see main.tsx):
-            // lazy chunks import from it.
-            { name: "app", tags: ["$initial"] },
-            // The small controls the views share (radio groups, tier medallions, the stats pages'
-            // scope): one chunk instead of four tiny ones, each with its imports and exports.
-            { name: "controls", test: /[\\/]src[\\/](design[\\/](Segmented|segmented-keys|Radios|TierMark)|views[\\/]stats[\\/]common)\b/ },
-          ],
-        },
+        // Everything the first screen needs in one chunk (and one stylesheet). Left alone, every
+        // part of it that a lazy view also imports became a chunk of its own: 17 files at start,
+        // each compressed apart and naming the others, 7 KB more to load in all. Lazy chunks
+        // import from this one, so the entry must not pause at its top level (main.tsx).
+        codeSplitting: { groups: [{ name: "app", tags: ["$initial"] }] },
       },
     },
   },

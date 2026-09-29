@@ -830,3 +830,92 @@ test.describe("in French", () => {
     await capture(page, `${OUT}/fr-champion-thresh-2560x1440.png`, false);
   });
 });
+
+// Home after a game and its history: the last game's summary (a win with its LP, a demotion, an
+// unknown LP, the LP on its way, ARAM), the filters (a champion, none left), older games
+// (loading, failed, the end), in English and French (`fr-…`).
+async function historyShot(page: Page, name: string, width: number, height: number, act: (page: Page) => Promise<void>) {
+  await act(page);
+  await page.mouse.move(0, 0);
+  await animationsDone(page);
+  await settle(page);
+  await page.screenshot({ path: `${OUT}/${name}-${width}x${height}.png` });
+}
+
+/** The list's end, where older games load. */
+async function toListEnd(page: Page): Promise<void> {
+  await page.getByTestId("load-more-row").evaluate((el) => el.scrollIntoView({ block: "end" }));
+}
+
+/** The history card's top, filters in view. */
+async function toFilters(page: Page): Promise<void> {
+  await page.getByTestId("queue-filter").evaluate((el) => el.scrollIntoView({ block: "start" }));
+  await page.locator("main").evaluate((main) => main.scrollBy(0, -96));
+}
+
+for (const lang of ["en", "fr"] as const) {
+  test.describe(lang === "fr" ? "after a game in French" : "after a game", () => {
+    if (lang === "fr") test.use({ locale: "fr-FR" });
+    const prefix = lang === "fr" ? "fr-" : "";
+    for (const [width, height] of [
+      [1280, 800],
+      [420, 800],
+    ] as const) {
+      for (const scenario of [
+        "post-game",
+        "post-game-demotion",
+        "post-game-lp-unknown",
+        "post-game-lp-pending",
+        "post-game-aram",
+      ] as const) {
+        test(`${prefix}home ${scenario} ${width}x${height}`, async ({ page }) => {
+          await openApp(page, { scenario, width, height });
+          await capture(page, `${OUT}/${prefix}home-${scenario}-${width}x${height}.png`, width < 900);
+        });
+      }
+      test(`${prefix}home history filtered empty ${width}x${height}`, async ({ page }) => {
+        await historyShot(page, `${prefix}home-history-filtered-empty`, width, height, async (p) => {
+          await openApp(p, { view: "/?queue=flex", width, height });
+          await toFilters(p);
+        });
+      });
+      test(`${prefix}home history champion ${width}x${height}`, async ({ page }) => {
+        await historyShot(page, `${prefix}home-history-champion`, width, height, async (p) => {
+          await openApp(p, { scenario: "history-long", width, height });
+          await p.getByTestId("champion-filter").selectOption("103");
+          await toFilters(p);
+        });
+      });
+      test(`${prefix}home history loading more ${width}x${height}`, async ({ page }) => {
+        await historyShot(page, `${prefix}home-history-loading-more`, width, height, async (p) => {
+          await openApp(p, { scenario: "history-more-slow", width, height });
+          await toListEnd(p);
+          await p.getByTestId("load-more").click();
+        });
+      });
+      test(`${prefix}home history load failed ${width}x${height}`, async ({ page }) => {
+        await historyShot(page, `${prefix}home-history-load-failed`, width, height, async (p) => {
+          await openApp(p, { scenario: "history-more-error", width, height });
+          await toListEnd(p);
+          await p.getByTestId("load-more").click();
+          await p.getByRole("alert").waitFor();
+          await toListEnd(p);
+        });
+      });
+      test(`${prefix}home history end ${width}x${height}`, async ({ page }) => {
+        await historyShot(page, `${prefix}home-history-end`, width, height, async (p) => {
+          await openApp(p, { scenario: "history-long", width, height });
+          for (const count of [40, 47]) {
+            await toListEnd(p);
+            await p.getByTestId("load-more").click();
+            await p
+              .locator("[data-testid=match-row]")
+              .nth(count - 1)
+              .waitFor();
+          }
+          await toListEnd(p);
+        });
+      });
+    }
+  });
+}
