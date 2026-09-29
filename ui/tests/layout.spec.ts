@@ -46,6 +46,8 @@ const SCENARIO_VIEWS = [
   { view: "/live", scenario: "live" },
   { view: "/live", scenario: "live-extreme" },
   { view: "/live", scenario: "live-failed" },
+  // Names waiting for the game: the longest head line (Riot doesn't share the queue).
+  { view: "/live", scenario: "live-filtered" },
   { view: "/player/euw1/Blade%20Dancer/IRE", scenario: "default" },
   { view: "/player/euw1/WWWWWWWWWWWWWWWW/WWWWW", scenario: "default" },
   { view: "/champions?id=103", scenario: "default" },
@@ -62,6 +64,8 @@ const STATE_VIEWS = [
   { view: "/draft", scenario: "draft-no-comps" },
   { view: "/live", scenario: "live-error" },
   { view: "/live", scenario: "live-scouting" },
+  { view: "/live", scenario: "live-bots" },
+  { view: "/live", scenario: "live-hidden" },
   { view: "/player/euw1/Nobody/404", scenario: "default" },
   { view: "/player/euw1/Busy/429", scenario: "default" },
   { view: "/settings", scenario: "crash-reports-on" },

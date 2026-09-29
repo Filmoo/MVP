@@ -232,6 +232,14 @@ export const enViews = {
     show: "Show",
     tabs: { players: "Players", build: "My build" },
     lookingUp: "Looking players up…",
+    /**
+     * Riot's live game had no names for this game: the game itself gives them once loaded.
+     * When first, why after: narrow windows cut the end of the line.
+     */
+    names: {
+      waiting: "Names after the loading screen",
+      filtered: (queue: string) => `Names after the loading screen: Riot doesn't share live ${queue} games`,
+    },
     readFailed: "Couldn't read the game",
     idle: {
       title: "Not in a game",
@@ -258,6 +266,8 @@ export const enViews = {
     streamer: "Streamer mode",
     mains: (roles: string) => `${roles} main`,
     hidden: "Hidden player",
+    /** Not just "Bot": the bottom lane is "Bot" too. */
+    bot: "AI bot",
     unknown: "Unknown player",
     cardUnavailable: "Card unavailable",
     noRankedData: "No ranked data",

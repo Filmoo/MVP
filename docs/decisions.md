@@ -165,7 +165,13 @@ in its gameflow session, so every real game showed nine "Unknown player" cards. 
   seats. A seat marked hidden never gets a name.
 - **Names before cards**: when Riot's cards take longer than 5 s the names go out without them
   and the batch picks the rest up, so a slow or rate-limited key never holds the names back.
-- **Say where the names are**: `LiveGame.names` (asking / waiting / known) drives a pulsing
-  name per seat and one line in the page head; a filtered queue is named plainly ("Riot doesn't
-  share live Ranked Flex games"), neutral, with nothing to retry.
+- **Say where the names are**: `LiveGame.names` (asking / waiting / known) drives a name
+  placeholder per seat (still during the minute or two the game takes to load: nothing pulses
+  that long) and one line in the page head, in a slot that never makes the head wrap; a filtered
+  queue is named plainly ("Riot doesn't share live Ranked Flex games"), neutral, with nothing
+  to retry. Your own card doesn't wait for the others' names.
+- **Bots read "AI bot"** with their champion under it ("Bot" alone is the bottom lane's name);
+  streamer-mode players keep their lane ("Streamer mode · Jungle").
+- **Riot IDs on Live cards open the player's page** (owner's ask, 2026-09-29): visible players
+  only; hidden players and bots have no name to open.
 

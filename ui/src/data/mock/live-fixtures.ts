@@ -259,6 +259,53 @@ export const liveFailed: LiveGame = {
   scouting: { state: "failed", error: { kind: "network", message: "couldn't connect" } },
 };
 
+/** Nobody named but you yet: the League client names only the local player. */
+const unnamed = (p: LivePlayer): LivePlayer => (p.isMe ? { ...p, card: null } : { ...p, hidden: false, riotId: null, card: null });
+
+/** The game just started: the core asks Riot's live game for the names. */
+export const liveAsking: LiveGame = {
+  ...liveScouting,
+  names: { state: "asking" },
+  allies: liveGame.allies.map(unnamed),
+  enemies: liveGame.enemies.map(unnamed),
+};
+
+/** Ranked Flex: Riot doesn't share its live games, the names come from the game once loaded. */
+export const liveFiltered: LiveGame = { ...liveAsking, queueId: 440, names: { state: "waiting", filtered: true } };
+
+const bot = (championId: number, spells: [number, number]): LivePlayer => ({
+  championId,
+  spells,
+  role: null,
+  isMe: false,
+  hidden: false,
+  bot: true,
+  riotId: null,
+  card: null,
+});
+
+/** Co-op vs AI: your team against five bots (no name, no card, never looked up). */
+export const liveBots: LiveGame = {
+  ...liveGame,
+  queueId: 890,
+  enemies: [
+    bot(1, [FLASH, IGNITE]),
+    bot(22, [FLASH, HEAL]),
+    bot(86, [FLASH, TELEPORT]),
+    bot(99, [FLASH, IGNITE]),
+    bot(89, [FLASH, IGNITE]),
+  ],
+};
+
+const hide = (p: LivePlayer): LivePlayer => ({ ...p, hidden: true, riotId: null, card: null });
+
+/** Streamer mode on both sides: Riot keeps them anonymous, MVP shows "Hidden player". */
+export const liveHidden: LiveGame = {
+  ...liveGame,
+  allies: liveGame.allies.map((p, i) => (i === 3 ? hide(p) : p)),
+  enemies: liveGame.enemies.map((p, i) => (i === 0 || i === 4 ? hide(p) : p)),
+};
+
 /** Longest names, apex ranks, every tag at once: cards must hold. */
 export const liveExtreme: LiveGame = {
   ...liveGame,

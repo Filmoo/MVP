@@ -127,6 +127,7 @@ const samples = (): Record<string, unknown[][]> => ({
     ["spells", "Ahri", "No build."],
   ],
   "live.scouting.busy": [[null], [12]],
+  "live.names.filtered": [["Arena"]],
   "live.otp": [["Ahri"]],
   "live.otpTitle": [[percent(0.73), "Ahri"]],
   "live.streak": [[4]],

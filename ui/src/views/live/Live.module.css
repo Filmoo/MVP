@@ -16,10 +16,22 @@
 }
 
 .meta {
+  flex: 1 1 auto;
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: var(--space-5);
   min-width: 0;
+}
+
+/* Always there, empty when there is nothing to say: its size never depends on its words, so the
+ * head never wraps (and the teams never move) when the line changes. */
+.statusSlot {
+  flex: 1 1 0;
+  display: flex;
+  justify-content: flex-end;
+  width: 0;
+  min-width: 120px;
 }
 
 .queue {
@@ -47,6 +59,10 @@
 
 .failed {
   color: var(--warn);
+}
+
+.statusIcon {
+  flex: none;
 }
 
 .statusText {

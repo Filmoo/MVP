@@ -20,7 +20,18 @@ import {
 import { rankEmblemsFixture } from "./emblem-fixtures";
 import { corruptProfile, extremeProfile, newPlayerProfile, profile } from "./fixtures";
 import { flashKept, importAnswer, importFailures } from "./import-fixtures";
-import { liveExtreme, liveFailed, liveGame, liveScouting, otherProfile, searchPlayer } from "./live-fixtures";
+import {
+  liveAsking,
+  liveBots,
+  liveExtreme,
+  liveFailed,
+  liveFiltered,
+  liveGame,
+  liveHidden,
+  liveScouting,
+  otherProfile,
+  searchPlayer,
+} from "./live-fixtures";
 import { detailsFrom, gradesFrom, withGrades } from "./match-fixtures";
 import {
   autoAcceptKilledConfig,
@@ -291,6 +302,27 @@ export const scenarios = {
   "live-failed": {
     description: "The backend can't be reached: the game still shows, with a retry in the head.",
     responses: { ...base, client_status: { data: inGame }, live_game: { data: liveFailed } },
+  },
+  "live-names": {
+    description:
+      "Names arriving: only you are named at first, everyone's names land 1.5 s later (Riot's live game), the cards 1.5 s after.",
+    responses: { ...base, client_status: { data: inGame }, live_game: { data: liveAsking } },
+    timeline: [
+      { afterMs: 1_500, event: "live", payload: liveScouting },
+      { afterMs: 3_000, event: "live", payload: liveGame },
+    ],
+  },
+  "live-filtered": {
+    description: "Ranked Flex: Riot doesn't share its live games, so the names wait for the game itself (after the loading screen).",
+    responses: { ...base, client_status: { data: inGame }, live_game: { data: liveFiltered } },
+  },
+  "live-bots": {
+    description: "Co-op vs AI: five bots, labelled as bots, without cards.",
+    responses: { ...base, client_status: { data: inGame }, live_game: { data: liveBots } },
+  },
+  "live-hidden": {
+    description: "Streamer mode on both sides: four hidden players, never named.",
+    responses: { ...base, client_status: { data: inGame }, live_game: { data: liveHidden } },
   },
   "live-extreme": {
     description: "Longest names, apex ranks and every tag: cards must hold.",

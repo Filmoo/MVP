@@ -71,6 +71,8 @@ for (const { view, scenario } of [
   { view: "/live", scenario: "live" },
   { view: "/live", scenario: "live-extreme" },
   { view: "/live", scenario: "live-failed" },
+  { view: "/live", scenario: "live-filtered" },
+  { view: "/live", scenario: "live-bots" },
   { view: "/player/euw1/Blade%20Dancer/IRE", scenario: "default" },
   { view: "/player/euw1/Busy/429", scenario: "default" },
   { view: "/player/euw1/Nobody/404", scenario: "default" },

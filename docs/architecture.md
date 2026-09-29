@@ -185,6 +185,7 @@ where the others' names are, and the core fills them in, publishing each step (`
    builds: `SCOUT_GAME_CLIENT`) every 2 s (every 10 s after 90 s) until it lists the players,
    which it does once the loading screen is over (≈ 23 s after `InProgress` on the real
    client), then never again. The task is aborted with the game, so nothing asks outside one.
+   Meanwhile the local player's own card is asked for at once (it needs no one else's name).
    Players it can't name reliably (streamer mode: a missing or partial Riot ID, a champion's
    name, a name shared by several players) are hidden; champions and spells are read from
    their Data Dragon keys (`rawChampionName`, `rawDisplayName`) through `GameIds` (the loaded
@@ -201,9 +202,13 @@ read them. Champion select is never read for identities. The game ending clears 
 failed batch is shown in the page head with a retry (`retry_scouting`: names already in are
 kept, only the cards are asked again). The remote config's `scouting` flag turns our server's
 lookups off (Riot's live game and the cards): the names still come from the game, without
-cards. UI: the page head says where the names are (`Looking players up…`, or the game will name
-them, plainly saying when Riot doesn't share the queue), seats show a pulsing name until theirs
-arrives, bots read "Bot", streamer-mode players "Hidden player".
+cards. UI: the page head says where the names are in a slot that is always there (so the head
+never wraps and the teams never move when the line changes): `Looking players up…`, or that
+the names come after the loading screen, plainly saying when Riot doesn't share the queue. Seats
+show a name placeholder until theirs arrives, pulsing while it is asked for and still while the
+game hasn't loaded (a minute or two); bots read "AI bot" with their champion, streamer-mode
+players "Hidden player" with their lane; a visible player's Riot ID links to their player page
+(`#/player/{platform}/{gameName}/{tagLine}`, as the search opens it).
 
 ## Match insights (`stats::grade`, `companion::matches`, `ui/src/views/home`)
 Every finished game in a match history gets a grade, and a match row opens on the whole game.
