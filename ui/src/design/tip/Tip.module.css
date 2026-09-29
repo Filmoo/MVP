@@ -155,11 +155,10 @@
   color: var(--accent);
 }
 
-/* A tier's badge, at the mark's size. */
-.mark > [role="img"] {
-  width: 20px;
-  height: 20px;
-  border-radius: var(--radius-1);
+/* A tier's medallion (design/TierMark), at the mark's size, its shape kept. */
+.mark > [data-mark] {
+  --m: 20px;
+  --r: var(--radius-2);
   font-size: var(--text-xs);
 }
 

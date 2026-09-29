@@ -292,7 +292,8 @@ function PeekCard(props: { entry: RankedEntry; name: string; trend: Trend | unde
             </Show>
           </span>
         </div>
-        <TierMark grade={e().tier} size="md" />
+        {/* The card is a picture of the face's numbers (aria-hidden, never hovered): no tooltip. */}
+        <TierMark grade={e().tier} size="md" decorative />
       </div>
       <dl class={`${styles.peekStats} num`}>
         <div>
