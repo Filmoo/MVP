@@ -1,15 +1,20 @@
-import { type Accessor, createEffect, createSignal, type JSX, on, onCleanup, Show } from "solid-js";
+import { type Accessor, createEffect, createSignal, createUniqueId, type JSX, on, onCleanup, Show } from "solid-js";
 import { queryParam } from "../../app/router";
 import { useData } from "../../data/context";
+import type { Bracket } from "../../data/generated/Bracket";
 import type { StatsIndex } from "../../data/generated/StatsIndex";
+import type { Tier } from "../../data/generated/Tier";
 import { Card } from "../../design/Card";
+import { Glyph, type GlyphName } from "../../design/Glyph";
+import { Icon } from "../../design/Icon";
 import { PenguinArt } from "../../design/PenguinArt";
-import { Segmented } from "../../design/Segmented";
+import { Radios } from "../../design/Radios";
+import { RankEmblem } from "../../design/RankEmblem";
 import { EmptyState, ErrorState } from "../../design/States";
 import { t } from "../../i18n";
 import { backendError } from "../../lib/players";
-import { bracketOptions, queueOptions, statsErrorWords } from "../../lib/stats";
-import { applyLinkFilters, filters, setFilter } from "../../lib/stats-filters";
+import { bracketLabel, queueLabel, statsErrorWords } from "../../lib/stats";
+import { ARAM, applyLinkFilters, filters, type Queue, RANKED, setFilter } from "../../lib/stats-filters";
 import styles from "./common.module.css";
 
 /**
@@ -46,24 +51,87 @@ export function useLinkFilters(options: { role: boolean }): void {
   );
 }
 
-/** Queue and rank switches, remembered for every stats page. */
-export function ScopeSwitches(props: { class?: string | undefined }): JSX.Element {
+const QUEUE_GLYPH: Record<Queue, GlyphName> = { 420: "ranked", 450: "aram" };
+
+/**
+ * The queue as the stats pages' own tabs: words, a line under the one shown (room for more tabs).
+ * Remembered for every stats page, like the rank.
+ */
+export function QueueTabs(): JSX.Element {
   return (
-    <div class={`${styles.switches} ${props.class ?? ""}`}>
-      <Segmented
-        label={t().stats.queue}
-        options={queueOptions()}
-        value={filters().queue}
-        onChange={(queue) => setFilter({ queue })}
-        testId="queue-switch"
-      />
-      <Segmented
-        label={t().stats.rank}
-        options={bracketOptions()}
-        value={filters().bracket}
-        onChange={(bracket) => setFilter({ bracket })}
-        testId="bracket-switch"
-      />
+    <Radios
+      label={t().stats.queue}
+      value={filters().queue}
+      values={[RANKED, ARAM]}
+      onChange={(queue) => setFilter({ queue })}
+      class={styles.tabs}
+      optionClass={() => styles.tab}
+      testId="queue-switch"
+    >
+      {(queue) => (
+        <>
+          <Glyph name={QUEUE_GLYPH[queue]} size={16} class={styles.tabIcon} />
+          <span>{queueLabel(queue)}</span>
+        </>
+      )}
+    </Radios>
+  );
+}
+
+/** The floor tier each bracket is named after: its emblem. */
+const BRACKET_TIER: Record<Bracket, Tier> = { emeraldPlus: "emerald", diamondPlus: "diamond", masterPlus: "master" };
+const BRACKETS: readonly Bracket[] = ["emeraldPlus", "diamondPlus", "masterPlus"];
+
+/**
+ * The rank as a button with its emblem; it opens a small glass grid of the brackets published for
+ * this queue (the one shown included), each with Riot's emblem. The platform's popover: Escape or a
+ * click outside closes it, choosing too.
+ */
+export function RankPicker(props: { index: StatsIndex | null | undefined }): JSX.Element {
+  const id = `rank-${createUniqueId()}`;
+  let menu: HTMLDivElement | undefined;
+  const published = () => {
+    const index = props.index;
+    const patch = index?.patches.find((p) => p.patch === index.current);
+    const sets = patch?.sets.filter((s) => s.queue === filters().queue).map((s) => s.bracket);
+    return sets ? BRACKETS.filter((b) => sets.includes(b) || b === filters().bracket) : BRACKETS;
+  };
+  const bracket = () => filters().bracket;
+  return (
+    <div class={styles.rankWrap} data-testid="bracket-switch">
+      <button
+        type="button"
+        class={styles.rank}
+        popovertarget={id}
+        style={{ "anchor-name": `--${id}` }}
+        aria-label={t().common.colon(t().stats.rank, bracketLabel(bracket()))}
+        data-testid="rank-button"
+      >
+        <RankEmblem tier={BRACKET_TIER[bracket()]} size="xs" />
+        <span class={styles.rankName}>{bracketLabel(bracket())}</span>
+        <Icon name="chevronDown" size={14} class={styles.chevron} />
+      </button>
+      <div id={id} popover class={`${styles.menu} glass-rim`} style={{ "position-anchor": `--${id}` }} ref={menu}>
+        <p class={styles.menuTitle}>{t().stats.rank}</p>
+        <Radios
+          label={t().stats.rank}
+          value={bracket()}
+          values={published()}
+          onChange={(value) => {
+            setFilter({ bracket: value });
+            menu?.hidePopover();
+          }}
+          class={styles.rankGrid}
+          optionClass={() => styles.rankOption}
+        >
+          {(value) => (
+            <>
+              <RankEmblem tier={BRACKET_TIER[value]} size="md" />
+              <span>{bracketLabel(value)}</span>
+            </>
+          )}
+        </Radios>
+      </div>
     </div>
   );
 }

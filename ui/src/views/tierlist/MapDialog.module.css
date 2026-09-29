@@ -1,4 +1,5 @@
-/* The full meta map (MapDialog.tsx): a modal pane of glass over the whole page, under the title bar. */
+/* The full meta map (MapDialog.tsx): a modal pane over the whole page, under the title bar. Opaque:
+   faces blurred behind a scatter plot would read as points. */
 .dialog {
   position: fixed;
   inset: var(--titlebar-h) 0 0 0;
@@ -9,8 +10,7 @@
   margin: 0;
   padding: var(--space-6) var(--space-8) var(--space-7);
   border: 0;
-  background: var(--bg-float);
-  backdrop-filter: var(--blur-glass);
+  background: var(--bg-0);
   color: var(--text-1);
   flex-direction: column;
   gap: var(--space-5);
@@ -52,7 +52,7 @@
 .head {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  justify-content: space-between;
   gap: var(--space-4) var(--space-8);
 }
 
@@ -74,38 +74,11 @@
   color: var(--text-2);
 }
 
-.legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2) var(--space-6);
-  font-size: var(--text-sm);
-  color: var(--text-2);
-}
-
-.legendItem {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.legendItem::before {
-  content: "";
-  width: 10px;
-  height: 10px;
-  border-radius: var(--radius-full);
-  background: var(--dot);
-}
-
-.legendItem svg {
-  color: var(--dot);
-}
-
 .close {
   display: grid;
   place-items: center;
   width: 40px;
   height: 40px;
-  margin-left: auto;
   padding: 0;
   border: 1px solid var(--line-glass);
   border-radius: var(--radius-full);
@@ -323,6 +296,12 @@
   .tag[data-shown] {
     opacity: 0;
   }
+}
+
+.tagLane {
+  flex: none;
+  align-self: center;
+  color: var(--text-2);
 }
 
 .tagName {

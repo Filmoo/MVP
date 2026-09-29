@@ -98,16 +98,35 @@
   transform: scale(1.04);
 }
 
+/* Without art: the champion's face in the art's corner. */
+.stepFace {
+  position: absolute;
+  top: var(--space-5);
+  right: var(--space-6);
+}
+
+.stepFace > * {
+  border-radius: var(--radius-4);
+}
+
 .stepCard:focus-visible {
   outline-offset: 2px;
 }
 
+/* The rank, name and lane at the top; the numbers at the bottom. */
 .stepText {
   position: relative;
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
   height: 100%;
   padding: var(--space-5) var(--space-6);
+}
+
+.stepHead {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 
 .stepTop {
@@ -150,7 +169,6 @@
   align-items: baseline;
   flex-wrap: wrap;
   gap: 0 var(--space-5);
-  margin-top: auto;
 }
 
 .stepWr {
@@ -468,8 +486,10 @@
   color: var(--text-3);
 }
 
+/* Takes the rest of the line, its words at the end. */
 .peekSince {
-  margin-left: auto;
+  flex: 1;
+  text-align: right;
 }
 
 /* ——— Medium: the map goes under the podium as a bar ——— */
@@ -523,6 +543,16 @@
   .stepArt {
     inset: 0;
     opacity: 0.6;
+  }
+  /* The face, like the art: large and faint behind the words. */
+  .stepFace {
+    inset: 0;
+    display: grid;
+    place-items: center;
+    opacity: 0.75;
+  }
+  .stepFace > * {
+    scale: 1.5;
   }
   .shelf {
     grid-template-columns: minmax(0, 1fr);

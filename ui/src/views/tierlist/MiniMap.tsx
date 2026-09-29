@@ -3,7 +3,6 @@ import type { TierGrade } from "../../data/generated/TierGrade";
 import { Glyph } from "../../design/Glyph";
 import { Icon } from "../../design/Icon";
 import { t } from "../../i18n";
-import { ROLE_TONE } from "../../lib/roles";
 import { entryKey, type RankedEntry } from "../../lib/stats";
 import styles from "./MiniMap.module.css";
 
@@ -50,9 +49,8 @@ export function tierBands(d: MapDomain): Array<{ tier: TierGrade; top: number; h
   });
 }
 
-/** A dot's colour: its tier's, or its lane's when every lane shows. */
-export const dotTone = (e: RankedEntry, allRoles: boolean): string =>
-  allRoles && e.role ? ROLE_TONE[e.role] : `var(--tier-${e.tier.toLowerCase()})`;
+/** A dot's colour: its tier's, always (lane colours match tier colours: one meaning per page). */
+export const dotTone = (e: RankedEntry): string => `var(--tier-${e.tier.toLowerCase()})`;
 
 /**
  * A small live meta map next to the podium: the tier bands and a dot per champion, lit with its
@@ -60,7 +58,6 @@ export const dotTone = (e: RankedEntry, allRoles: boolean): string =>
  */
 export function MiniMap(props: {
   rows: RankedEntry[];
-  allRoles: boolean;
   lit: string | undefined;
   onLight: (key: string | undefined) => void;
   onOpen: () => void;
@@ -95,7 +92,7 @@ export function MiniMap(props: {
               style={{
                 left: `${xOf(d(), e.pickRate) * 100}%`,
                 top: `${yOf(d(), e.score) * 100}%`,
-                "--dot": dotTone(e, props.allRoles),
+                "--dot": dotTone(e),
               }}
               onPointerEnter={() => props.onLight(entryKey(e))}
               onPointerLeave={() => props.onLight(undefined)}

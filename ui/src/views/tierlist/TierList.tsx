@@ -13,12 +13,12 @@ import { ARAM, filters, type RoleFilter } from "../../lib/stats-filters";
 import { parseView, setTierView, tierView } from "../../lib/tier-view";
 import { Widget } from "../../widgets/Widget";
 import page from "../page.module.css";
-import { StatsProblem, useLinkFilters, useStatsIndex } from "../stats/common";
+import { QueueTabs, RankPicker, StatsProblem, useLinkFilters, useStatsIndex } from "../stats/common";
 import { NoStatsChampions } from "./NoStats";
 import { championLink, Shelves } from "./Shelves";
 import styles from "./TierList.module.css";
 import { TierTable } from "./TierTable";
-import { ChampionFilter, DataLine, LaneButtons, QueueTabs, RankPicker, TierTitle, ViewSwitch } from "./Toolbar";
+import { ChampionFilter, DataLine, LaneButtons, TierTitle, ViewSwitch } from "./Toolbar";
 
 // The full meta map loads when first opened.
 const MapDialog = lazy(() => import("./MapDialog"));
@@ -111,7 +111,7 @@ export default function TierListView(): JSX.Element {
   return (
     <div class={page.page}>
       <header class={styles.head}>
-        <TierTitle role={data.role()} aram={aram()} />
+        <TierTitle role={data.role()} lane={!aram() && failed() === undefined} />
         <Show when={data.list.data()}>{(l) => <DataLine info={l().info} index={data.index()} />}</Show>
       </header>
       <div class={styles.tabsRow}>

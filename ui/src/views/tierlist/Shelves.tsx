@@ -45,7 +45,7 @@ export function Shelves(props: ShelvesProps): JSX.Element {
       <Show when={!props.filtering && props.rows.length > 0}>
         <div class={styles.top}>
           <Podium rows={props.rows.slice(0, 3)} allRoles={props.allRoles} onLight={props.onLight} />
-          <MiniMap rows={props.rows} allRoles={props.allRoles} lit={props.lit} onLight={props.onLight} onOpen={props.onOpenMap} />
+          <MiniMap rows={props.rows} lit={props.lit} onLight={props.onLight} onOpen={props.onOpenMap} />
         </div>
       </Show>
       <Show
@@ -86,20 +86,31 @@ function Podium(props: { rows: RankedEntry[]; allRoles: boolean; onLight: (key: 
               onPointerLeave={() => props.onLight(undefined)}
             >
               <div class={styles.stepArt} aria-hidden="true" ref={(el) => useTone(el, () => championIconUrl(gameData(), e.id))}>
-                <ChampionArt championId={e.id} class={styles.stepSplash} />
+                {/* Without its art (offline, not loaded yet), the champion's face. */}
+                <ChampionArt
+                  championId={e.id}
+                  class={styles.stepSplash}
+                  fallback={
+                    <span class={styles.stepFace}>
+                      <ChampionIcon championId={e.id} size={56} />
+                    </span>
+                  }
+                />
               </div>
               <div class={styles.stepText}>
-                <div class={styles.stepTop}>
-                  <span class={`${styles.medal} num`}>
-                    <Show when={i() === 0}>
-                      <Glyph name="crown" size={16} />
-                    </Show>
-                    {e.rank}
-                  </span>
-                  <TierMark grade={e.tier} size="sm" />
+                <div class={styles.stepHead}>
+                  <div class={styles.stepTop}>
+                    <span class={`${styles.medal} num`}>
+                      <Show when={i() === 0}>
+                        <Glyph name="crown" size={16} />
+                      </Show>
+                      {e.rank}
+                    </span>
+                    <TierMark grade={e.tier} size="sm" />
+                  </div>
+                  <span class={styles.stepName}>{name(e.id)}</span>
+                  <Show when={props.allRoles && e.role}>{(role) => <RoleLine role={role()} />}</Show>
                 </div>
-                <span class={styles.stepName}>{name(e.id)}</span>
-                <Show when={props.allRoles && e.role}>{(role) => <RoleLine role={role()} />}</Show>
                 <div class={`${styles.stepStats} num`}>
                   <span class={styles.stepWr} data-wr={wrSide(e.winRate)}>
                     {percent(e.winRate, 1)}

@@ -131,4 +131,8 @@
   .plot {
     display: none;
   }
+  /* The chevron at the bar's end. */
+  .head {
+    flex: 1;
+  }
 }

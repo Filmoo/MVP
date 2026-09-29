@@ -349,7 +349,8 @@ test("champion page: imports the build shown, spells wait for champion select", 
   const spells = champion.getByRole("button", { name: t.imports.importPart("spells") });
   await expect(spells, "outside champion select").toBeDisabled();
   await expect(spells).toHaveAttribute("title", t.imports.spellsInChampSelect);
-  // Another bracket on the page: that's the build imported.
+  // Another bracket on the page (its rank menu): that's the build imported.
+  await page.getByTestId("rank-button").click();
   await page.getByTestId("bracket-switch").getByRole("radio", { name: t.brackets.diamondPlus }).click();
   await expect(champion).toContainText(t.imports.mostPlayedIn(420, t.brackets.diamondPlus));
   await champion.getByRole("button", { name: t.imports.importPart("runes") }).click();

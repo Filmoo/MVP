@@ -315,7 +315,7 @@ export const enViews = {
 
   tierList: {
     title: "Tier list",
-    note: "Tiers come from the score: the win rate pulled toward 50 % as if every champion had 1,000 more games at 50 % (so a lucky small sample can't top the list), minus 50 %. S ≥ +2 · A ≥ +0.75 · B ≥ −0.75 · C ≥ −2 · D below. Pick and ban rates are shares of all games counted.",
+    note: "Tiers come from the score: the win rate pulled toward 50% as if every champion had 1,000 more games at 50% (so a lucky small sample can't top the list), minus 50%. S ≥ +2 · A ≥ +0.75 · B ≥ −0.75 · C ≥ −2 · D below. Pick and ban rates are shares of all games counted.",
     columns: {
       rank: "#",
       champion: "Champion",
@@ -330,7 +330,7 @@ export const enViews = {
       rank: "Rank by score",
       lane: "The lane, and the share of the champion's games played there",
       tier: "S ≥ +2 · A ≥ +0.75 · B ≥ −0.75 · C ≥ −2 · D below (score, points)",
-      winRate: "Win rate shrunk toward 50 % (small samples count less); under it, its change since the previous patch",
+      winRate: "Win rate shrunk toward 50% (small samples count less); under it, its change since the previous patch",
       pick: "Share of games with this champion in this lane",
       ban: "Share of games where it was banned",
       games: "Games counted",
@@ -384,9 +384,9 @@ export const enViews = {
       text: (champion: string, role: Role | undefined) =>
         `${champion} needs more games${role ? ` as ${roles[role]}` : ""} before its build is published.`,
     },
-    /** The tier's score: `+3.1 pts over 50 %`. */
-    pointsVs50: (score: number) => `${signedPoints(score)} pts ${score >= 0 ? "over" : "under"} 50 %`,
-    pointsTitle: "Shrunk win rate minus 50 %, in points (what the tier is based on)",
+    /** The tier's score: `+3.1 pts over 50%`. */
+    pointsVs50: (score: number) => `${signedPoints(score)} pts ${score >= 0 ? "over" : "under"} 50%`,
+    pointsTitle: "Shrunk win rate minus 50%, in points (what the tier is based on)",
     winRate: "Win rate",
     pickRate: "Pick rate",
     banRate: "Ban rate",
@@ -397,7 +397,7 @@ export const enViews = {
     ofGames: (n: number) => `of ${games(n)} ${plural(n, "game", "games")}`,
     bans: (n: number) => `${games(n)} ${plural(n, "ban", "bans")}`,
     shrunkTitle: (wins: number, games: number, raw: string) =>
-      `Shrunk toward 50 %: ${integer(wins)} wins in ${integer(games)} games is ${raw} raw`,
+      `Shrunk toward 50%: ${integer(wins)} wins in ${integer(games)} games is ${raw} raw`,
     build: "Build",
     runes: "Runes",
     shards: "Shards",

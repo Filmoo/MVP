@@ -6,7 +6,7 @@ import { Icon, iconPath, LineIcon } from "../../design/Icon";
 import { TierMark } from "../../design/TierMark";
 import { t } from "../../i18n";
 import { percent } from "../../lib/format";
-import { ROLE_ICON, ROLE_TONE, ROLES, roleLabel } from "../../lib/roles";
+import { ROLE_ICON, roleLabel } from "../../lib/roles";
 import { entryKey, type RankedEntry, wrSide } from "../../lib/stats";
 import type { RoleFilter } from "../../lib/stats-filters";
 import styles from "./MapDialog.module.css";
@@ -25,7 +25,7 @@ interface Placed {
 
 /**
  * The meta map, full screen over the page (loaded when first opened): strength up, popularity
- * across, each tier a band, each champion its face (a dot in its lane's colour when every lane
+ * across, each tier a band, each champion its face (a dot in its tier's colour when every lane
  * shows). A modal dialog: the page behind is inert, Escape or the close button closes it, and the
  * focus goes back to what opened it.
  */
@@ -120,18 +120,6 @@ export default function MapDialog(props: {
           {words().title}
           <span class={styles.titleRole}>{role()}</span>
         </h2>
-        <Show when={dots()}>
-          <p class={styles.legend}>
-            <For each={ROLES}>
-              {(r) => (
-                <span class={styles.legendItem} style={{ "--dot": ROLE_TONE[r] }}>
-                  <LineIcon d={iconPath(ROLE_ICON[r])} size={14} />
-                  {roleLabel(r)}
-                </span>
-              )}
-            </For>
-          </p>
-        </Show>
         <button type="button" class={styles.close} onClick={() => dialog?.close()} aria-label={words().close}>
           <Icon name="close" size={20} />
         </button>
@@ -185,7 +173,7 @@ export default function MapDialog(props: {
                     left: `${p.x}px`,
                     top: `${p.y}px`,
                     "--ring": `var(--tier-${p.e.tier.toLowerCase()})`,
-                    "--dot": dotTone(p.e, props.allRoles),
+                    "--dot": dotTone(p.e),
                   }}
                   aria-label={words().pointLabel(name(p.e.id), percent(p.e.winRate, 1), percent(p.e.pickRate, 1))}
                   onPointerEnter={() => props.onLight(entryKey(p.e))}
@@ -206,6 +194,10 @@ export default function MapDialog(props: {
               <Show when={litPoint()}>
                 {(p) => (
                   <>
+                    {/* Every lane shown: the lane is in the tag (colours are the tiers'). */}
+                    <Show when={props.allRoles && p().e.role}>
+                      {(lane) => <LineIcon d={iconPath(ROLE_ICON[lane()])} size={14} class={styles.tagLane} label={roleLabel(lane())} />}
+                    </Show>
                     <span class={styles.tagName}>{name(p().e.id)}</span>
                     <span class={`${styles.tagWr} num`} data-wr={wrSide(p().e.winRate)}>
                       {percent(p().e.winRate, 1)}

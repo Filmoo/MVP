@@ -80,6 +80,8 @@
   align-items: center;
   gap: var(--space-1);
   max-width: 100%;
+  /* Headers with a glyph and without it sit on one line. */
+  vertical-align: middle;
   padding: 0;
   border: 0;
   background: transparent;
@@ -115,6 +117,11 @@
     scale var(--dur-2) var(--ease);
 }
 
+/* Numbers end at the column's edge: their header's arrow goes before the words. */
+:where(.wr, .pick, .ban, .games) .arrow {
+  order: -1;
+}
+
 .sorted .arrow {
   opacity: 1;
 }
@@ -128,9 +135,8 @@
   scale: 1 -1;
 }
 
-/* While the filter shows the best matches first, the sort waits. */
+/* While the filter shows the best matches first, the sort waits (no header shows an arrow). */
 .paused th .sort {
-  opacity: 0.5;
   pointer-events: none;
 }
 
@@ -218,7 +224,9 @@ td.lane {
   color: var(--text-2);
 }
 
-td.tier {
+/* Centred under its header's word (the arrow after it takes 16 px): room on the right. */
+.table td.tier {
+  padding-right: var(--space-8);
   text-align: center;
 }
 
@@ -290,6 +298,18 @@ td.games {
   background: var(--bg-4);
 }
 
+/* ——— Wide: the numbers spread out, the champion keeps a third ——— */
+@container tiertable (min-width: 1100px) {
+  .cChampion {
+    width: 30%;
+  }
+  .cWr,
+  .cRate,
+  .cGames {
+    width: auto;
+  }
+}
+
 /* ——— Medium: no games, tighter numbers ——— */
 @container tiertable (max-width: 799px) {
   .games {
@@ -331,6 +351,9 @@ td.games {
   .table td {
     padding-left: var(--space-2);
     padding-right: var(--space-2);
+  }
+  .table td.tier {
+    padding-right: var(--space-7);
   }
   /* The lane says itself with its icon; its header too (the word would not fit). */
   .share,

@@ -74,7 +74,7 @@ export function TierTable(props: {
         <table class={`${styles.table} num`} data-testid="tier-table">
           <colgroup>
             <col class={styles.cRank} />
-            <col />
+            <col class={styles.cChampion} />
             <col class={`${styles.cLane} ${styles.lane}`} />
             <col class={styles.cTier} />
             <col class={styles.cWr} />
@@ -112,7 +112,7 @@ export function TierTable(props: {
                         <>
                           <LineIcon d={iconPath(ROLE_ICON[role()])} size={16} class={styles.laneIcon} label={roleLabel(role())} />
                           <Show when={e.share !== undefined}>
-                            <span class={styles.share}>{percent(e.share ?? 0, 1)}</span>
+                            <span class={styles.share}>{percent(e.share ?? 0, 0)}</span>
                           </Show>
                         </>
                       )}

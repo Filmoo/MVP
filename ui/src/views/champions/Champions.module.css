@@ -29,6 +29,15 @@
   color: var(--text-1);
 }
 
+/* Queue tabs and the rank button, as on the tier list. */
+.scope {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4) var(--space-8);
+  min-width: 0;
+}
+
 .grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(var(--aside-w), 32%);

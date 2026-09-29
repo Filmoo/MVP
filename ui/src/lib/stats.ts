@@ -37,11 +37,7 @@ export function bracketName(label: string): string {
 /** `Ranked Solo · Emerald+`: which data a number comes from. */
 export const scopeLabel = (queue: Queue, bracket: Bracket): string => `${queueLabel(queue)} · ${bracketLabel(bracket)}`;
 
-export const queueOptions = (): SegmentedOption<Queue>[] => [
-  { value: 420, label: queueLabel(420) },
-  { value: 450, label: queueLabel(450) },
-];
-
+/** The rank setting's choices (Settings → Stats). */
 export const bracketOptions = (): SegmentedOption<Bracket>[] => BRACKETS.map((value) => ({ value, label: bracketLabel(value) }));
 
 /** A stats queue the core named (a game's builds: from its map, as imports decide), if published. */

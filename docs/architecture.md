@@ -313,7 +313,8 @@ with a retry.
   tier list, Ctrl+K search, matchups, Draft) opens its page, `#/champions?id=…`, and the nav keeps
   Tiers lit there (`Route.also` in `app/router.ts`). `/champions` without an id goes to the tier
   list with the link's filters (`location.replace`). The page's way back returns to the tier list
-  in the same scope (the filters and the view are shared and remembered).
+  in the same scope (the filters and the view are shared and remembered). Both pages have the
+  same queue tabs and rank menu (`QueueTabs`, `RankPicker` in `views/stats/common.tsx`).
 - **Scope**: queue (420 ranked solo · 450 ARAM), rank bracket and the tier-list role filter are
   remembered in `localStorage["mvp.stats-filters.v1"]` (`lib/stats-filters.ts`) and shared by both
   pages. Links can set them: `#/tier-list?queue=450&role=middle`; on a champion page `role` picks the
@@ -347,8 +348,9 @@ with a retry.
   - **The full meta map** (`MapDialog.tsx`, a chunk loaded when first opened) opens from the mini
     map (a bar on pages under 900 px): a modal `<dialog>` (focus kept inside, Escape or the close
     button, the focus back on the mini map). Strength (score) up, popularity (pick rate, log scale)
-    across, tier bands; faces pushed apart where they would overlap, dots in their lane's colour
-    when every lane shows; one name tag for the point lit, kept inside the plot.
+    across, tier bands; faces pushed apart where they would overlap, dots when every lane shows,
+    always in their tier's colour (the lane colours match the tiers': one meaning per page); one
+    name tag for the point lit (with its lane when every lane shows), kept inside the plot.
   - **Trends**: `previous_tier_list` answers the tier list of the patch before the current one,
     same queue and bracket (`DataSet::previous`; the disk cache keeps the current and the previous
     patch), or `null` when there is none: then nothing shows. The change in points shows under the
@@ -368,10 +370,10 @@ with a retry.
 - **Runes** come from `GameData.runes` (Data Dragon `runesReforged.json`, cached with the patch;
   icons under `artBase/img/…`). Stat shards (5001–5013) aren't in Data Dragon: `lib/runes.ts` names
   them and `design/RuneIcon.tsx` draws them as glyphs (no Riot art).
-- **Controls**: `design/Segmented.tsx` is the radio group used for every filter and tab (one tab
-  stop, arrow keys, Home/End; the selection is a separate thumb element). Not every choice should
-  look like a pill: the tier list's queue tabs, view switch and lanes are the same pattern drawn
-  their own way (`Radios` in `views/tierlist/Toolbar.tsx`).
+- **Controls**: `design/Segmented.tsx` is the radio group for the pages' other filters and tabs
+  (one tab stop, arrow keys, Home/End; the selection is a separate thumb element). Not every choice should
+  look like a pill: the stats pages' queue tabs, rank menu, lanes and view switch are the same
+  pattern drawn by their caller (`design/Radios.tsx`).
 - **For later**: `views/champions/BuildSummary.tsx` (keystone + secondary tree, spells, max order,
   core items) is ready for the Live page (the local player's champion and role, the game's queue);
   an "Import" action (rune page, item set: HANDOFF job 5) belongs in the Runes card header, next to

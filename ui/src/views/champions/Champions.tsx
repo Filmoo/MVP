@@ -17,7 +17,7 @@ import { ARAM, filters } from "../../lib/stats-filters";
 import { Widget } from "../../widgets/Widget";
 import { ImportBar } from "../draft/ImportBar";
 import page from "../page.module.css";
-import { ScopeSwitches, StatsProblem, useLinkFilters, useStatsIndex } from "../stats/common";
+import { QueueTabs, RankPicker, StatsProblem, useLinkFilters, useStatsIndex } from "../stats/common";
 import { ItemsCard, SkillsCard, SpellsCard } from "./Builds";
 import { ChampionHero } from "./ChampionHero";
 import styles from "./Champions.module.css";
@@ -134,7 +134,11 @@ function ChampionView(props: { championId: number }): JSX.Element {
           <Icon name="back" size={16} />
           {t().tierList.title}
         </a>
-        <ScopeSwitches />
+        {/* The tier list's scope controls: the same look, the same remembered choice. */}
+        <div class={styles.scope}>
+          <QueueTabs />
+          <RankPicker index={index()} />
+        </div>
       </div>
       <Widget name="champion-hero">
         <ChampionHero

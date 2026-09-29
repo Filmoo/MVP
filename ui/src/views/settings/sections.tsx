@@ -461,7 +461,7 @@ export function About(props: {
       <div class={styles.about}>
         <div class={styles.identity}>
           <div class={styles.mark}>
-            <PenguinArt size={44} crown label="MVP" />
+            <PenguinArt size={40} crown label="MVP" />
           </div>
           <div class={styles.identityText}>
             <span class={styles.appName}>MVP</span>
