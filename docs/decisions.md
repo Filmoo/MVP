@@ -275,7 +275,7 @@ nothing to crawl. Offered editorial tiers or opt-in sharing, the owner took both
   tab (the ARAM numbers sit under "ARAM builds"). Before the game or
   as static reference only: nothing reacts to the game's augment offers (policy.md). French:
   "ARAM du chaos".
-- **Budget**: the whole feature costs +9.3 KB of JS gzip in total (main's 128.6 → 137.9 KB
-  against a 131 KB budget; startup 43.7 → 44.0 of 46 KB): the Mayhem page 3.3 KB, the shared
-  augment parts 3.2 KB, words in both languages 1.6 KB, the four integrations 0.9 KB, chunking
-  0.3 KB. Not raised here: the owner decides.
+- **Budget**: the whole feature costs +9.1 KB of JS gzip in total (main's 126.1 → 135.2 KB
+  against a 131 KB budget; startup 40.6 → 40.8 of 46 KB): the Mayhem page 3.2 KB, the shared
+  augment parts 3.1 KB, words in both languages 1.6 KB, the four integrations 0.8 KB, the route
+  0.1 KB, chunking 0.3 KB. Not raised here: the owner decides.

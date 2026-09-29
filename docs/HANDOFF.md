@@ -247,7 +247,7 @@ Everything below is merged on `claude/upbeat-hamilton-0bms1t` and green on
      check`; apps/backend/README.md "ARAM: Mayhem"): until then every augment is "Not tiered yet";
    - the deployed backend must reach `raw.communitydragon.org` for the catalog (log "built 223
      Mayhem augments…"); without it the Mayhem views say the augments aren't available yet;
-   - the bundle: the feature is +9.3 KB of JS gzip, 137.9 KB against the 131 KB budget (the
+   - the bundle: the feature is +9.1 KB of JS gzip, 135.2 KB against the 131 KB budget (the
      owner's call: raise it, or trim);
    - the real client (checklist below).
 
