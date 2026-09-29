@@ -224,13 +224,9 @@ td.lane {
   color: var(--text-2);
 }
 
-.laneIcon > svg {
-  display: block;
-}
-
 /* Over the row's link, so hovering them explains them (design/tip); a click still opens the
    champion (TierTable forwards it to the link). */
-.laneIcon,
+.table td.lane,
 .table td.tier > * {
   position: relative;
   z-index: 1;

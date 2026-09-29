@@ -13,7 +13,7 @@ import { percent, signedPoints } from "../../lib/format";
 import { createProgressive } from "../../lib/progressive";
 import { ROLE_ICON, ROLE_TONE, roleLabel } from "../../lib/roles";
 import { entryKey, groupByTier, type RankedEntry, type Trend, wrSide } from "../../lib/stats";
-import { MiniMap } from "./MiniMap";
+import { MiniMap, markLit } from "./MiniMap";
 import styles from "./Shelves.module.css";
 
 /** Faces built with the view; the rest follow while the page is idle ("all roles": ~220). */
@@ -184,10 +184,20 @@ function Board(props: ShelvesProps): JSX.Element {
   const hide = () => {
     if (card) delete card.dataset.shown;
   };
+  // The face under the pointer (or the focus), found from the board: its card, its dot on the map.
   const over = (event: Event) => {
     const tile = (event.target as Element).closest<HTMLElement>("[data-key]");
     if (tile) show(tile);
+    props.onLight(tile?.dataset.key);
   };
+  const leave = () => {
+    hide();
+    props.onLight(undefined);
+  };
+  markLit(
+    () => board,
+    () => props.lit,
+  );
 
   return (
     <div
@@ -195,9 +205,9 @@ function Board(props: ShelvesProps): JSX.Element {
       ref={board}
       onPointerOver={over}
       onFocusIn={over}
-      onPointerLeave={hide}
+      onPointerLeave={leave}
       onFocusOut={(event) => {
-        if (!board?.contains(event.relatedTarget as Node | null)) hide();
+        if (!board?.contains(event.relatedTarget as Node | null)) leave();
       }}
       aria-busy={complete() ? undefined : "true"}
     >
@@ -224,13 +234,10 @@ function Board(props: ShelvesProps): JSX.Element {
                         class={styles.tile}
                         href={championLink(e)}
                         data-key={entryKey(e)}
-                        data-lit={props.lit === entryKey(e) ? "" : undefined}
                         data-testid="tier-row"
                         data-champion={e.id}
                         data-role={e.role}
                         aria-label={t().tierList.tileLabel(name(e.id), e.role ? roleLabel(e.role) : undefined, percent(e.winRate, 1))}
-                        onPointerEnter={() => props.onLight(entryKey(e))}
-                        onPointerLeave={() => props.onLight(undefined)}
                       >
                         <span class={styles.face}>
                           <ChampionIcon championId={e.id} size={48} />

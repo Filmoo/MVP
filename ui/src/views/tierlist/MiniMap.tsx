@@ -1,4 +1,4 @@
-import { createMemo, For, type JSX } from "solid-js";
+import { createEffect, createMemo, For, type JSX } from "solid-js";
 import type { TierGrade } from "../../data/generated/TierGrade";
 import { Glyph } from "../../design/Glyph";
 import { Icon } from "../../design/Icon";
@@ -53,6 +53,21 @@ export function tierBands(d: MapDomain): Array<{ tier: TierGrade; top: number; h
 export const dotTone = (e: RankedEntry): string => `var(--tier-${e.tier.toLowerCase()})`;
 
 /**
+ * Marks the champion lit (`data-lit` on its `data-key` element inside `root`): one effect for a
+ * whole list, rather than a binding on each of its ~220 faces or dots.
+ */
+export function markLit(root: () => HTMLElement | undefined, lit: () => string | undefined): void {
+  createEffect<string | undefined>((prev) => {
+    const key = lit();
+    const el = root();
+    const find = (k: string) => el?.querySelector(`[data-key="${CSS.escape(k)}"]`);
+    if (prev && prev !== key) find(prev)?.removeAttribute("data-lit");
+    if (key) find(key)?.setAttribute("data-lit", "");
+    return key;
+  });
+}
+
+/**
  * A small live meta map next to the podium: the tier bands and a dot per champion, lit with its
  * face under the pointer. A click opens the full map; on narrow pages it is just a button.
  */
@@ -63,6 +78,13 @@ export function MiniMap(props: {
   onOpen: () => void;
 }): JSX.Element {
   const d = createMemo(() => mapDomain(props.rows));
+  let plot: HTMLSpanElement | undefined;
+  markLit(
+    () => plot,
+    () => props.lit,
+  );
+  // The dot under the pointer, found from the plot (no listener on each dot).
+  const light = (event: Event) => props.onLight((event.target as HTMLElement).dataset.key);
   return (
     <button
       type="button"
@@ -77,7 +99,14 @@ export function MiniMap(props: {
         <span class={styles.headTitle}>{t().tierList.map.title}</span>
         <Icon name="chevronDown" size={14} class={styles.expand} />
       </span>
-      <span class={styles.plot} aria-hidden="true" data-dim={props.lit ? "" : undefined}>
+      <span
+        class={styles.plot}
+        ref={plot}
+        aria-hidden="true"
+        data-dim={props.lit ? "" : undefined}
+        onPointerOver={light}
+        onPointerLeave={() => props.onLight(undefined)}
+      >
         <For each={tierBands(d())}>
           {(b) => (
             <span class={`${styles.band} ${styles[`band${b.tier}`]}`} style={{ top: `${b.top * 100}%`, height: `${b.height * 100}%` }} />
@@ -88,14 +117,12 @@ export function MiniMap(props: {
           {(e) => (
             <span
               class={styles.dot}
-              data-lit={props.lit === entryKey(e) ? "" : undefined}
+              data-key={entryKey(e)}
               style={{
                 left: `${xOf(d(), e.pickRate) * 100}%`,
                 top: `${yOf(d(), e.score) * 100}%`,
                 "--dot": dotTone(e),
               }}
-              onPointerEnter={() => props.onLight(entryKey(e))}
-              onPointerLeave={() => props.onLight(undefined)}
             />
           )}
         </For>

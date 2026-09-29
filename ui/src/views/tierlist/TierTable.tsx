@@ -103,46 +103,42 @@ export function TierTable(props: {
           </thead>
           {/* A click on a tooltip's anchor over the row's link (medallion, lane) opens the row's champion too. */}
           {/* biome-ignore lint/a11y/useKeyWithClickEvents: pointer only: the keyboard opens a row with its own link */}
-          <tbody
-            onClick={(e) => (e.target as Element).closest("td [data-tip], td [data-hint]")?.closest("tr")?.querySelector("a")?.click()}
-          >
+          <tbody onClick={(e) => (e.target as Element).closest("[data-tip], [data-hint]")?.closest("tr")?.querySelector("a")?.click()}>
             <For each={shown()}>
-              {(e) => (
-                <tr class={styles.row} data-testid="tier-row" data-champion={e.id} data-role={e.role} data-key={entryKey(e)}>
-                  <td class={styles.rank}>{e.rank}</td>
-                  <td class={styles.champion}>
-                    {/* The link covers the whole row. */}
-                    <a class={styles.link} href={championLink(e)}>
-                      <ChampionIcon championId={e.id} size={32} />
-                      {name(e.id)}
-                    </a>
-                  </td>
-                  <td class={styles.lane}>
-                    <Show when={e.role}>
-                      {(role) => (
-                        <>
-                          <span class={styles.laneIcon} data-hint={roleLabel(role())}>
-                            <LineIcon d={iconPath(ROLE_ICON[role()])} size={16} label={roleLabel(role())} />
-                          </span>
-                          <Show when={e.share !== undefined}>
-                            <span class={styles.share}>{percent(e.share ?? 0, 0)}</span>
-                          </Show>
-                        </>
-                      )}
-                    </Show>
-                  </td>
-                  <td class={styles.tier}>
-                    <TierMark grade={e.tier} size="sm" />
-                  </td>
-                  <td class={styles.wr} data-wr={wrSide(e.winRate)}>
-                    {percent(e.winRate, 1)}
-                    <Show when={props.trends?.get(entryKey(e))}>{(trend) => <TrendMark points={trend().winRate} tone />}</Show>
-                  </td>
-                  <td class={styles.pick}>{percent(e.pickRate, 1)}</td>
-                  <td class={styles.ban}>{percent(e.banRate, 1)}</td>
-                  <td class={styles.games}>{games(e.g)}</td>
-                </tr>
-              )}
+              {(e) => {
+                // A row's own parts never change: made once, not watched.
+                const key = entryKey(e);
+                const lane = e.role ? roleLabel(e.role) : undefined;
+                const icon = e.role ? <LineIcon d={iconPath(ROLE_ICON[e.role])} size={16} class={styles.laneIcon} label={lane} /> : null;
+                const share = e.share === undefined ? null : <span class={styles.share}>{percent(e.share, 0)}</span>;
+                return (
+                  <tr class={styles.row} data-testid="tier-row" data-champion={e.id} data-role={e.role} data-key={key}>
+                    <td class={styles.rank}>{e.rank}</td>
+                    <td class={styles.champion}>
+                      {/* The link covers the whole row. */}
+                      <a class={styles.link} href={championLink(e)}>
+                        <ChampionIcon championId={e.id} size={32} />
+                        {name(e.id)}
+                      </a>
+                    </td>
+                    {/* The lane's name on hover (design/tip): the cell sits over the row's link. */}
+                    <td class={styles.lane} data-hint={lane}>
+                      {icon}
+                      {share}
+                    </td>
+                    <td class={styles.tier}>
+                      <TierMark grade={e.tier} size="sm" />
+                    </td>
+                    <td class={styles.wr} data-wr={wrSide(e.winRate)}>
+                      {percent(e.winRate, 1)}
+                      <Show when={props.trends?.get(key)}>{(trend) => <TrendMark points={trend().winRate} tone />}</Show>
+                    </td>
+                    <td class={styles.pick}>{percent(e.pickRate, 1)}</td>
+                    <td class={styles.ban}>{percent(e.banRate, 1)}</td>
+                    <td class={styles.games}>{games(e.g)}</td>
+                  </tr>
+                );
+              }}
             </For>
           </tbody>
         </table>
