@@ -19,7 +19,7 @@ import {
 } from "./draft-fixtures";
 import { rankEmblemsFixture } from "./emblem-fixtures";
 import { corruptProfile, extremeProfile, newPlayerProfile, profile } from "./fixtures";
-import { flashKept, importAnswer, importFailures } from "./import-fixtures";
+import { flashKept, importAnswer, importFailures, tradedWarning, warningResponses } from "./import-fixtures";
 import { liveExtreme, liveFailed, liveGame, liveScouting, otherProfile, searchPlayer } from "./live-fixtures";
 import { detailsFrom, gradesFrom, withGrades } from "./match-fixtures";
 import {
@@ -31,7 +31,7 @@ import {
   updateReady,
   upToDate,
 } from "./platform-fixtures";
-import { customSettings, defaultSettings, importsOffSettings, lockInSettings, saveSettings } from "./settings-fixtures";
+import { autoImportSettings, customSettings, defaultSettings, saveSettings } from "./settings-fixtures";
 import { mockChampionPage, mockStatsIndex, mockTierList } from "./stats-fixtures";
 
 /** Published queues: anything else is "not published", like the core answers. */
@@ -143,6 +143,8 @@ const base: Scenario["responses"] = {
   champion_stats: { handle: championStats },
   // Champion pages import too (each takes a moment, like the real client).
   import_build: { handle: importAnswer(), delayMs: 400 },
+  // Draft's warning after the automatic import: none unless a scenario says so.
+  import_warning: { data: null },
 };
 
 const inGame: ClientStatus = { connection: "connected", phase: "inGame" };
@@ -183,8 +185,18 @@ export const scenarios = {
   },
   "import-lock-in": {
     description:
-      "Imports on lock-in: you locked Malphite in with every part set to import by itself. Tests emit the import (`lockInImport`) themselves: a toast only lasts 4 s.",
-    responses: { ...champSelect, draft_state: { data: champSelectLocked }, get_settings: { data: lockInSettings } },
+      "Auto import: you locked Malphite in with every part's switch on. Tests emit the import (`lockInImport`) themselves: a toast only lasts 4 s.",
+    responses: { ...champSelect, draft_state: { data: champSelectLocked }, get_settings: { data: autoImportSettings } },
+  },
+  "import-warning": {
+    description:
+      "Auto import, then a trade: MVP imported Shen's build at your first lock-in, you're now on Malphite. Draft warns and imports for Malphite in one click (never by itself).",
+    responses: {
+      ...champSelect,
+      draft_state: { data: champSelectLocked },
+      get_settings: { data: autoImportSettings },
+      ...warningResponses(tradedWarning),
+    },
   },
   "draft-no-stats": {
     description: "Champion select before stats exist: no picks, the import buttons say why they wait.",
@@ -201,10 +213,6 @@ export const scenarios = {
   "aram-champ-select": {
     description: "ARAM: you have Lux, four champions on the bench and a reroll; ranked by the team's chance with each.",
     responses: { ...champSelect, draft_state: { data: aramDraft } },
-  },
-  "imports-off": {
-    description: "Every import turned off in Settings: no import bar in Draft.",
-    responses: { ...champSelect, get_settings: { data: importsOffSettings } },
   },
   "import-error": {
     description: "The core can't be asked (the app is still starting): the button says so.",

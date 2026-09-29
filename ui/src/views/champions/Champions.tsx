@@ -16,7 +16,7 @@ import { ROLES } from "../../lib/roles";
 import { bracketLabel, buildFor, pickRole, roleFilterOptions, roleTabs, scopeLabel } from "../../lib/stats";
 import { ARAM, filters, setFilter } from "../../lib/stats-filters";
 import { Widget } from "../../widgets/Widget";
-import { ImportBar, useImportModes } from "../draft/ImportBar";
+import { ImportBar } from "../draft/ImportBar";
 import page from "../page.module.css";
 import { ScopeSwitches, StatsProblem, useLinkFilters, useStatsIndex } from "../stats/common";
 import { ItemsCard, SkillsCard, SpellsCard } from "./Builds";
@@ -127,9 +127,7 @@ function ChampionView(props: { championId: number }): JSX.Element {
   useAmbient(() => championArtUrl(gameData(), props.championId));
   const name = () => gameData()?.champions.get(props.championId)?.name ?? t().common.championN(props.championId);
   // The build shown can go into the League client, like in Draft (spells in champion select only).
-  const modes = useImportModes();
   const client = useClientStatus();
-  const imports = () => Object.values(modes()).some((mode) => mode !== "off");
 
   return (
     <div class={page.page}>
@@ -170,21 +168,18 @@ function ChampionView(props: { championId: number }): JSX.Element {
         <Match when={stats.data()}>
           {(p) => (
             <div class={`${styles.content} ${stats.loading() ? styles.busy : ""}`}>
-              <Show when={imports()}>
-                <Widget name="champion-import">
-                  <ImportBar
-                    championId={props.championId}
-                    role={queue() === ARAM ? null : (role() ?? null)}
-                    context={t().imports.mostPlayedIn(queue(), bracketLabel(bracket()))}
-                    queue={queue()}
-                    bracket={bracket()}
-                    available={buildFor(p(), role()) !== undefined}
-                    inChampSelect={client()?.phase === "champSelect"}
-                    clientReady={client()?.connection === "connected"}
-                    modes={modes()}
-                  />
-                </Widget>
-              </Show>
+              <Widget name="champion-import">
+                <ImportBar
+                  championId={props.championId}
+                  role={queue() === ARAM ? null : (role() ?? null)}
+                  context={t().imports.mostPlayedIn(queue(), bracketLabel(bracket()))}
+                  queue={queue()}
+                  bracket={bracket()}
+                  available={buildFor(p(), role()) !== undefined}
+                  inChampSelect={client()?.phase === "champSelect"}
+                  clientReady={client()?.connection === "connected"}
+                />
+              </Widget>
               <ChampionBuilds page={p()} forRole={role()} />
             </div>
           )}
