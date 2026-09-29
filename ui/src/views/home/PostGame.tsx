@@ -14,6 +14,7 @@ import { Icon } from "../../design/Icon";
 import { TierBadge } from "../../design/TierBadge";
 import { t } from "../../i18n";
 import { decimal, duration, integer, kda, queueName, REMAKE_MAX_SECONDS, signedPoints, timeAgo } from "../../lib/format";
+import { onHowlingAbyss } from "../../lib/queues";
 import { formatRiotId, playerPath } from "../../lib/riot-id";
 import { roleLabel } from "../../lib/roles";
 import { GradeChip } from "./GradeChip";
@@ -34,7 +35,8 @@ const kdaText = (p: MatchPlayer) => `${p.kills}/${p.deaths}/${p.assists}`;
 /** `EUW1_7000000001` → `euw1`, the platform of a player page. */
 const platformOf = (matchId: string) => matchId.slice(0, matchId.lastIndexOf("_")).toLowerCase();
 
-function lines(me: MatchPlayer, them: MatchPlayer | null): Line[] {
+/** Your numbers and theirs; no vision on Howling Abyss (no wards there: 0 for everyone). */
+function lines(me: MatchPlayer, them: MatchPlayer | null, queueId: number): Line[] {
   const rows = t().postGame.rows;
   const line = (label: string, of: (p: MatchPlayer) => number, text: (p: MatchPlayer) => string = (p) => integer(of(p))) => ({
     label,
@@ -43,13 +45,13 @@ function lines(me: MatchPlayer, them: MatchPlayer | null): Line[] {
     a: of(me),
     b: them ? of(them) : 0,
   });
-  return [
+  const all = [
     line(rows.kda, ratio, kdaText),
     line(rows.cs, (p) => p.creepScore),
     line(rows.damage, (p) => p.damageToChampions),
     line(rows.gold, (p) => p.gold),
-    line(rows.vision, (p) => p.visionScore),
   ];
+  return onHowlingAbyss(queueId) ? all : [...all, line(rows.vision, (p) => p.visionScore)];
 }
 
 export function PostGameCard(props: { game: PostGame; onClose: () => void }): JSX.Element {
@@ -60,7 +62,7 @@ export function PostGameCard(props: { game: PostGame; onClose: () => void }): JS
   const outcome = () => (remake() ? "remake" : g().win ? "win" : "loss");
   const name = (p: MatchPlayer) => gameData()?.champions.get(p.championId)?.name ?? t().common.championN(p.championId);
   const ranked = () => (g().queueId === 420 || g().queueId === 440) && !remake();
-  const rows = createMemo(() => lines(g().me, g().opponent));
+  const rows = createMemo(() => lines(g().me, g().opponent, g().queueId));
   const sub = () => {
     const role = g().me.role;
     return role ? `${name(g().me)} · ${roleLabel(role)}` : name(g().me);

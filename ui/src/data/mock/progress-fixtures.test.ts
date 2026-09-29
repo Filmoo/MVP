@@ -46,10 +46,11 @@ describe("the LP fixtures follow the core's ladder", () => {
 });
 
 describe("queue filters", () => {
-  it("put ARAM's variants with ARAM and everything unranked in Other", () => {
-    expect([420, 440, 450, 720, 2400, 400, 1700, 3130].map(queueGroup)).toEqual([
+  it("put every Howling Abyss queue with ARAM and everything unranked in Other", () => {
+    expect([420, 440, 450, 720, 2400, 920, 400, 1700, 3130].map(queueGroup)).toEqual([
       "solo",
       "flex",
+      "aram",
       "aram",
       "aram",
       "aram",
