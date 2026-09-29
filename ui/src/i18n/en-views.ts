@@ -272,7 +272,6 @@ export const enViews = {
     queue: "Queue",
     rank: "Rank",
     role: "Role",
-    all: "All",
     allRoles: "All roles",
     queueN: (id: number) => `Queue ${id}`,
     errors: {
@@ -306,71 +305,66 @@ export const enViews = {
     columns: {
       rank: "#",
       champion: "Champion",
+      lane: "Lane",
       tier: "Tier",
       winRate: "Win rate",
       pick: "Pick",
       ban: "Ban",
-      score: "Score",
+      games: "Games",
     },
     titles: {
       rank: "Rank by score",
+      lane: "The lane, and the share of the champion's games played there",
       tier: "S ≥ +2 · A ≥ +0.75 · B ≥ −0.75 · C ≥ −2 · D below (score, points)",
-      winRate: "Win rate shrunk toward 50 %: small samples count less",
-      pick: "Share of games with this champion in this role",
+      winRate: "Win rate shrunk toward 50 % (small samples count less); under it, its change since the previous patch",
+      pick: "Share of games with this champion in this lane",
       ban: "Share of games where it was banned",
-      score: "Shrunk win rate minus 50 %, in points: what the tier is based on",
+      games: "Games counted",
     },
     empty: {
       title: "No champion ranked here yet",
       text: "Champions need enough games in a role to be ranked. Try another role or rank.",
     },
     showAll: (n: number) => `Show all ${n}`,
-    /** Words of the design directions (dev server prototypes, `?design=`). */
-    proto: {
-      /** A tier's size: `18 champions`. */
-      champions: (n: number) => `${integer(n)} ${plural(n, "champion", "champions")}`,
-      /** A tier's mean win rate: `avg 52.8%`. */
-      average: (pct: string) => `avg ${pct}`,
-      /** A champion's face, read aloud: `Zed, Mid: 52.6% win rate`. */
-      tileLabel: (name: string, role: string | undefined, winRate: string) => `${name}${role ? `, ${role}` : ""}: ${winRate} win rate`,
-      /** Rank in the list shown: `#3`. */
-      rankN: (rank: number) => `#${rank}`,
-      /** Rank within a role: `#3 in Mid`. */
-      rankIn: (rank: number, role: Role) => `#${rank} in ${roles[role]}`,
-      /** The first three, on cards. */
-      podium: "Top three",
-      /** A face on the meta map, read aloud. */
+    views: { label: "View", shelves: "Shelves", table: "Table" },
+    filter: "Filter champions",
+    noMatch: "No champion matches the filter",
+    /** A tier's size, or a lane's: `18 champions`. */
+    champions: (n: number) => `${integer(n)} ${plural(n, "champion", "champions")}`,
+    /** A tier's mean win rate: `avg 52.8%`. */
+    average: (pct: string) => `avg ${pct}`,
+    /** A champion's face, read aloud: `Zed, Mid: 52.6% win rate`. */
+    tileLabel: (name: string, role: string | undefined, winRate: string) => `${name}${role ? `, ${role}` : ""}: ${winRate} win rate`,
+    /** Rank in the list shown: `#3`. */
+    rankN: (rank: number) => `#${rank}`,
+    /** Rank within a lane: `#3 in Mid`. */
+    rankIn: (rank: number, role: Role) => `#${rank} in ${roles[role]}`,
+    /** The first three, on steps. */
+    podium: "Top three",
+    /** Under the numbers that moved: what they are compared with. */
+    sincePrevious: "since the last patch",
+    map: {
+      title: "Meta map",
+      open: "Open the meta map",
+      close: "Close the meta map",
+      strength: "Strength",
+      popularity: "Popularity",
+      /** The dashed line at an even record. */
+      even: "50%",
+      hidden: "Strong, rarely picked",
+      meta: "Strong and popular",
+      traps: "Popular, below average",
+      /** A face on the map, read aloud. */
       pointLabel: (name: string, winRate: string, pick: string) => `${name}: ${winRate} win rate, ${pick} pick rate`,
-      map: {
-        title: "Strength against popularity",
-        strength: "Strength",
-        popularity: "Popularity",
-        /** The dashed line at an even record. */
-        even: "50%",
-        hidden: "Strong, rarely picked",
-        meta: "Strong and popular",
-        traps: "Popular, below average",
-      },
     },
   },
 
   champions: {
-    title: "Champions",
-    all: "All champions",
-    search: "Search a champion",
     classes: "Classes",
     record: "Record",
-    tiersFrom: { before: "Tiers from the ", link: "tier list", after: (scope: string) => `: ${scope}` },
-    noMatch: (query: string) => `No champion matches “${query}”`,
     noneYet: "No champion here yet",
     checkSpelling: "Check the spelling, or clear the search.",
     whenLoaded: "Champions show once game data and stats are loaded.",
-    sort: "Sort by",
-    sorts: { tier: "Tier", pickRate: "Pick rate", name: "A–Z" },
-    /** The group of champions without a tier: not enough games in their role. */
-    fewGames: "Too few games",
-    /** Why the grid is grouped by class: `reason` is why stats are missing (`Can't reach MVP's servers`). */
-    noStats: (reason: string) => `${reason}. Champions are grouped by class until tiers and pick rates are available.`,
     noBuild: {
       title: "No build data yet",
       text: (champion: string, role: Role | undefined) =>

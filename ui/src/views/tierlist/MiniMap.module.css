@@ -1,0 +1,132 @@
+/* The mini meta map (MiniMap.tsx): a card of glass with the tier bands and a dot per champion. */
+.mini {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  height: 176px;
+  padding: var(--space-4) var(--space-5) var(--space-5);
+  border: 0;
+  border-radius: var(--radius-4);
+  background: linear-gradient(180deg, var(--bg-sheen), transparent 120px), var(--bg-card);
+  box-shadow: var(--shadow-glass);
+  color: var(--text-2);
+  text-align: left;
+  cursor: zoom-in;
+  transition: background-color var(--dur-1) var(--ease);
+}
+
+.mini:hover {
+  background-color: var(--bg-3);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--text-2);
+}
+
+.headIcon {
+  flex: none;
+  color: var(--accent);
+}
+
+.headTitle {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Opens to the full map: the chevron points the way. */
+.expand {
+  flex: none;
+  color: var(--text-3);
+  rotate: -90deg;
+  transition: translate var(--dur-2) var(--ease);
+}
+
+.mini:hover .expand {
+  translate: var(--space-1) 0;
+}
+
+.plot {
+  position: relative;
+  flex: 1;
+  border-radius: var(--radius-2);
+  overflow: hidden;
+}
+
+.band {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: linear-gradient(90deg, var(--soft), transparent 80%);
+}
+
+.bandS {
+  --soft: var(--tier-s-soft);
+}
+.bandA {
+  --soft: var(--tier-a-soft);
+}
+.bandB {
+  --soft: var(--tier-b-soft);
+}
+.bandC {
+  --soft: var(--tier-c-soft);
+}
+.bandD {
+  --soft: var(--tier-d-soft);
+}
+
+.even {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 0;
+  border-top: 1px dashed var(--line-2);
+}
+
+.dot {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  translate: -50% -50%;
+  border-radius: var(--radius-full);
+  background: var(--dot);
+  box-shadow: 0 0 0 1px var(--bg-2);
+  transition:
+    transform var(--dur-2) var(--ease),
+    opacity var(--dur-2) var(--ease);
+}
+
+/* One champion lit (here or on its face): the others step back. */
+.plot[data-lit] .dot {
+  opacity: 0.35;
+}
+
+.plot[data-lit] .dot[data-lit] {
+  z-index: 1;
+  opacity: 1;
+  transform: scale(1.9);
+  box-shadow:
+    0 0 0 1px var(--bg-2),
+    0 0 0 2px var(--accent);
+}
+
+/* Narrow and medium pages: under the podium, a bar that opens the full map. */
+@container shelves (max-width: 899px) {
+  .mini {
+    flex-direction: row;
+    align-items: center;
+    height: 44px;
+    padding: 0 var(--space-5);
+  }
+  .plot {
+    display: none;
+  }
+}

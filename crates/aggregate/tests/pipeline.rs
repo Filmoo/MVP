@@ -348,6 +348,8 @@ fn publishes_the_files_the_app_reads() {
         serde_json::from_slice(&file(&format!("{dir}/tierlist.json")).body).unwrap();
     assert_eq!(tiers.entries.len(), 10);
     assert!(tiers.entries.windows(2).all(|w| w[0].score >= w[1].score));
+    // Each champion played one role in these games: all of its games.
+    assert!(tiers.entries.iter().all(|e| e.share == Some(1.0)));
 
     let matchups: MatchupsFile =
         serde_json::from_slice(&file(&format!("{dir}/matchups/1.json")).body).unwrap();

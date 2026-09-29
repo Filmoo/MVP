@@ -8,34 +8,17 @@ import { TierMark } from "../design/TierMark";
 import styles from "./DesignLab.module.css";
 
 /*
- * Design pre-shoot (dev server only: `#/__harness?show=design`): the new small icons, the tier
- * medallions and the penguin at every size, each next to what it stands beside in the app. Labels
- * here are the code's own names (a lab, like the emblem lab), not product words.
+ * The design lab (dev server only: `#/__harness?show=design`): the glyphs, the role icons, the
+ * tier medallions and the penguin at every size. Labels here are the code's own names (a lab, like
+ * the emblem lab), not product words.
  */
 
-const NEW_ICONS: GlyphName[] = [
-  "roleAll",
-  "winRate",
-  "pick",
-  "ban",
-  "games",
-  "patch",
-  "ranked",
-  "aram",
-  "gem",
-  "trendUp",
-  "trendDown",
-  "crown",
-  "tierList",
-  "penguin",
-];
-const ROLE_ICONS: string[] = [
-  glyphPath("roleAll"),
-  ...(["roleTop", "roleJungle", "roleMiddle", "roleBottom", "roleSupport"] as const).map(iconPath),
-];
+const GLYPHS: GlyphName[] = ["roleAll", "winRate", "pick", "ban", "games", "patch", "ranked", "aram", "crown", "map", "shelves", "table"];
+const ROLES = ["roleTop", "roleJungle", "roleMiddle", "roleBottom", "roleSupport"] as const;
+const TONES = ["var(--role-top)", "var(--role-jungle)", "var(--role-middle)", "var(--role-bottom)", "var(--role-support)"];
 const TIERS: TierGrade[] = ["S", "A", "B", "C", "D"];
 
-function IconCell(props: { name: GlyphName }): JSX.Element {
+function GlyphCell(props: { name: GlyphName }): JSX.Element {
   return (
     <div class={styles.iconCell}>
       <div class={styles.iconSizes}>
@@ -53,115 +36,49 @@ export default function DesignLab(): JSX.Element {
   return (
     <div class={styles.lab} data-testid="design-lab">
       <section class={styles.panel}>
-        <h2 class={styles.title}>icons · 24 / 20 / 16 / 14 px</h2>
+        <h2 class={styles.title}>glyphs · 24 / 20 / 16 / 14 px</h2>
         <div class={styles.iconGrid}>
-          <For each={NEW_ICONS}>{(name) => <IconCell name={name} />}</For>
+          <For each={GLYPHS}>{(name) => <GlyphCell name={name} />}</For>
         </div>
-        <h2 class={styles.title}>in context</h2>
-        <div class={styles.context}>
-          <span class={styles.stat}>
-            <Glyph name="winRate" size={14} />
-            <b class={styles.win}>52.6%</b>
-          </span>
-          <span class={styles.stat}>
-            <Glyph name="pick" size={14} />
-            <b>7.9%</b>
-          </span>
-          <span class={styles.stat}>
-            <Glyph name="ban" size={14} />
-            <b class={styles.loss}>12.3%</b>
-          </span>
-          <span class={styles.stat}>
-            <Glyph name="games" size={14} />
-            33K
-          </span>
-          <span class={styles.stat}>
-            <Glyph name="patch" size={14} />
-            26.19
-          </span>
-          <span class={styles.stat}>
-            <Glyph name="ranked" size={16} />
-            Ranked Solo
-          </span>
-          <span class={styles.stat}>
-            <Glyph name="aram" size={16} />
-            ARAM
-          </span>
-          <span class={styles.stat} style={{ "--gem": "var(--rank-emerald)" }}>
-            <span class={styles.gem}>
-              <Glyph name="gem" size={16} />
-            </span>
-            Emerald+
-          </span>
-          <span class={styles.stat} style={{ "--gem": "var(--rank-diamond)" }}>
-            <span class={styles.gem}>
-              <Glyph name="gem" size={16} />
-            </span>
-            Diamond+
-          </span>
-          <span class={styles.stat}>
-            <span class={styles.win}>
-              <Glyph name="trendUp" size={16} />
-            </span>
-            +1.2
-          </span>
-          <span class={styles.stat}>
-            <span class={styles.loss}>
-              <Glyph name="trendDown" size={16} />
-            </span>
-            −0.8
-          </span>
-          <span class={styles.stat}>
-            <span class={styles.gold}>
-              <Glyph name="crown" size={16} />
-            </span>
-            1
-          </span>
-        </div>
-        <h2 class={styles.title}>roles · rest / chosen (role colour)</h2>
+        <h2 class={styles.title}>roles · 24 / 20 / 16 px, then chosen (role colour)</h2>
         <div class={styles.roles}>
-          <For each={ROLE_ICONS}>
+          <div class={styles.role} style={{ "--tone": "var(--accent)" }}>
+            <LineIcon d={glyphPath("roleAll")} size={24} />
+            <LineIcon d={glyphPath("roleAll")} size={20} />
+            <LineIcon d={glyphPath("roleAll")} size={16} />
+            <span class={styles.roleOn}>
+              <LineIcon d={glyphPath("roleAll")} size={20} />
+            </span>
+          </div>
+          <For each={ROLES}>
             {(name, i) => (
-              <div
-                class={styles.role}
-                style={{
-                  "--tone": [
-                    "var(--accent)",
-                    "var(--role-top)",
-                    "var(--role-jungle)",
-                    "var(--role-middle)",
-                    "var(--role-bottom)",
-                    "var(--role-support)",
-                  ][i()],
-                }}
-              >
-                <LineIcon d={name} size={20} />
+              <div class={styles.role} style={{ "--tone": TONES[i()] }}>
+                <LineIcon d={iconPath(name)} size={24} />
+                <LineIcon d={iconPath(name)} size={20} />
+                <LineIcon d={iconPath(name)} size={16} />
                 <span class={styles.roleOn}>
-                  <LineIcon d={name} size={20} />
+                  <LineIcon d={iconPath(name)} size={20} />
                 </span>
               </div>
             )}
           </For>
           <div class={styles.navCompare}>
-            <span class={styles.caption}>nav: tiers → tierList</span>
+            <span class={styles.caption}>nav</span>
             <Icon name="tiers" size={20} />
-            <Glyph name="tierList" size={20} />
           </div>
         </div>
       </section>
 
       <section class={styles.panel}>
-        <h2 class={styles.title}>tier medallions · 64 / 44 / 32 / 24 / 20 / 16 px</h2>
+        <h2 class={styles.title}>tier medallions · 64 / 40 / 24 / 20 px</h2>
         <div class={styles.tiers}>
           <For each={TIERS}>
             {(grade) => (
               <div class={styles.tierRow}>
-                <TierMark grade={grade} size={64} />
-                <TierMark grade={grade} size={44} />
-                <TierMark grade={grade} size={32} />
-                <TierMark grade={grade} size={24} />
-                <TierMark grade={grade} size={20} />
-                <TierMark grade={grade} size={16} />
+                <TierMark grade={grade} size="xl" />
+                <TierMark grade={grade} size="lg" />
+                <TierMark grade={grade} size="md" />
+                <TierMark grade={grade} size="sm" />
               </div>
             )}
           </For>
@@ -183,23 +100,6 @@ export default function DesignLab(): JSX.Element {
           <Penguin size={24} />
           <Penguin size={20} crown />
           <Penguin size={16} />
-        </div>
-        <h2 class={styles.title}>on the surfaces it will sit on</h2>
-        <div class={styles.surfaces}>
-          <div class={styles.onPage}>
-            <Penguin size={64} gaze="away" />
-          </div>
-          <div class={styles.onCard}>
-            <Penguin size={64} />
-          </div>
-          <div class={styles.onTile}>
-            <Penguin size={44} crown />
-          </div>
-          <div class={styles.onLine}>
-            <Glyph name="penguin" size={24} />
-            <Glyph name="penguin" size={20} />
-            <Glyph name="penguin" size={16} />
-          </div>
         </div>
       </section>
     </div>

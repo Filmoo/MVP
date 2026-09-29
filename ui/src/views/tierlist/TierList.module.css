@@ -1,4 +1,6 @@
-/* Title with the data badge on the right (wraps under it when narrow). */
+/* The tier list page (TierList.tsx): a compact header, then the shelves or the table. */
+
+/* Title, then where the numbers come from (it goes under the title when narrow). */
 .head {
   display: flex;
   align-items: center;
@@ -8,11 +10,25 @@
   min-height: var(--space-9);
 }
 
-.filters {
+/* The queue tabs on a hairline, the view switch at the other end. */
+.tabsRow {
   display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
   flex-wrap: wrap;
+  gap: var(--space-4) var(--space-6);
+  margin-top: calc(-1 * var(--space-2));
+  padding-bottom: var(--space-2);
+  box-shadow: inset 0 -1px 0 var(--line-1);
+}
+
+/* Lanes, rank, filter: one row of tools. */
+.tools {
+  display: flex;
   align-items: center;
-  gap: var(--space-4);
+  flex-wrap: wrap;
+  gap: var(--space-4) var(--space-5);
+  min-width: 0;
 }
 
 /* A newer answer is on its way: the current one stays, quieter. */
@@ -24,8 +40,7 @@
 .skeleton {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-4) var(--space-7) var(--space-6);
+  gap: var(--space-4);
 }
 
 .note {

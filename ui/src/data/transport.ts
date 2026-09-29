@@ -75,6 +75,11 @@ export interface Commands {
    */
   tier_list: { args: { queue: number; bracket: Bracket }; result: TierList };
   /**
+   * The tier list of the patch before the current one (trends: win and pick rates then), from
+   * the same disk cache; `null` when no older patch or data set is published, or its file isn't.
+   */
+  previous_tier_list: { args: { queue: number; bracket: Bracket }; result: TierList | null };
+  /**
    * One champion's page (record, tiers, builds, matchups) for `queue` × `bracket`, current
    * patch. Missing files leave their part empty; rejects like `tier_list` when there is no
    * data set at all.

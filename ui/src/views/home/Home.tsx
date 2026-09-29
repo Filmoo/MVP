@@ -3,7 +3,7 @@ import { useData } from "../../data/context";
 import type { ClientStatus } from "../../data/generated/ClientStatus";
 import { useAmbient } from "../../design/ambient";
 import { Card } from "../../design/Card";
-import { penguinArt } from "../../design/penguin-preshoot";
+import { PenguinArt } from "../../design/PenguinArt";
 import { EmptyState, ErrorState } from "../../design/States";
 import { t } from "../../i18n";
 import page from "../page.module.css";
@@ -50,7 +50,7 @@ export function Home(): JSX.Element {
               <EmptyState
                 heading
                 icon="plug"
-                art={penguinArt({ size: 88, gaze: "away" })}
+                art={<PenguinArt size={88} gaze="away" />}
                 title={t().home.waiting.title}
                 text={t().home.waiting.text}
               />

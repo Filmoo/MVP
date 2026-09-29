@@ -61,6 +61,15 @@ export default defineConfig(({ mode }) => ({
     sourcemap: false,
     modulePreload: { polyfill: false },
     reportCompressedSize: false,
+    rolldownOptions: {
+      output: {
+        // Everything the first screen loads in one chunk (the entry included). Left to itself,
+        // Rolldown cut it into ~20 small chunks wherever a lazy view shares a piece of it, each
+        // importing the others and each re-listed in every lazy view's preload list. No module
+        // of it may await at its top level (see main.tsx): lazy chunks import from it.
+        codeSplitting: { groups: [{ name: "app", tags: ["$initial"] }] },
+      },
+    },
   },
   test: {
     // src: pure logic (browser code); tests/unit: checks that read the source tree (Node).

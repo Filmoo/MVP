@@ -32,7 +32,7 @@ import {
   upToDate,
 } from "./platform-fixtures";
 import { customSettings, defaultSettings, importsOffSettings, lockInSettings, saveSettings } from "./settings-fixtures";
-import { mockChampionPage, mockStatsIndex, mockTierList } from "./stats-fixtures";
+import { mockChampionPage, mockPreviousTierList, mockStatsIndex, mockTierList } from "./stats-fixtures";
 
 /** Published queues: anything else is "not published", like the core answers. */
 function publishedQueue(command: CommandName, queue: number): 420 | 450 {
@@ -42,6 +42,8 @@ function publishedQueue(command: CommandName, queue: number): 420 | 450 {
 
 const tierList = (args: { queue: number; bracket: Bracket }): TierList =>
   mockTierList(publishedQueue("tier_list", args.queue), args.bracket);
+const previousTierList = (args: { queue: number; bracket: Bracket }): TierList | null =>
+  args.queue === 420 || args.queue === 450 ? mockPreviousTierList(args.queue, args.bracket) : null;
 const championStats = (args: { championId: number; queue: number; bracket: Bracket }): ChampionPage =>
   mockChampionPage(args.championId, publishedQueue("champion_stats", args.queue), args.bracket);
 
@@ -140,6 +142,7 @@ const base: Scenario["responses"] = {
   // Published champion stats (synthetic, see stats-fixtures.ts), answered from the core's cache.
   stats_index: { data: mockStatsIndex() },
   tier_list: { handle: tierList },
+  previous_tier_list: { handle: previousTierList },
   champion_stats: { handle: championStats },
   // Champion pages import too (each takes a moment, like the real client).
   import_build: { handle: importAnswer(), delayMs: 400 },
@@ -339,11 +342,25 @@ export const scenarios = {
   },
   "stats-empty": {
     description: "No champion stats published yet: the tier list and champion pages say so.",
-    responses: { ...base, stats_index: { data: null }, tier_list: notPublished, champion_stats: notPublished },
+    responses: {
+      ...base,
+      stats_index: { data: null },
+      tier_list: notPublished,
+      previous_tier_list: { data: null },
+      champion_stats: notPublished,
+    },
   },
   "stats-offline": {
     description: "Offline without cached stats: the stats pages show an error with a retry.",
-    responses: { ...base, stats_index: { data: null }, tier_list: offline, champion_stats: offline },
+    responses: { ...base, stats_index: { data: null }, tier_list: offline, previous_tier_list: offline, champion_stats: offline },
+  },
+  "stats-first-patch": {
+    description: "The first patch published: nothing to compare with, so no trends show.",
+    responses: {
+      ...base,
+      stats_index: { data: { ...mockStatsIndex(), patches: mockStatsIndex().patches.slice(0, 1) } },
+      previous_tier_list: { data: null },
+    },
   },
   "stats-slow": {
     description: "Stats take 2.5 s: skeletons first, then the numbers without layout jumps.",

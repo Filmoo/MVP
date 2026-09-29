@@ -1,0 +1,469 @@
+/* The tier list's header (Toolbar.tsx): compact, one row of tools under the queue tabs. */
+
+/* ——— Title: `Tier list · Mid`, the lane in its colour ——— */
+.title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--space-4);
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-bold);
+  letter-spacing: -0.01em;
+}
+
+.titleRole {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0;
+  color: var(--tone);
+}
+
+.titleDot {
+  margin-right: var(--space-1);
+  color: var(--text-3);
+}
+
+.titleIcon {
+  flex: none;
+}
+
+/* ——— Where the numbers come from ——— */
+.dataLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-6);
+  min-width: 0;
+  font-size: var(--text-sm);
+  color: var(--text-3);
+}
+
+.fact {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  white-space: nowrap;
+}
+
+.factIcon {
+  flex: none;
+}
+
+/* ——— Queue tabs ——— */
+.tabs {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-8);
+  min-width: 0;
+}
+
+.tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) 0 var(--space-4);
+  border: 0;
+  background: transparent;
+  color: var(--text-3);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color var(--dur-1) var(--ease);
+}
+
+.tab:hover {
+  color: var(--text-2);
+}
+
+.tab[aria-checked="true"] {
+  color: var(--text-1);
+  cursor: default;
+}
+
+/* The line under the one shown: grows from its middle. */
+.tab::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  transform: scaleX(0);
+  transition: transform var(--dur-spring) var(--ease-spring);
+}
+
+.tab[aria-checked="true"]::after {
+  transform: none;
+}
+
+.tab:focus-visible {
+  outline-offset: 4px;
+}
+
+.tabIcon {
+  flex: none;
+  color: var(--text-3);
+}
+
+.tab[aria-checked="true"] .tabIcon {
+  color: var(--accent);
+}
+
+/* ——— Shelves or table ——— */
+.views {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.view {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: 32px;
+  padding: 0 var(--space-5);
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--text-3);
+  font-size: var(--text-md);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color var(--dur-1) var(--ease),
+    background-color var(--dur-1) var(--ease);
+}
+
+.view:hover {
+  color: var(--text-1);
+  background: var(--bg-3);
+}
+
+.view[aria-checked="true"] {
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+  cursor: default;
+}
+
+/* ——— Lanes: icon buttons, the chosen one on a drop of glass in its colour ——— */
+.lanes {
+  --lane: 36px;
+  position: relative;
+  display: flex;
+  flex: none;
+  padding: var(--space-1);
+  border-radius: var(--radius-full);
+  background: var(--bg-1);
+  box-shadow:
+    inset 0 1px 2px var(--line-shade),
+    inset 0 0 0 1px var(--line-glass);
+}
+
+/* The glass is neutral (the lens reads its tint once); the lane's colour is a layer in it. */
+.drop {
+  --lg-tint: var(--bg-highlight);
+  position: absolute;
+  top: var(--space-1);
+  left: var(--space-1);
+  width: var(--lane);
+  height: var(--lane);
+  border-radius: var(--radius-full);
+  background: var(--bg-4);
+  transform: translateX(calc(var(--index) * var(--lane)));
+  transition: transform var(--dur-glide) var(--ease-glide);
+  pointer-events: none;
+}
+
+.drop::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--drop);
+  transition: background-color var(--dur-2) var(--ease);
+}
+
+:global(:root[data-effects="shader"]) .drop {
+  background: var(--lg-fill, var(--bg-highlight));
+  backdrop-filter: var(--lg-filter, none);
+}
+
+.lane {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: var(--lane);
+  height: var(--lane);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  transition: color var(--dur-1) var(--ease);
+}
+
+.laneIcon {
+  display: grid;
+  transition: transform var(--dur-1) var(--ease);
+}
+
+.lane:hover {
+  color: var(--text-1);
+}
+
+.lane[aria-checked="true"] {
+  color: var(--tone, var(--text-1));
+  cursor: default;
+}
+
+.lane[aria-checked="true"] .laneIcon {
+  color: var(--tone);
+}
+
+/* A press you can feel (the icon is a vector: it stays sharp). */
+.lane:active .laneIcon {
+  transform: scale(0.9);
+}
+
+.lane:focus-visible {
+  outline-offset: 0;
+}
+
+/* The tooltip: a small glass label under the lane, after a short hover (not on a pass). */
+.tip {
+  position: absolute;
+  top: calc(100% + var(--space-4));
+  left: 50%;
+  z-index: 3;
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-3);
+  background: var(--bg-float);
+  backdrop-filter: var(--blur-glass);
+  box-shadow: var(--shadow-float);
+  color: var(--text-1);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  translate: -50% calc(-1 * var(--space-2));
+  transition:
+    opacity var(--dur-1) var(--ease),
+    translate var(--dur-2) var(--ease),
+    visibility 0s linear var(--dur-2);
+}
+
+/* The first lane's tooltip starts at its left edge: it never leaves a narrow window. */
+.lane:first-of-type .tip {
+  left: 0;
+  translate: 0 calc(-1 * var(--space-2));
+}
+
+.tipCount {
+  color: var(--text-3);
+  font-weight: var(--weight-regular);
+}
+
+.lane:hover .tip,
+.lane:focus-visible .tip {
+  opacity: 1;
+  visibility: visible;
+  translate: -50% 0;
+  transition:
+    opacity var(--dur-2) var(--ease) 120ms,
+    translate var(--dur-2) var(--ease) 120ms,
+    visibility 0s linear 120ms;
+}
+
+.lane:first-of-type:hover .tip,
+.lane:first-of-type:focus-visible .tip {
+  translate: 0 0;
+}
+
+/* ——— Rank: a button with the bracket's emblem, a glass grid of brackets ——— */
+.rankWrap {
+  flex: none;
+  display: flex;
+}
+
+.rank {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: 44px;
+  padding: 0 var(--space-4) 0 var(--space-3);
+  border: 1px solid var(--line-glass);
+  border-radius: var(--radius-full);
+  background: var(--bg-1);
+  color: var(--text-1);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--dur-1) var(--ease),
+    border-color var(--dur-1) var(--ease);
+}
+
+.rank:hover,
+.rank:has(+ :popover-open) {
+  background: var(--bg-3);
+  border-color: var(--line-2);
+}
+
+.chevron {
+  flex: none;
+  color: var(--text-3);
+  transition: transform var(--dur-2) var(--ease);
+}
+
+.rank:has(+ :popover-open) .chevron {
+  transform: rotate(180deg);
+}
+
+/* The menu: a floating pane anchored under its button. */
+.menu {
+  position: fixed;
+  inset: auto;
+  top: anchor(bottom);
+  left: anchor(left);
+  margin: var(--space-3) 0 0;
+  padding: var(--space-4);
+  border: 0;
+  border-radius: var(--radius-4);
+  background: var(--bg-float);
+  backdrop-filter: var(--blur-glass);
+  box-shadow: var(--shadow-float);
+  color: var(--text-1);
+  position-try-fallbacks: flip-block, flip-inline;
+}
+
+.menuTitle {
+  padding: 0 var(--space-2) var(--space-3);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.rankGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 96px);
+  gap: var(--space-2);
+}
+
+.rankOption {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-2) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-3);
+  background: transparent;
+  color: var(--text-2);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--dur-1) var(--ease);
+}
+
+.rankOption:hover,
+.rankOption:focus-visible {
+  background: var(--bg-highlight);
+  color: var(--text-1);
+}
+
+.rankOption[aria-checked="true"] {
+  background: var(--bg-3);
+  color: var(--text-1);
+  box-shadow:
+    inset 0 1px 0 var(--line-specular),
+    inset 0 0 0 1px var(--line-glass);
+}
+
+/* ——— The champion filter ——— */
+.filter {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1 1 200px;
+  min-width: 0;
+  max-width: 360px;
+}
+
+.filterIcon {
+  position: absolute;
+  left: var(--space-5);
+  color: var(--text-3);
+  pointer-events: none;
+}
+
+.filterInput {
+  width: 100%;
+  height: 44px;
+  /* Room for the clear button (design/base.css). */
+  padding: 0 var(--space-4) 0 var(--space-10);
+  border: 1px solid var(--line-glass);
+  border-radius: var(--radius-full);
+  background: var(--bg-1);
+  color: var(--text-1);
+  font: inherit;
+  font-size: var(--text-md);
+  outline: none;
+  transition: border-color var(--dur-1) var(--ease);
+}
+
+.filterInput::placeholder {
+  color: var(--text-3);
+}
+
+.filterInput:hover {
+  border-color: var(--line-2);
+}
+
+.filterInput:focus-visible {
+  border-color: var(--accent);
+}
+
+/* Narrow pages: the views say themselves with their icon only. */
+@container page (max-width: 639px) {
+  .viewLabel {
+    display: none;
+  }
+  .view {
+    padding: 0 var(--space-4);
+  }
+  .tabs {
+    gap: var(--space-7);
+  }
+  .tab {
+    font-size: var(--text-base);
+  }
+}
+
+@container page (max-width: 559px) {
+  .filter {
+    flex-basis: 100%;
+    max-width: none;
+  }
+  .rankName {
+    font-size: var(--text-sm);
+  }
+}

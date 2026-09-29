@@ -255,6 +255,7 @@ fn tier_list(info: &DataSetInfo, rows: Rows<'_>) -> TierList {
                 win_rate: wr,
                 pick_rate: 0.1,
                 ban_rate: 0.01,
+                share: Some(1.0),
             })
         })
         .collect();
@@ -559,6 +560,41 @@ async fn keeps_two_patches_and_falls_back_to_the_previous_one() {
     let offline = stats_client(&dead_backend().await, dir.path());
     let list = offline.current_tier_list(RANKED, EMERALD).await.unwrap();
     assert_eq!(list.info.patch, "16.19");
+}
+
+#[tokio::test]
+async fn the_previous_patch_tier_list_for_trends() {
+    let (base, server) = fake_backend().await;
+    let dir = tempfile::tempdir().unwrap();
+    let stats = stats_client(&base, dir.path());
+    // One patch: nothing to compare with.
+    publish(&server, "16.18", 1_000, "16.18", &[("16.18", 1_000)]);
+    assert_eq!(
+        stats.previous_tier_list(RANKED, EMERALD).await.unwrap(),
+        None
+    );
+
+    publish(
+        &server,
+        "16.19",
+        2_000,
+        "16.19",
+        &[("16.19", 2_000), ("16.18", 1_000)],
+    );
+    stats.refresh_index().await.unwrap();
+    let previous = stats
+        .previous_tier_list(RANKED, EMERALD)
+        .await
+        .unwrap()
+        .expect("16.18's list");
+    assert_eq!(previous.info.patch, "16.18");
+    let current = stats.current_tier_list(RANKED, EMERALD).await.unwrap();
+    assert_eq!(current.info.patch, "16.19");
+
+    // Offline, from the disk cache like the current patch's files.
+    let offline = stats_client(&dead_backend().await, dir.path());
+    let cached = offline.previous_tier_list(RANKED, EMERALD).await.unwrap();
+    assert_eq!(cached.map(|l| l.info.patch), Some("16.18".to_owned()));
 }
 
 #[tokio::test]

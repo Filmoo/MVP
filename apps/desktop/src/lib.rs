@@ -72,6 +72,7 @@ pub fn run() {
             commands::retry_scouting,
             commands::stats_index,
             commands::tier_list,
+            commands::previous_tier_list,
             commands::champion_stats,
             commands::import_build,
             commands::remote_config,

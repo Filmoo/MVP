@@ -222,6 +222,11 @@ pub struct TierEntry {
     pub pick_rate: f64,
     /// Share of matches with this champion banned (0–1).
     pub ban_rate: f64,
+    /// Share of this champion's games played in this role (0–1), every role counted, published
+    /// or not. `None` in ARAM and in files published before it existed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub share: Option<f64>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, TS)]

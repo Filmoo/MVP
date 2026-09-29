@@ -9,7 +9,8 @@ const paths = {
   draft: "M14.5 17.5 3 6V3h3l11.5 11.5M13 19l6-6M16 16l4 4M19 21l2-2M14.5 6.5 18 3h3v3l-3.5 3.5M5 14l4 4M7 17l-3 3M3 19l2 2",
   live: "M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z",
   champions: "M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z",
-  tiers: "M4 6h16M4 12h11M4 18h6",
+  // A tier list: a grade, then its row.
+  tiers: "M4 4.5h3.5V8H4zM10.5 6.25H20M4 10.25h3.5v3.5H4zM10.5 12H17M4 16h3.5v3.5H4zM10.5 17.75H14",
   settings: "M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6",
   search: "M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM21 21l-4.35-4.35",
   refresh: "M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6",
@@ -28,12 +29,15 @@ const paths = {
   import: "M12 3v11M7.5 9.5 12 14l4.5-4.5M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4",
   info: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 16v-5M12 8h.01",
   download: "M12 4v11M7 10.5l5 5 5-5M5 20h14",
-  // Roles: the lane on a map square (top and bottom along the edges, mid across), a leaf, a shield.
+  // Roles, read like the game's own position icons (drawn here): the lane on a map square (top
+  // and bottom along the edges, mid across), the jungle's thorned claw, the support's winged crest.
   roleTop: "M4 20V4h16M9 9h5v5H9z",
-  roleJungle: "M5 19C5 10 10 5 19 5c0 9-5 14-14 14zM5 19l7-7",
+  roleJungle:
+    "M11.8 21c-.9-5.9 0-11.9 3.3-18M11.4 15.8C8.6 14.6 6.5 12 5.7 8.3c2.8.7 4.9 2.3 6 4.6M12.4 12.6c1.3-2.5 3.5-4.1 6.3-4.6-.3 3-2 5.3-4.8 6.6",
   roleMiddle: "M5 19 19 5M4 9V4h5M20 15v5h-5",
   roleBottom: "M20 4v16H4M10 10h5v5h-5z",
-  roleSupport: "M12 3 5 6v5c0 4.4 3 8.2 7 10 4-1.8 7-5.6 7-10V6zM12 9v6M9 12h6",
+  roleSupport:
+    "M12 9.2l2.6 2.8L12 19.5 9.4 12zM9.5 10.6C7.3 8.6 4.8 7.9 2.5 8.3c1 2.7 3.6 4.2 6.6 4.2M14.5 10.6c2.2-2 4.7-2.7 7-2.3-1 2.7-3.6 4.2-6.6 4.2M12 3.5l1.4 1.6L12 6.7l-1.4-1.6z",
   back: "M15 5l-7 7 7 7",
   chevronDown: "M6 9l6 6 6-6",
 } as const;

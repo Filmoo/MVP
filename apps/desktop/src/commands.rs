@@ -393,6 +393,20 @@ pub async fn tier_list(
     stats(&app)?.current_tier_list(queue, bracket).await
 }
 
+/// The previous patch's tier list for `queue` × `bracket` (trends), `None` when there is none.
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub async fn previous_tier_list(
+    app: tauri::AppHandle,
+    queue: u32,
+    bracket: Bracket,
+) -> Result<Option<TierList>, BackendError> {
+    stats(&app)?.previous_tier_list(queue, bracket).await
+}
+
 /// One champion's page for `queue` × `bracket`, current patch: missing files leave their part
 /// empty; fails with `notFound` only when the data set doesn't exist.
 #[tauri::command]

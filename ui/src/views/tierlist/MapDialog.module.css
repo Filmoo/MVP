@@ -1,68 +1,137 @@
-/* Direction C — Meta map (MetaMap.tsx). */
+/* The full meta map (MapDialog.tsx): a modal pane of glass over the whole page, under the title bar. */
+.dialog {
+  position: fixed;
+  inset: var(--titlebar-h) 0 0 0;
+  width: auto;
+  height: auto;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: var(--space-6) var(--space-8) var(--space-7);
+  border: 0;
+  background: var(--bg-float);
+  backdrop-filter: var(--blur-glass);
+  color: var(--text-1);
+  flex-direction: column;
+  gap: var(--space-5);
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity var(--dur-2) var(--ease),
+    transform var(--dur-spring) var(--ease-spring);
+}
+
+.dialog[open] {
+  display: flex;
+}
+
+/* It rises into place when it opens (reduced motion: at once, design/base.css). */
+@starting-style {
+  .dialog[open] {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+}
+
+.dialog::backdrop {
+  background: transparent;
+}
+
+.dialog [data-wr="win"] {
+  color: var(--win);
+}
+
+.dialog [data-wr="loss"] {
+  color: var(--loss);
+}
+
+.dialog [data-wr="even"] {
+  color: var(--text-2);
+}
+
 .head {
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
+  align-items: center;
   flex-wrap: wrap;
-  gap: var(--space-4) var(--space-6);
+  gap: var(--space-4) var(--space-8);
 }
 
-.titles {
+.title {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  min-width: 0;
+  align-items: center;
+  gap: var(--space-4);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-bold);
 }
 
-.body {
+.titleIcon {
+  flex: none;
+  color: var(--accent);
+}
+
+.titleRole {
+  font-weight: var(--weight-medium);
+  color: var(--text-2);
+}
+
+.legend {
   display: flex;
-  align-items: flex-start;
-  gap: var(--space-6);
-  min-width: 0;
-}
-
-.rail {
-  position: sticky;
-  top: var(--space-8);
-}
-
-.main {
-  container: map / inline-size;
-  flex: 1;
-  min-width: 0;
-}
-
-.main > [data-widget] {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-6);
-}
-
-.note {
-  max-width: 880px;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-6);
   font-size: var(--text-sm);
-  color: var(--text-3);
+  color: var(--text-2);
 }
 
-.busy {
-  opacity: 0.6;
-  transition: opacity var(--dur-2) var(--ease);
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
-/* ——— The map ——— */
+.legendItem::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-full);
+  background: var(--dot);
+}
+
+.legendItem svg {
+  color: var(--dot);
+}
+
+.close {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  margin-left: auto;
+  padding: 0;
+  border: 1px solid var(--line-glass);
+  border-radius: var(--radius-full);
+  background: var(--bg-1);
+  color: var(--text-2);
+  cursor: pointer;
+  transition:
+    background-color var(--dur-1) var(--ease),
+    color var(--dur-1) var(--ease);
+}
+
+.close:hover {
+  background: var(--bg-3);
+  color: var(--text-1);
+}
+
+/* ——— The chart ——— */
 .chart {
-  position: relative;
+  flex: 1;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   gap: var(--space-2) var(--space-4);
-  margin: 0;
-  padding: var(--space-6) var(--space-7) var(--space-4) var(--space-4);
-  border-radius: var(--radius-4);
-  background: linear-gradient(180deg, var(--bg-sheen), transparent 120px), var(--bg-card);
-  box-shadow: var(--shadow-glass);
+  min-height: 0;
 }
 
-/* "Strength", read upward along the left edge. */
+/* "Strength", read upward along the left edge (rotated: its padding sits on the rotated side). */
 .axisY {
   display: flex;
   align-items: center;
@@ -86,16 +155,17 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 0;
 }
 
 .plot {
   position: relative;
-  height: 400px;
+  flex: 1;
+  min-height: 240px;
   border-radius: var(--radius-3);
 }
 
-/* A tier's band, strongest at the left where its medallion sits. */
-.zone {
+.band {
   position: absolute;
   left: 0;
   right: 0;
@@ -103,29 +173,28 @@
   box-shadow: inset 0 1px 0 var(--line-1);
 }
 
-.zoneS {
+.bandS {
   --soft: var(--tier-s-soft);
 }
-.zoneA {
+.bandA {
   --soft: var(--tier-a-soft);
 }
-.zoneB {
+.bandB {
   --soft: var(--tier-b-soft);
 }
-.zoneC {
+.bandC {
   --soft: var(--tier-c-soft);
 }
-.zoneD {
+.bandD {
   --soft: var(--tier-d-soft);
 }
 
-.zoneMark {
+.bandMark {
   position: absolute;
-  top: var(--space-2);
+  top: var(--space-3);
   left: var(--space-3);
 }
 
-/* 50 %: a dashed line. */
 .even {
   position: absolute;
   left: 0;
@@ -150,10 +219,9 @@
   border-left: 1px solid var(--line-1);
 }
 
-/* What each corner of the map means, quietly. */
 .corner {
   position: absolute;
-  max-width: 180px;
+  max-width: 200px;
   font-size: var(--text-xs);
   font-weight: var(--weight-medium);
   color: var(--text-3);
@@ -215,7 +283,7 @@
 .point:hover .face,
 .point:focus-visible .face,
 .point.lit .face {
-  transform: scale(1.5);
+  transform: scale(1.35);
 }
 
 .point:focus-visible {
@@ -228,12 +296,11 @@
     0 3px 10px -2px var(--line-shade);
 }
 
-/* All roles: small dots in the role's colour, ringed by the page. */
 .point.dot .face {
   box-shadow: 0 0 0 2px var(--bg-2);
 }
 
-/* The name over a face, when it is pointed at (here or in the list). */
+/* The name over a face, when it is pointed at. */
 .tag {
   position: absolute;
   left: 50%;
@@ -243,15 +310,16 @@
   gap: var(--space-3);
   padding: var(--space-2) var(--space-4);
   border-radius: var(--radius-full);
-  background: var(--bg-float);
-  backdrop-filter: var(--blur-glass);
+  background: var(--bg-2);
   box-shadow: var(--shadow-float);
   white-space: nowrap;
   opacity: 0;
+  visibility: hidden;
   translate: -50% var(--space-2);
   transition:
     opacity var(--dur-1) var(--ease),
-    translate var(--dur-2) var(--ease);
+    translate var(--dur-2) var(--ease),
+    visibility 0s linear var(--dur-2);
   pointer-events: none;
 }
 
@@ -259,7 +327,11 @@
 .point:focus-visible .tag,
 .point.lit .tag {
   opacity: 1;
+  visibility: visible;
   translate: -50% 0;
+  transition:
+    opacity var(--dur-1) var(--ease),
+    translate var(--dur-2) var(--ease);
 }
 
 .tagName {
@@ -271,18 +343,6 @@
 .tagWr {
   font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
-}
-
-.main [data-wr="win"] {
-  color: var(--win);
-}
-
-.main [data-wr="loss"] {
-  color: var(--loss);
-}
-
-.main [data-wr="even"] {
-  color: var(--text-2);
 }
 
 /* ——— Popularity, along the bottom ——— */
@@ -312,126 +372,11 @@
   text-transform: uppercase;
 }
 
-.legend {
-  grid-column: 2;
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2) var(--space-6);
-  font-size: var(--text-sm);
-  color: var(--text-2);
-}
-
-.legendItem {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.legendItem::before {
-  content: "";
-  width: 10px;
-  height: 10px;
-  border-radius: var(--radius-full);
-  background: var(--dot);
-}
-
-.legendItem svg {
-  color: var(--dot);
-}
-
-/* ——— The ranked list ——— */
-.standings {
-  columns: 2;
-  column-gap: var(--space-8);
-  margin: 0;
-  padding: var(--space-4);
-  list-style: none;
-  border-radius: var(--radius-4);
-  background: linear-gradient(180deg, var(--bg-sheen), transparent 120px), var(--bg-card);
-  box-shadow: var(--shadow-glass);
-}
-
-.standings li {
-  break-inside: avoid;
-}
-
-.standing {
-  display: grid;
-  grid-template-columns: 24px 24px minmax(0, 1fr) 18px 56px 44px;
-  align-items: center;
-  gap: var(--space-4);
-  height: 40px;
-  padding: 0 var(--space-4);
-  border-radius: var(--radius-3);
-  color: inherit;
-  text-decoration: none;
-  transition: background-color var(--dur-1) var(--ease);
-}
-
-.standing:hover,
-.standing.lit {
-  background: var(--bg-3);
-}
-
-.standingRank {
-  font-size: var(--text-sm);
-  color: var(--text-3);
-  text-align: right;
-}
-
-.standingName {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--text-md);
-  font-weight: var(--weight-medium);
-  color: var(--text-1);
-}
-
-.standingWr {
-  font-size: var(--text-md);
-  font-weight: var(--weight-semibold);
-  text-align: right;
-}
-
-.standingPick {
-  font-size: var(--text-sm);
-  color: var(--text-3);
-  text-align: right;
-}
-
-@container map (max-width: 759px) {
-  .standings {
-    columns: 1;
+@media (max-width: 559px) {
+  .dialog {
+    padding: var(--space-5) var(--space-5) var(--space-6);
   }
   .corner {
     display: none;
-  }
-}
-
-@container map (max-width: 559px) {
-  .chart {
-    padding: var(--space-5) var(--space-5) var(--space-3) var(--space-2);
-    gap: var(--space-2);
-  }
-  .plot {
-    height: 320px;
-  }
-  .axisY {
-    padding-top: var(--space-9);
-  }
-  .standing {
-    grid-template-columns: 20px 24px minmax(0, 1fr) 18px 52px;
-    gap: var(--space-3);
-    padding: 0 var(--space-2);
-  }
-  .standingPick {
-    display: none;
-  }
-}
-
-@container page (max-width: 559px) {
-  .body {
-    gap: var(--space-4);
   }
 }

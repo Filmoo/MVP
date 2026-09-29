@@ -13,9 +13,8 @@ import { osEnvironment, rendered, setEffects } from "../../design/backdrop";
 import { Card } from "../../design/Card";
 import { Choice, type ChoiceOption } from "../../design/Choice";
 import { Icon } from "../../design/Icon";
-import { Mark } from "../../design/Logo";
 import { Marked } from "../../design/Marked";
-import { penguinArt } from "../../design/penguin-preshoot";
+import { PenguinArt } from "../../design/PenguinArt";
 import { type RowMatch, SettingList, SettingRow } from "../../design/SettingRow";
 import { Slider } from "../../design/Slider";
 import { EmptyState } from "../../design/States";
@@ -458,7 +457,7 @@ export function About(props: {
       <div class={styles.about}>
         <div class={styles.identity}>
           <div class={styles.mark}>
-            {penguinArt({ size: 44, crown: true, label: "MVP" }) ?? <Mark size={32} />}
+            <PenguinArt size={44} crown label="MVP" />
           </div>
           <div class={styles.identityText}>
             <span class={styles.appName}>MVP</span>

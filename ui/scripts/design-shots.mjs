@@ -22,83 +22,42 @@ const FIXTURE_NOW = 1_790_510_400_000;
  * - lang: "fr" for the French UI
  */
 const SHOTS = [
-  // Before: the page as it ships.
-  { name: "before-tier-list-1280x800", route: "/tier-list", size: [1280, 800] },
-  { name: "before-tier-list-420x800", route: "/tier-list", size: [420, 800] },
-  { name: "before-tier-list-2560x1440", route: "/tier-list", size: [2560, 1440] },
-  // Context: the app's other pages.
-  { name: "ctx-home-1280x800", route: "/", size: [1280, 800] },
-  { name: "ctx-champions-1280x800", route: "/champions", size: [1280, 800] },
-  { name: "ctx-champion-1280x800", route: "/champions?id=103", size: [1280, 800] },
-  { name: "ctx-draft-1280x800", route: "/draft", size: [1280, 800], scenario: "champ-select" },
-  { name: "ctx-settings-1280x800", route: "/settings", size: [1280, 800] },
-  { name: "ctx-brand-x4", route: "/tier-list", size: [400, 200], dpr: 4, clip: "header [class*=brand]" },
-  // Direction A — Shelves.
-  { name: "A-shelves-1280x800", route: "/tier-list?design=shelves&role=middle", size: [1280, 800] },
-  { name: "A-shelves-420x800", route: "/tier-list?design=shelves&role=middle", size: [420, 800] },
-  { name: "A-shelves-all-1280x800", route: "/tier-list?design=shelves&role=all", size: [1280, 800] },
+  // The tier list hub: shelves (the default) and table, at 420, 1280 and 2560.
+  { name: "after-shelves-1280x800", route: "/tier-list?view=shelves&role=middle", size: [1280, 800] },
+  { name: "after-shelves-420x800", route: "/tier-list?view=shelves&role=middle", size: [420, 800], full: true },
+  { name: "after-shelves-2560x1440", route: "/tier-list?view=shelves&role=middle", size: [2560, 1440] },
+  { name: "after-shelves-all-1280x800", route: "/tier-list?view=shelves&role=all", size: [1280, 800] },
+  { name: "after-table-1280x800", route: "/tier-list?view=table&role=all", size: [1280, 800] },
+  { name: "after-table-420x800", route: "/tier-list?view=table&role=all", size: [420, 800] },
+  { name: "after-table-2560x1440", route: "/tier-list?view=table&role=all", size: [2560, 1440] },
+  { name: "after-table-aram-1280x800", route: "/tier-list?view=table&queue=450", size: [1280, 800] },
+  // States: the hover card, a lane's tooltip, the rank menu, the filter, the full map.
   {
-    name: "A-shelves-peek-1280x800",
-    route: "/tier-list?design=shelves&role=middle",
+    name: "state-peek-1280x800",
+    route: "/tier-list?view=shelves&role=middle&queue=420",
     size: [1280, 800],
-    hover: "[data-rank='3']",
+    scroll: 280,
+    hover: "[data-testid=tier-row]",
   },
-  { name: "A-shelves-2560x1440", route: "/tier-list?design=shelves&role=middle", size: [2560, 1440] },
   {
-    name: "A-shelves-fr-rail-1280x800",
-    route: "/tier-list?design=shelves&role=middle",
+    name: "state-lane-tip-1280x800",
+    route: "/tier-list?view=shelves&role=middle",
     size: [1280, 800],
-    lang: "fr",
-    hover: "[data-testid=role-filter] [role=radio]:nth-of-type(1)",
-  },
-  // Direction B — Ledger.
-  { name: "B-ledger-1280x800", route: "/tier-list?design=ledger&role=top", size: [1280, 800] },
-  { name: "B-ledger-420x800", route: "/tier-list?design=ledger&role=top", size: [420, 800] },
-  { name: "B-ledger-scrolled-1280x800", route: "/tier-list?design=ledger&role=top", size: [1280, 800], scroll: 620 },
-  // The role rail: rest, open under the pointer, reached with the keyboard.
-  { name: "R-rail-rest-x2", route: "/tier-list?design=shelves&role=middle", size: [1280, 800], dpr: 2, region: [80, 150, 620, 300] },
-  {
-    name: "R-rail-hover-x2",
-    route: "/tier-list?design=shelves&role=middle",
-    size: [1280, 800],
-    dpr: 2,
     hover: "[data-testid=role-filter] [role=radio]:nth-of-type(3)",
-    region: [80, 150, 620, 300],
   },
-  {
-    name: "R-rail-keyboard-x2",
-    route: "/tier-list?design=shelves&role=middle",
-    size: [1280, 800],
-    dpr: 2,
-    focus: "[data-testid=bracket-switch] [aria-checked=true]",
-    keys: ["Tab", "ArrowDown"],
-    region: [80, 150, 620, 300],
-  },
-  {
-    name: "R-rail-hover-420x800",
-    route: "/tier-list?design=shelves&role=middle",
-    size: [420, 800],
-    hover: "[data-testid=role-filter] [role=radio]:nth-of-type(5)",
-  },
-  // Direction C — Meta map.
-  { name: "C-map-1280x800", route: "/tier-list?design=map&role=middle", size: [1280, 800] },
-  { name: "C-map-420x800", route: "/tier-list?design=map&role=middle", size: [420, 800] },
-  { name: "C-map-all-1280x800", route: "/tier-list?design=map&role=all", size: [1280, 800] },
-  {
-    name: "C-map-lit-1280x800",
-    route: "/tier-list?design=map&role=middle",
-    size: [1280, 800],
-    // Zed's face on the map (its list row lights up with it).
-    hover: "a[aria-label][href*='id=238&']",
-  },
-  { name: "C-map-scope-1280x800", route: "/tier-list?design=map&role=middle", size: [1280, 800], click: "[data-testid=scope-button]" },
-  // The penguin: first start (no League), nothing published, About.
+  { name: "state-rank-menu-1280x800", route: "/tier-list?view=shelves&role=middle", size: [1280, 800], click: "[data-testid=rank-button]" },
+  { name: "state-filter-1280x800", route: "/tier-list?view=table&role=all", size: [1280, 800], type: ["[data-testid=champion-filter]", "ah"] },
+  { name: "state-map-1280x800", route: "/tier-list?view=shelves&role=middle", size: [1280, 800], click: "[data-testid=open-map]" },
+  { name: "state-map-all-1280x800", route: "/tier-list?view=shelves&role=all", size: [1280, 800], click: "[data-testid=open-map]" },
+  { name: "state-map-420x800", route: "/tier-list?view=shelves&role=middle", size: [420, 800], click: "[data-testid=open-map]" },
+  { name: "state-no-trends-1280x800", route: "/tier-list?view=table&role=middle", scenario: "stats-first-patch", size: [1280, 800] },
+  { name: "state-offline-1280x800", route: "/tier-list", scenario: "stats-offline", size: [1280, 800] },
+  { name: "state-empty-1280x800", route: "/tier-list", scenario: "stats-empty", size: [1280, 800] },
+  { name: "state-champion-1280x800", route: "/champions?id=103", size: [1280, 800] },
+  { name: "state-french-1280x800", route: "/tier-list?view=table&role=all", size: [1280, 800], lang: "fr" },
+  // The penguin's places and the lab.
   { name: "P-home-waiting-1280x800", route: "/", scenario: "not-running", size: [1280, 800] },
-  { name: "P-home-waiting-420x800", route: "/", scenario: "not-running", size: [420, 800] },
-  { name: "P-stats-empty-1280x800", route: "/tier-list", scenario: "stats-empty", size: [1280, 800] },
   { name: "P-about-x2", route: "/settings", size: [1280, 800], dpr: 2, region: [846, 110, 404, 130] },
-  // The lab: icons, tier medallions, the penguin at every size.
-  { name: "L-design-lab-1280", route: "/__harness?show=design", size: [1280, 800], full: true },
   { name: "L-design-lab-x2", route: "/__harness?show=design", size: [1280, 800], dpr: 2, full: true },
 ];
 
@@ -170,13 +129,14 @@ async function shoot(browser, shot) {
   for (let i = 0; i < (shot.tabs ?? 0); i++) await page.keyboard.press("Tab");
   for (const key of shot.keys ?? []) await page.keyboard.press(key);
   if (shot.click) await page.locator(shot.click).first().click();
+  if (shot.type) await page.locator(shot.type[0]).first().fill(shot.type[1]);
   if (shot.hover) {
     const box = await page.locator(shot.hover).first().boundingBox();
     if (box) await page.mouse.move(box.x + box.width / 2 + (shot.hoverDx ?? 0), box.y + box.height / 2 + (shot.hoverDy ?? 0), { steps: 6 });
-  } else if (!shot.tabs && !shot.focus && !shot.click) {
+  } else if (!shot.tabs && !shot.focus && !shot.click && !shot.type) {
     await page.mouse.move(0, 0);
   }
-  if (shot.hover || shot.tabs || shot.keys || shot.focus || shot.click) await settle(page);
+  if (shot.hover || shot.tabs || shot.keys || shot.focus || shot.click || shot.type) await settle(page);
   const path = `${OUT}/${shot.name}.png`;
   if (shot.clip) await page.locator(shot.clip).first().screenshot({ path });
   else if (shot.region) {

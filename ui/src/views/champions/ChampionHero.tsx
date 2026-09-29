@@ -8,7 +8,7 @@ import { Icon } from "../../design/Icon";
 import { liquid } from "../../design/liquid/liquid";
 import { Segmented } from "../../design/Segmented";
 import { Skeleton } from "../../design/States";
-import { GradeBadge } from "../../design/TierBadge";
+import { TierMark } from "../../design/TierMark";
 import { t } from "../../i18n";
 import { className } from "../../lib/champions";
 import { percent, timeAgo } from "../../lib/format";
@@ -107,7 +107,7 @@ export function ChampionHero(props: {
           {(entry) => (
             <div class={`${styles.grade} glass-rim`} data-testid="champion-tier">
               <div class={styles.gradeGlass} aria-hidden="true" ref={(el) => liquid(el, "clear")} />
-              <GradeBadge grade={entry().tier} size="lg" />
+              <TierMark grade={entry().tier} size="lg" decorative />
               <div class={styles.gradeText}>
                 <span class={styles.gradeTitle}>{t().stats.tier(entry().tier)}</span>
                 <span class={`${styles.gradeDetail} num`} title={t().champions.pointsTitle}>

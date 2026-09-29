@@ -83,6 +83,12 @@
   --role-middle: #b9a9ff;
   --role-bottom: #93bcff;
   --role-support: #f5aede;
+  /* The same as glass: the chosen lane's drop. */
+  --role-top-soft: #ffb89638;
+  --role-jungle-soft: #92e8c633;
+  --role-middle-soft: #b9a9ff38;
+  --role-bottom-soft: #93bcff38;
+  --role-support-soft: #f5aede33;
 
   /* Damage types (team compositions): physical warm, magic violet, true pale, as in the game. */
   --dmg-physical: #ffb896;

@@ -8,21 +8,17 @@ import { useAmbient } from "../../design/ambient";
 import { Card } from "../../design/Card";
 import { championArtUrl } from "../../design/GameIcon";
 import { Icon } from "../../design/Icon";
-import { Segmented } from "../../design/Segmented";
 import { EmptyState, Skeleton } from "../../design/States";
 import { t } from "../../i18n";
-import { GRID_SORTS, gridSort, setGridSort } from "../../lib/champion-grid";
-import { backendError } from "../../lib/players";
 import { createQuery } from "../../lib/query";
 import { ROLES } from "../../lib/roles";
-import { bracketLabel, buildFor, pickRole, roleFilterOptions, roleTabs, scopeLabel, statsErrorWords } from "../../lib/stats";
-import { ARAM, filters, setFilter } from "../../lib/stats-filters";
+import { bracketLabel, buildFor, pickRole, roleTabs, scopeLabel } from "../../lib/stats";
+import { ARAM, filters } from "../../lib/stats-filters";
 import { Widget } from "../../widgets/Widget";
 import { ImportBar, useImportModes } from "../draft/ImportBar";
 import page from "../page.module.css";
 import { ScopeSwitches, StatsProblem, useLinkFilters, useStatsIndex } from "../stats/common";
 import { ItemsCard, SkillsCard, SpellsCard } from "./Builds";
-import { ChampionGrid } from "./ChampionGrid";
 import { ChampionHero } from "./ChampionHero";
 import styles from "./Champions.module.css";
 import { MatchupsCard } from "./Matchups";
@@ -136,9 +132,9 @@ function ChampionView(props: { championId: number }): JSX.Element {
   return (
     <div class={page.page}>
       <div class={styles.top}>
-        <a class={styles.back} href="#/champions">
+        <a class={styles.back} href="#/tier-list">
           <Icon name="back" size={16} />
-          {t().champions.all}
+          {t().tierList.title}
         </a>
         <ScopeSwitches />
       </div>
@@ -197,109 +193,9 @@ function ChampionView(props: { championId: number }): JSX.Element {
 }
 
 /**
- * `/champions`: every champion by role (from the tier list's rows), sorted by tier, pick rate or
- * name, filtered as you type. Without stats: grouped by class, and it says why.
+ * `/champions?id=…`: a champion's page. Without a (known) id, the tier list, where champions are
+ * found: `#/champions?role=middle` goes to `#/tier-list?role=middle`.
  */
-function ChampionIndex(): JSX.Element {
-  const { transport } = useData();
-  const { version } = useStatsIndex();
-  useLinkFilters({ role: true });
-  const queue = createMemo(() => filters().queue);
-  const bracket = createMemo(() => filters().bracket);
-  const list = createQuery(
-    () => ({ queue: queue(), bracket: bracket(), version: version() }),
-    (k) => transport.call("tier_list", { queue: k.queue, bracket: k.bracket }),
-  );
-  const [query, setQuery] = createSignal("");
-  // Why there are no stats (kept while a retry runs, so nothing flickers).
-  const failed = () => (list.data() || list.error() === undefined ? undefined : statsErrorWords(backendError(list.error())));
-  const role = () => (queue() === ARAM ? "all" : filters().role);
-  return (
-    <div class={page.page}>
-      <div class={styles.indexHead}>
-        <h1 class={page.title}>{t().champions.title}</h1>
-        <label class={styles.search}>
-          <Icon name="search" size={16} class={styles.searchIcon} />
-          <input
-            type="search"
-            class={styles.searchInput}
-            placeholder={t().champions.search}
-            aria-label={t().champions.search}
-            value={query()}
-            onInput={(e) => setQuery(e.currentTarget.value)}
-            // Enter opens the best match (Escape clears the field).
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && query().trim()) document.querySelector<HTMLElement>("[data-widget=champion-grid] a")?.click();
-            }}
-            data-testid="champion-search"
-          />
-        </label>
-      </div>
-      <Show
-        when={failed()}
-        fallback={
-          <div class={styles.indexFilters}>
-            <Show when={queue() !== ARAM}>
-              <Segmented
-                label={t().stats.role}
-                options={roleFilterOptions()}
-                value={filters().role}
-                onChange={(r) => setFilter({ role: r })}
-                testId="role-filter"
-              />
-            </Show>
-            <div class={styles.sort}>
-              <span aria-hidden="true">{t().champions.sort}</span>
-              <Segmented
-                label={t().champions.sort}
-                options={GRID_SORTS.map((value) => ({ value, label: t().champions.sorts[value] }))}
-                value={gridSort()}
-                onChange={setGridSort}
-                class={styles.sortTabs}
-              />
-            </div>
-            {/* Shown while the list loads too: it only depends on the filters (nothing moves when it lands). */}
-            <p class={styles.scope}>
-              {t().champions.tiersFrom.before}
-              <a href="#/tier-list">{t().champions.tiersFrom.link}</a>
-              {t().champions.tiersFrom.after(scopeLabel(queue(), bracket()))}
-            </p>
-          </div>
-        }
-      >
-        {(words) => (
-          <div class={styles.notice}>
-            <Icon name="info" size={16} class={styles.noticeIcon} />
-            <p>
-              {t().champions.noStats(words().title)}
-              <Show when={words().retry}>
-                {" "}
-                {/* An arrow, not `list.refetch` itself: Solid then needs no event helper at startup. */}
-                <button type="button" class={styles.retry} onClick={() => list.refetch()}>
-                  {t().common.tryAgain}
-                </button>
-              </Show>
-            </p>
-          </div>
-        )}
-      </Show>
-      <Widget name="champion-grid">
-        <Show
-          when={list.data() || failed()}
-          fallback={
-            // While the first answer is on its way: placeholders on the grid's rhythm, drawn by CSS.
-            <Card>
-              <div class={styles.ghosts} aria-busy="true" data-state="loading" />
-            </Card>
-          }
-        >
-          <ChampionGrid list={list.data()} roleFilter={role()} sort={gridSort()} query={query()} />
-        </Show>
-      </Widget>
-    </div>
-  );
-}
-
 export default function Champions(): JSX.Element {
   const { gameData } = useData();
   const id = () => {
@@ -307,13 +203,20 @@ export default function Champions(): JSX.Element {
     const n = raw === null ? Number.NaN : Number(raw);
     return Number.isInteger(n) && n > 0 ? n : undefined;
   };
-  // Unknown ids wait for game data before falling back to the list.
+  // Unknown ids wait for game data before going to the list.
   const known = () => {
     const n = id();
     return n !== undefined && (gameData() === undefined || gameData()?.champions.has(n)) ? n : undefined;
   };
+  createEffect(() => {
+    if (known() !== undefined) return;
+    const params = new URLSearchParams(location.hash.split("?")[1] ?? "");
+    params.delete("id");
+    const rest = params.toString();
+    location.replace(`#/tier-list${rest ? `?${rest}` : ""}`);
+  });
   return (
-    <Show when={known()} fallback={<ChampionIndex />} keyed>
+    <Show when={known()} keyed>
       {(championId) => <ChampionView championId={championId} />}
     </Show>
   );
