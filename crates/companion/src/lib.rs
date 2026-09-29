@@ -26,8 +26,8 @@ use std::sync::Arc;
 use automation::{Autopilot, CoreEvent};
 use backend::BackendClient;
 use domain::{
-    ClientConnection, ClientStatus, DraftView, GameflowPhase, Language, LiveGame, RemoteConfig,
-    Settings,
+    ClientConnection, ClientStatus, DraftView, GameflowPhase, ImportResult, ImportWarning,
+    Language, LiveGame, RemoteConfig, Settings,
 };
 use imports::{BuildSource, ChampionNames, Importer, LockIn, NoBuilds};
 use lcu::{ConnectionState, ConnectorConfig, ConnectorUpdate, EventKind, LcuClient};
@@ -80,6 +80,9 @@ pub struct Companion {
     pub views: ViewReporter,
     /// Imports builds into the client on request (`import_build`).
     pub imports: Importer,
+    /// Draft's warning after the automatic import: the player's champion or role changed since
+    /// (`None` otherwise, and outside of champion select).
+    pub import_warning: watch::Receiver<Option<ImportWarning>>,
     /// Your profile, and every game's grades and details, read once and kept.
     pub matches: matches::MatchInsights,
     /// The summary of the game that just ended (until dismissed or the next game) and the LP of
@@ -372,6 +375,8 @@ pub fn start_with_services(
     let (views_tx, mut views_rx) = mpsc::unbounded_channel::<String>();
     let (retry_tx, mut retry_rx) = mpsc::unbounded_channel::<()>();
     let lcu_client = client.clone();
+    // Every import, whoever asked, reaches the automatic import's warning.
+    let (reports_tx, mut import_reports) = mpsc::unbounded_channel::<ImportResult>();
     let importer = Importer::new(
         client.clone(),
         status.clone(),
@@ -380,8 +385,10 @@ pub fn start_with_services(
         builds,
         names,
         language,
-    );
-    let mut lock_in = LockIn::new(importer.clone(), events_tx.clone());
+    )
+    .reporting(reports_tx);
+    let (warning_tx, import_warning) = watch::channel(None);
+    let mut lock_in = LockIn::new(importer.clone(), events_tx.clone(), warning_tx);
     // The last game's summary and the LP of your ranked games.
     let mut post_games = post_game::PostGames::new(client.clone(), insights.clone(), lp_file);
     let post_game = post_games.handle();
@@ -415,9 +422,11 @@ pub fn start_with_services(
                 }
                 Some(path) = views_rx.recv() => autopilot.on_view(&path),
                 Some(()) = retry_rx.recv() => game.retry(tx.borrow().phase, &lcu_client),
+                Some(result) = import_reports.recv() => lock_in.on_imported(&result),
                 Ok(()) = settings.changed() => {
                     settings.borrow_and_update();
                     accept.on_change(tx.borrow().phase);
+                    lock_in.on_settings();
                 }
                 Ok(()) = remote.changed() => {
                     remote.borrow_and_update();
@@ -440,6 +449,7 @@ pub fn start_with_services(
         events,
         views: ViewReporter(views_tx),
         imports: importer,
+        import_warning,
         matches: insights,
         post_game,
         task,

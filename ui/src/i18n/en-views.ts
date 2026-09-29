@@ -204,8 +204,13 @@ export const enViews = {
     nouns: parts,
     importPart: (part: "runes" | "itemSet" | "spells") =>
       ({ runes: "Import runes", itemSet: "Import item set", spells: "Import spells" })[part],
-    auto: "Also imported by itself when you lock in",
+    auto: "Also imported by itself at your first lock-in",
     idle: (flash: string) => `Your own rune pages and item sets are never changed, and ${flash} stays on your key.`,
+    /** After the automatic import, your champion or role changed (a trade, a swap). */
+    warning: {
+      text: (built: string, now: string) => `MVP's build is for ${built}, you're now on ${now}.`,
+      importFor: (now: string) => `Import for ${now}`,
+    },
     pickFirst: "Hover or lock in a champion first",
     pick: "Hover or lock in a champion",
     notYet: "Builds come with the champion stats, not available yet",
@@ -228,9 +233,9 @@ export const enViews = {
       client: (message: string) => `The League client refused: ${message}`,
     },
     skip: {
-      off: "Turned off in Settings.",
       paused: "Paused by MVP for now, while it's fixed for the latest League client.",
       notInChampSelect: "Spells can only change during champion select.",
+      champSelectEnded: "Champion select ended before the import.",
       tooLate: (seconds: number) =>
         seconds > 0 ? `Spells not changed: only ${seconds} s left in champion select.` : "Spells not changed: the game is starting.",
     },
@@ -483,7 +488,8 @@ export const enViews = {
     },
     imports: {
       title: "Imports",
-      modes: { off: "Off", oneClick: "One click", onLockIn: "On lock-in" },
+      /** Each part's switch. */
+      auto: "Auto import",
       runes: {
         title: "Rune page",
         text: "Writes the build's runes into MVP's own page, named “MVP”, and selects it. Your pages are never changed.",
@@ -498,7 +504,8 @@ export const enViews = {
         text: (flash: string) => `${flash} always goes on this key, whatever the build lists.`,
       },
       fromGames: "From your games",
-      footnote: "One click: buttons in Draft. On lock-in: also by itself, once, when you lock in your champion.",
+      footnote:
+        "Auto import runs once, at your first lock-in. After a trade or a role swap, Draft offers to import again: MVP never does it by itself. The buttons in Draft and on champion pages always work.",
     },
     app: {
       title: "App",

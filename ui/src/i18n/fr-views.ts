@@ -209,8 +209,12 @@ export const frViews = {
     nouns: parts,
     importPart: (part: "runes" | "itemSet" | "spells") =>
       ({ runes: "Importer les runes", itemSet: "Importer le set d’objets", spells: "Importer les sorts" })[part],
-    auto: "Importé aussi automatiquement au verrouillage",
+    auto: "Importé aussi tout seul à votre premier verrouillage",
     idle: (flash: string) => `Vos pages de runes et sets d’objets ne sont jamais modifiés, et ${flash} reste sur votre touche.`,
+    warning: {
+      text: (built: string, now: string) => `Le build de MVP est pour ${built}, vous jouez maintenant ${now}.`,
+      importFor: (now: string) => `Importer pour ${now}`,
+    },
     pickFirst: "Survolez ou verrouillez d’abord un champion",
     pick: "Survolez ou verrouillez un champion",
     notYet: "Les builds arrivent avec les stats des champions, pas encore disponibles",
@@ -233,9 +237,9 @@ export const frViews = {
       client: (message: string) => `Le client League a refusé\u00A0: ${message}`,
     },
     skip: {
-      off: "Désactivé dans les paramètres.",
       paused: "Mis en pause par MVP le temps de l’adapter à la dernière version du client League.",
       notInChampSelect: "Les sorts ne peuvent changer qu’en sélection des champions.",
+      champSelectEnded: "La sélection des champions s’est terminée avant l’import.",
       tooLate: (seconds: number) =>
         seconds > 0
           ? `Sorts inchangés\u00A0: plus que ${seconds}\u00A0s de sélection des champions.`
@@ -494,7 +498,7 @@ export const frViews = {
     },
     imports: {
       title: "Importations",
-      modes: { off: "Désactivé", oneClick: "En un clic", onLockIn: "Au verrouillage" },
+      auto: "Import automatique",
       runes: {
         title: "Page de runes",
         text: "Écrit les runes du build dans la page de MVP, nommée «\u00A0MVP\u00A0», et la sélectionne. Vos pages ne sont jamais modifiées.",
@@ -513,7 +517,7 @@ export const frViews = {
       },
       fromGames: "D’après vos parties",
       footnote:
-        "En un clic\u00A0: boutons dans Draft. Au verrouillage\u00A0: aussi tout seul, une fois, quand vous verrouillez votre champion.",
+        "L’import automatique se fait une fois, à votre premier verrouillage. Après un échange ou un changement de rôle, Draft propose d’importer de nouveau\u00A0: MVP ne le fait jamais tout seul. Les boutons de Draft et des pages de champion marchent toujours.",
     },
     app: {
       title: "Application",

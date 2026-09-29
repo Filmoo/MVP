@@ -1,5 +1,5 @@
 //! Client automations: accepting the ready check (opt-in) and following the game with the window.
-//! Build imports on lock-in live in `imports`.
+//! The automatic build import (first lock-in) lives in `imports`.
 //!
 //! Policy (docs/policy.md): automation is opt-in or clearly user-visible. Auto-accept is off by
 //! default and waits a visible delay; it never overrides an answer the player already gave.
@@ -30,7 +30,7 @@ pub struct WindowIntent {
 pub enum CoreEvent {
     Window(WindowIntent),
     AutoAccept(AutoAcceptEvent),
-    /// An automatic import on lock-in finished (a toast in the UI).
+    /// The automatic import at the first lock-in finished (a toast in the UI).
     Import(ImportResult),
 }
 

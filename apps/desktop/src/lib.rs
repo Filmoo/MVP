@@ -79,6 +79,7 @@ pub fn run() {
             commands::tier_list,
             commands::champion_stats,
             commands::import_build,
+            commands::import_warning,
             commands::remote_config,
             commands::open_banner_link,
             commands::update_status,

@@ -13,7 +13,8 @@ use companion::settings::SettingsStore;
 use companion::stats::StatsClient;
 use companion::{ScoutingHandle, Services, ViewReporter};
 use domain::{
-    ClientStatus, DraftView, GameData, Language, LiveGame, RankEmblem, RankEmblems, StatsIndex,
+    ClientStatus, DraftView, GameData, ImportWarning, Language, LiveGame, RankEmblem, RankEmblems,
+    StatsIndex,
 };
 use tauri::{AppHandle, Emitter as _, Manager as _, Runtime};
 use tokio::sync::watch;
@@ -28,6 +29,7 @@ pub struct Core {
     pub client: watch::Receiver<Option<lcu::LcuClient>>,
     pub views: ViewReporter,
     pub imports: Importer,
+    pub import_warning: watch::Receiver<Option<ImportWarning>>,
     pub matches: companion::matches::MatchInsights,
     /// The last game's summary and the LP of your ranked games.
     pub post_game: companion::post_game::PostGameHandle,
@@ -340,12 +342,14 @@ pub fn start<R: Runtime>(app: &AppHandle<R>, settings: &SettingsStore) {
             client: companion.client.clone(),
             views: companion.views.clone(),
             imports: companion.imports.clone(),
+            import_warning: companion.import_warning.clone(),
             matches: companion.matches.clone(),
             post_game: companion.post_game.clone(),
         });
         forward(&app, companion.draft.clone(), "draft");
         forward(&app, companion.live.clone(), "live");
         forward(&app, companion.post_game.subscribe(), "post-game");
+        forward(&app, companion.import_warning.clone(), "import-warning");
         let events_app = app.clone();
         let mut events = companion.events;
         tauri::async_runtime::spawn(async move {

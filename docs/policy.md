@@ -102,9 +102,11 @@ detection, composite player scores, live win probability, sending data to third-
   Porofessor and U.GG write the same endpoints; research E §15–16) when user-triggered or opted
   in. The build is statistics only: the most played options of our Emerald+ aggregates.
   Guard rails:
-  - **One click by default, never automatic by default.** Per part (Settings → Imports): off (no
-    button, no automation) / one click (Draft's import bar) / on lock-in (opt-in). Parts turned
-    off are refused by the core whoever asks.
+  - **Buttons always; automatic only when opted in, and only once.** Every part has its button
+    (Draft's import bar, champion pages): user-triggered. Settings → Imports has one "Auto import"
+    switch per part, off by default; a part switched on is imported by itself once, at the first
+    lock-in of a champion select (2026-09-29, the owner: "import once, and warn if different, not
+    enforce").
   - **The player's things are never touched.** Rune pages: only MVP's own page (named "MVP…";
     the player can hand one over by renaming it "MVP") is replaced; a new one is created only
     when the account has room, else a clear error ("No free rune page: delete one, or rename one
@@ -118,10 +120,15 @@ detection, composite player scores, live win probability, sending data to third-
     build, or had to be guessed.
   - **The server can pause each part for everyone** (feature flag or kill switch in the remote
     config): a paused part is skipped at once, also in the middle of a champion select.
-  - **On lock-in means once per lock-in**: not on hovers or pick intents, not again on later
-    session events (a trade or an ARAM swap is a new lock). Spells of a lock in a turn's last
-    seconds wait for time on the clock. A toast confirms every automatic import, and the Draft
-    bar shows it.
+  - **Auto import: once, then warn, never enforce.** Not on hovers or pick intents, and never
+    again by itself in that champion select: if the player's champion or role changes after it (a
+    trade, an ARAM reroll or bench swap, a role swap), Draft warns ("MVP's build is for Ahri Mid,
+    you're now on Lux") with a one-click "Import for Lux" (a toast elsewhere in MVP), and the
+    player chooses. MVP never watches the player's pages, sets or spells: what they change
+    themselves never warns nor imports. Spells of a first lock in a turn's last seconds wait for
+    time on the clock. A toast confirms every automatic import, and the Draft bar shows it.
+  - **Nothing once the game is starting**: an import for the champion select (Draft's buttons,
+    the automatic import) that comes as it ends tries nothing and says so.
   LCU endpoints (declare at product registration): reads `GET /lol-perks/v1/pages`,
   `GET /lol-perks/v1/inventory`, `GET /lol-summoner/v1/current-summoner`,
   `GET /lol-item-sets/v1/item-sets/{summonerId}/sets`, `GET /lol-champ-select/v1/session`,
