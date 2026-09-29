@@ -130,7 +130,11 @@ export function CompTable(props: { columns: CompColumn[]; lengths: number[]; mem
               <th scope="row">{row.label}</th>
               <For each={props.columns}>
                 {(col) => (
-                  <td title={counted(col.comp) ? row.title?.(col.comp) : undefined}>
+                  <td
+                    data-hint-title={row.label}
+                    data-hint={counted(col.comp) ? row.title?.(col.comp) : undefined}
+                    tabIndex={counted(col.comp) && row.title ? 0 : undefined}
+                  >
                     {counted(col.comp) ? row.value(col.comp) : words().none}
                   </td>
                 )}

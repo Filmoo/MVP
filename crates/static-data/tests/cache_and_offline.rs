@@ -65,7 +65,6 @@ async fn downloads_once_then_serves_from_cache() {
     assert_eq!(first.asset_base, format!("{base}/cdn/16.19.1"));
     assert_eq!(first.art_base, format!("{base}/cdn"));
     assert_eq!(first.runes[0].slots[0][0].name, "Conqueror");
-    assert_eq!(first.runes[0].slots[0][0].short_desc, "Gain stacks.");
     assert_eq!(hits.files.load(Ordering::SeqCst), 4);
 
     let second = dd.load().await.unwrap();

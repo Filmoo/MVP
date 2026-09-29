@@ -77,8 +77,8 @@ function Shards(props: { chosen: readonly number[] }): JSX.Element {
             return p === undefined || row.ids.includes(p) ? row.ids : [...row.ids, p];
           };
           return (
-            <div class={styles.row} title={t().shards.rows[row.row]}>
-              <For each={ids()}>{(id) => <ShardIcon shardId={id} size={24} chosen={id === pick()} />}</For>
+            <div class={styles.row}>
+              <For each={ids()}>{(id) => <ShardIcon shardId={id} size={24} chosen={id === pick()} row={row.row} />}</For>
             </div>
           );
         }}
@@ -162,7 +162,7 @@ export function RunesCard(props: { build: BuildStats }): JSX.Element {
                       class={styles.alt}
                       aria-pressed={i() === picked()}
                       aria-label={describe(p)}
-                      title={describe(p)}
+                      data-hint={describe(p)}
                       onClick={() => setPicked(i())}
                       data-testid="rune-page"
                     >

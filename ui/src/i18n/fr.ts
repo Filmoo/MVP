@@ -44,7 +44,6 @@ export const fr = {
     runeN: (id: number) => `Rune ${id}`,
     runeTreeN: (id: number) => `Voie de runes ${id}`,
     profileIcon: "Icône de profil",
-    colon: (label: string, text: string) => `${label}\u00A0: ${text}`,
     games: (n: number) => count(n, "partie", "parties"),
     lp: (lp: number) => `${lp}\u00A0PL`,
     record: (wins: number, losses: number) => `${wins}V ${losses}D`,

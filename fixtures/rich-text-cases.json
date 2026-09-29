@@ -1,0 +1,123 @@
+[
+  {
+    "name": "plain text stays as it is",
+    "markup": "Moves you a little forward.",
+    "lines": [[{ "text": "Moves you a little forward." }]]
+  },
+  {
+    "name": "an item: stats, then a named passive in its own paragraph",
+    "markup": "<mainText><stats><attention>12</attention> Attack Damage<br><attention>7%</attention> Attack Speed</stats><br><br><passive>Sample Passive</passive><br>Some hits deal <physicalDamage>extra physical damage</physicalDamage> <OnHit>On-Hit</OnHit>.</mainText>",
+    "lines": [
+      [{ "text": "12", "tone": "strong" }, { "text": " Attack Damage" }],
+      [{ "text": "7%", "tone": "strong" }, { "text": " Attack Speed" }],
+      [],
+      [{ "text": "Sample Passive", "tone": "strong" }],
+      [{ "text": "Some hits deal " }, { "text": "extra physical damage", "tone": "physical" }, { "text": " On-Hit." }]
+    ]
+  },
+  {
+    "name": "empty stats and leading breaks leave nothing before the text",
+    "markup": "<mainText><stats></stats><br><br><active>Sample Active</active><br>Restores <healing>10 Health</healing> over a while.</mainText>",
+    "lines": [
+      [{ "text": "Sample Active", "tone": "strong" }],
+      [{ "text": "Restores " }, { "text": "10 Health", "tone": "heal" }, { "text": " over a while." }]
+    ]
+  },
+  {
+    "name": "damage types keep their colours",
+    "markup": "Burns for <magicDamage>2% magic damage</magicDamage>, then <trueDamage>50 true damage</trueDamage>.",
+    "lines": [
+      [
+        { "text": "Burns for " },
+        { "text": "2% magic damage", "tone": "magic" },
+        { "text": ", then " },
+        { "text": "50 true damage", "tone": "true" },
+        { "text": "." }
+      ]
+    ]
+  },
+  {
+    "name": "client keywords and fonts drop, their words stay; a rule and a quote after it",
+    "markup": "Hit 3 <b>separate</b> times for bonus <lol-uikit-tooltipped-keyword key='LinkTooltip_Description_AdaptiveDmg'><font color='#48C4B7'>adaptive damage</font></lol-uikit-tooltipped-keyword>.<br><br>Cooldown: 20s<br><br><hr><br><i>'A quote.'</i>",
+    "lines": [
+      [{ "text": "Hit 3 " }, { "text": "separate", "tone": "strong" }, { "text": " times for bonus adaptive damage." }],
+      [],
+      [{ "text": "Cooldown: 20s" }],
+      [],
+      [{ "text": "'A quote.'", "tone": "subtle" }]
+    ]
+  },
+  {
+    "name": "list items start bulleted lines; rules read subtle",
+    "markup": "Every 4s your next attack will:<li>Deal damage<li>Heal you<br><rules><i>Ranged:</i> 40% effective.</rules>",
+    "lines": [
+      [{ "text": "Every 4s your next attack will:" }],
+      [{ "text": "• Deal damage" }],
+      [{ "text": "• Heal you" }],
+      [{ "text": "Ranged: 40% effective.", "tone": "subtle" }]
+    ]
+  },
+  {
+    "name": "whitespace collapses and lines are trimmed",
+    "markup": "  Gain   stacks.\n Heal <b>now</b> <br>  then \t rest ",
+    "lines": [
+      [{ "text": "Gain stacks. Heal " }, { "text": "now", "tone": "strong" }],
+      [{ "text": "then rest" }]
+    ]
+  },
+  {
+    "name": "a space between two stressed words stays",
+    "markup": "<attention>75</attention> <b>Health</b>",
+    "lines": [[{ "text": "75", "tone": "strong" }, { "text": " " }, { "text": "Health", "tone": "strong" }]]
+  },
+  {
+    "name": "every way to write a line break",
+    "markup": "a<br/>b<br />c<BR>d",
+    "lines": [[{ "text": "a" }], [{ "text": "b" }], [{ "text": "c" }], [{ "text": "d" }]]
+  },
+  {
+    "name": "many breaks make one paragraph break",
+    "markup": "a<br><br><br><br>b<hr>c",
+    "lines": [[{ "text": "a" }], [], [{ "text": "b" }], [], [{ "text": "c" }]]
+  },
+  {
+    "name": "entities are decoded, a no-break space kept",
+    "markup": "Tom &amp; Jerry &lt;3 &#39;x&#39; 20&nbsp;% &unknown; & more",
+    "lines": [[{ "text": "Tom & Jerry <3 'x' 20 % &unknown; & more" }]]
+  },
+  {
+    "name": "a < that opens no tag is text",
+    "markup": "2 < 3 and 4 > 1, x <b",
+    "lines": [[{ "text": "2 < 3 and 4 > 1, x <b" }]]
+  },
+  {
+    "name": "nested tones: the innermost wins",
+    "markup": "<rules>Rules <b>bold</b> end</rules>",
+    "lines": [[{ "text": "Rules ", "tone": "subtle" }, { "text": "bold", "tone": "strong" }, { "text": " end", "tone": "subtle" }]]
+  },
+  {
+    "name": "badly nested tags close the right tone",
+    "markup": "<i>a <b>b</i> c</b> d",
+    "lines": [[{ "text": "a ", "tone": "subtle" }, { "text": "b c", "tone": "strong" }, { "text": " d" }]]
+  },
+  {
+    "name": "a stressed word ending a line loses its trailing space",
+    "markup": "a <b>b </b><br>c",
+    "lines": [[{ "text": "a " }, { "text": "b", "tone": "strong" }], [{ "text": "c" }]]
+  },
+  {
+    "name": "markup alone is nothing",
+    "markup": "<mainText><stats></stats><br><br></mainText>",
+    "lines": []
+  },
+  {
+    "name": "nothing is nothing",
+    "markup": "",
+    "lines": []
+  },
+  {
+    "name": "script and links are only text",
+    "markup": "<script>alert(1)</script><a href='javascript:x'>link</a>",
+    "lines": [[{ "text": "alert(1)link" }]]
+  }
+]

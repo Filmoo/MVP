@@ -221,6 +221,33 @@ for (const scenario of ["default", "extreme", "match-details-error"] as const) {
   });
 }
 
+// The tooltips of the game's things (design/tip): each kind of card, the item's with coloured text.
+test("tooltips only use design tokens (a keystone, a shard, a spell, an item)", async ({ page }) => {
+  await openApp(page, { view: "/champions?id=103" });
+  for (const target of [
+    "[data-tip='rune:8112']",
+    "[data-tip='shard:5008:offense']",
+    "[data-widget=champion-spells] [data-tip='spell:4']",
+    "[data-widget=champion-items] [data-tip='item:6653']",
+  ]) {
+    await page.mouse.move(0, 0);
+    const thing = page.locator(target).first();
+    await thing.scrollIntoViewIfNeeded();
+    await thing.hover();
+    await expect(page.locator("#game-tip")).toBeVisible();
+    expect(await page.evaluate(auditTokens), target).toEqual([]);
+  }
+  // The compact card: a heading and lines (the tier), lines only (a build option's numbers).
+  for (const target of ["[data-testid=champion-tier]", "[data-widget=champion-spells] [data-hint]"]) {
+    await page.mouse.move(0, 0);
+    const thing = page.locator(target).first();
+    await thing.scrollIntoViewIfNeeded();
+    await thing.hover();
+    await expect(page.locator("#hint")).toBeVisible();
+    expect(await page.evaluate(auditTokens), target).toEqual([]);
+  }
+});
+
 test("every view has exactly one page heading", async ({ page }) => {
   for (const view of VIEWS) {
     await openApp(page, { view });
