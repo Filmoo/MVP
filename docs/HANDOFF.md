@@ -54,9 +54,12 @@ session hit the usage limit five times.
   meta map, a DPM-like sortable Table, compact lane icons, a rank dropdown with emblems, tier
   medallions, League-like Jungle and Support icons, the penguin). Stopped with 4 files
   uncommitted.
-- `worktree-agent-a81fa7b74de5da1fc`: the opened game as a glass sheet (a long scroll, Escape or a
-  click outside closes it), clickable Riot IDs, the end-of-game stats table. Stopped with 1 file
-  uncommitted.
+- `feature/game-windows` (2026-09-30): opened games as a stack of windows you scroll between, the
+  game that just ended opening by itself instead of Home's card, a DPM-like scoreboard with
+  "Scoreboard | Details" (decisions.md "Opened games are a stack of windows"). It carries the
+  sheet's branch (`worktree-agent-a81fa7b74de5da1fc`, merged into it) and `release/0.3`. Over the
+  JS budget: 140.3 / 136 KB in all (the sheet merged onto main was 139.3 already, the stack
+  +1.1), startup 41.0 / 46 KB: raise the budget in its own commit, or trim.
 - `worktree-agent-af4bb73c493248211`: one more commit (50eae94, the roadmap's design review) to
   merge; keep main's `FeatureSheet.tsx`, `playwright.config.ts` and `roadmap.spec.ts` (b4ef9a8).
 
@@ -154,8 +157,8 @@ check the latest run before building on it.
 
 **Planned for the next version** (owner, 2026-09-29: "after game graphs and animation to show how
 each of those evolved, a heatmap etc. … very cool visualization, will be for a next version. Just
-keep it in planned.") Not started; the opened game's sheet (job 10) is where it goes, under the
-end-of-game stats (or a tab of its own when it's more than a screen).
+keep it in planned.") Not started; an opened game's window (job 10) is where it goes: a tab of its own beside
+"Scoreboard | Details".
 - **What:** how the game went, animated and scrubbable along its minutes: gold, XP, CS and
   damage to champions of each player over time (lines, the page owner's in front), the teams'
   gold difference (the classic area above and under zero, objectives — dragons, heralds, barons,
@@ -303,18 +306,27 @@ Everything below is merged on `release/0.3` and green on
    **Match insights** (architecture.md "Match insights", policy.md "Per-game grades"): a grade per
    finished game (`stats::grade`: S+ to C, score out of 10, place, MVP/ACE, the facts that moved
    it) on every match row, its why on hover or keyboard focus, and a row opens the whole game
-   *(2026-09-29)* in a sheet of liquid glass over the page (decisions.md "An opened game is a sheet
-   of glass"): both teams (Riot IDs with hidden players kept hidden, each named player a link to
-   their page, KDA, CS, gold, damage bars, vision, items, spells, runes, every grade and its why;
-   the page owner's line marked) and the end-of-game stats (the client's post-game Stats tab:
-   `domain::EndOfGameStats`); it closes on Escape, a click outside, its close button, a link, or a
-   scroll past its end or top (`views/home/pull.ts`). Your games are graded by the
+   *(2026-09-30)* in a stack of windows of liquid glass over the page, one per game of the list,
+   that you scroll between (decisions.md "Opened games are a stack of windows"; `GameStack.tsx`,
+   `GameWindow.tsx`, `stack.ts`): each window's head says the game, its LP and the page owner's
+   grade with what moved it; its scoreboard both teams (Riot IDs with hidden players kept hidden,
+   each named player a link to their page, level, spells and runes, K/D/A with the kill
+   participation, damage bars, CS with its pace, items, every grade and its why; the page owner's
+   line marked); its details the end-of-game stats (the client's post-game Stats tab:
+   `domain::EndOfGameStats`). Past a game's end the stack moves on to the next one, past the
+   newest game's top it closes, past the last game loaded it loads older ones; it also closes on
+   Escape, a click around it, its close button or a link. The game that just ended opens by
+   itself, once (Home's card is gone). Your games are graded by the
    core from `GET /lol-match-history/v1/games/{gameId}` (each read once, after the profile);
    others' by the backend, which also answers `GET /v1/matches/{platform}/{matchId}`. Left:
-   - on the owner's machine: the scroll to close's feel with a real mouse wheel and a precision
-     touchpad (`WHEEL_CLOSE` 360 px ≈ four notches, `RELEASE_MS`, `GESTURE_GAP_MS` in `pull.ts`;
-     WebView2's deltas per notch aren't measured yet), a touch screen if there is one, and the
-     sheet's glass frame times on a 1440p window (the biggest lens of the app);
+   - on the owner's machine: the stack's feel with a real mouse wheel and a precision touchpad
+     (`WHEEL_MOVE` 200 px ≈ two notches to move on, `WHEEL_CLOSE` 360 px ≈ four to close,
+     `RELEASE_MS`, `GESTURE_GAP_MS` in `stack.ts`; WebView2's deltas per notch aren't measured
+     yet): that a spin reaching a game's end never moves on by itself, that the rest of a gesture
+     that moved on never scrolls the next game (Chromium lets a wheel sequence be cancelled only
+     from its first event: a pull takes its events), a touch screen if there is one, and the
+     glass frame times while the stack glides on a 1440p window (three windows of the biggest
+     lens of the app; the neighbours are clipped to their edges);
    - the backend's match snapshot is format 3 and its cache holds 12,000 matches (was 20,000: a
      compacted match doubled with its end-of-game stats, under 11 KB); the first start after the
      upgrade begins with an empty match cache;
@@ -329,7 +341,9 @@ Everything below is merged on `release/0.3` and green on
      with the owner's OK (46 KB startup, 125 KB total). *(2026-09-29)* The sheet, the scroll to
      close, the links and the stats table (still in the player page's chunk: a chunk of their own
      weighed 1.5 KB more) and their words cost +4.4 KB: 130.5 / 131 KB total (main 126.1 before
-     it), 0.5 KB left; startup unchanged (40.6 / 46 KB).
+     it), 0.5 KB left; startup unchanged (40.6 / 46 KB). *(2026-09-30)* Merged onto main (with
+     ARAM: Mayhem) the sheet made 139.3 KB in all, over the 136 KB budget; the stack of windows
+     adds 1.1 KB: 140.3 / 136 KB, startup 41.0 / 46 KB (the owner's call).
 
 9. *(built, against mock-lcu and synthetic stats only)* **Draft insights** (architecture.md "Stats
    pipeline" and "Stats in the app"): the crawler keeps each game's length and every player's
@@ -471,14 +485,18 @@ Match insights (Home after a few games; a player page with the backend running):
   `spell1Id`/`spell2Id`, `timeline.lane`/`role` (only evidence: each team's roles are worked out
   from the champions' role shares, Smite, lane minions and support items; compare with the player
   page's Match-V5 `teamPosition` for the same games), `gameDuration` in seconds, `platformId`.
-- **Opened games:** a sheet of glass over the page (the page bent at its rim); yours open
-  instantly the second time (cached); someone else's (player page) come from the backend; a
-  streamer-mode player shows "Hidden player" in both and isn't a link; your line (or the page
-  owner's) is marked; a name opens that player's page (the sheet closes); Escape, a click beside
-  the sheet, its close button, and scrolling on past its end or its top (the sheet follows, "Keep
-  scrolling to close", four notches close it, fewer spring back; a touchpad flick's inertia never
-  does) close it, and the row keeps the focus.
-- **End-of-game stats** (the sheet's table, `EndOfGameStats`): compare with the client's own
+- **Opened games:** a stack of windows of glass over the page (the page bent at each rim, seen
+  around it), the neighbours' edges at its top and bottom; yours open instantly the second time
+  (cached); someone else's (player page) come from the backend; a streamer-mode player shows
+  "Hidden player" in both and isn't a link; your line (or the page owner's) is marked, your grade
+  and the LP head each window; a name opens that player's page (the stack closes). Scrolling on
+  past a game's end moves to the next game ("Keep scrolling for an older game", two notches),
+  past its top back up, past the newest game's top closes (four notches), past the last game
+  loaded loads older ones (Home) and moves on to them; a touchpad flick's inertia never moves on.
+  ↑/↓, PageUp/PageDown and Space scroll then move on; Home/End go to the ends. Escape, a click
+  beside the windows and the close button close it; the focus goes back to the row of the game
+  shown last.
+- **End-of-game stats** (a window's Details, `EndOfGameStats`): compare with the client's own
   post-game Stats tab for the same game (spree, multikill, first blood, damage by type, to
   turrets and objectives, taken and mitigated, healing, wards, gold spent, minions, monsters,
   crowd control, turrets, inhibitors). **Check whether the client's `participants[].stats` carry
@@ -491,12 +509,13 @@ Match insights (Home after a few games; a player page with the backend running):
 
 After a game (Home; the logs say "LP of the game", "game not in the history yet", "the client
 didn't count the game in time"):
-- **Post-game summary:** a ranked game ends → the window comes Home (autopilot) and the card tops
-  it within seconds of the end screen: result, grade and its facts, your numbers against your
-  lane opponent (check the roles: the opponent must be your role on the other team), then the LP
-  when the client counts it (check `/lol-ranked/v1/current-ranked-stats` fires its event after a
-  game; else the LP comes from the retries within two minutes). Close it: it doesn't come back;
-  the next champion select hides it too. ARAM: the closest share of damage, no LP.
+- **The game that just ended:** a ranked game ends → the window comes Home (autopilot) and the
+  game opens by itself in the stack within seconds of the end screen: result, your grade and its
+  facts, "Counting LP…", then the LP when the client counts it (check
+  `/lol-ranked/v1/current-ranked-stats` fires its event after a game; else the LP comes from the
+  retries within two minutes). Close it: it doesn't come back; the
+  next champion select closes it. With the stack already open on another game, nothing jumps (the
+  new game is on top). ARAM: no LP.
 - **LP:** compare MVP's `+19 LP` with the client's end screen over a few games, a promotion and a
   demotion included (MVP counts 100 LP per division: a demotion to 75 LP shows the ladder
   difference, not the client's "−20"); `lp-history.json` in `%APPDATA%\gg.mvp.companion`; a
