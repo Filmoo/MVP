@@ -28,8 +28,9 @@ export default defineConfig({
     viewport: { width: 1280, height: 800 },
   },
   webServer: {
-    // Builds the UI, then serves it (debug builds read web/dist from disk).
-    command: `pnpm run build && cargo run --quiet -p mvp-roadmap -- serve --dev-login --bind 127.0.0.1:${PORT} --db ../../../.cache/roadmap/ui-tests.db --seed tests/fixtures/seed.json`,
+    // A fresh database each run (tests change it), then builds the UI and serves it (debug builds
+    // read web/dist from disk).
+    command: `node -e "for (const s of ['', '-wal', '-shm']) require('fs').rmSync('../../../.cache/roadmap/ui-tests.db' + s, { force: true })" && pnpm run build && cargo run --quiet -p mvp-roadmap -- serve --dev-login --bind 127.0.0.1:${PORT} --db ../../../.cache/roadmap/ui-tests.db --seed tests/fixtures/seed.json`,
     url: `http://127.0.0.1:${PORT}/health`,
     reuseExistingServer: !CI,
     timeout: 900_000,

@@ -332,14 +332,18 @@ test("every view lays out from 400 to 2560 px: no sideways page, nothing overlap
       await settle(page);
       const at = `${view} @ ${size.width}`;
       const layout = await page.evaluate(() => {
-        const box = (selector: string) => document.querySelector(selector)?.getBoundingClientRect();
         const header = [...document.querySelectorAll("[data-testid=topbar] > *")]
           .map((el) => el.getBoundingClientRect())
           .filter((r) => r.width > 0);
         const overlaps = header.some((a, i) =>
           header.some((b, j) => j > i && a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1),
         );
-        const first = box("[data-view] [data-feature]");
+        // A narrow board starts scrolled to the version being built, so earlier columns sit off to
+        // the left on purpose: the check is that some feature shows in full.
+        const features = [...document.querySelectorAll("[data-view] [data-feature]")]
+          .map((el) => el.getBoundingClientRect())
+          .filter((r) => r.width > 0);
+        const first = features.find((r) => r.left >= 0 && r.right <= window.innerWidth) ?? features[0];
         return {
           pageWidth: document.documentElement.scrollWidth,
           width: window.innerWidth,

@@ -34,10 +34,12 @@ export function FeatureSheet(props: { id: number }): JSX.Element {
     () => (props.id > 0 ? props.id : null),
     (id) => api.feature(id).catch(() => null),
   );
-  // Refresh the history when the feature changes (status, move, edit).
+  // Refresh the history when the feature changes (status, move, edit, links). Keyed on the whole
+  // feature, not `updatedAt`: that counts whole seconds, so two changes within one second (a link,
+  // then a status) left the history one change behind.
   createEffect(
     on(
-      () => f()?.updatedAt,
+      () => JSON.stringify(f() ?? null),
       () => void refetch(),
       { defer: true },
     ),
