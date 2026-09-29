@@ -3,10 +3,11 @@
 Written 2026-09-27, updated 2026-09-29 during the fourth session (on the owner's Windows PC with
 a real League client). Read `CLAUDE.md` first (rules, layout, commands), then `docs/decisions.md`
 (the owner's product calls), `docs/policy.md` (Riot red lines) and `docs/architecture.md`. Work on
-branch `claude/upbeat-hamilton-0bms1t`.
+branch `release/0.3` (named `claude/upbeat-hamilton-0bms1t` until 2026-09-30). One branch per
+feature (`feature/<name>`), deleted once tested and merged.
 
 ## Summary for the next agent (2026-09-29, fourth session: the owner's PC, a real client)
-Branch `claude/upbeat-hamilton-0bms1t`, not pushed (the owner decides when). Budgets: startup JS
+Branch `release/0.3` (was `claude/upbeat-hamilton-0bms1t`), not pushed (the owner decides when). Budgets: startup JS
 40.8 / 46 KB, total 135.2 / 136 KB. The last full gate on main was green except timing-only
 failures under load (each green alone): rerun `check.mjs full` on a quiet machine, the perf
 suite's boot test is load-sensitive.
@@ -156,7 +157,7 @@ check the latest run before building on it.
   wanted yet); no ban suggestions, no AI picks.
 
 ## State
-Everything below is merged on `claude/upbeat-hamilton-0bms1t` and green on
+Everything below is merged on `release/0.3` and green on
 `node scripts/check.mjs full`, except where marked.
 
 - **Desktop app** (Tauri 2 + SolidJS): Home (own profile from the LCU, a grade on every game and
