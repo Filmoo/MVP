@@ -216,6 +216,20 @@ Everything below is merged on `claude/upbeat-hamilton-0bms1t` and green on
      0.85/1.15 × usual, crowd control 0.7/1.3 × usual, 3 points between short and long games) and
      ARAM's length buckets (17 and 22 minutes, a guess) on real data;
    - the real client (checklist below): ARAM's session fields and the gameflow queue.
+11. *(built, against mock-lcu, a fake backend and a local copy of the game files only)* **ARAM:
+   Mayhem** (architecture.md "ARAM: Mayhem", policy.md "ARAM: Mayhem augments", decisions.md):
+   the owner's augment tiers (`mayhem-tiers.json` on the server; the order inside a tier is the
+   rank), the augments built on the server from the game's files, opt-in sharing of the player's
+   Mayhem games (champions, augments, final items; never a result) and the pick rates they make;
+   the Mayhem page (Tier list → "ARAM: Mayhem"), the champion page's Mayhem tab, Draft's
+   *Augments* tab and bench rows, Live's "My build". Left:
+   - **the owner writes the first tiers** (`mvp-backend mayhem list`, edit, `mvp-backend mayhem
+     check`; apps/backend/README.md "ARAM: Mayhem"): until then every augment is "Not tiered yet";
+   - the deployed backend must reach `raw.communitydragon.org` for the catalog (log "built 223
+     Mayhem augments…"); without it the Mayhem views say the augments aren't available yet;
+   - the bundle: the feature is +9.0 KB of JS gzip, 139.4 KB against the 131 KB budget (the
+     owner's call: raise it, or trim);
+   - the real client (checklist below).
 
 ## Verify with the real client (Windows)
 When something doesn't work: Settings → About → **Copy diagnostics** (versions, the client's
@@ -275,6 +289,20 @@ Draft insights (with published stats that have `compositions.json`; without Leag
   decides.
 - **Rank setting:** Settings → Stats → Rank → Diamond+ mid champion select: the data line says
   Diamond+ at once (Emerald+ when Diamond+ isn't published); the Tier list opens on it.
+
+ARAM: Mayhem (a backend with the catalog built; without League: `cargo run -p mock-lcu -- --mayhem`):
+- **Mode:** a Mayhem champion select opens Draft's side panel on *Augments* (the gameflow
+  session's `gameData.queue.id` 2400 or `gameMode` `KIWI`: check the names), each bench champion
+  shows its most picked augments under its line; in the game, Live's "My build" shows the
+  champion's augments, then ARAM's build said to be ARAM's.
+- **Sharing:** Settings → Stats → "Help build Mayhem stats" on → the log says "Mayhem games
+  shared" (accepted, duplicates) for the recent Mayhem games; after a Mayhem game, again about
+  10 s into the end-of-game screen. In `/lol-match-history/v1/games/{gameId}` check
+  `participants[].stats.playerAugment1`–`6` (ids `mvp-backend mayhem list` knows), `item0`–`5`,
+  `gameVersion`, `queueId` 2400 and `platformId`. A custom Mayhem game is never sent, nor
+  anything while the switch is off.
+- **Nothing during the game:** nothing on screen changes when the game offers augments, and no
+  request asks the game about them.
 
 Build imports (needs a `BuildSource` with real stats; the logs say "rune page imported", "item set
 imported", "summoner spells imported", "automatic import at the first lock-in"):

@@ -12,8 +12,9 @@ before the production-key application.
 - Track enemy cooldowns (ultimates, summoners, abilities), power-spike alerts, or prompts that
   dictate actions. Treat jungle/objective timers as avoid.
 - MMR/Elo estimates, dodge advice/auto-dodge, shaming tags or negative labels.
-- Arena augment/item win rates; Brawl data; historic Riot IDs; game-session info the player
-  couldn't know.
+- Arena augment/item win rates, and win/loss statistics of ARAM: Mayhem over players' games
+  (augments, items, champions: Riot keeps those games private); Brawl data; historic Riot IDs;
+  game-session info the player couldn't know.
 - Scrape other stat sites, use the League client to bypass API rate limits, or redistribute Riot data.
 - Ship the API key in the app; run a public app on a dev/personal key.
 - Ads in-game, on loading screens or in the Riot client; betting/crypto/NFT.
@@ -176,3 +177,49 @@ detection, composite player scores, live win probability, sending data to third-
   misbehave. Updates never download or install during a ready
   check, champ select or a game, and never restart the app without the player's click (else
   they install when MVP quits).
+- **ARAM: Mayhem augments: tiers, shared picks, priorities (2026-09-29, built; gray: data
+  leaving the machine, opt-in; not yet tried on a real client).**
+  - **No win rates, and no results collected at all.** Riot forbids augment win rates (Arena's,
+    above; Mayhem's augments are the same kind of choice) and keeps Mayhem games off Match-V5
+    (403, Riot's issue #1109) so that nobody "solves" the mode with win/loss statistics. So
+    sharing never reads a game's result, the upload has no field for one (unknown fields are
+    dropped when it is parsed) and the server stores and computes **pick counts only**. The
+    champion page's Mayhem tab shows ARAM's builds, win rates included, **labelled as ARAM
+    data**: no Mayhem game is ever in them.
+  - **Tiers are editorial**: written by hand by the owner in a file on our server
+    (`mayhem-tiers.json`, apps/backend/README.md); the order inside a tier is the rank (first =
+    best, shown "S · 1"). Never copied from another site (no scraping).
+  - **Popularity only from players who opt in**: Settings → Stats → "Help build Mayhem stats",
+    off by default, with what is sent written under the switch; the server can pause it for
+    everyone (`features.mayhemSharing` in the remote config). When a game ends, and once for the
+    recent games when the switch is turned on, the core reads the player's own match history from
+    their League client and sends, for each matchmade Mayhem game not shared yet: the platform,
+    the patch, a one-way hash of the game id (SHA-256 of a fixed prefix, the platform and the id,
+    the same for every player of that game so it counts once) and each of the ten players'
+    champion, augments and final items. **Never** names, Riot IDs, PUUIDs, summoner ids, which
+    player shared, wins, KDA or anything else. Custom games and remakes are never sent. The
+    server uses the install id for the rate limit only (in memory); a stored game is its time of
+    arrival, platform, hash, patch and the ten players' picks.
+    Caveat: game ids are sequential numbers, so someone holding the stored files could hash
+    candidate ids and find a game they know of; they would learn the champions, augments and
+    items of that game (what its ten players saw), never who played or who won. A secret key
+    wouldn't help: the app is open source and every sharer of a game must produce the same hash.
+  - **Priorities are several options with their reasons, shown before the game or as reference.**
+    Per champion and rarity: the tier and the owner's rank first, the champion's pick rate from
+    shared games second once it has 30 games (fewer: the tiers alone, and the list says so);
+    every entry says why ("S tier · #2", "picked in 34% of Kog'Maw games"). Never a single "pick
+    this", never an order to follow.
+  - **Nothing reacts to what the game offers.** The Live Client Data API has no augments (checked
+    on a real Mayhem game, 2026-09-28); MVP never reads the screen, never watches the offers and
+    shows nothing triggered by them ("apps that dictate player decisions" are unapproved;
+    overlays that simulate decision-making are banned since 2025). Draft shows the priorities in
+    champion select (known before the game); Live's "My build" and the stats pages show the same
+    static reference, which doesn't change during the game.
+  - **Game files**: our server reads the augments' names, rarities, descriptions and icon paths
+    from `CommunityDragon`'s mirror of the game files once per game version, and the app shows the
+    icons from `CommunityDragon` at run time (as for the ranked emblems): nothing is committed or
+    bundled. Before the production-key application, check which source Riot prefers.
+  LCU endpoints (reads, all already declared above): `GET /lol-match-history/v1/products/lol/current-summoner/matches`,
+  `GET /lol-match-history/v1/games/{gameId}` (the player's own listed Mayhem games, each read
+  once), `GET /riotclient/region-locale` (a game's platform when the history lacks it),
+  `GET /lol-gameflow/v1/session` (the mode, in champion select and in game).

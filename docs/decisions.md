@@ -217,3 +217,38 @@ picked per-part switches.
   session again (they went back to the idle hint after a spells change), and an import clicked as
   champion select ends says so instead of "No build for this champion and role".
 
+## 2026-09-29 — Mayhem augments: editorial tiers + opt-in popularity (owner decided, Claude built)
+Owner: "I really want this… at least give Mayhem builds, and some way to show tier for augments."
+Riot keeps ARAM: Mayhem games off Match-V5 (403) and forbids augment win rates, so there is
+nothing to crawl. Offered editorial tiers or opt-in sharing, the owner took both:
+- **Editorial tiers** in one file on our server (`mayhem-tiers.json`: `patch`, `updatedAt`,
+  `tiers` S/A/B/C as augment ids, `notes` in English and French), validated at load and
+  reloaded on change like the remote config, checked with `mvp-backend mayhem check`, listed
+  with names by `mvp-backend mayhem list`. It ships empty: the owner writes the tiers, never
+  copied from another site. Owner, later: "mayhem does show tiers but also seems to have an
+  order inter rank… we might want a way to help player choosing them": **the order inside a
+  tier is the rank** (first = best), no augment twice, shown "S · 1".
+- **Opt-in popularity**: Settings → Stats → "Help build Mayhem stats" (off by default). After
+  each Mayhem game, and once for the recent ones when turned on, the core sends each game's
+  champions, augments and final items with a one-way hash of its id; no names, ids or results
+  (policy.md). The server counts each game once per patch and serves pick rates: overall, per
+  champion, and each champion's common final items.
+- **Augment priorities** per champion and rarity (each offer round is one rarity): tier and the
+  owner's rank first, the champion's pick rate second once it has 30 shared games (fewer: the
+  tiers alone, said so), each entry with its reasons ("S tier · #2", "picked in 34% of Kog'Maw
+  games"). Claude's reading of "tier and rank first": popularity never reorders a tier (the
+  owner's rank is the answer to "which one inside a tier"); it orders the untiered augments
+  after the tiered ones and shows next to every entry. One comparator
+  (`companion::mayhem::champion`) if the owner wants the pick rate to reorder inside a tier.
+- **Where**: the Tier list's queue tabs end with "ARAM: Mayhem", which opens the Mayhem page
+  (its own lazy chunk: every augment by tier and rarity, a champion filter with that
+  champion's priorities, most picked augments and common items); the champion page's Mayhem
+  tab (the same, plus ARAM's build labelled as ARAM data); Draft in a Mayhem champion select
+  (the side panel opens on an "Augments" tab for the selected champion; each bench champion's
+  most picked augments under its line); Live's "My build" in a Mayhem game. Before the game or
+  as static reference only: nothing reacts to the game's augment offers (policy.md). French:
+  "ARAM du chaos".
+- **Budget**: the whole feature costs +9.0 KB of JS gzip in total (130.4 → 139.4 KB against a
+  131 KB budget; startup 45.5 → 45.7 of 46 KB): the Mayhem page 3.5 KB, the shared augment parts
+  2.8 KB, words in both languages 1.6 KB, the four integrations 0.9 KB, chunking 0.3 KB. Not
+  raised here: the owner decides.
