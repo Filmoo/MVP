@@ -296,7 +296,6 @@ export const frViews = {
     rank: "Rang",
     role: "Rôle",
     allRoles: "Tous les rôles",
-    queueN: (id: number) => `File ${id}`,
     errors: {
       notFound: {
         title: "Pas encore de stats publiées",

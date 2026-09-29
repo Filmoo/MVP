@@ -288,7 +288,6 @@ export const enViews = {
     rank: "Rank",
     role: "Role",
     allRoles: "All roles",
-    queueN: (id: number) => `Queue ${id}`,
     errors: {
       notFound: {
         title: "No stats published yet",

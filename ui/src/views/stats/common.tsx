@@ -1,17 +1,15 @@
 import { type Accessor, createEffect, createSignal, type JSX, on, onCleanup, Show } from "solid-js";
 import { queryParam } from "../../app/router";
 import { useData } from "../../data/context";
-import type { DataSetInfo } from "../../data/generated/DataSetInfo";
 import type { StatsIndex } from "../../data/generated/StatsIndex";
 import { Card } from "../../design/Card";
 import { PenguinArt } from "../../design/PenguinArt";
 import { Segmented } from "../../design/Segmented";
 import { EmptyState, ErrorState } from "../../design/States";
 import { t } from "../../i18n";
-import { timeAgo } from "../../lib/format";
 import { backendError } from "../../lib/players";
-import { bracketLabel, bracketOptions, patchName, queueLabel, queueOptions, statsErrorWords } from "../../lib/stats";
-import { applyLinkFilters, filters, parseQueue, setFilter } from "../../lib/stats-filters";
+import { bracketOptions, queueOptions, statsErrorWords } from "../../lib/stats";
+import { applyLinkFilters, filters, setFilter } from "../../lib/stats-filters";
 import styles from "./common.module.css";
 
 /**
@@ -36,7 +34,7 @@ export function useStatsIndex(): { index: Accessor<StatsIndex | null | undefined
 }
 
 /**
- * A link can set the queue, bracket and (tier list, champion grid) role filter:
+ * A link can set the queue, bracket and (tier list) role filter:
  * `#/tier-list?queue=450&role=middle`. On a champion page `role` picks its role tab instead.
  */
 export function useLinkFilters(options: { role: boolean }): void {
@@ -67,26 +65,6 @@ export function ScopeSwitches(props: { class?: string | undefined }): JSX.Elemen
         testId="bracket-switch"
       />
     </div>
-  );
-}
-
-/** Where the numbers come from: patch, queue, rank, games counted, last update. */
-export function DataBadge(props: { info: DataSetInfo; index: StatsIndex | null | undefined; class?: string | undefined }): JSX.Element {
-  const queueText = () => {
-    const queue = parseQueue(props.info.queue);
-    return queue === undefined ? t().stats.queueN(props.info.queue) : queueLabel(queue);
-  };
-  return (
-    <p class={`${styles.badge} num ${props.class ?? ""}`} data-testid="data-badge">
-      <span class={styles.patch}>{t().common.patch(patchName(props.index, props.info.patch))}</span>
-      <span class={styles.facts}>
-        <span class={styles.fact}>
-          {queueText()} · {bracketLabel(props.info.bracket)} ·
-        </span>{" "}
-        <span class={styles.fact}>{t().common.games(props.info.games)} ·</span>{" "}
-        <span class={styles.fact}>{t().common.updated(timeAgo(props.info.updatedAt))}</span>
-      </span>
-    </p>
   );
 }
 

@@ -147,7 +147,6 @@ const samples = (): Record<string, unknown[][]> => ({
     ["Ahri", 12, percent(0.58)],
   ],
   "live.mains": [["Mid / Top"]],
-  "stats.queueN": [[1700]],
   "stats.errors.rateLimited.text": [[null], [7]],
   "stats.tier": [["S"]],
   "stats.noGamesOf": [["Ahri"], ["Yasuo"], ["Mel"]],
