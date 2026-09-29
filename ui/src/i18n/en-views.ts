@@ -45,6 +45,58 @@ export const enViews = {
       unavailable: "MVP's server can't open games right now. Try again in a moment.",
     },
     note: "Each grade compares the player with the other nine of this game (kill participation, KDA, damage, vision and objectives, CS and gold against the lane opponent), weighted by role. It rates one game, not a player.",
+    /** When the game ended: `Today, 21:34`, `12 Sep, 09:05` (`day` from `dayLabel`). */
+    playedAt: (day: string, hours: number, minutes: number) =>
+      `${day}, ${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`,
+    close: "Close",
+    /** Scroll to close: shown while the game is pulled past its end or its top. */
+    keepScrolling: "Keep scrolling to close",
+    /** The raw end-of-game numbers, like the League client's post-game Stats tab. */
+    stats: {
+      title: "End-of-game stats",
+      groups: {
+        combat: "Combat",
+        damageDealt: "Damage dealt",
+        damageTaken: "Damage taken and healing",
+        vision: "Vision",
+        income: "Income",
+        objectives: "Objectives",
+      },
+      rows: {
+        kda: "Kills / deaths / assists",
+        largestKillingSpree: "Largest killing spree",
+        largestMultiKill: "Largest multikill",
+        firstBlood: "First blood",
+        crowdControl: "Crowd control on enemies",
+        toChampions: "To champions",
+        physical: "Physical",
+        magic: "Magic",
+        trueDamage: "True",
+        toTurrets: "To turrets",
+        toObjectives: "To objectives",
+        taken: "Damage taken",
+        selfMitigated: "Self-mitigated",
+        healing: "Healing",
+        healingOnTeammates: "Healing on teammates",
+        shieldingOnTeammates: "Shielding on teammates",
+        visionScore: "Vision score",
+        wardsPlaced: "Wards placed",
+        wardsDestroyed: "Wards destroyed",
+        controlWards: "Control wards bought",
+        goldEarned: "Gold earned",
+        goldSpent: "Gold spent",
+        minions: "Minions killed",
+        monsters: "Monsters killed",
+        turrets: "Turrets destroyed",
+        inhibitors: "Inhibitors destroyed",
+      },
+      /** Seconds of crowd control: `42 s`. */
+      seconds: (value: string) => `${value} s`,
+      /** First blood's mark, for screen readers. */
+      yes: "Yes",
+      /** A row's highest value, marked. */
+      top: "The most in this game",
+    },
   },
 
   /** Why a game got its grade (hover or focus a match row's grade). */

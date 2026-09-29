@@ -65,5 +65,5 @@ export default function Player(): JSX.Element {
   );
 }
 
-// An opened match row's code rides in this chunk: Home's match history loads it from here too (App.tsx).
-export { hint, MatchDetails } from "../home/MatchDetails";
+// An opened game's code rides in this chunk: Home's match history loads it from here too (App.tsx).
+export { GameSheet, hint } from "../home/GameSheet";

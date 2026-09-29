@@ -529,19 +529,42 @@ for (const lang of ["en", "fr"] as const) {
   });
 }
 
-// Match rows: an opened game (its row scrolled to the top of the page), a grade's why, and the
-// game's other states, in English and French (`fr-…`). `row`: which row, newest first.
-async function gameShot(page: Page, name: string, opts: { scenario?: ScenarioName; width: number; height: number; row?: number }) {
-  await openApp(page, { scenario: opts.scenario ?? "default", width: opts.width, height: opts.height });
-  const row = page.locator("[data-testid=match-row] > button").nth(opts.row ?? 0);
-  await row.click();
+// Match rows: an opened game in its sheet over the page (its top, its end-of-game stats, pulled
+// past its end by the wheel), a grade's why, and the game's other states, in English and French
+// (`fr-…`). `row`: which row, newest first.
+async function gameShot(
+  page: Page,
+  name: string,
+  opts: { scenario?: ScenarioName; view?: string; width: number; height: number; row?: number; part?: "top" | "stats" | "pull" },
+) {
+  // Two settles and a sheet's worth of images: more than 30 s on a busy machine.
+  test.slow();
+  await openApp(page, { scenario: opts.scenario ?? "default", view: opts.view ?? "/", width: opts.width, height: opts.height });
+  await page
+    .locator("[data-testid=match-row] > button")
+    .nth(opts.row ?? 0)
+    .click();
+  const sheet = page.getByTestId("game-sheet");
   if (opts.scenario !== "match-details-slow") {
-    await page.getByTestId("game").locator("[data-testid=game-player], [role=alert]").first().waitFor();
+    await sheet.locator("[data-testid=game-player], [role=alert]").first().waitFor();
+    await settle(page);
   }
-  await row.evaluate((el) => el.scrollIntoView({ block: "start" }));
-  await page.locator("main").evaluate((main) => main.scrollBy(0, -12));
-  if (opts.scenario !== "match-details-slow") await settle(page);
-  await page.mouse.move(0, 0);
+  await animationsDone(page);
+  if (opts.part === "stats") {
+    await sheet.locator("[data-widget=match-stats]").evaluate((el) => el.scrollIntoView({ block: "start" }));
+  }
+  if (opts.part === "pull") {
+    // Scrolled to its end, then two notches on: the sheet follows, the hint shows.
+    await sheet.locator("[data-widget=match-stats]").evaluate((el) => el.scrollIntoView({ block: "end" }));
+    const box = await page.getByTestId("game").boundingBox();
+    await page.mouse.move((box?.x ?? 0) + (box?.width ?? 0) / 2, (box?.y ?? 0) + (box?.height ?? 0) / 2);
+    await page.waitForTimeout(300);
+    await page.mouse.wheel(0, 100);
+    await page.mouse.wheel(0, 100);
+    await page.waitForTimeout(200);
+  } else {
+    await page.mouse.move(0, 0);
+  }
   await page.screenshot({ path: `${OUT}/${name}-${opts.width}x${opts.height}.png` });
 }
 
@@ -567,6 +590,9 @@ for (const lang of ["en", "fr"] as const) {
       test(`${prefix}home game open ${width}x${height}`, async ({ page }) => {
         await gameShot(page, `${prefix}home-game-open`, { width, height, row: 2 });
       });
+      test(`${prefix}home game stats ${width}x${height}`, async ({ page }) => {
+        await gameShot(page, `${prefix}home-game-stats`, { width, height, row: 2, part: "stats" });
+      });
       test(`${prefix}home grade why ${width}x${height}`, async ({ page }) => {
         await whyShot(page, `${prefix}home-grade-why`, width, height, 1);
       });
@@ -574,23 +600,32 @@ for (const lang of ["en", "fr"] as const) {
         await gameShot(page, `${prefix}home-game-extreme`, { scenario: "extreme", width, height });
       });
     }
-    // ARAM: Mayhem on a wide window: no roles, no vision column.
+    test(`${prefix}home game pulled 1280x800`, async ({ page }) => {
+      await gameShot(page, `${prefix}home-game-pulled`, { width: 1280, height: 800, row: 2, part: "pull" });
+    });
+    // ARAM: Mayhem on a wide window: no roles, no vision column, no vision or monster stats.
     test(`${prefix}home game howling abyss 1920x1080`, async ({ page }) => {
       await gameShot(page, `${prefix}home-game-howling-abyss`, { scenario: "howling-abyss", width: 1920, height: 1080 });
     });
-    for (const scenario of ["match-details-error", "match-details-gone", "match-details-slow"] as const) {
+    test(`${prefix}home game howling abyss stats 1920x1080`, async ({ page }) => {
+      await gameShot(page, `${prefix}home-game-howling-abyss-stats`, { scenario: "howling-abyss", width: 1920, height: 1080, part: "stats" });
+    });
+    for (const scenario of ["match-details-error", "match-details-gone", "match-details-unavailable", "match-details-slow"] as const) {
       test(`${prefix}home ${scenario} 1280x800`, async ({ page }) => {
         await gameShot(page, `${prefix}home-${scenario}`, { scenario, width: 1280, height: 800 });
       });
     }
+    // Someone else's game, from our backend: every stat row (healing and shielding on teammates).
     test(`${prefix}player game open 1280x800`, async ({ page }) => {
-      await openApp(page, { view: "/player/euw1/Blade%20Dancer/IRE" });
-      const row = page.locator("[data-testid=match-row] > button").first();
-      await row.click();
-      await page.getByTestId("game-player").first().waitFor();
-      await row.evaluate((el) => el.scrollIntoView({ block: "start" }));
-      await settle(page);
-      await page.screenshot({ path: `${OUT}/${prefix}player-game-open-1280x800.png` });
+      await gameShot(page, `${prefix}player-game-open`, { view: "/player/euw1/Blade%20Dancer/IRE", width: 1280, height: 800 });
+    });
+    test(`${prefix}player game stats 1280x800`, async ({ page }) => {
+      await gameShot(page, `${prefix}player-game-stats`, {
+        view: "/player/euw1/Blade%20Dancer/IRE",
+        width: 1280,
+        height: 800,
+        part: "stats",
+      });
     });
   });
 }

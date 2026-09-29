@@ -297,7 +297,8 @@ export const scenarios = {
     },
   },
   "howling-abyss": {
-    description: "Your latest games are ARAM: Mayhem and ARAM: opened, they have no roles and no vision column (0 for everyone there).",
+    description:
+      "Your latest games are ARAM: Mayhem and ARAM: opened, they have no roles, no vision column and no vision or monster stats (nobody has any there).",
     responses: {
       ...base,
       current_profile: { data: aramProfile },
@@ -311,7 +312,7 @@ export const scenarios = {
     responses: { ...base, current_profile: { data: guessedRoles } },
   },
   "match-details-slow": {
-    description: "Opening a game takes 2.5 s: a skeleton the size of the table, then the game in place.",
+    description: "Opening a game takes 2.5 s: its sheet shows its head at once, a skeleton the size of the table, then the game in place.",
     responses: { ...base, match_details: { handle: details, delayMs: 2_500 } },
   },
   "match-details-error": {
@@ -321,6 +322,13 @@ export const scenarios = {
   "match-details-gone": {
     description: "The game isn't available anymore: says so, no retry.",
     responses: { ...base, match_details: gameError("not found", { kind: "notFound" }) },
+  },
+  "match-details-unavailable": {
+    description: "MVP's server can't open games right now (Riot unreachable from it): says so, with a retry.",
+    responses: {
+      ...base,
+      match_details: gameError("service unavailable", { kind: "unavailable", message: "the server has no Riot API key" }),
+    },
   },
   "settings-custom": {
     description: "Automations on (auto-accept after 4 s), app defaults changed.",

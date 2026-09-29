@@ -1,3 +1,4 @@
+import type { Page } from "@playwright/test";
 import { scenarioNames } from "../src/data/mock/scenarios";
 import { expect, FRENCH_SIZES, isFrench, openApp, SIZES, settle, test, trackErrors, VIEWS } from "./app";
 import { auditLayout } from "./layout-rules";
@@ -109,10 +110,25 @@ for (const { view, scenario } of SCENARIO_VIEWS) {
   }
 }
 
-// An opened match row at every size, and a grade's why over it: a popover, which the audit
-// leaves out (fixed), so it is held inside the window here.
+/** An opened game's sheet: the whole window stays inside the window, at its top and at its end. */
+async function auditSheet(page: Page, size: { name: string; width: number; height: number }): Promise<void> {
+  const box = await page.getByTestId("game").boundingBox();
+  const inside = box && box.x >= 0 && box.y >= 0 && box.x + box.width <= size.width && box.y + box.height <= size.height;
+  expect(inside, `${size.name}: the sheet inside the window: ${JSON.stringify(box)}`).toBe(true);
+  expect(await page.evaluate(auditLayout), `${size.name} opened`).toEqual([]);
+  await page.getByTestId("game-body").evaluate((el) => {
+    el.scrollTop = el.scrollHeight;
+  });
+  expect(await page.evaluate(auditLayout), `${size.name} scrolled to its stats`).toEqual([]);
+  await page.getByTestId("game-body").evaluate((el) => {
+    el.scrollTop = 0;
+  });
+}
+
+// An opened game at every size (its sheet at its top, then scrolled to its stats), and a grade's
+// why in it: a popover, which the audit leaves out (fixed), so it is held inside the window here.
 test("home: an opened game and a grade's why lay out at every size", async ({ page, locale }) => {
-  // Eight sizes, each settled, audited and hovered twice: more than 30 s on a busy machine.
+  // Eight sizes, each settled, audited twice and hovered twice: more than 30 s on a busy machine.
   test.slow();
   const errors = trackErrors(page);
   await openApp(page);
@@ -123,9 +139,9 @@ test("home: an opened game and a grade's why lay out at every size", async ({ pa
     await page.mouse.move(0, 0);
     await page.setViewportSize({ width: size.width, height: size.height });
     await settle(page);
-    expect(await page.evaluate(auditLayout), `${size.name} opened`).toEqual([]);
-    for (const at of [0, 1]) {
-      await page.locator("[data-grade]").nth(at).hover();
+    await auditSheet(page, size);
+    for (const at of [0, 6]) {
+      await page.getByTestId("game").locator("[data-grade]").nth(at).hover();
       const why = await page.getByTestId("grade-why").boundingBox();
       expect(why, `${size.name} why ${at}`).not.toBeNull();
       const inside = why && why.x >= 0 && why.y >= 0 && why.x + why.width <= size.width && why.y + why.height <= size.height;
@@ -135,7 +151,7 @@ test("home: an opened game and a grade's why lay out at every size", async ({ pa
   expect(errors).toEqual([]);
 });
 
-// An opened game on Howling Abyss (no vision column there) at every size.
+// An opened game on Howling Abyss (no vision column, no vision stats there) at every size.
 test("home: an opened game on Howling Abyss lays out at every size", async ({ page, locale }) => {
   test.slow();
   const errors = trackErrors(page);
@@ -146,21 +162,30 @@ test("home: an opened game on Howling Abyss lays out at every size", async ({ pa
     if (isFrench(locale) && !FRENCH_SIZES.has(size.name)) continue;
     await page.setViewportSize({ width: size.width, height: size.height });
     await settle(page);
-    expect(await page.evaluate(auditLayout), `${size.name} opened`).toEqual([]);
+    await auditSheet(page, size);
   }
   expect(errors).toEqual([]);
 });
 
-// An opened game's other states (longest names and biggest numbers, errors) at the extreme sizes.
-for (const scenario of ["extreme", "match-details-error", "match-details-gone"] as const) {
+// An opened game's other states (longest names and biggest numbers, loading, errors) at the
+// extreme sizes; someone else's game (every stat row) too.
+for (const { scenario, view } of [
+  { scenario: "extreme", view: "/" },
+  { scenario: "match-details-slow", view: "/" },
+  { scenario: "match-details-error", view: "/" },
+  { scenario: "match-details-gone", view: "/" },
+  { scenario: "match-details-unavailable", view: "/" },
+  { scenario: "default", view: "/player/euw1/Blade%20Dancer/IRE" },
+] as const) {
   for (const size of [SIZES[0], SIZES[3], SIZES[6]]) {
-    test(`home/${scenario}, a game opened @ ${size.name}`, async ({ page }) => {
+    test(`${view}/${scenario}, a game opened @ ${size.name}`, async ({ page }) => {
       const errors = trackErrors(page);
-      await openApp(page, { scenario, width: size.width, height: size.height });
+      await openApp(page, { scenario, view, width: size.width, height: size.height });
       await page.locator("[data-testid=match-row] > button").first().click();
-      await expect(page.getByTestId("game").locator("[data-testid=game-player], [role=alert]").first()).toBeVisible();
-      await settle(page);
-      expect(await page.evaluate(auditLayout)).toEqual([]);
+      const shown = page.getByTestId("game").locator("[data-testid=game-player], [role=alert], [data-state=loading]");
+      await expect(shown.first()).toBeVisible();
+      if (scenario !== "match-details-slow") await settle(page);
+      await auditSheet(page, size);
       expect(errors).toEqual([]);
     });
   }

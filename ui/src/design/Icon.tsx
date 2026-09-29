@@ -33,6 +33,7 @@ const paths = {
   roleSupport: "M12 3 5 6v5c0 4.4 3 8.2 7 10 4-1.8 7-5.6 7-10V6zM12 9v6M9 12h6",
   back: "M15 5l-7 7 7 7",
   chevronDown: "M6 9l6 6 6-6",
+  arrowDown: "M12 5v14M6 13l6 6 6-6",
 } as const;
 
 export type IconName = keyof typeof paths;

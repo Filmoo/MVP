@@ -21,7 +21,8 @@ import { ImportPanel } from "../views/draft/ImportBar";
 import { Suggestions } from "../views/draft/Suggestions";
 import { Teams } from "../views/draft/Teams";
 import { Why } from "../views/draft/Why";
-import { MatchTable } from "../views/home/MatchDetails";
+import { MatchTable, markedIn } from "../views/home/MatchDetails";
+import { MatchStats } from "../views/home/MatchStats";
 import { PerformanceSummary } from "../views/home/PerformanceSummary";
 import { ProfileHeader } from "../views/home/ProfileHeader";
 import { RecentMatches } from "../views/home/RecentMatches";
@@ -35,11 +36,12 @@ const lux = mockChampionPage(99, 420, "emeraldPlus");
 const luxBuild = buildFor(lux, "support");
 if (!luxBuild) throw new Error("the Lux fixture has a support build");
 
-// Match rows with their grades (as player pages get them), and the first game opened.
+// Match rows with their grades (as player pages get them), and the first game opened (from our
+// backend: every stat row).
 const graded = withGrades(profile);
 const firstMatch = profile.recentMatches[0];
 if (!firstMatch) throw new Error("the profile fixture has games");
-const firstGame = gameFor(firstMatch, profile.riotId);
+const firstGame = gameFor(firstMatch, profile.riotId, false, false);
 
 /**
  * Every widget with representative data, for isolated performance measurement
@@ -49,6 +51,7 @@ export const widgetRegistry: Record<string, () => JSX.Element> = {
   "profile-header": () => <ProfileHeader profile={profile} />,
   "recent-matches": () => <RecentMatches matches={graded.recentMatches} focus={graded.riotId} />,
   "match-details": () => <MatchTable game={firstGame} focus={profile.riotId} />,
+  "match-stats": () => <MatchStats game={firstGame} marked={markedIn(firstGame, profile.riotId)} />,
   "performance-summary": () => <PerformanceSummary matches={profile.recentMatches} />,
   "draft-teams": () => <Teams draft={champSelectDraft} />,
   "draft-suggestions": () => (

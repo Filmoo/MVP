@@ -1,0 +1,321 @@
+/*
+ * An opened game (GameSheet.tsx): a modal sheet of liquid glass over the page. The dialog is the
+ * whole window (its own box around the sheet, over the dimmed page, is "outside": a click there
+ * closes it); the sheet sits over the page beside the rail, as tall as the window allows, and
+ * its game scrolls inside it. Only transform and opacity move: the sheet rises in and leaves,
+ * its glass, content and shadow fade (never the sheet itself: its glass would lose the page).
+ */
+.sheet {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: calc(var(--titlebar-h) + var(--space-5)) var(--space-8) var(--space-6) calc(var(--sidebar-w) + var(--space-8));
+  border: 0;
+  background: transparent;
+  color: var(--text-1);
+  overflow: hidden;
+}
+
+/* One cell, exactly the room left: the sheet never grows with its tables (they scroll). */
+.sheet[open] {
+  display: grid;
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+  justify-items: center;
+}
+
+/* The page behind, dimmed: still seen through the sheet's rim, bent. */
+.sheet::backdrop {
+  background: var(--bg-scrim);
+  animation: appear var(--dur-2) var(--ease);
+}
+
+.sheet[data-closing]::backdrop {
+  animation: vanish var(--dur-2) var(--ease) forwards;
+}
+
+.panel {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  width: min(100%, 1120px);
+  height: 100%;
+  min-height: 0;
+  border-radius: var(--radius-5);
+  /* Pulled (scroll to close), it springs back when let go. */
+  transition: translate var(--dur-spring) var(--ease-spring);
+  animation: rise var(--dur-spring) var(--ease-spring);
+}
+
+/* A wheel's notches glide; a finger is followed as it moves. */
+.sheet[data-pulling="wheel"] .panel {
+  transition-duration: var(--dur-1);
+  transition-timing-function: var(--ease);
+}
+
+.sheet[data-pulling="touch"] .panel {
+  transition: none;
+}
+
+/* Its shadow, a layer of its own: glass that bends the page mustn't cast one (liquid.ts). */
+.panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  border-radius: inherit;
+  box-shadow: var(--shadow-float);
+  animation: appear var(--dur-2) var(--ease);
+}
+
+/*
+ * Liquid glass over the page (design/liquid, "panel"): bent at the rim, frosted in the middle.
+ * The lens tints it like a card, so the frosted page shows through; without the lens (Light,
+ * Off) it keeps the denser floating fill, opaque when effects are off.
+ */
+.glass {
+  --lg-tint: var(--bg-card);
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--lg-fill, var(--bg-float));
+  backdrop-filter: var(--lg-filter, var(--blur-glass));
+  pointer-events: none;
+  animation: appear var(--dur-2) var(--ease);
+}
+
+/* ── The head: the row's game, at once ─────────────────────────────────────────────────── */
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  padding: var(--space-6) var(--space-6) var(--space-5) var(--space-7);
+  border-bottom: 1px solid var(--line-1);
+  animation: appear var(--dur-2) var(--ease);
+}
+
+.head > img,
+.head > [role="img"] {
+  flex: none;
+  border-radius: var(--radius-3);
+}
+
+.heading {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.title {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.win {
+  color: var(--win);
+}
+
+.loss {
+  color: var(--loss);
+}
+
+.remake {
+  color: var(--text-2);
+}
+
+.meta {
+  font-size: var(--text-sm);
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.close {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-3);
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+  transition:
+    background-color var(--dur-1) var(--ease),
+    color var(--dur-1) var(--ease);
+}
+
+.close:hover {
+  background: var(--bg-3);
+  color: var(--text-1);
+}
+
+/* ── The game, scrolling inside ───────────────────────────────────────────────────────── */
+
+.main {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  animation: appear var(--dur-2) var(--ease);
+}
+
+/* Its own scroll: past its ends the sheet is pulled instead (no bounce of the browser's). */
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: none;
+  padding: 0 var(--space-5) var(--space-7);
+}
+
+/* Focused at opening so the keyboard scrolls it: no ring around the whole game. */
+.body:focus-visible {
+  outline: none;
+}
+
+.stats {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-top: var(--space-2);
+}
+
+.statsTitle {
+  padding: 0 var(--space-4);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/*
+ * Scroll to close: while the sheet is pulled, a hint says what the pull does, its bar filling up
+ * to the close (`--progress`, 0–1, from GameSheet.tsx).
+ */
+.cue {
+  position: absolute;
+  bottom: var(--space-6);
+  left: 50%;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-6) var(--space-3) var(--space-5);
+  border-radius: var(--radius-full);
+  background: var(--bg-3);
+  box-shadow:
+    var(--shadow-float),
+    inset 0 0 0 1px var(--line-2);
+  color: var(--text-1);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0;
+  translate: -50% 0;
+  transition: opacity var(--dur-1) var(--ease);
+}
+
+.cue::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 2px;
+  background: var(--accent);
+  transform: scaleX(var(--progress, 0));
+  transform-origin: left;
+  transition: transform var(--dur-1) var(--ease);
+}
+
+.sheet[data-pulling] .cue {
+  opacity: 1;
+}
+
+.cue[data-edge="top"] {
+  top: var(--space-5);
+  bottom: auto;
+}
+
+.cue[data-edge="top"] svg {
+  rotate: 180deg;
+}
+
+/* ── Leaving: up when pulled past its end, down past its top, a short drop otherwise ───── */
+
+.sheet[data-closing] .panel {
+  animation: leave var(--dur-2) var(--ease) forwards;
+}
+
+.sheet[data-closing="up"] .panel {
+  --leave: -24vh;
+}
+
+.sheet[data-closing="down"] .panel {
+  --leave: 24vh;
+}
+
+.sheet[data-closing] .panel::before,
+.sheet[data-closing] .glass,
+.sheet[data-closing] .head,
+.sheet[data-closing] .main {
+  animation: vanish var(--dur-2) var(--ease) forwards;
+}
+
+@keyframes rise {
+  from {
+    transform: translateY(var(--space-8));
+  }
+}
+
+@keyframes leave {
+  to {
+    transform: translateY(var(--leave, var(--space-8)));
+  }
+}
+
+@keyframes appear {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes vanish {
+  to {
+    opacity: 0;
+  }
+}
+
+/* Narrow windows: the sheet takes the window under the title bar. */
+@media (max-width: 559px) {
+  .sheet {
+    padding: calc(var(--titlebar-h) + var(--space-2)) var(--space-3) var(--space-3);
+  }
+  .panel {
+    border-radius: var(--radius-4);
+  }
+  .head {
+    gap: var(--space-4);
+    padding: var(--space-5) var(--space-4) var(--space-4) var(--space-5);
+  }
+  .body {
+    padding: 0 var(--space-2) var(--space-6);
+  }
+}

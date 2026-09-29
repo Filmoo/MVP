@@ -1,9 +1,4 @@
-/* An opened game (layout: MatchTable.module.css) and a grade's why. */
-
-.game {
-  position: relative;
-  border-radius: var(--radius-3);
-}
+/* The whole game in an opened game's sheet (layout: MatchTable.module.css) and a grade's why. */
 
 .champ {
   display: flex;
@@ -58,6 +53,20 @@
 .unnamed {
   color: var(--text-3);
   font-weight: var(--weight-medium);
+}
+
+/* A named player opens their page: the name reads as a name until pointed at. */
+.link {
+  text-decoration: none;
+  cursor: pointer;
+  border-radius: var(--radius-1);
+}
+
+.link:hover {
+  color: var(--accent-strong);
+  text-decoration: underline;
+  text-decoration-color: var(--accent);
+  text-underline-offset: 3px;
 }
 
 .tag {
@@ -119,6 +128,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  border-radius: var(--radius-2);
 }
 
 .score {

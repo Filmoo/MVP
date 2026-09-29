@@ -1,13 +1,11 @@
 /**
- * An opened match row: the whole game (both teams, every player's grade) and the why of a
- * grade. Lazy: it rides in the player page's chunk, which the match list loads on first use
- * with the views' words (RecentMatches `provideDetails`); while the game loads, the row's
- * Suspense shows a skeleton of the table's height.
+ * The whole game, as an opened game shows it (GameSheet.tsx): both teams, every player's grade
+ * with its why, each Riot ID a link to that player's page; and the why of a grade on a match
+ * row. Lazy: it rides in the opened game's chunk, which the match list loads on first use.
  */
-import { createResource, createSignal, For, type JSX, onCleanup, onMount, Show } from "solid-js";
+import { createSignal, For, type JSX, onMount, Show } from "solid-js";
 import { render } from "solid-js/web";
 import { useData } from "../../data/context";
-import type { BackendError } from "../../data/generated/BackendError";
 import type { GradeFactor } from "../../data/generated/GradeFactor";
 import type { MatchDetails as Game } from "../../data/generated/MatchDetails";
 import type { MatchGrade } from "../../data/generated/MatchGrade";
@@ -16,13 +14,11 @@ import type { MatchSummary } from "../../data/generated/MatchSummary";
 import type { MatchTeam } from "../../data/generated/MatchTeam";
 import type { RiotId } from "../../data/generated/RiotId";
 import { ChampionIcon, ItemIcon, SpellIcon } from "../../design/GameIcon";
-import { ErrorState } from "../../design/States";
 import { t } from "../../i18n";
 import { decimal, integer, kdaRatio, percent, signedPoints } from "../../lib/format";
 import { onHowlingAbyss } from "../../lib/queues";
-import { formatRiotId, riotIdKey } from "../../lib/riot-id";
+import { formatRiotId, isPlatform, playerPath, riotIdKey } from "../../lib/riot-id";
 import { roleLabel } from "../../lib/roles";
-import { Widget } from "../../widgets/Widget";
 import { GradeChip } from "./GradeChip";
 import styles from "./MatchDetails.module.css";
 import table from "./MatchTable.module.css";
@@ -30,6 +26,12 @@ import table from "./MatchTable.module.css";
 const ITEM_SLOTS = 6;
 
 const sameRiotId = (a: RiotId | null, b: RiotId | undefined) => !!a && !!b && riotIdKey("", a) === riotIdKey("", b);
+
+/** The player a game names `focus` (the page owner), else yours. */
+export const markedIn = (game: Game, focus: RiotId | undefined): MatchPlayer | undefined => {
+  const players = game.teams.flatMap((team) => team.players);
+  return players.find((p) => sameRiotId(p.riotId, focus)) ?? players.find((p) => p.isMe);
+};
 
 /** A fact of the scoreboard that moved a grade, in words. */
 export function factorWords(f: GradeFactor, deaths: number): string {
@@ -68,7 +70,19 @@ function Rune(props: { id: number | null; tree?: boolean }): JSX.Element {
   );
 }
 
-function PlayerLine(props: { player: MatchPlayer; marked: boolean; top: number }): JSX.Element {
+/** The player behind each line: the sheet's grades explain themselves from it. */
+const lines = new WeakMap<Element, MatchPlayer>();
+
+/** How the table links a player's page: `path` is the route (the sheet closes, then goes there). */
+export type OpenPlayer = (path: string) => void;
+
+function PlayerLine(props: {
+  player: MatchPlayer;
+  marked: boolean;
+  top: number;
+  platform: string | undefined;
+  onPlayer?: OpenPlayer;
+}): JSX.Element {
   const { gameData } = useData();
   const p = () => props.player;
   const champion = () => gameData()?.champions.get(p().championId)?.name ?? t().common.championN(p().championId);
@@ -82,8 +96,20 @@ function PlayerLine(props: { player: MatchPlayer; marked: boolean; top: number }
     const id = p().riotId;
     return id ? formatRiotId(id) : undefined;
   };
+  /** Their page: named players only (never a hidden one, nor a bot). */
+  const page = () => {
+    const id = p().riotId;
+    return id && props.platform ? playerPath(props.platform, id) : undefined;
+  };
+  const name = () => (
+    <>
+      {p().riotId?.gameName ?? (p().hidden ? t().live.hidden : t().live.unknown)}
+      <Show when={p().riotId?.tagLine}>{(tag) => <span class={styles.tag}> #{tag()}</span>}</Show>
+    </>
+  );
   return (
     <li
+      ref={(el) => lines.set(el, props.player)}
       class={`${table.player} ${props.marked ? styles.marked : ""}`}
       data-testid="game-player"
       data-marked={props.marked ? "" : undefined}
@@ -102,10 +128,22 @@ function PlayerLine(props: { player: MatchPlayer; marked: boolean; top: number }
         </span>
       </span>
       <span class={`${table.name} ${styles.who}`}>
-        <span class={`${styles.riotId} ${p().riotId ? "" : styles.unnamed}`} title={whole()}>
-          {p().riotId?.gameName ?? (p().hidden ? t().live.hidden : t().live.unknown)}
-          <Show when={p().riotId?.tagLine}>{(tag) => <span class={styles.tag}> #{tag()}</span>}</Show>
-        </span>
+        <Show when={page()} fallback={<span class={`${styles.riotId} ${p().riotId ? "" : styles.unnamed}`}>{name()}</span>}>
+          {(to) => (
+            <a
+              class={`${styles.riotId} ${styles.link}`}
+              href={`#${to()}`}
+              title={whole()}
+              onClick={(e) => {
+                if (!props.onPlayer) return;
+                e.preventDefault();
+                props.onPlayer(to());
+              }}
+            >
+              {name()}
+            </a>
+          )}
+        </Show>
         <span class={styles.sub}>{sub()}</span>
       </span>
       <span class={`${table.kda} ${styles.stat} num`}>
@@ -128,7 +166,8 @@ function PlayerLine(props: { player: MatchPlayer; marked: boolean; top: number }
         <For each={slots()}>{(id) => <ItemIcon itemId={id} size={20} tooltip />}</For>
         <ItemIcon itemId={p().trinket ?? undefined} size={20} tooltip />
       </span>
-      <span class={`${table.grade} ${styles.grade}`}>
+      {/* Focusable: the keyboard gets the why too. */}
+      <span class={`${table.grade} ${styles.grade}`} data-grade={p().grade ? "" : undefined} tabindex={p().grade ? 0 : undefined}>
         <Show when={p().grade}>
           {(g) => (
             <>
@@ -142,7 +181,13 @@ function PlayerLine(props: { player: MatchPlayer; marked: boolean; top: number }
   );
 }
 
-function TeamLines(props: { team: MatchTeam; marked: MatchPlayer | undefined; top: number }): JSX.Element {
+function TeamLines(props: {
+  team: MatchTeam;
+  marked: MatchPlayer | undefined;
+  top: number;
+  platform: string | undefined;
+  onPlayer?: OpenPlayer | undefined;
+}): JSX.Element {
   const total = (key: "kills" | "deaths" | "assists") => props.team.players.reduce((sum, p) => sum + p[key], 0);
   const columns = () => t().matchDetails.columns;
   const result = () => t().matches.outcome[props.team.win ? "win" : "loss"];
@@ -163,75 +208,51 @@ function TeamLines(props: { team: MatchTeam; marked: MatchPlayer | undefined; to
           {columns().grade}
         </span>
       </li>
-      <For each={props.team.players}>{(player) => <PlayerLine player={player} marked={player === props.marked} top={props.top} />}</For>
+      <For each={props.team.players}>
+        {(player) => (
+          <PlayerLine
+            player={player}
+            marked={player === props.marked}
+            top={props.top}
+            platform={props.platform}
+            {...(props.onPlayer ? { onPlayer: props.onPlayer } : {})}
+          />
+        )}
+      </For>
     </ol>
   );
 }
 
 /**
- * Both teams, damage bars scaled on the game's top damage; `focus`'s line (else yours) is marked.
- * Games without vision (Howling Abyss: everyone's score is 0) have no vision column.
+ * Both teams, damage bars scaled on the game's top damage; `focus`'s line (else yours) is marked,
+ * a grade explains itself on hover or keyboard focus. Games without vision (Howling Abyss:
+ * everyone's score is 0) have no vision column. `onPlayer`: how a player's link opens their
+ * page (a plain link without it).
  */
-export function MatchTable(props: { game: Game; focus: RiotId | undefined }): JSX.Element {
+export function MatchTable(props: { game: Game; focus: RiotId | undefined; onPlayer?: OpenPlayer }): JSX.Element {
   const players = () => props.game.teams.flatMap((team) => team.players);
   const top = () => Math.max(1, ...players().map((p) => p.damageToChampions));
-  const marked = () => players().find((p) => sameRiotId(p.riotId, props.focus)) ?? players().find((p) => p.isMe);
+  const marked = () => markedIn(props.game, props.focus);
   const noVision = () => onHowlingAbyss(props.game.queueId) || players().every((p) => p.visionScore === 0);
+  /** Player pages live on the game's platform (`EUW1_…` → `euw1`). */
+  const platform = () => {
+    const id = props.game.matchId.split("_")[0]?.toLowerCase() ?? "";
+    return isPlatform(id) ? id : undefined;
+  };
+  const explainHere = (e: Event) => explain(e, locateInGame);
   return (
-    <div class={`${table.table} ${noVision() ? table.noVision : ""}`} data-vision={noVision() ? "none" : undefined}>
-      <For each={props.game.teams}>{(team) => <TeamLines team={team} marked={marked()} top={top()} />}</For>
+    <div
+      class={`${table.table} ${noVision() ? table.noVision : ""}`}
+      data-vision={noVision() ? "none" : undefined}
+      onPointerOver={explainHere}
+      onPointerOut={explainHere}
+      onFocusIn={explainHere}
+      onFocusOut={explainHere}
+    >
+      <For each={props.game.teams}>
+        {(team) => <TeamLines team={team} marked={marked()} top={top()} platform={platform()} onPlayer={props.onPlayer} />}
+      </For>
     </div>
-  );
-}
-
-/** An opened match row: the game, loaded on demand, or why it can't show (with a retry when that can help). */
-export function MatchDetails(props: { matchId: string; focus: RiotId | undefined; onClose: () => void }): JSX.Element {
-  const { transport } = useData();
-  const [game, { refetch }] = createResource(
-    () => props.matchId,
-    (matchId) => transport.call("match_details", { matchId }),
-  );
-  // The core's `BackendError` (anything else reads as unreachable), worded like the other lookups.
-  const failure = () => {
-    const { players, stats, matchDetails } = t();
-    const error: BackendError = (game.error as { detail?: BackendError } | undefined)?.detail ?? { kind: "network", message: "" };
-    if (error.kind === "network") return { ...players.network, retry: true };
-    if (error.kind === "rateLimited") {
-      return { title: stats.errors.rateLimited.title, text: stats.errors.rateLimited.text(error.retryAfter), retry: true };
-    }
-    return { title: matchDetails.errors.title, text: matchDetails.errors[error.kind], retry: error.kind !== "notFound" };
-  };
-  // Escape (from the row, the game, or nowhere in particular) closes the game and gives the focus
-  // back to its row.
-  const onKey = (e: KeyboardEvent) => {
-    const row = document.getElementById(`match-${props.matchId}`);
-    const from = e.target as Node;
-    if (e.key !== "Escape" || (from !== document.body && !row?.parentElement?.contains(from))) return;
-    props.onClose();
-    row?.focus();
-  };
-  document.addEventListener("keydown", onKey);
-  onCleanup(() => document.removeEventListener("keydown", onKey));
-  return (
-    <Widget name="match-details">
-      <section
-        id={`game-${props.matchId}`}
-        aria-labelledby={`match-${props.matchId}`}
-        class={`${styles.game} glass-pill`}
-        data-testid="game"
-      >
-        <Show
-          when={!game.error}
-          fallback={
-            <Show when={failure().retry} fallback={<ErrorState title={failure().title} message={failure().text} />}>
-              <ErrorState title={failure().title} message={failure().text} onRetry={() => void refetch()} />
-            </Show>
-          }
-        >
-          <Show when={game()}>{(g) => <MatchTable game={g()} focus={props.focus} />}</Show>
-        </Show>
-      </section>
-    </Widget>
   );
 }
 
@@ -241,7 +262,7 @@ export function MatchDetails(props: { matchId: string; focus: RiotId | undefined
  * CSS so it follows the page as it scrolls; it goes when the pointer or the focus leaves, on
  * Escape, or on a click elsewhere.
  */
-export function GradeWhy(props: { grade: MatchGrade; match: { deaths: number }; onClose: () => void }): JSX.Element {
+export function GradeWhy(props: { grade: MatchGrade; deaths: number; onClose: () => void }): JSX.Element {
   let el!: HTMLDivElement;
   const words = () => t().gradeWhy;
   onMount(() => el.showPopover());
@@ -264,58 +285,69 @@ export function GradeWhy(props: { grade: MatchGrade; match: { deaths: number }; 
       </p>
       <ul class={styles.factors}>
         <For each={props.grade.factors}>
-          {(f) => <li class={`num ${f.points >= 0 ? styles.up : styles.down}`}>{factorWords(f, props.match.deaths)}</li>}
+          {(f) => <li class={`num ${f.points >= 0 ? styles.up : styles.down}`}>{factorWords(f, props.deaths)}</li>}
         </For>
       </ul>
     </div>
   );
 }
 
-/** A grade being explained, and the chip it hangs from. */
+/** A grade being explained: the facts, its chip (the popover's anchor), what it describes and where the popover lives. */
 interface Shown {
-  match: MatchSummary;
   grade: MatchGrade;
+  deaths: number;
   chip: HTMLElement;
+  /** Described by the why while it shows: a match row, a player's grade. */
+  owner: HTMLElement;
+  /** Where the popover is drawn (its widget: inside the sheet for the sheet's grades). */
+  at: Element;
 }
 
 const [shown, setShown] = createSignal<Shown>();
-/**
- * Where the why is drawn: in the match list (it floats over everything as a popover), boxless
- * so the list's layout doesn't see it.
- */
+/** Where the why is drawn: boxless, so the layout around it doesn't see it. */
 let host: HTMLElement | undefined;
 let unmount: (() => void) | undefined;
 
-/** Explains `next` (or nothing): its chip becomes the popover's anchor and its row is described by it. */
+/** Explains `next` (or nothing): its chip becomes the popover's anchor and its owner is described by it. */
 function show(next?: Shown): void {
   const last = shown();
   last?.chip.style.removeProperty("anchor-name");
-  last?.chip.closest("button")?.removeAttribute("aria-describedby");
+  last?.owner.removeAttribute("aria-describedby");
   next?.chip.style.setProperty("anchor-name", "--grade-why");
-  next?.chip.closest("button")?.setAttribute("aria-describedby", "grade-why");
+  next?.owner.setAttribute("aria-describedby", "grade-why");
   setShown(next);
 }
 
+/** Hides a why that shows (Escape in the sheet goes to it first): whether one showed. */
+export function dismissWhy(): boolean {
+  const was = !!shown();
+  show();
+  return was;
+}
+
 /**
- * Follows the match list's pointer and focus events (it forwards them all): a grade's why shows
- * while its chip is hovered, or while its row has the keyboard focus, and goes when they leave.
+ * Follows pointer and focus events: a grade's why shows while its chip is hovered, or while its
+ * row or grade has the keyboard focus, and goes when they leave. `locate` finds the grade an
+ * event is about.
  */
-export function hint(e: Event, find: (matchId: string) => { match: MatchSummary; grade: MatchGrade } | undefined): void {
+function explain(e: Event, locate: (target: Element) => Shown | undefined): void {
   const target = e.target as Element;
-  const row = target.closest("button[id^='match-']");
-  const chip = row?.querySelector<HTMLElement>("[data-chip]");
-  const on = e.type === "pointerover" ? target.closest("[data-grade]") : e.type === "focusin" && row?.matches(":focus-visible");
-  const found = on && row && find(row.id.slice("match-".length));
-  if (found && chip && row) {
-    if (shown()?.chip === chip) return;
-    if (!host?.isConnected) {
+  const on = e.type === "pointerover" ? target.closest("[data-grade]") : e.type === "focusin" && target.matches(":focus-visible");
+  const found = on ? locate(target) : undefined;
+  if (found) {
+    if (shown()?.chip === found.chip) return;
+    if (host?.parentElement !== found.at) {
       unmount?.();
+      host?.remove();
       host = document.createElement("div");
       host.style.display = "contents";
-      row.closest("ol")?.after(host);
-      unmount = render(() => <Show when={shown()}>{(s) => <GradeWhy {...s()} onClose={() => show()} />}</Show>, host);
+      found.at.append(host);
+      unmount = render(
+        () => <Show when={shown()}>{(s) => <GradeWhy grade={s().grade} deaths={s().deaths} onClose={() => show()} />}</Show>,
+        host,
+      );
     }
-    show({ ...found, chip });
+    show(found);
   } else if (
     e.type.endsWith("out") &&
     ((e as PointerEvent).relatedTarget as Element | null)?.closest("[data-grade]") !== target.closest("[data-grade]")
@@ -323,4 +355,28 @@ export function hint(e: Event, find: (matchId: string) => { match: MatchSummary;
     // Leaving for another part of the same grade keeps it.
     show();
   }
+}
+
+/** A player's grade in an opened game. */
+function locateInGame(target: Element): Shown | undefined {
+  const cell = target.closest<HTMLElement>("[data-grade]");
+  const line = cell?.closest("[data-testid=game-player]");
+  const player = line && lines.get(line);
+  const chip = cell?.querySelector<HTMLElement>("[data-chip]");
+  const at = cell?.closest("[data-widget]");
+  return cell && player?.grade && chip && at ? { grade: player.grade, deaths: player.deaths, chip, owner: cell, at } : undefined;
+}
+
+/**
+ * Follows the match list's pointer and focus events (it forwards them all): a grade's why shows
+ * while its chip is hovered, or while its row has the keyboard focus.
+ */
+export function hint(e: Event, find: (matchId: string) => { match: MatchSummary; grade: MatchGrade } | undefined): void {
+  explain(e, (target) => {
+    const row = target.closest<HTMLElement>("button[id^='match-']");
+    const chip = row?.querySelector<HTMLElement>("[data-chip]");
+    const found = row && find(row.id.slice("match-".length));
+    const at = row?.closest("[data-widget]");
+    return found && chip && row && at ? { grade: found.grade, deaths: found.match.deaths, chip, owner: row, at } : undefined;
+  });
 }

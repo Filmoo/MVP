@@ -27,8 +27,8 @@ const withWords =
 const Settings = lazy(withWords(() => import("../views/settings/Settings")));
 const Draft = lazy(withWords(() => import("../views/draft/Draft")));
 const Live = lazy(withWords(() => import("../views/live/Live")));
-// The player page's chunk also carries an opened match row's code (the whole game, a grade's
-// why), which Home's match history needs too: it loads them from here.
+// The player page's chunk also carries an opened game's code (its sheet, the whole game, the
+// stats table, a grade's why), which Home's match history needs too: it loads them from here.
 const playerPage = withWords(() => import("../views/player/Player"));
 const Player = lazy(playerPage);
 provideDetails(playerPage);
