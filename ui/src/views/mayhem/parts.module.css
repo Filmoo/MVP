@@ -76,8 +76,10 @@
   min-width: 0;
 }
 
+/* Takes the row's room: its tier and rank, or a number, sit at the end. */
 .text {
   display: flex;
+  flex: 1;
   flex-direction: column;
   min-width: 0;
 }
@@ -135,12 +137,6 @@
   flex: none;
   font-size: var(--text-sm);
   color: var(--text-2);
-}
-
-/* At the end of a row: its tier and rank, or a number. */
-.row > .rank,
-.row > .value {
-  margin-left: auto;
 }
 
 /* ---- One champion's augments ------------------------------------------------------------------- */
