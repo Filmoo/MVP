@@ -19,6 +19,7 @@ import { bracketLabel, buildFor, pickRole, roleFilterOptions, roleTabs, scopeLab
 import { ARAM, filters, setFilter } from "../../lib/stats-filters";
 import { Widget } from "../../widgets/Widget";
 import { ImportBar } from "../draft/ImportBar";
+import { ChampionAugments } from "../mayhem/parts";
 import page from "../page.module.css";
 import { ScopeSwitches, StatsProblem, useLinkFilters, useStatsIndex } from "../stats/common";
 import { ItemsCard, SkillsCard, SpellsCard } from "./Builds";
@@ -106,7 +107,16 @@ function ChampionView(props: { championId: number }): JSX.Element {
   const { transport, gameData } = useData();
   const { index, version } = useStatsIndex();
   useLinkFilters({ role: false });
-  const queue = createMemo(() => filters().queue);
+  // ARAM: Mayhem's tab (`&mode=mayhem`): the champion's augments, then ARAM's builds.
+  const [mayhem, setMayhem] = createSignal(queryParam("mode") === "mayhem");
+  createEffect(
+    on(
+      () => queryParam("mode"),
+      (mode) => setMayhem(mode === "mayhem"),
+      { defer: true },
+    ),
+  );
+  const queue = createMemo(() => (mayhem() ? ARAM : filters().queue));
   const bracket = createMemo(() => filters().bracket);
   const stats = createQuery(
     () => ({ championId: props.championId, queue: queue(), bracket: bracket(), version: version() }),
@@ -138,7 +148,7 @@ function ChampionView(props: { championId: number }): JSX.Element {
           <Icon name="back" size={16} />
           {t().champions.all}
         </a>
-        <ScopeSwitches />
+        <ScopeSwitches mayhem={{ selected: mayhem(), onSelect: () => setMayhem(true), onLeave: () => setMayhem(false) }} />
       </div>
       <Widget name="champion-hero">
         <ChampionHero
@@ -149,8 +159,20 @@ function ChampionView(props: { championId: number }): JSX.Element {
           forRole={role()}
           onRole={setWanted}
           index={index()}
+          identityOnly={mayhem()}
         />
       </Widget>
+      <Show when={mayhem()}>
+        <Card title={t().mayhem.of(name())}>
+          <Widget name="mayhem-champion">
+            <ChampionAugments championId={props.championId} name={name()} full />
+          </Widget>
+        </Card>
+        <div class={styles.aramHead}>
+          <h2 class={styles.aramTitle}>{t().mayhem.aramBuilds}</h2>
+          <p class={styles.aramNote}>{t().mayhem.aramNote}</p>
+        </div>
+      </Show>
       <Switch>
         <Match when={stats.error() !== undefined && !stats.loading()}>
           <StatsProblem error={stats.error()} onRetry={stats.refetch} />

@@ -16,6 +16,7 @@ use serde::Deserialize;
 
 pub mod descriptions;
 pub mod emblems;
+pub mod mayhem;
 
 pub use descriptions::rich_text;
 

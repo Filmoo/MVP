@@ -10,6 +10,7 @@ flowchart LR
     Cache[("Disk cache<br/>game data per patch")]
   end
   DD["Riot Data Dragon<br/>(names, icons)"]
+  CD["CommunityDragon<br/>(game files mirror)"]
   subgraph Server["Our backend (VPS, Docker behind Caddy/HTTPS)"]
     Api["API · apps/backend (mvp-backend)<br/>player lookups + scouting, updates,<br/>remote config, crash reports"]
     Data[("Data dir (volume)<br/>releases.json · config.json<br/>reports/ · cache snapshot")]
@@ -25,6 +26,8 @@ flowchart LR
   Core --> Cache
   Core -- "versions + JSON" --> DD
   UI -- "icons (img)" --> DD
+  UI -- "emblems, augment icons (img)" --> CD
+  Api -- "Mayhem augments,<br/>once per game version" --> CD
   Api <-- "RIOT_API_KEY" --> Riot
   Crawler --> Riot --> Crawler
   Crawler --> Agg --> Files
@@ -73,6 +76,10 @@ TypeScript types); failures answer `ApiError` `{ error, message, retryAfter? }`.
 | `GET /v1/updates/{target}/{arch}/{version}?channel=` | 204 or the Tauri updater manifest (staged rollout, channels, blocked releases) |
 | `GET /v1/config?version=&channel=` | `RemoteConfig` (feature flags, kill switches, min version, banners) · `ETag`/304 |
 | `POST /v1/reports` | opt-in `CrashReport`, scrubbed of personal data, kept 30 days |
+| `GET /v1/mayhem/tiers` | `MayhemTiers`: the owner's augment tiers (`mayhem-tiers.json`; empty without it) · ETag, `no-cache` |
+| `GET /v1/mayhem/augments` | `AugmentCatalog`: ARAM: Mayhem's augments, English and French · ETag, `max-age=3600` · 404 until built |
+| `POST /v1/mayhem/games` | opt-in `MayhemUpload` → `MayhemUploadAnswer` `{ accepted, duplicates }` · 400 · 413 over 64 KB · 429 |
+| `GET /v1/mayhem/stats?patch=` | `MayhemStats`: pick counts of a patch's shared games (default: the newest) · ETag, `max-age=300` · 404 without games |
 | `GET /metrics` | Prometheus text (admin address or bearer token) |
 
 Scouting batches name players by **Riot ID**: the League client's PUUIDs are not our API key's
@@ -103,6 +110,8 @@ Platform services (`apps/backend/src/ops.rs` and siblings) sit next to the Riot 
 - **Reports:** opt-in only, scrubbed (Riot IDs, PUUIDs, user names in paths, e-mails,
   credentials, IPs), per-install rate limited, daily JSONL files pruned after 30 days,
   erasable per install id (`mvp-backend reports forget`).
+- **ARAM: Mayhem:** the owner's tiers file (validated, reloaded on change), the augment catalog
+  built from the game's files, opt-in shared games counted into pick rates. Below, "ARAM: Mayhem".
 - **Hardening:** every request gets an id, a span and metrics; `/v1/*` is rate limited per
   `X-MVP-Install` (else IP) with 429 + `Retry-After`; body limits and a 45 s timeout; JSON logs
   in production; graceful shutdown.
@@ -895,19 +904,91 @@ enemy's `role`/`roleOdds` (≥ 5 %).
   *Pick*; on narrow windows the panel is stacked last and opens on *Teams* (rows explain
   themselves inline).
 
+## ARAM: Mayhem (`static_data::mayhem`, `apps/backend/src/mayhem.rs`, `companion::mayhem`)
+Queue 2400 (custom games 3270), game mode `KIWI`. Riot keeps these games off Match-V5, so the
+numbers come from the owner (tiers) and from players who opt in (pick counts), **never a win
+rate** (policy.md, "ARAM: Mayhem augments"; decisions.md).
+
+- **Augment catalog** (`static_data::mayhem`, run by the backend): from `CommunityDragon`'s
+  mirror of the game files: `content-metadata.json` (the game version), the pool
+  (`augment-lists.json`, mode `KIWI`: 223 augments on 16.19), each augment's rarity, icon and
+  names (`cherry-augments.json`, `default` and `fr_fr`), and its short description (the augment
+  definitions in `game/maps/modespecificdata/kiwi.bin.json` and the game's English and French
+  string tables, ~33 MB each, read as a stream). Values from the definitions: a level range reads
+  `20–80`, a stat scaling shows its base, what only the game knows in play reads `…`, the
+  champion's own ability `[Ability]`. Built into `mayhem/augments.json` once per game version
+  (checked at start and every 6 h, `MAYHEM_CATALOG=0` to stop; `mvp-backend mayhem augments
+  [--force]`); the sources stay on disk only for the version being built.
+- **Tiers** (`mayhem-tiers.json`, the owner's, apps/backend/README.md): watched like `config.json`
+  (a broken file stops the service at start; a broken edit keeps the previous version). Refused:
+  unknown keys, an augment twice (within or across tiers), a bad patch, date or note. The order
+  inside a tier is the rank: `MayhemTiers::of(id)` → (tier, rank from 1).
+- **Shared games** (`POST /v1/mayhem/games`): 1–20 games, each 10 players on 10 different
+  champions with ≤ 6 distinct augments and ≤ 6 items, a SHA-256 game hash, a patch not newer than
+  the catalog's; body ≤ 64 KB; per install 10 at once, then 30 an hour. A game counts once
+  (hashes in memory, rebuilt from the files at start); it is appended to
+  `mayhem/games/{patch}.jsonl` (arrival time, platform, the game: no install id, no IP) and added
+  to the patch's tallies in memory: games, champion games, augment picks overall and per
+  champion, final items per champion (once per game). `GET /v1/mayhem/stats` renders them at most
+  once a minute while games arrive. Metrics: `mvp_mayhem_games_total{outcome}`.
+- **In the app** (`MayhemClient`): the three files through the backend client, on disk with their
+  ETags (`{app cache}/mayhem/v1/{augments,tiers,stats}.json` + `.etag`); a copy older than its
+  freshness (augments 1 h, tiers and stats 5 min) answers at once and is revalidated in the
+  background; after a failure the held copy stands 30 s before the next try. Only when something
+  asks, never on a timer.
+
+| Command | Answer |
+| --- | --- |
+| `mayhem_augments { language }` | `MayhemAugments \| null`: names and descriptions in the UI's language (English where French is missing), icons' full URLs; `null` while the server hasn't built them |
+| `mayhem_overview` | `MayhemOverview`: the tiers and every augment's pick count over all champions (`null` parts when unpublished or offline without a copy) |
+| `mayhem_champion { championId }` | `MayhemChampion`: its priorities per rarity, most picked augments (10), most common final items (12), its games and `minGames` |
+
+- **Priorities** (`companion::mayhem::champion`): per rarity (each offer round is one rarity),
+  the tiered augments by tier, then the owner's rank; once the champion has 30 shared games
+  (`MIN_GAMES`) its pick rate comes with every entry and the untiered augments its players pick
+  follow, most picked first. At most 8 per rarity; nothing without a tier or a pick signal.
+- **Sharing** (`companion::mayhem::share`, started beside the core by the shell with
+  `spawn_sharing`, on the core's client and status; only while
+  `Settings.shareMayhemGames` and the remote `features.mayhemSharing` are on): a scan 10 s after
+  a game reaches the end-of-game screen and again when it leaves it, 10 s after the client
+  connects, and once when the switch is turned on. It reads the last 20 listed games
+  (`/lol-match-history/…/matches`), then `GET /lol-match-history/v1/games/{gameId}` for each
+  matchmade Mayhem game (queue 2400, over 5 minutes) not shared yet: champion,
+  `playerAugment1`–`6` and `item0`–`5` of the ten players, one upload per platform. The hashes
+  sent (the last 500, `{app cache}/mayhem/shared.json`) keep a game from going twice; a game the
+  server refuses isn't sent again, one a network failure kept goes at the next scan.
+- **Draft**: the gameflow session's queue or mode makes `DraftView.mode` `"mayhem"`; the bench is
+  ranked as in ARAM, the side panel opens on *Augments* (the selected pick's priorities, else
+  yours, one rarity at a time) and each row shows that champion's three most picked augments,
+  the first named, once it has 30 shared games. Pick rates, most picked augments and common
+  items show nowhere below that sample.
+- **UI** (`ui/src/views/mayhem`): `/mayhem` (its own lazy chunk, opened from the Tier list's
+  queue tabs, "ARAM: Mayhem"): every augment by tier and rarity with "S · 1" badges and pick
+  rates, and a champion filter (`?champion=`) with that champion's priorities, most picked
+  augments and common items. `parts.tsx` holds what the other views share: the champion page's
+  Mayhem tab (`/champions?id=…&mode=mayhem`, then ARAM's build labelled as ARAM data), Draft's
+  *Augments* tab and rows, Live's "My build" in a Mayhem game. Hovers are the app's tooltip cards
+  (`data-hint`, "Tooltips"): an augment row says what it does (also on keyboard focus), `S · 2`
+  and the page's tier marks what MVP's tiers are (their own mark: the stats pages' grade badge
+  explains a win-rate tier). Mock scenarios `mayhem-*`
+  (`empty`, `unbuilt`, `offline`, `slow`, `extreme`, `champ-select`, `live`); `?augments=dev`
+  (dev server and screenshots only) shows the real catalog from `.cache/mayhem`.
+- **mock-lcu** `--mayhem`: champion selects and games of queue 2400; the newest listed game is a
+  Mayhem game with augments in every mode.
+
 ## Crates
 | Crate | Role |
 | --- | --- |
 | `domain` | UI-facing types (serde + ts-rs) |
 | `lcu` | League client: discovery, pinned TLS, REST, WAMP events, connector lifecycle |
 | `mock-lcu` | fake League client for tests and development (match history with whole games) |
-| `companion` | Tauri-free core: client status, champ select → `DraftView` (+ draft helper), loading screen → `LiveGame`, settings, automations, build imports, your games' grades and details, backend client, stats download + disk cache, remote config, crash reports, update policy |
+| `companion` | Tauri-free core: client status, champ select → `DraftView` (+ draft helper), loading screen → `LiveGame`, settings, automations, build imports, your games' grades and details, backend client, stats download + disk cache, ARAM: Mayhem data and opt-in sharing, remote config, crash reports, update policy |
 | `scrub` | removes personal data (Riot IDs, PUUIDs, user names in paths, e-mails, credentials, IPs) from crash reports, in the app and on the server |
-| `static-data` | Data Dragon download (champions, items, spells, rune trees) + per-patch cache + offline fallback; what each rune, shard, spell and item does (Riot's markup to safe text), ranked emblems |
+| `static-data` | Data Dragon download (champions, items, spells, rune trees) + per-patch cache + offline fallback; what each rune, shard, spell and item does (Riot's markup to safe text), ranked emblems; ARAM: Mayhem's augment catalog from the game files (run by the backend) |
 | `stats` | statistics, the draft model and the per-game grade |
 | `aggregate` | stats pipeline core: Match-V5 → facts → mergeable aggregates → published JSON |
 | `riot-api` | Riot Web API client for the backend (rate limits, retries) |
 | `players` | Riot data → `PlayerProfile` / `ScoutCard` / `MatchDetails` and grades (behind a `RiotSource` trait the backend caches) |
 | `apps/desktop` | Tauri shell: window, tray, commands, event bridge |
-| `apps/backend` | `mvp-backend` HTTP service: player lookups, scouting, match details, published stats files (key server-side), app updates, remote config, crash reports, admin CLI |
+| `apps/backend` | `mvp-backend` HTTP service: player lookups, scouting, match details, published stats files (key server-side), ARAM: Mayhem (tiers, augments, shared games), app updates, remote config, crash reports, admin CLI |
 | `apps/crawler` | `mvp-crawler`: crawl (Riot API → SQLite) and publish (→ `stats/v1/…`) |

@@ -38,6 +38,7 @@ import {
   searchPlayer,
 } from "./live-fixtures";
 import { detailsFrom, gradesFrom, withGrades } from "./match-fixtures";
+import { emptyOverview, loadMayhemAugments, longAugment, mayhemAugments, mayhemChampion, mayhemOverview } from "./mayhem-fixtures";
 import {
   autoAcceptKilledConfig,
   bannersConfig,
@@ -111,7 +112,7 @@ export type MockResponse<T, A = undefined> =
   | { data: T; delayMs?: number }
   /** Fails; `detail` is the structured error the core would send (e.g. a `BackendError`). */
   | { error: string; detail?: unknown; delayMs?: number }
-  | { load: () => Promise<T>; delayMs?: number }
+  | { load: (args: A) => Promise<T>; delayMs?: number }
   /** Answers from the command's arguments (e.g. echoes saved settings). */
   | { handle: (args: A) => T | Promise<T>; delayMs?: number };
 
@@ -189,6 +190,19 @@ const base: Scenario["responses"] = {
   import_build: { handle: importAnswer(), delayMs: 400 },
   // Draft's warning after the automatic import: none unless a scenario says so.
   import_warning: { data: null },
+  // ARAM: Mayhem (made-up augments, see mayhem-fixtures.ts), from the core's cache.
+  mayhem_augments: { load: loadMayhemAugments },
+  mayhem_overview: { data: mayhemOverview },
+  mayhem_champion: { handle: (args) => mayhemChampion(args.championId) },
+};
+
+/** Mayhem's champion select: ARAM's, with the augments of each champion. */
+const mayhemDraft = { ...aramDraft, mode: "mayhem" as const };
+/** A game of ARAM: Mayhem on the loading screen: your build is ARAM's, with augments. */
+const mayhemGame = { ...liveGame, queueId: 2400, statsQueue: 450 };
+const mayhemOffline = {
+  error: "error sending request for url (http://127.0.0.1:8787/v1/mayhem/augments)",
+  detail: { kind: "network", message: "couldn't connect" } satisfies BackendError,
 };
 
 /**
@@ -553,6 +567,59 @@ export const scenarios = {
       ...base,
       tier_list: { handle: aramOnly("tier_list", tierList) },
       champion_stats: { handle: aramOnly("champion_stats", championStats) },
+    },
+  },
+  "mayhem-champ-select": {
+    description: "ARAM: Mayhem: the bench ranked on ARAM's stats, each champion's most picked augments, and yours ranked per rarity.",
+    responses: { ...champSelect, draft_state: { data: mayhemDraft } },
+  },
+  "mayhem-live": {
+    description: "In an ARAM: Mayhem game: My build shows your augments per rarity, then ARAM's build.",
+    responses: { ...base, client_status: { data: inGame }, live_game: { data: mayhemGame } },
+  },
+  "mayhem-empty": {
+    description: "Mayhem on a fresh server: no tiers yet, no shared games. Every augment is listed, the page says how to help.",
+    responses: {
+      ...base,
+      mayhem_overview: { data: emptyOverview },
+      mayhem_champion: { handle: (args) => mayhemChampion(args.championId, emptyOverview) },
+    },
+  },
+  "mayhem-unbuilt": {
+    description: "The server hasn't read this patch's augments yet: the Mayhem views say so.",
+    responses: {
+      ...base,
+      mayhem_augments: { data: null },
+      mayhem_champion: { error: "not built", detail: { kind: "notFound" } satisfies BackendError },
+    },
+  },
+  "mayhem-offline": {
+    description: "Offline without cached Mayhem data: an error with a retry.",
+    responses: { ...base, mayhem_augments: mayhemOffline, mayhem_overview: { data: emptyOverview }, mayhem_champion: mayhemOffline },
+  },
+  "mayhem-slow": {
+    description: "Mayhem data takes 2.5 s: skeletons first, then the augments without layout jumps.",
+    responses: {
+      ...base,
+      mayhem_augments: { data: mayhemAugments, delayMs: 2_500 },
+      mayhem_overview: { data: mayhemOverview, delayMs: 2_500 },
+      mayhem_champion: { handle: (args) => mayhemChampion(args.championId), delayMs: 2_500 },
+    },
+  },
+  "mayhem-extreme": {
+    description: "The longest augment name and description in every tier: rows must hold them.",
+    responses: {
+      ...base,
+      mayhem_augments: { data: { ...mayhemAugments, augments: [...mayhemAugments.augments, longAugment] } },
+      mayhem_overview: {
+        data: {
+          ...mayhemOverview,
+          tiers: mayhemOverview.tiers && {
+            ...mayhemOverview.tiers,
+            tiers: { ...mayhemOverview.tiers.tiers, S: [longAugment.id, ...mayhemOverview.tiers.tiers.S] },
+          },
+        },
+      },
     },
   },
   "descriptions-missing": {

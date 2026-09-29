@@ -19,7 +19,8 @@ and per-feature reasoning: policy.md.
   with their reasons, the import bar), the loading screen (player cards), a profile and an opened
   game after the match.
 - [ ] Re-read Riot's current policy pages (policy.md was written from secondary copies) and check
-  which source of ranked emblems Riot prefers (policy.md, "Riot's ranked emblems").
+  which source Riot prefers for the ranked emblems and Mayhem's augment names and icons (both
+  from `CommunityDragon` today; policy.md).
 - [ ] The product registered under a group (team access), not a personal account.
 
 Reviews took from 6 weeks to 7+ months in 2025–26 (research E §1.13): apply as soon as the site is
@@ -57,8 +58,9 @@ is inbound only).
    computed by our server from Match-V5 games (Emerald and above).
 6. **Player pages:** a Riot ID search showing that player's rank and recent games.
 7. **ARAM and ARAM: Mayhem:** ARAM builds, the bench ranked in champion select; for Mayhem,
-   augment tiers written by hand and popularity (pick rate only, never win rates); being built
-   (2026-09-29).
+   augment tiers written by hand, popularity from players who opt in (pick rates only, never
+   win rates) and each champion's augments ranked with their reasons, shown in champion select
+   or as reference; nothing reacts to what the game offers.
 8. **Settings:** every automation is off by default (auto-accept, auto imports, crash reports,
    sharing), with what it does and what it sends written next to it.
 
@@ -107,5 +109,7 @@ player's sets sent back untouched, MVP's set replaced), `PATCH /lol-champ-select
 - **Per-game grades:** a transparent score of one finished game's scoreboard, never a player
   rating; never shown in champion select, on the loading screen or in game.
 - **ARAM: Mayhem augments:** no win rates; tiers written by hand; popularity from players who
-  opt in to share their own games' champions, augments and items, anonymously and without results.
+  opt in to share their own games' champions, augments and items, anonymously and without
+  results; several options with their reasons before the game, never a single pick, nothing
+  read from or triggered by the game's augment offers.
 - **Crash reports:** off by default, scrubbed of Riot IDs, PUUIDs and paths before they leave.

@@ -9,13 +9,14 @@ use companion::backend::{BackendClient, BackendConfig};
 use companion::crash::{self, CrashReporter};
 use companion::imports::{BuildSource, ChampionNames, Importer, NoBuilds};
 use companion::live::{GameIds, LiveConfig};
+use companion::mayhem::MayhemClient;
 use companion::remote::{self, RemoteConfigStore};
 use companion::settings::SettingsStore;
 use companion::stats::StatsClient;
 use companion::{ScoutingHandle, Services, ViewReporter};
 use domain::{
     ClientStatus, Description, DraftView, GameData, ImportWarning, Language, LiveGame, RankEmblem,
-    RankEmblems, StatsIndex,
+    RankEmblems, Settings, StatsIndex,
 };
 use tauri::{AppHandle, Emitter as _, Manager as _, Runtime};
 use tokio::sync::watch;
@@ -216,6 +217,36 @@ pub struct Backend(pub Option<BackendClient>);
 #[derive(Debug)]
 pub struct Stats(pub Option<StatsClient>);
 
+/// ARAM: Mayhem data (disk-cached), `None` without a backend or a cache directory.
+#[derive(Debug)]
+pub struct Mayhem(pub Option<MayhemClient>);
+
+/// ARAM: Mayhem: the data client (our backend, cached under `{app cache}/mayhem`), managed for
+/// the commands, and the opt-in sharing of the player's games, started beside the core once it
+/// runs (with our backend and a cache directory only).
+fn mayhem<R: Runtime>(
+    app: &AppHandle<R>,
+    backend: Option<&BackendClient>,
+    settings: &watch::Receiver<Settings>,
+    remote: &RemoteConfigStore,
+) -> impl FnOnce(&companion::Companion) + use<R> {
+    let data = backend.and_then(|backend| match app.path().app_cache_dir() {
+        Ok(dir) => Some(MayhemClient::new(backend.clone(), dir.join("mayhem"))),
+        Err(error) => {
+            tracing::error!(%error, "no cache directory for Mayhem data");
+            None
+        }
+    });
+    app.manage(Mayhem(data.clone()));
+    let ready = backend.cloned().zip(data);
+    let (settings, remote) = (settings.clone(), remote.subscribe());
+    move |core| {
+        if let Some((backend, data)) = ready {
+            companion::mayhem::spawn_sharing(backend, data, core, settings, remote);
+        }
+    }
+}
+
 /// The stats client: our backend, cached under `{app cache}/stats`.
 fn stats_client<R: Runtime>(
     app: &AppHandle<R>,
@@ -360,6 +391,7 @@ pub fn start<R: Runtime>(app: &AppHandle<R>, settings: &SettingsStore) {
         }
     };
     let settings = settings.subscribe();
+    let share_mayhem = mayhem(app, backend.as_ref(), &settings, &remote);
     let names = champion_names(app);
     // The LP of your ranked games, kept with MVP's data.
     let lp_file = match app.path().app_data_dir() {
@@ -388,6 +420,7 @@ pub fn start<R: Runtime>(app: &AppHandle<R>, settings: &SettingsStore) {
             lp_file,
         };
         let companion = companion::start_with_services(config, settings, services);
+        share_mayhem(&companion);
         app.manage(Core {
             status: companion.status.clone(),
             draft: companion.draft.clone(),

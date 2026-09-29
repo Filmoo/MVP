@@ -1,0 +1,292 @@
+/* ARAM: Mayhem: title with where the numbers come from, filters, then augments by tier. */
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-4) var(--space-6);
+  min-height: var(--space-9);
+}
+
+.sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  min-width: 0;
+  font-size: var(--text-sm);
+  color: var(--text-3);
+}
+
+/* Wraps between sources, never inside one. */
+.source {
+  white-space: nowrap;
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4) var(--space-6);
+}
+
+/* ---- The champion picker ----------------------------------------------------------------------- */
+
+.picker {
+  position: relative;
+  display: flex;
+  flex: 0 1 280px;
+  min-width: 0;
+}
+
+.search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+
+.searchIcon {
+  position: absolute;
+  left: var(--space-5);
+  color: var(--text-3);
+  pointer-events: none;
+}
+
+.searchInput {
+  width: 100%;
+  height: 36px;
+  padding: 0 var(--space-4) 0 var(--space-10);
+  border: 1px solid var(--line-glass);
+  border-radius: var(--radius-3);
+  background: var(--bg-1);
+  color: var(--text-1);
+  font: inherit;
+  font-size: var(--text-md);
+  outline: none;
+  transition: border-color var(--dur-1) var(--ease);
+}
+
+.searchInput::placeholder {
+  color: var(--text-3);
+}
+
+.searchInput:hover {
+  border-color: var(--line-2);
+}
+
+.searchInput:focus-visible {
+  border-color: var(--accent);
+}
+
+.matches {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  left: 0;
+  right: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: var(--space-2);
+  border: 1px solid var(--line-glass);
+  border-radius: var(--radius-3);
+  background: var(--bg-float);
+  backdrop-filter: var(--blur-glass);
+  box-shadow: var(--shadow-float);
+  list-style: none;
+}
+
+.match {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  border: 0;
+  border-radius: var(--radius-2);
+  background: transparent;
+  font-size: var(--text-md);
+  text-align: left;
+  cursor: pointer;
+}
+
+.match:hover,
+.match:focus-visible {
+  background: var(--bg-3);
+}
+
+.chosen {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-full);
+  background: var(--bg-3);
+}
+
+.chosenName {
+  overflow: hidden;
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.clear {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+}
+
+.clear:hover {
+  background: var(--bg-4);
+  color: var(--text-1);
+}
+
+/* Narrow: the picker takes its own line. */
+@container page (max-width: 559px) {
+  .picker {
+    flex-basis: 100%;
+  }
+}
+
+/* ---- Augments by tier -------------------------------------------------------------------------- */
+
+.sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.count {
+  font-size: var(--text-sm);
+  color: var(--text-3);
+}
+
+/* A tier's heading: its letter in its colour, then its name. */
+.tierTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+  gap: var(--space-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.augment {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-5);
+  min-width: 0;
+  padding: var(--space-5);
+  border-radius: var(--radius-3);
+  background: var(--bg-sheen);
+}
+
+.body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.name {
+  overflow: hidden;
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  line-height: 1.3;
+  color: var(--text-1);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.meta {
+  font-size: var(--text-xs);
+  color: var(--text-3);
+}
+
+.description {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: var(--space-2);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--text-2);
+  white-space: pre-line;
+}
+
+.more {
+  display: flex;
+  justify-content: center;
+  margin-top: var(--space-5);
+}
+
+/* ---- Notices: no tiers yet, no shared games yet ------------------------------------------------- */
+
+.notices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-6);
+  border: 1px solid var(--line-glass);
+  border-radius: var(--radius-4);
+  background: var(--bg-card);
+  font-size: var(--text-md);
+  color: var(--text-2);
+}
+
+.notice b {
+  font-weight: var(--weight-semibold);
+  color: var(--text-1);
+}
+
+.notice a {
+  color: var(--accent);
+}
+
+.noticeIcon {
+  flex: none;
+  margin-top: var(--space-1);
+  color: var(--accent);
+}
+
+.note {
+  max-width: 880px;
+  font-size: var(--text-sm);
+  color: var(--text-3);
+}

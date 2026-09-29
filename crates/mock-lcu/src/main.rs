@@ -19,7 +19,9 @@
 //! so build imports (one click and on lock-in) can be tried. Every write is logged.
 //!
 //! `cargo run -p mock-lcu -- --aram` plays ARAM champion selects instead: no roles, a shared
-//! bench, one reroll, then a swap with the bench.
+//! bench, one reroll, then a swap with the bench. `--mayhem` plays the same as ARAM: Mayhem
+//! (queue 2400, game mode `KIWI`), whose game then ends in the match history with augments. The
+//! newest listed game is a Mayhem game in every mode (Settings → "Help build Mayhem stats").
 
 use std::path::PathBuf;
 use std::time::Duration;
@@ -91,7 +93,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             157, 222, 234, 238, 266, 412, 516, 517, 555, 777, 799, 800, 887, 897, 901, 910
         ]),
     );
-    let aram = std::env::args().any(|arg| arg == "--aram");
+    let queue = played_queue();
+    let aram = queue != 420;
     let mut game_id = 7_100_000_000;
     loop {
         // Each cycle is a new game, won and lost in turn.
@@ -111,14 +114,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             mock.set(lcu_phase_path(), json!(phase));
             if *phase == "ChampSelect" {
                 if aram {
-                    play_aram_champ_select(&mock, *seconds).await;
+                    play_aram_champ_select(&mock, *seconds, queue).await;
                 } else {
                     play_champ_select(&mock, *seconds).await;
                 }
                 log_writes(&mock);
             } else if *phase == "GameStart" {
                 mock.remove(CHAMP_SELECT);
-                mock.set(GAME_SESSION, game_session(game_id));
+                mock.set(GAME_SESSION, game_session(game_id, queue));
             } else if *phase == "InProgress" {
                 // The loading screen: the game's API answers once the game has loaded.
                 tokio::time::sleep(Duration::from_secs(GAME_LOADS_AFTER)).await;
@@ -134,17 +137,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             } else if *phase == "EndOfGame" {
                 // The history has the game at once; ranked counts it a moment later (its event
                 // brings the LP to the post-game summary).
-                games.insert(0, finished(game_id, win));
+                games.insert(0, finished(game_id, win, queue));
                 history::serve(&mock, &local(), &games);
                 tokio::time::sleep(Duration::from_secs(2)).await;
-                standing = standing.after(win);
-                mock.set(RANKED, standing.stats());
+                // Only a ranked game moves the LP.
+                if queue == 420 {
+                    standing = standing.after(win);
+                    mock.set(RANKED, standing.stats());
+                }
                 tracing::info!(game_id, win, lp = standing.lp, "game over");
             } else if *phase == "None" {
                 mock.remove(GAME_SESSION);
             }
             tokio::time::sleep(Duration::from_secs(*seconds)).await;
         }
+    }
+}
+
+/// The queue the cycle plays: `--mayhem` ARAM: Mayhem, `--aram` ARAM, else ranked solo/duo.
+fn played_queue() -> u32 {
+    let has = |flag: &str| std::env::args().any(|arg| arg == flag);
+    if has("--mayhem") {
+        history::MAYHEM_QUEUE
+    } else if has("--aram") {
+        450
+    } else {
+        420
     }
 }
 
@@ -184,12 +202,13 @@ impl Standing {
     }
 }
 
-/// The game the cycle played (Malphite top, as in its champion select), just over.
-fn finished(game_id: u64, win: bool) -> Game {
+/// The game the cycle played (Malphite top, as in its champion select), just over: of `queue`
+/// (an ARAM: Mayhem game carries its players' augments, for "Help build Mayhem stats").
+fn finished(game_id: u64, win: bool, queue: u32) -> Game {
     Game {
         game_id,
-        queue_id: 420,
-        map_id: 11,
+        queue_id: queue,
+        map_id: if queue == 420 { 11 } else { 12 },
         created: epoch_ms() - 1_800_000,
         duration: 1_790,
         champion: 54,
@@ -205,7 +224,8 @@ const GAME_LOADS_AFTER: u64 = 6;
 /// The game the draft led to, as the client shows it from the loading screen on (the real
 /// client's shape, 2026-09): champions, positions and spells, the client's PUUIDs, and no
 /// names at all — only `current-summoner` names the local player. Each cycle is a new game.
-fn game_session(game_id: u64) -> serde_json::Value {
+/// `queue`: 420 (the Rift), 450 (ARAM) or 2400 (ARAM: Mayhem), both on Howling Abyss.
+fn game_session(game_id: u64, queue: u32) -> serde_json::Value {
     let member = |participant: u32, puuid: &str, champion: u32, position: &str| {
         json!({ "championId": champion, "lastSelectedSkinIndex": 0, "profileIconId": 29, "puuid": puuid,
                 "selectedPosition": position, "selectedRole": format!("{position}.PRIMARY.{position}.UNSELECTED"),
@@ -213,11 +233,17 @@ fn game_session(game_id: u64) -> serde_json::Value {
                 "teamOwner": false, "teamParticipantId": participant })
     };
     let spells = |puuid: &str, champion: u32, spell1: u32, spell2: u32| json!({ "puuid": puuid, "championId": champion, "selectedSkinIndex": 0, "spell1Id": spell1, "spell2Id": spell2 });
+    let (map, mode, kind) = match queue {
+        history::MAYHEM_QUEUE => (12, "KIWI", "KIWI"),
+        450 => (12, "ARAM", "ARAM_UNRANKED_5x5"),
+        _ => (11, "CLASSIC", "RANKED_SOLO_5x5"),
+    };
     json!({
         "phase": "GameStart",
+        "map": { "id": map, "gameMode": mode },
         "gameData": {
             "gameId": game_id,
-            "queue": { "id": 420, "mapId": 11, "type": "RANKED_SOLO_5x5", "isRanked": true },
+            "queue": { "id": queue, "mapId": map, "gameMode": mode, "type": kind, "isRanked": queue == 420 },
             "teamOne": [
                 member(1, "00000000-mock-0000-0000-000000000000", 54, "TOP"),
                 member(2, "5c1e0a52-2f0e-4c8e-9a41-7d1b3c9e0a02", 64, "JUNGLE"),
@@ -348,7 +374,8 @@ fn local() -> Local {
     }
 }
 
-/// The local player's last games, newest first: mid and top, Flash on F.
+/// The local player's last games, newest first: an ARAM: Mayhem game (augments), then mid and
+/// top, Flash on F.
 fn recent_games() -> Vec<Game> {
     let game = |game_id, queue_id, created, duration, champion, lane, spells, win| Game {
         game_id,
@@ -362,6 +389,19 @@ fn recent_games() -> Vec<Game> {
         win,
     };
     vec![
+        Game {
+            map_id: 12,
+            ..game(
+                7_000_000_004,
+                history::MAYHEM_QUEUE,
+                1_790_510_000_000,
+                1_164,
+                222,
+                "BOTTOM",
+                [4, 32],
+                true,
+            )
+        },
         game(
             7_000_000_003,
             420,
@@ -495,9 +535,10 @@ async fn play_champ_select(mock: &MockLcu, finalization: u64) {
     );
 }
 
-/// An ARAM champion select: everyone gets a champion (you: Lux), the bench holds Brand and
-/// Sion; you reroll (Karthus, Lux goes to the bench), then take Brand from the bench.
-async fn play_aram_champ_select(mock: &MockLcu, finalization: u64) {
+/// An ARAM champion select (`queue` 450, or 2400 for ARAM: Mayhem): everyone gets a champion
+/// (you: Lux), the bench holds Brand and Sion; you reroll (Karthus, Lux goes to the bench), then
+/// take Brand from the bench.
+async fn play_aram_champ_select(mock: &MockLcu, finalization: u64, queue: u32) {
     let session = |mine: u32, bench: &[u32], rerolls: u32, left_ms: u64| {
         json!({
             "localPlayerCellId": 0,
@@ -518,9 +559,15 @@ async fn play_aram_champ_select(mock: &MockLcu, finalization: u64) {
             "timer": { "phase": "FINALIZATION", "adjustedTimeLeftInPhase": left_ms, "internalNowInEpochMs": epoch_ms(), "isInfinite": false }
         })
     };
+    let (mode, kind) = if queue == history::MAYHEM_QUEUE {
+        ("KIWI", "KIWI")
+    } else {
+        ("ARAM", "ARAM_UNRANKED_5x5")
+    };
     mock.set(
         GAME_SESSION,
-        json!({ "phase": "ChampSelect", "gameData": { "queue": { "id": 450, "mapId": 12, "type": "ARAM_UNRANKED_5x5" } } }),
+        json!({ "phase": "ChampSelect", "map": { "id": 12, "gameMode": mode },
+                "gameData": { "queue": { "id": queue, "mapId": 12, "gameMode": mode, "type": kind } } }),
     );
     let total = finalization * 1000;
     mock.set(CHAMP_SELECT, session(99, &[63, 14], 1, total));

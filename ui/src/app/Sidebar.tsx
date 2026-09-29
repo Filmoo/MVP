@@ -10,7 +10,7 @@ import styles from "./Sidebar.module.css";
 const GLIDE = spring({ stiffness: 420, damping: 30 });
 
 function NavItem(props: { route: Route }): JSX.Element {
-  const active = () => path() === props.route.path;
+  const active = () => path() === props.route.path || (props.route.also?.includes(path()) ?? false);
   const words = () => t().nav[props.route.nav];
   return (
     <a

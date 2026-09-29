@@ -274,6 +274,9 @@ test("no view uses a native title tooltip", async ({ page }) => {
     ["/tier-list", "default"],
     ["/settings", "default"],
     ["/player/euw1/Blade%20Dancer/IRE", "default"],
+    ["/mayhem", "default"],
+    ["/mayhem?champion=103", "default"],
+    ["/draft", "mayhem-champ-select"],
   ] as const) {
     await openApp(page, { view, scenario });
     if (view.startsWith("/player") || view === "/") {

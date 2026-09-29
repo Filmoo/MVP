@@ -206,7 +206,7 @@ export function ImportSettings(props: SectionProps): JSX.Element {
 }
 
 /** Whose games the stats count: the draft's numbers, imported builds, the stats pages' start. */
-export function StatsSettings(props: SectionProps): JSX.Element {
+export function StatsSettings(props: SectionProps & { mayhemPaused?: boolean }): JSX.Element {
   const words = () => t().settings.stats;
   const match = useContext(SearchMatch);
   return (
@@ -224,7 +224,25 @@ export function StatsSettings(props: SectionProps): JSX.Element {
             />
           )}
         </SettingRow>
+        {/* Opt-in, off by default: ARAM: Mayhem's pick rates come from the games players share. */}
+        <SettingRow title={words().shareMayhem.title} description={words().shareMayhem.text} match={match("shareMayhem")}>
+          {(ids) => (
+            <Toggle
+              checked={props.settings.shareMayhemGames}
+              onChange={(shareMayhemGames) => props.onChange({ shareMayhemGames })}
+              labelledBy={ids.label}
+              describedBy={ids.description}
+              testId="setting-share-mayhem"
+            />
+          )}
+        </SettingRow>
       </SettingList>
+      <Show when={props.mayhemPaused && props.settings.shareMayhemGames}>
+        <p class={styles.paused} role="status" data-testid="mayhem-sharing-paused">
+          <Icon name="info" size={16} class={styles.pausedIcon} />
+          <span>{words().sharePaused}</span>
+        </p>
+      </Show>
       <SaveError message={props.error} />
     </Card>
   );

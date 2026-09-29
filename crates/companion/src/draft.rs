@@ -12,7 +12,9 @@
 //!   frontline, crowd control and game-length lean from its champions — locked picks and
 //!   hovers, marked as such — and your team's with each suggestion in your seat.
 //! - **ARAM** (no roles): your champion and the bench's, by the team's win chance with each
-//!   (champions' ARAM strengths); nothing is ever swapped for you.
+//!   (champions' ARAM strengths); nothing is ever swapped for you. **ARAM: Mayhem** (queue 2400,
+//!   custom 3270, from the gameflow session) is the same on ARAM's stats, with `mode` set so the
+//!   UI shows each champion's augments (`crate::mayhem`: tiers and pick counts, no win rates).
 //! - **Data**: the game's queue (ranked data on Summoner's Rift, ARAM's own), the bracket of
 //!   the player's settings (Emerald+ when that one isn't published), current patch
 //!   (`StatsClient`); the matchups files of the champions in the draft are loaded as they
@@ -35,9 +37,9 @@ use ::stats::draft::{
 };
 use ::stats::{logit, sigmoid};
 use domain::{
-    BackendError, Bracket, ChampionsFile, Compositions, DataInfo, DraftView, Estimate, Mastery,
-    MatchupsFile, PersonalRecord, Reason, ReasonKind, RemoteConfig, RoleOdds, Settings, StatsIndex,
-    Suggestion, TierList,
+    BackendError, Bracket, ChampionsFile, Compositions, DataInfo, DraftView, Estimate, GameMode,
+    Mastery, MatchupsFile, PersonalRecord, Reason, ReasonKind, RemoteConfig, RoleOdds, Settings,
+    StatsIndex, Suggestion, TierList,
 };
 use lcu::LcuClient;
 use serde_json::Value;
@@ -869,6 +871,8 @@ struct Engine {
     session: u64,
     /// The stats queue of this champion select, once known (`None`: no stats for the mode).
     queue: Option<u32>,
+    /// ARAM: Mayhem, from the gameflow session: the UI shows augments next to the champions.
+    mode: Option<GameMode>,
     /// Counts data set loads asked for: only the latest one's answer is taken.
     ticket: u64,
     /// Counts data set loads within the session: matchups of an older one are ignored.
@@ -902,6 +906,7 @@ impl Engine {
             fetches: Arc::new(Semaphore::new(PARALLEL_FETCHES)),
             session: 0,
             queue: None,
+            mode: None,
             ticket: 0,
             load: 0,
             view: None,
@@ -920,6 +925,7 @@ impl Engine {
                 // Loads still on their way belong to the champion select that just ended.
                 self.session += 1;
                 self.queue = None;
+                self.mode = None;
                 self.pool = None;
                 self.data = None;
                 self.model = None;
@@ -963,6 +969,10 @@ impl Engine {
     fn on_game(&mut self, game: Option<&Value>) {
         let Some(view) = &self.view else { return };
         self.queue = queue_of(game, view);
+        // Mayhem plays on Howling Abyss: ARAM's stats, and its augments next to the champions.
+        self.mode = game
+            .filter(|g| crate::mayhem::is_mayhem_session(g))
+            .map(|_| GameMode::Mayhem);
         self.load_data();
     }
 
@@ -1130,6 +1140,7 @@ impl Engine {
         };
         enrichment.apply(&mut view);
         view.queue = self.queue;
+        view.mode = self.mode;
         self.out.send_if_modified(|current| {
             if current.as_ref() == Some(&view) {
                 return false;
@@ -1952,5 +1963,32 @@ mod tests {
         };
         assert!(engine.on_loaded(fresh));
         assert!(engine.pool.is_some());
+    }
+
+    #[tokio::test]
+    async fn mayhem_shows_as_a_mode_of_aram() {
+        let (out, published) = watch::channel(None);
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let mut engine = Engine::new(out, watch::channel(None).1, None, tx);
+        engine.on_view(Some(aram_view(&[BRAND]))).await;
+        let game =
+            json!({ "gameData": { "queue": { "id": 2400, "mapId": 12, "gameMode": "KIWI" } } });
+        assert!(engine.on_loaded(Loaded::Game {
+            session: engine.session,
+            game: Some(game),
+        }));
+        engine.publish().await;
+        let view = published.borrow().clone().unwrap();
+        assert_eq!(view.queue, Some(ARAM), "ARAM's stats");
+        assert_eq!(view.mode, Some(GameMode::Mayhem));
+        engine.on_view(None).await;
+        engine.on_view(Some(aram_view(&[BRAND]))).await;
+        let plain = json!({ "gameData": { "queue": { "id": 450, "mapId": 12 } } });
+        engine.on_loaded(Loaded::Game {
+            session: engine.session,
+            game: Some(plain),
+        });
+        engine.publish().await;
+        assert_eq!(published.borrow().as_ref().and_then(|v| v.mode), None);
     }
 }
