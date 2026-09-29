@@ -79,6 +79,9 @@ const STATE_VIEWS = [
   { view: "/live", scenario: "banners" },
   { view: "/live?tab=build", scenario: "live" },
   { view: "/", scenario: "emblems" },
+  // Home's history filtered down to nothing (a link sets the filter).
+  { view: "/?queue=flex", scenario: "default" },
+  { view: "/?queue=aram&champion=103", scenario: "history-long" },
   { view: "/live", scenario: "emblems" },
   { view: "/tier-list", scenario: "stats-empty" },
   { view: "/tier-list", scenario: "stats-offline" },

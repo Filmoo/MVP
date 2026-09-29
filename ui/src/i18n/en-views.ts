@@ -117,6 +117,30 @@ export const enViews = {
     },
   },
 
+  /** The game that just ended, at the top of Home until closed or the next game. */
+  postGame: {
+    title: "Your last game",
+    close: "Close this summary",
+    /** After the score: `7.4 / 10`. */
+    outOf: "/ 10",
+    why: "What moved your grade",
+    remake: "A remake: no grade, and the game doesn't count.",
+    you: "You",
+    laneOpponent: "Lane opponent",
+    /** In a mode without roles (ARAM): the enemy whose share of damage was closest to yours. */
+    closestDamage: "Closest damage share",
+    noOpponent: "No lane opponent to compare with in this game.",
+    rows: { kda: "KDA", cs: "CS", damage: "Damage", gold: "Gold", vision: "Vision" },
+    lp: {
+      promoted: "Promoted",
+      demoted: "Demoted",
+      /** Ranked: the client hasn't counted the game yet. */
+      pending: "Counting the LP of this game…",
+      /** Ranked, but MVP didn't see the standing before or after it. */
+      unknown: "LP not tracked for this game",
+    },
+  },
+
   draft: {
     readFailed: "Couldn't read champion select",
     idle: {

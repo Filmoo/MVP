@@ -144,7 +144,9 @@ let files: Promise<DevFiles> | undefined;
 
 async function json<T>(path: string, fallback: T): Promise<T> {
   const res = await fetch(`${DEV_ASSET_BASE}/${path}`).catch(() => undefined);
-  return res?.ok ? ((await res.json()) as T) : fallback;
+  // A file missing from the dev cache can come back as the preview's own page (200, HTML): it
+  // counts as missing, so one absent file doesn't break every description.
+  return res?.ok ? ((await res.json().catch(() => fallback)) as T) : fallback;
 }
 
 const devFiles = () =>

@@ -272,9 +272,9 @@ the game in client. Only nice information, but complete enough. Keep it sober." 
   on teammates), never a row of zeros. Left out as noise: total damage dealt (minions), largest
   critical strike, the time spent living.
 - **Budget**: the sheet (with its gestures), the links, the table and their words cost 4.4 KB of
-  JS (still in the player page's chunk: a chunk of its own weighed 1.5 KB more). 133.0 KB of the
-  131 KB total, 2.0 KB over: the owner's call (the build savings found meanwhile went to the
-  tooltips).
+  JS (still in the player page's chunk: a chunk of its own weighed 1.5 KB more): 130.5 KB of the
+  131 KB total once the first screen became one chunk (126.1 before the sheet), within the
+  budget with 0.5 KB left; startup unchanged.
 - **Planned, not built**: the game over time (graphs of gold, XP, CS and damage, the teams' gold
   difference, a kill/death heatmap and positions, animated): HANDOFF "Planned for the next
   version".

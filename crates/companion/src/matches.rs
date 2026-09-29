@@ -21,7 +21,7 @@ use std::time::Duration;
 
 use domain::{
     BackendError, Bracket, EndOfGameStats, GradedMatch, MatchDetails, MatchGrade, MatchPlayer,
-    MatchTeam, PlayerProfile, RiotId, Role,
+    MatchSummary, MatchTeam, PlayerProfile, RiotId, Role,
 };
 use lcu::{LcuClient, LcuError};
 use serde_json::Value;
@@ -525,6 +525,73 @@ impl MatchInsights {
         })
         .await
         .cloned()
+    }
+}
+
+// ---- After a game, and further back ----------------------------------------------------------
+
+impl MatchInsights {
+    /// The platform your listed games name (`EUW1`), when a list was read.
+    fn listed_platform(&self) -> Option<String> {
+        let state = self.state();
+        state
+            .listed
+            .keys()
+            .find_map(|id| id.rsplit_once('_').map(|(platform, _)| platform.to_owned()))
+    }
+
+    /// The game you just played, read whole from the client once and kept (the list then shows
+    /// its grade, and it opens at once). Who you are is read first when no profile was asked
+    /// for yet (the window closed during the game).
+    pub async fn after_game(
+        &self,
+        client: &LcuClient,
+        game_id: u64,
+    ) -> Result<Arc<MatchDetails>, BackendError> {
+        if self.state().me == Me::default() {
+            let summoner: Value = client
+                .get(profile::CURRENT_SUMMONER)
+                .await
+                .map_err(ReadError::from)?;
+            let mut state = self.state();
+            if state.me == Me::default() {
+                state.me = Me::from_summoner(&summoner);
+            }
+        }
+        let platform = match self.listed_platform() {
+            Some(platform) => platform,
+            None => profile::platform(client).await,
+        };
+        Ok(self
+            .own_game(client, &format!("{platform}_{game_id}"), &Shares::default())
+            .await?)
+    }
+
+    /// Your games further back: `beg_index` and the next [`profile::PAGE`] − 1 (fewer, or none,
+    /// at the end of the history). Their grades and details then work like the first page's;
+    /// games already read carry their grade and the role worked out for them.
+    pub async fn older(
+        &self,
+        client: &LcuClient,
+        beg_index: u32,
+    ) -> Result<Vec<MatchSummary>, LcuError> {
+        let path = profile::matches_path(beg_index, beg_index + profile::PAGE - 1);
+        let history: Value = client.get(&path).await?;
+        let platform = match self.listed_platform() {
+            Some(platform) => platform,
+            None => profile::platform(client).await,
+        };
+        let mut games = profile::map_matches(&history, &platform);
+        let mut state = self.state();
+        state.listed.extend(profile::gradable(&history, &platform));
+        for m in &mut games {
+            let game = state.own.read(&m.match_id);
+            m.grade = game.as_deref().and_then(my_grade);
+            if let Some(line) = game.as_deref().and_then(my_line) {
+                m.role = line.role;
+            }
+        }
+        Ok(games)
     }
 }
 
