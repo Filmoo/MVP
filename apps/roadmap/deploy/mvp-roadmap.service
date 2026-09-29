@@ -1,0 +1,29 @@
+# The roadmap at dev.mvpgg.com (apps/roadmap/README.md, "Deploy").
+# /etc/systemd/system/mvp-roadmap.service, with /etc/mvp/roadmap.env (root only) holding the
+# GitHub OAuth App and the session key. The image comes from
+#   docker build -f apps/roadmap/Dockerfile -t mvp-roadmap /opt/mvp
+# and the roadmap lives in the Docker volume mvp-roadmap (/data/roadmap.db in the container).
+[Unit]
+Description=MVP roadmap (dev.mvpgg.com): features by version, for the repository's admins
+Wants=network-online.target
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+# A container left over from a crash would hold the name.
+ExecStartPre=-/usr/bin/docker rm -f mvp-roadmap
+# Only the loopback: Caddy is the way in (dev.mvpgg.com → 127.0.0.1:8790).
+ExecStart=/usr/bin/docker run --rm --name mvp-roadmap \
+  --env-file /etc/mvp/roadmap.env \
+  -p 127.0.0.1:8790:8790 \
+  -v mvp-roadmap:/data \
+  --read-only --tmpfs /tmp:size=64m --cap-drop ALL --security-opt no-new-privileges \
+  --memory 256m --pids-limit 128 \
+  mvp-roadmap serve
+ExecStop=/usr/bin/docker stop --time 20 mvp-roadmap
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

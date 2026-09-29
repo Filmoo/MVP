@@ -217,3 +217,22 @@ picked per-part switches.
   session again (they went back to the idle hint after a spells change), and an import clicked as
   champion select ends says so instead of "No build for this champion and role".
 
+
+## 2026-09-29 — A private roadmap at dev.mvpgg.com (owner asked, Claude built)
+Owner: a todo list on our server, only for the repo's admins (him and Claude), each feature with
+a way to accept, create and remove, Claude proposing as it works, split by versions; "a cool
+visualizer but also a nice tool to work with". Calls:
+- **Its own small service** (`apps/roadmap`, axum + SQLite, like the rest), next to the backend on
+  the VPS behind Caddy and Cloudflare. The code is public; the roadmap stays in the server's file.
+- **GitHub decides who is an admin**: sign-in with an OAuth App (no scope), then GitHub's
+  permission for `Filmoo/MVP` must be `admin`, asked again every ten minutes. Claude gets a
+  machine token instead, made on the server and stored hashed.
+- **Claude proposes, the owner decides**: Claude's features start as proposals in an inbox; only
+  the owner accepts, rejects, edits, orders or removes. Claude moves accepted work along and links
+  its commits.
+- **Everything is logged** (who, when, what), in the same transaction as the change.
+- **The seed is the docs**: `apps/roadmap/seed/roadmap.json` (versions 0.2 released, 0.3 in
+  progress, 0.4, Later) goes into an empty database only; after that the roadmap lives on the
+  server.
+- **It looks like MVP** (the app's tokens and glass) and is idle-silent: no polling, it reads the
+  roadmap again when the tab comes back.
