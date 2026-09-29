@@ -69,6 +69,38 @@ check the latest run before building on it.
 - Later, by the owner's earlier calls: an in-game overlay (the architecture is ready for it, not
   wanted yet); no ban suggestions, no AI picks.
 
+**Planned for the next version** (owner, 2026-09-29: "after game graphs and animation to show how
+each of those evolved, a heatmap etc. … very cool visualization, will be for a next version. Just
+keep it in planned.") Not started; the opened game's sheet (job 10) is where it goes, under the
+end-of-game stats (or a tab of its own when it's more than a screen).
+- **What:** how the game went, animated and scrubbable along its minutes: gold, XP, CS and
+  damage to champions of each player over time (lines, the page owner's in front), the teams'
+  gold difference (the classic area above and under zero, objectives — dragons, heralds, barons,
+  towers, inhibitors — marked on it), and the map: kills and deaths as a heatmap on Summoner's
+  Rift (per player or team), each player's positions minute by minute (a trail, played back),
+  wards placed. Same rules as the rest: statistics only, the game's own numbers, finished games
+  only (never during a game), hidden players stay hidden, "very cool" but idle at rest and within
+  budget (a canvas drawn on demand, like the backdrop; nothing moves unless played or pointed at).
+- **Data:** Riot's timeline of the game. Anyone's game: Match-V5's timeline
+  (`GET /lol/match/v5/matches/{matchId}/timeline`, already declared: the crawler reads it): one
+  frame a minute with every participant's `totalGold`, `xp`, `level`, `minionsKilled` +
+  `jungleMinionsKilled`, `damageStats`, `position {x, y}`, and the events between frames
+  (`CHAMPION_KILL` with killer, victim, assists and position; `WARD_PLACED`/`WARD_KILL`,
+  `BUILDING_KILL`, `ELITE_MONSTER_KILL`, `ITEM_PURCHASED`, `LEVEL_UP`, `SKILL_LEVEL_UP`). The
+  backend serves it compacted and cached like the match (a new route
+  `GET /v1/matches/{platform}/{matchId}/timeline`: frames trimmed to the fields drawn, events to
+  the kinds drawn; a raw timeline weighs hundreds of KB and even compacted it won't fit 12,000
+  times in memory like matches: a smaller cache, or on disk). Your own games: the League client's
+  `GET /lol-match-history/v1/game-timelines/{gameId}` (the same frames and events in the client's
+  shape, `participantId`s matched with the game's `participantIdentities`), read once when the
+  graphs are first opened, kept for the session like the whole game; else the backend's.
+- **Declare** (riot-application.md, marked planned): the LCU read
+  `GET /lol-match-history/v1/game-timelines/{gameId}`; Match-V5's timeline for opened games too
+  (today it only feeds the aggregate statistics).
+- **Check first:** what the client's timeline carries for hidden (streamer-mode) players (their
+  positions and kills are fine to draw, anonymously; never a name), how big a Match-V5 timeline is
+  compacted, and the bundle (a charting library is out: draw with the existing canvas/SVG code).
+
 ## State
 Everything below is merged on `claude/upbeat-hamilton-0bms1t` and green on
 `node scripts/check.mjs full`, except where marked.
@@ -184,22 +216,35 @@ Everything below is merged on `claude/upbeat-hamilton-0bms1t` and green on
 10. *(built, against mock-lcu and a fake backend only)*
    **Match insights** (architecture.md "Match insights", policy.md "Per-game grades"): a grade per
    finished game (`stats::grade`: S+ to C, score out of 10, place, MVP/ACE, the facts that moved
-   it) on every match row, its why on hover or keyboard focus, and a row opens on the whole game
-   (both teams, Riot IDs with hidden players kept hidden, KDA, CS, gold, damage bars, vision,
-   items, spells, runes, every grade; the page owner's line marked). Your games are graded by the
+   it) on every match row, its why on hover or keyboard focus, and a row opens the whole game
+   *(2026-09-29)* in a sheet of liquid glass over the page (decisions.md "An opened game is a sheet
+   of glass"): both teams (Riot IDs with hidden players kept hidden, each named player a link to
+   their page, KDA, CS, gold, damage bars, vision, items, spells, runes, every grade and its why;
+   the page owner's line marked) and the end-of-game stats (the client's post-game Stats tab:
+   `domain::EndOfGameStats`); it closes on Escape, a click outside, its close button, a link, or a
+   scroll past its end or top (`views/home/pull.ts`). Your games are graded by the
    core from `GET /lol-match-history/v1/games/{gameId}` (each read once, after the profile);
    others' by the backend, which also answers `GET /v1/matches/{platform}/{matchId}`. Left:
+   - on the owner's machine: the scroll to close's feel with a real mouse wheel and a precision
+     touchpad (`WHEEL_CLOSE` 360 px ≈ four notches, `RELEASE_MS`, `GESTURE_GAP_MS` in `pull.ts`;
+     WebView2's deltas per notch aren't measured yet), a touch screen if there is one, and the
+     sheet's glass frame times on a 1440p window (the biggest lens of the app);
+   - the backend's match snapshot is format 3 and its cache holds 12,000 matches (was 20,000: a
+     compacted match doubled with its end-of-game stats, under 11 KB); the first start after the
+     upgrade begins with an empty match cache;
    - *(owner, 2026-09-28: kept)* the gray area (policy.md): grades of all ten players in an
      opened game, the letters, the score, MVP/ACE;
    - calibrate the references and cut-offs on crawled games (`crates/stats/src/grade.rs`: role
      shares, kill-participation offsets, scales; each role should average 5, S+ should be rare);
-   - the backend's match snapshot moved to format 2: the first start after the upgrade begins
-     with an empty match cache (older snapshots are ignored);
    - Match-V5 and streamer mode: we treat a participant without `riotIdGameName` as hidden; check
      what Riot sends for hidden players today (policy.md "Re-identify Streamer Mode players");
    - bundle: the grade chip and the rows' wiring cost the first screen +0.9 KB gzip, the game and
      the why (in the player page's chunk) and their words +4.7 KB; the budgets were raised for it
-     with the owner's OK (46 KB startup, 125 KB total).
+     with the owner's OK (46 KB startup, 125 KB total). *(2026-09-29)* The sheet, the scroll to
+     close, the links and the stats table (still in the player page's chunk: a chunk of their own
+     weighed 1.5 KB more) and their words cost +4.4 KB; the desktop build's CSS class names lost
+     their line numbers for it (−2.0 KB of JS in all, −0.5 KB of startup CSS): 132.9 / 131 KB
+     total, over by 1.9 KB, for the owner to decide.
 
 9. *(built, against mock-lcu and synthetic stats only)* **Draft insights** (architecture.md "Stats
    pipeline" and "Stats in the app"): the crawler keeps each game's length and every player's
@@ -313,9 +358,21 @@ Match insights (Home after a few games; a player page with the backend running):
   `spell1Id`/`spell2Id`, `timeline.lane`/`role` (only evidence: each team's roles are worked out
   from the champions' role shares, Smite, lane minions and support items; compare with the player
   page's Match-V5 `teamPosition` for the same games), `gameDuration` in seconds, `platformId`.
-- **Opened games:** yours open instantly the second time (cached); someone else's (player page)
-  come from the backend; a streamer-mode player shows "Hidden player" in both; your line (or the
-  page owner's) is marked; Escape closes and the row keeps the focus.
+- **Opened games:** a sheet of glass over the page (the page bent at its rim); yours open
+  instantly the second time (cached); someone else's (player page) come from the backend; a
+  streamer-mode player shows "Hidden player" in both and isn't a link; your line (or the page
+  owner's) is marked; a name opens that player's page (the sheet closes); Escape, a click beside
+  the sheet, its close button, and scrolling on past its end or its top (the sheet follows, "Keep
+  scrolling to close", four notches close it, fewer spring back; a touchpad flick's inertia never
+  does) close it, and the row keeps the focus.
+- **End-of-game stats** (the sheet's table, `EndOfGameStats`): compare with the client's own
+  post-game Stats tab for the same game (spree, multikill, first blood, damage by type, to
+  turrets and objectives, taken and mitigated, healing, wards, gold spent, minions, monsters,
+  crowd control, turrets, inhibitors). **Check whether the client's `participants[].stats` carry
+  `totalHealsOnTeammates` and `totalDamageShieldedOnTeammates`** (Match-V5's names; the legacy
+  shape we know has neither): read when present, else those two rows are left out of your games
+  (player pages have them from Match-V5). Also `visionWardsBoughtInGame` (control wards),
+  `timeCCingOthers`, `turretKills`/`inhibitorKills` and `firstBloodKill` in the client's shape.
 - **Grades look right:** the MVP is the best of the winners, an obviously bad game gets a C, a
   support with high vision isn't punished for low CS, and the why's facts match the end screen.
 

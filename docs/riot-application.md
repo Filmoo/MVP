@@ -71,7 +71,8 @@ is inbound only).
 | Summoner-V4 | `/lol/summoner/v4/summoners/by-puuid/{puuid}` | Profile icon and level |
 | League-V4 | `/lol/league/v4/entries/by-puuid/{puuid}` | Rank on profiles and cards |
 | League-V4 | `/lol/league/v4/entries/{queue}/{tier}/{division}`, `/lol/league/v4/{tier}leagues/by-queue/{queue}` | Choosing players whose ranked games feed the aggregate statistics (Emerald+) |
-| Match-V5 | `/lol/match/v5/matches/by-puuid/{puuid}/ids`, `/lol/match/v5/matches/{matchId}`, `/lol/match/v5/matches/{matchId}/timeline` | Match histories, opened games, and the aggregate statistics |
+| Match-V5 | `/lol/match/v5/matches/by-puuid/{puuid}/ids`, `/lol/match/v5/matches/{matchId}`, `/lol/match/v5/matches/{matchId}/timeline` | Match histories, opened games (the scoreboard and the end-of-game stats), and the aggregate statistics |
+| Match-V5 *(planned)* | `/lol/match/v5/matches/{matchId}/timeline` | An opened game's graphs: gold, XP, CS and damage over time, the teams' gold difference, a kill/death heatmap and positions (next version, HANDOFF "Planned for the next version") |
 | Spectator-V5 | `/lol/spectator/v5/active-games/by-summoner/{puuid}` | Loading-screen cards: the game's players (being built, 2026-09-29) |
 
 Everything is cached on the server (profiles, matches, per-patch statistics published as files);
@@ -88,6 +89,8 @@ Reads: `GET /lol-gameflow/v1/gameflow-phase`, `GET /lol-gameflow/v1/session`,
 `GET /lol-perks/v1/pages`, `GET /lol-perks/v1/inventory`,
 `GET /lol-item-sets/v1/item-sets/{summonerId}/sets`, `GET /lol-matchmaking/v1/ready-check`.
 Events: `OnJsonApiEvent_lol-gameflow_v1_gameflow-phase`, `OnJsonApiEvent_lol-champ-select_v1_session`.
+*Planned* (next version, not read yet): `GET /lol-match-history/v1/game-timelines/{gameId}` (the
+player's own finished games, for an opened game's graphs over time).
 
 Writes, all on the player's click or an opt-in they turned on:
 `POST /lol-perks/v1/pages` and `PUT /lol-perks/v1/pages/{id}` (MVP's own page only),
@@ -106,6 +109,9 @@ player's sets sent back untouched, MVP's set replaced), `PATCH /lol-champ-select
   streamer mode respected (never looked up); positive or neutral tags only, no MMR.
 - **Per-game grades:** a transparent score of one finished game's scoreboard, never a player
   rating; never shown in champion select, on the loading screen or in game.
+- **Opened games:** a finished game's scoreboard and end-of-game stats, the numbers every player
+  of it saw on the end screen; each named player links to their profile (a lookup by the Riot ID
+  the game shows, on click); streamer-mode players stay "Hidden player", never linked or looked up.
 - **ARAM: Mayhem augments:** no win rates; tiers written by hand; popularity from players who
   opt in to share their own games' champions, augments and items, anonymously and without results.
 - **Crash reports:** off by default, scrubbed of Riot IDs, PUUIDs and paths before they leave.
