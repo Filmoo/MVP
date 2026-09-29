@@ -60,7 +60,7 @@ function LpTrend(props: { games: readonly LpGame[] }): JSX.Element {
             data-lp={Math.sign(tr().total)}
             role="img"
             aria-label={t().profile.lpTrend(tr().games, text())}
-            title={t().profile.lpTrend(tr().games, text())}
+            data-hint={t().profile.lpTrend(tr().games, text())}
           >
             <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} aria-hidden="true">
               <polyline points={tr().points.join(" ")} />

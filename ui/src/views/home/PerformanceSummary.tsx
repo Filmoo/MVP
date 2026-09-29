@@ -95,7 +95,7 @@ export function PerformanceSummary(props: {
               <ol class={styles.mastery}>
                 <For each={props.mastery?.slice(0, MAX_MASTERY)}>
                   {(m) => (
-                    <li class={styles.masteryItem} title={t().summary.masteryTitle(name(m.championId), m.level, integer(m.points))}>
+                    <li class={styles.masteryItem} data-hint={t().summary.masteryTitle(name(m.championId), m.level, integer(m.points))}>
                       <span class={styles.masteryIcon}>
                         <ChampionIcon championId={m.championId} size={40} round />
                         <span class={`${styles.masteryLevel} num`}>{m.level}</span>

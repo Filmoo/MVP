@@ -79,7 +79,7 @@ export function PostGameCard(props: { game: PostGame; onClose: () => void }): JS
       class={`${styles.card} ${styles[outcome()] ?? ""}`}
       backdrop={<ChampionArt championId={g().me.championId} class={styles.art} />}
       actions={
-        <button type="button" class={styles.close} aria-label={words().close} title={words().close} onClick={() => props.onClose()}>
+        <button type="button" class={styles.close} aria-label={words().close} data-hint={words().close} onClick={() => props.onClose()}>
           <Icon name="close" size={16} />
         </button>
       }
@@ -166,7 +166,7 @@ export function PostGameCard(props: { game: PostGame; onClose: () => void }): JS
                       <a
                         class={`${styles.theirName} ${styles.link}`}
                         href={`#${playerPath(platformOf(g().matchId), id())}`}
-                        title={formatRiotId(id())}
+                        data-hint={formatRiotId(id())}
                       >
                         {id().gameName}
                       </a>

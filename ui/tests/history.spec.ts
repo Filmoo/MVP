@@ -120,9 +120,9 @@ test("profile: the LP graph sums your tracked ranked games; mastery in the champ
   const graph = page.getByRole("img", { name: t.profile.lpTrend(11, t.matches.lp(signedPoints(86, 0))) });
   await expect(graph).toBeVisible();
   await expect(graph.locator("polyline")).toHaveAttribute("points", /(\S+ ){11}\S+/);
-  const mastery = page.locator("[data-widget=performance-summary] li[title]");
+  const mastery = page.locator("[data-widget=performance-summary] li[data-hint]");
   await expect(mastery).toHaveCount(5);
-  await expect(mastery.first()).toHaveAttribute("title", t.summary.masteryTitle("Ahri", 12, integer(412_300)));
+  await expect(mastery.first()).toHaveAttribute("data-hint", t.summary.masteryTitle("Ahri", 12, integer(412_300)));
   await expect(mastery.first()).toContainText("12");
 });
 
@@ -134,8 +134,13 @@ test("post-game: the last game tops Home, with its LP, until closed for good", a
   await expect(card.getByTestId("post-game-grade")).toContainText(t.gradeWhy.mvp);
   await expect(card.getByTestId("post-game-lp")).toContainText(t.matches.lp(signedPoints(21, 0)));
   await expect(card).toContainText(t.postGame.laneOpponent);
-  // The opponent's name opens their page.
+  // The opponent's name opens their page; their whole Riot ID shows in a designed tooltip, never
+  // a native one.
   await expect(card.getByRole("link")).toHaveAttribute("href", /^#\/player\/euw1\//);
+  await expect(card.locator("[title]")).toHaveCount(0);
+  await card.getByRole("link").hover();
+  await expect(page.getByTestId("hint")).toContainText("#");
+  await page.mouse.move(0, 0);
   // Its row says the same LP.
   await expect(rows(page).first()).toContainText(t.matches.lp(signedPoints(21, 0)));
 
