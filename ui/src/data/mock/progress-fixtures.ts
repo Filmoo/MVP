@@ -143,8 +143,8 @@ export const unknownPostGame = postGameFor(winProfile, winProfile.recentMatches[
 export const pendingPostGame = postGameFor(winProfile, winProfile.recentMatches[0] as MatchSummary, null, true);
 
 // ARAM: no LP, the opponent is the closest share of damage.
-export const aramProfile = justPlayed(profile, { queueId: 450, role: null });
-export const aramPostGame = postGameFor(aramProfile, aramProfile.recentMatches[0] as MatchSummary, null);
+export const aramGameProfile = justPlayed(profile, { queueId: 450, role: null });
+export const aramPostGame = postGameFor(aramGameProfile, aramGameProfile.recentMatches[0] as MatchSummary, null);
 
 /** 47 games (flex and ARAM among them), the first 20 on the profile: three pages to load. */
 export const longHistory: MatchSummary[] = Array.from({ length: 47 }, (_, i) => {

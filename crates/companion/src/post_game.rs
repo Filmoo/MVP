@@ -464,7 +464,7 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::matches::{Me, details_from_client};
+    use crate::matches::{Me, RoleShares, details_from_client};
 
     fn local() -> Local {
         Local {
@@ -491,7 +491,13 @@ mod tests {
 
     fn details(game: &Game) -> MatchDetails {
         let me = Me::from_summoner(&json!({ "puuid": "local-puuid", "summonerId": 42 }));
-        details_from_client(&game.document(&local()), &me, "EUW1").unwrap()
+        details_from_client(
+            &game.document(&local()),
+            &me,
+            "EUW1",
+            &RoleShares::default(),
+        )
+        .unwrap()
     }
 
     #[test]

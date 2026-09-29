@@ -1,5 +1,6 @@
-import { createEffect, createSignal, For, type JSX, lazy, Show, Suspense } from "solid-js";
+import { type Accessor, createEffect, createSignal, For, type JSX, lazy, Show, Suspense } from "solid-js";
 import { useData } from "../../data/context";
+import type { GradedMatch } from "../../data/generated/GradedMatch";
 import type { LpGame } from "../../data/generated/LpGame";
 import type { MatchGrade } from "../../data/generated/MatchGrade";
 import type { MatchSummary } from "../../data/generated/MatchSummary";
@@ -132,6 +133,34 @@ function MatchRow(props: {
   );
 }
 
+/** The grades (and roles) of your own games, by match id, once the core has read them. */
+export type LateGrades = Accessor<ReadonlyMap<string, GradedMatch> | undefined>;
+
+/**
+ * Your own games come without their grades (a grade needs the whole game): the core reads them
+ * from the client after the list, once, and answers each game's grade with the role you played
+ * there (the list only guesses it). Other players' games come graded: nothing to ask.
+ *
+ * Each game of `matches` is asked for once (a new list from the core asks again for its games
+ * without a grade), and the answers add up: games coming and going (filters, older pages) never
+ * blank the chips already there.
+ */
+export function createLateGrades(matches: Accessor<readonly MatchSummary[]>): LateGrades {
+  const { transport } = useData();
+  const [late, setLate] = createSignal<ReadonlyMap<string, GradedMatch>>();
+  const asked = new WeakSet<MatchSummary>();
+  createEffect(() => {
+    const wanted = matches().filter((m) => !m.grade && m.durationSeconds > REMAKE_MAX_SECONDS && !asked.has(m));
+    if (wanted.length === 0) return;
+    for (const m of wanted) asked.add(m);
+    void transport.call("match_grades", { matchIds: wanted.map((m) => m.matchId) }).then(
+      (list) => setLate((before) => new Map([...(before ?? []), ...list.map((g) => [g.matchId, g] as const)])),
+      () => setLate((before) => before ?? new Map()),
+    );
+  });
+  return late;
+}
+
 function DayRecord(props: { matches: readonly MatchSummary[] }): JSX.Element {
   const counted = () => props.matches.filter((m) => m.durationSeconds > REMAKE_MAX_SECONDS);
   const wins = () => counted().filter((m) => m.win).length;
@@ -149,6 +178,8 @@ export function RecentMatches(props: {
   matches: readonly MatchSummary[];
   /** The player whose games these are: their line is marked in an opened game. */
   focus?: RiotId | undefined;
+  /** Your own games' grades, read after the list (`createLateGrades`): their chips wait empty meanwhile. */
+  late?: LateGrades | undefined;
   /** The LP each game was worth, when known (your ranked games). */
   lp?: ((matchId: string) => LpGame | undefined) | undefined;
   /** Above the list: the history's filters. */
@@ -158,34 +189,10 @@ export function RecentMatches(props: {
   /** Under the list: loading older games. */
   footer?: JSX.Element;
 }): JSX.Element {
-  const { transport } = useData();
   const hasMatches = () => props.matches.length > 0;
   // One game open at a time; a second click, or Escape, closes it.
   const [open, setOpen] = createSignal<string>();
-  // Your own games come without their grades (a grade needs the whole game): the core reads them
-  // from the client after the list, once. Their chips wait empty meanwhile. Only the rows shown
-  // are asked for (filters, older games), each once per list the core sent.
-  const answered = new WeakMap<MatchSummary, MatchGrade | null>();
-  const [answers, setAnswers] = createSignal(0);
-  createEffect(() => {
-    const wanted = props.matches.filter((m) => !m.grade && m.durationSeconds > REMAKE_MAX_SECONDS && !answered.has(m));
-    if (wanted.length === 0) return;
-    for (const m of wanted) answered.set(m, null);
-    void transport.call("match_grades", { matchIds: wanted.map((m) => m.matchId) }).then(
-      (list) => {
-        const grades = new Map(list.map((g) => [g.matchId, g.grade]));
-        for (const m of wanted) answered.set(m, grades.get(m.matchId) ?? null);
-        setAnswers((n) => n + 1);
-      },
-      () => {
-        // Chips stay empty: grades are extra.
-      },
-    );
-  });
-  const gradeOf = (m: MatchSummary) => {
-    answers(); // the answers so far
-    return m.grade ?? answered.get(m) ?? null;
-  };
+  const gradeOf = (m: MatchSummary) => m.grade ?? props.late?.()?.get(m.matchId)?.grade ?? null;
 
   const toggle = (id: string, row: HTMLElement) => {
     // The clicked row stays where it is when a game above it closes.

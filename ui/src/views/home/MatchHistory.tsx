@@ -12,7 +12,7 @@ import { EmptyState } from "../../design/States";
 import { t } from "../../i18n";
 import { gameIdOf, PAGE, QUEUES, type QueueFilter, queueGroup } from "./history";
 import styles from "./MatchHistory.module.css";
-import { RecentMatches } from "./RecentMatches";
+import { createLateGrades, type LateGrades, RecentMatches } from "./RecentMatches";
 
 /**
  * The match history with its filters (queue, champion) and, on Home, older games a page at a
@@ -22,6 +22,8 @@ import { RecentMatches } from "./RecentMatches";
 export function MatchHistory(props: {
   matches: readonly MatchSummary[];
   focus?: RiotId | undefined;
+  /** The first page's grades, read after the list (`createLateGrades`, shared with the hero). */
+  late?: LateGrades | undefined;
   /** The LP of your tracked ranked games (Home). */
   lp?: readonly LpGame[] | undefined;
   /** Games from `begIndex` on, further back (Home: your League client's history). */
@@ -69,6 +71,13 @@ export function MatchHistory(props: {
   const shown = createMemo(() =>
     all().filter((m) => (queue() === "all" || queueGroup(m.queueId) === queue()) && (!champion() || m.championId === champion())),
   );
+  // Older games' grades: asked for the rows shown, each once; the first page's come with `late`.
+  const first = createMemo(() => new Set(props.matches));
+  const olderLate = createLateGrades(() => shown().filter((m) => !first().has(m)));
+  const late = createMemo(() => {
+    const [a, b] = [props.late?.(), olderLate()];
+    return a && b ? new Map([...a, ...b]) : (a ?? b);
+  });
   const name = (id: number) => gameData()?.champions.get(id)?.name ?? t().common.championN(id);
   /** Champions of the games loaded, most played first (the one picked stays listed). */
   const champions = createMemo(() => {
@@ -110,6 +119,7 @@ export function MatchHistory(props: {
     <RecentMatches
       matches={shown()}
       focus={props.focus}
+      late={late}
       lp={(id) => lpById().get(gameIdOf(id))}
       filters={all().length > 0 ? filters : undefined}
       empty={

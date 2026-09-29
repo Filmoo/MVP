@@ -6,8 +6,8 @@
 use std::collections::HashMap;
 
 use domain::{
-    ChampionMastery, Division, MatchSummary, PlayerProfile, RankedEntry, RankedQueue, RiotId, Role,
-    Tier,
+    ChampionMastery, ClientError, Division, MatchSummary, PlayerProfile, RankedEntry, RankedQueue,
+    RiotId, Role, Tier,
 };
 use lcu::{LcuClient, LcuError};
 use serde_json::Value;
@@ -115,9 +115,11 @@ pub fn gradable(history: &Value, platform: &str) -> HashMap<String, bool> {
         .collect()
 }
 
-/// The role of the local player's line in the list. The client's `timeline` lane is a guess,
-/// often wrong (a Kennen with Teleport or an Ezreal with Barrier "in the jungle", seen on real
+/// The role of the local player's line in the list, a first guess. The client's `timeline` lane
+/// is often wrong (a Kennen with Teleport or an Ezreal with Barrier "in the jungle", seen on real
 /// games): Smite says jungle, a jungle without Smite says nothing, and Howling Abyss has none.
+/// Once the whole game is read for its grade, the row takes the role worked out from all ten
+/// players (`matches::MatchInsights`), the one its grade uses.
 fn listed_role(game: &Value, me: &Value) -> Option<Role> {
     if u32_at(game, "mapId") == HOWLING_ABYSS {
         return None;
@@ -169,6 +171,19 @@ pub fn map_matches(history: &Value, platform: &str) -> Vec<MatchSummary> {
             })
         })
         .collect()
+}
+
+/// How a failed read of the profile reads in the UI: no answer at all (the connection status
+/// turns `notAnswering` meanwhile, and the core asks the client again by itself), or the
+/// client's own error. The request's URL (with the client's port) never reaches the UI.
+pub fn client_error(error: &LcuError) -> ClientError {
+    if error.is_unanswered() {
+        ClientError::NotAnswering
+    } else {
+        ClientError::Failed {
+            message: error.to_string(),
+        }
+    }
 }
 
 /// Reads the whole profile. Missing pieces degrade gracefully (unranked, no games).
@@ -367,6 +382,21 @@ mod tests {
             role(line(11, [4, 21], "BOTTOM", "CARRY")),
             Some(Role::Bottom)
         );
+    }
+
+    /// An answer, even an error, isn't "not answering": the client's own words go on.
+    #[test]
+    fn an_error_answer_keeps_its_words() {
+        let busy = LcuError::Http {
+            method: reqwest::Method::GET,
+            path: CURRENT_SUMMONER.to_owned(),
+            status: reqwest::StatusCode::SERVICE_UNAVAILABLE,
+            message: "busy".to_owned(),
+        };
+        match client_error(&busy) {
+            ClientError::Failed { message } => assert!(message.contains("HTTP 503"), "{message}"),
+            ClientError::NotAnswering => panic!("the client answered"),
+        }
     }
 
     #[test]

@@ -65,6 +65,10 @@
       "renderMs": 2,
       "domNodes": 36
     },
+    "settings-no-match": {
+      "renderMs": 2,
+      "domNodes": 12
+    },
     "live-team": {
       "renderMs": 6,
       "domNodes": 240

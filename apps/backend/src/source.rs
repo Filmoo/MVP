@@ -9,7 +9,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use players::RiotSource;
-use riot_api::{Account, LeagueEntry, MatchQuery, Platform, RiotClient, RiotError, Summoner};
+use riot_api::{
+    Account, CurrentGame, LeagueEntry, MatchQuery, Platform, RiotClient, RiotError, Summoner,
+};
 use serde_json::{Map, Value};
 
 use crate::cache::Cache;
@@ -226,6 +228,24 @@ pub(crate) type MatchCache = Cache<String, Arc<str>>;
 impl CachedRiot {
     pub(crate) fn client(&self) -> &RiotClient {
         &self.client
+    }
+
+    /// The live game of a player (our key's PUUID), from Spectator-V5 (cached by `live`).
+    pub(crate) async fn current_game(
+        &self,
+        platform: Platform,
+        puuid: &str,
+    ) -> Result<CurrentGame, RiotError> {
+        self.client.current_game(platform, puuid).await
+    }
+
+    /// An account Riot just showed with its Riot ID (a live game's players): the scouting batch
+    /// that may follow finds it without an account-v1 call.
+    pub(crate) fn remember_account(&self, account: &Account) {
+        if let (Some(name), Some(tag)) = (&account.game_name, &account.tag_line) {
+            self.accounts_by_riot_id
+                .insert((name.to_lowercase(), tag.to_lowercase()), account.clone());
+        }
     }
 
     /// Accounts by Riot ID, accounts by PUUID, compacted matches.

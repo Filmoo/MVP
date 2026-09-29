@@ -83,6 +83,9 @@ pub enum GradeFactorKind {
 pub struct GradedMatch {
     pub match_id: String,
     pub grade: Option<MatchGrade>,
+    /// The role the player played there, as worked out from the whole game (the list only
+    /// guesses it): the row follows it. `None` when the game wasn't read or has no roles.
+    pub role: Option<Role>,
 }
 
 /// One finished game in full, for the match details view (`match_details`).

@@ -93,8 +93,9 @@ test("idle: no scripts, layouts or style work while nothing happens", async ({ p
   expect(idle.styleRecalcs).toBeLessThanOrEqual(budgets.idle.styleRecalcs);
 });
 
-// Stats pages load data on open: once shown, they're as quiet as Home.
-for (const view of ["/tier-list", "/champions?id=103"]) {
+// Stats pages load data on open: once shown, they're as quiet as Home (the champion list too, once
+// its last tiles are built).
+for (const view of ["/tier-list", "/champions?id=103", "/champions"]) {
   test(`idle on ${view}: no scripts, layouts or style work`, async ({ page }) => {
     await openApp(page, { view, freezeClock: false });
     await page.waitForTimeout(800);

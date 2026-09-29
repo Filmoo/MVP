@@ -3,6 +3,8 @@
  * every run: the owner's line is the row's own numbers, the other nine players are invented.
  * Grades follow `stats::grade` (a compact port, so the mock's grades read like real ones).
  */
+
+import { onHowlingAbyss } from "../../lib/queues";
 import type { GradedMatch } from "../generated/GradedMatch";
 import type { GradeFactorKind } from "../generated/GradeFactorKind";
 import type { GradeLetter } from "../generated/GradeLetter";
@@ -202,7 +204,8 @@ function riotId(text: string): RiotId {
 /** The whole game behind `match`, `owner`'s row; `extreme` fills every slot with the longest names and biggest numbers. */
 export function gameFor(match: MatchSummary, owner: RiotId, extreme = false): MatchDetails {
   const next = random(match.matchId);
-  const aram = match.queueId === 450;
+  // Howling Abyss (ARAM, ARAM: Mayhem): no roles, no wards (everyone's vision score is 0).
+  const aram = onHowlingAbyss(match.queueId);
   const minutes = match.durationSeconds / 60;
   const ownerRole: Role = match.role ?? "middle";
   const names = [...NAMES].sort(() => next() - 0.5);
@@ -231,7 +234,7 @@ export function gameFor(match: MatchSummary, owner: RiotId, extreme = false): Ma
         gold: Math.round(at(1) * (extreme ? 2.2 : 1)),
         damage: Math.round(at(2) * (extreme ? 4 : 1)) + (mine ? match.kills * 900 : 0),
         taken: Math.round(at(3)),
-        vision: Math.round(at(4) * (extreme ? 3 : 1)),
+        vision: aram ? 0 : Math.round(at(4) * (extreme ? 3 : 1)),
         objectives: Math.round(at(5)),
       };
       const items = mine ? match.items : ITEMS[role].slice(0, extreme ? 6 : 3 + Math.floor(minutes / 12));
@@ -288,7 +291,8 @@ export function gameFor(match: MatchSummary, owner: RiotId, extreme = false): Ma
   };
 }
 
-const ownerGrade = (game: MatchDetails) => game.teams.flatMap((t) => t.players).find((p) => p.isMe)?.grade ?? null;
+const ownerLine = (game: MatchDetails) => game.teams.flatMap((t) => t.players).find((p) => p.isMe);
+const ownerGrade = (game: MatchDetails) => ownerLine(game)?.grade ?? null;
 
 function lookup(profiles: readonly PlayerProfile[], matchId: string): { match: MatchSummary; owner: RiotId } | undefined {
   for (const p of profiles) {
@@ -307,12 +311,13 @@ export function detailsFrom(profiles: readonly PlayerProfile[], extreme = false)
   };
 }
 
-/** `match_grades` answering for the games of `profiles`. */
+/** `match_grades` answering for the games of `profiles`: your grade and the role you played. */
 export function gradesFrom(profiles: readonly PlayerProfile[], extreme = false): (args: { matchIds: string[] }) => GradedMatch[] {
   return ({ matchIds }) =>
     matchIds.map((matchId) => {
       const found = lookup(profiles, matchId);
-      return { matchId, grade: found ? ownerGrade(gameFor(found.match, found.owner, extreme)) : null };
+      const mine = found && ownerLine(gameFor(found.match, found.owner, extreme));
+      return { matchId, grade: mine?.grade ?? null, role: mine?.role ?? null };
     });
 }
 

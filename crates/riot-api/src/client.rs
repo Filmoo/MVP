@@ -38,6 +38,10 @@ impl fmt::Debug for ApiKey {
 pub enum RiotError {
     #[error("not found")]
     NotFound,
+    /// A 404 Riot calls "filtered": the data exists but isn't shared with apps (Spectator-V5
+    /// for live Ranked Flex and Arena games, 2026).
+    #[error("filtered by Riot")]
+    Filtered,
     /// Invalid/expired key, blocked endpoint (e.g. Brawl) or blacklisting.
     #[error("forbidden (HTTP {0}): check the API key")]
     Forbidden(u16),
@@ -208,7 +212,14 @@ impl RiotClient {
                         source,
                     });
                 }
-                StatusCode::NOT_FOUND => return Err(RiotError::NotFound),
+                StatusCode::NOT_FOUND => {
+                    let body = res.bytes().await.unwrap_or_default();
+                    return Err(if filtered(&body) {
+                        RiotError::Filtered
+                    } else {
+                        RiotError::NotFound
+                    });
+                }
                 StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
                     return Err(RiotError::Forbidden(status.as_u16()));
                 }
@@ -247,4 +258,35 @@ impl RiotClient {
 
 fn header<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str> {
     headers.get(name).and_then(|v| v.to_str().ok())
+}
+
+/// Whether a 404's body is Riot's "filtered" (`{"status":{"message":"Data not found -
+/// filtered",…}}`) rather than a plain "not found".
+fn filtered(body: &[u8]) -> bool {
+    let message = serde_json::from_slice::<serde_json::Value>(body)
+        .ok()
+        .and_then(|v| {
+            v.pointer("/status/message")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_owned)
+        })
+        .unwrap_or_else(|| String::from_utf8_lossy(body).into_owned());
+    message.to_ascii_lowercase().contains("filtered")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tells_filtered_from_not_found() {
+        assert!(filtered(
+            br#"{"status":{"message":"Data not found - filtered","status_code":404}}"#
+        ));
+        assert!(filtered(b"Filtered"));
+        assert!(!filtered(
+            br#"{"status":{"message":"Data not found - spectator game info isn't found","status_code":404}}"#
+        ));
+        assert!(!filtered(b""));
+    }
 }
