@@ -44,11 +44,21 @@ export function TierTable(props: {
   const titles = () => t().tierList.titles;
   const header = (key: TierSortKey, label: string, cls: string | undefined, glyph?: GlyphName, title?: string) => {
     const active = () => !props.filtering && tableSort().key === key;
+    // The lane's word gives way to a glyph in a narrow table: the button keeps its name.
+    const lane = key === "role";
     return (
       <th scope="col" class={cls} aria-sort={active() ? (tableSort().dir === "asc" ? "ascending" : "descending") : undefined} title={title}>
-        <button type="button" class={`${styles.sort} ${active() ? styles.sorted : ""}`} onClick={() => sortBy(key)}>
+        <button
+          type="button"
+          class={`${styles.sort} ${active() ? styles.sorted : ""}`}
+          aria-label={lane ? label : undefined}
+          onClick={() => sortBy(key)}
+        >
           <Show when={glyph}>{(g) => <Glyph name={g()} size={14} class={styles.headGlyph} />}</Show>
-          <span>{label}</span>
+          <Show when={lane}>
+            <Glyph name="roleAll" size={14} class={styles.laneGlyph} />
+          </Show>
+          <span class={lane ? styles.laneWord : undefined}>{label}</span>
           <Icon name="chevronDown" size={14} class={`${styles.arrow} ${active() && tableSort().dir === "asc" ? styles.flip : ""}`} />
         </button>
       </th>

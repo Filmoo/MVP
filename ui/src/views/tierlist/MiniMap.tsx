@@ -80,7 +80,7 @@ export function MiniMap(props: {
         <span class={styles.headTitle}>{t().tierList.map.title}</span>
         <Icon name="chevronDown" size={14} class={styles.expand} />
       </span>
-      <span class={styles.plot} aria-hidden="true" data-lit={props.lit ? "" : undefined}>
+      <span class={styles.plot} aria-hidden="true" data-dim={props.lit ? "" : undefined}>
         <For each={tierBands(d())}>
           {(b) => (
             <span class={`${styles.band} ${styles[`band${b.tier}`]}`} style={{ top: `${b.top * 100}%`, height: `${b.height * 100}%` }} />

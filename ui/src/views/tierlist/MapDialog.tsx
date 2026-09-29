@@ -1,4 +1,4 @@
-import { createMemo, createSignal, createUniqueId, For, type JSX, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, createUniqueId, For, type JSX, onCleanup, onMount, Show } from "solid-js";
 import { useData } from "../../data/context";
 import { ChampionIcon } from "../../design/GameIcon";
 import { Glyph } from "../../design/Glyph";
@@ -14,6 +14,8 @@ import { dotTone, mapDomain, tierBands, xOf, yOf } from "./MiniMap";
 import { championLink } from "./Shelves";
 
 const TICKS = [0.005, 0.01, 0.02, 0.05, 0.1, 0.2];
+/** How much a face grows when pointed at (MapDialog.module.css): it stays inside the plot. */
+const LIT_SCALE = 1.35;
 
 interface Placed {
   e: RankedEntry;
@@ -54,12 +56,21 @@ export default function MapDialog(props: {
   const dots = () => props.allRoles;
   const radius = () => (dots() ? 6 : size().w < 520 ? 12 : 16);
   // Faces pushed apart where they'd overlap (each stays near its true spot); dots may touch.
+  // Every point stays inside the plot, grown or not.
   const placed = createMemo<Placed[]>(() => {
     const { w, h } = size();
     if (w === 0) return [];
     const r = radius();
+    const edge = Math.ceil(r * LIT_SCALE);
+    const inside = (p: Placed) => {
+      p.x = Math.min(Math.max(p.x, edge), w - edge);
+      p.y = Math.min(Math.max(p.y, edge), h - edge);
+    };
     const points = props.rows.map((e) => ({ e, x: xOf(d(), e.pickRate) * w, y: yOf(d(), e.score) * h }));
-    if (dots()) return points;
+    if (dots()) {
+      for (const p of points) inside(p);
+      return points;
+    }
     const gap = r * 2 + 2;
     for (let round = 0; round < 40; round++) {
       let moved = false;
@@ -82,13 +93,21 @@ export default function MapDialog(props: {
           moved = true;
         }
       }
-      for (const p of points) {
-        p.x = Math.min(Math.max(p.x, r), w - r);
-        p.y = Math.min(Math.max(p.y, r), h - r);
-      }
+      for (const p of points) inside(p);
       if (!moved) break;
     }
     return points;
+  });
+  // The name of the face pointed at: one tag over it (under it near the top), inside the plot.
+  const litPoint = createMemo(() => placed().find((p) => entryKey(p.e) === props.lit));
+  let tag: HTMLSpanElement | undefined;
+  createEffect(() => {
+    const p = litPoint();
+    if (!p || !tag) return;
+    const lift = radius() * LIT_SCALE + 8;
+    const x = Math.min(Math.max(p.x - tag.offsetWidth / 2, 0), Math.max(0, size().w - tag.offsetWidth));
+    const above = p.y - lift - tag.offsetHeight;
+    tag.style.translate = `${Math.round(x)}px ${Math.round(above >= 0 ? above : p.y + lift)}px`;
   });
   const words = () => t().tierList.map;
   const role = () => (props.role === "all" ? t().stats.allRoles : roleLabel(props.role));
@@ -180,15 +199,21 @@ export default function MapDialog(props: {
                       <ChampionIcon championId={p.e.id} size={32} round />
                     </Show>
                   </span>
-                  <span class={styles.tag}>
-                    <span class={styles.tagName}>{name(p.e.id)}</span>
-                    <span class={`${styles.tagWr} num`} data-wr={wrSide(p.e.winRate)}>
-                      {percent(p.e.winRate, 1)}
-                    </span>
-                  </span>
                 </a>
               )}
             </For>
+            <span ref={tag} class={styles.tag} data-shown={litPoint() ? "" : undefined} aria-hidden="true">
+              <Show when={litPoint()}>
+                {(p) => (
+                  <>
+                    <span class={styles.tagName}>{name(p().e.id)}</span>
+                    <span class={`${styles.tagWr} num`} data-wr={wrSide(p().e.winRate)}>
+                      {percent(p().e.winRate, 1)}
+                    </span>
+                  </>
+                )}
+              </Show>
+            </span>
           </div>
           <div class={`${styles.axisX} num`} aria-hidden="true">
             <For each={TICKS}>

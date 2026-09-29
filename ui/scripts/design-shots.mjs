@@ -46,7 +46,12 @@ const SHOTS = [
     hover: "[data-testid=role-filter] [role=radio]:nth-of-type(3)",
   },
   { name: "state-rank-menu-1280x800", route: "/tier-list?view=shelves&role=middle", size: [1280, 800], click: "[data-testid=rank-button]" },
-  { name: "state-filter-1280x800", route: "/tier-list?view=table&role=all", size: [1280, 800], type: ["[data-testid=champion-filter]", "ah"] },
+  {
+    name: "state-filter-1280x800",
+    route: "/tier-list?view=table&role=all",
+    size: [1280, 800],
+    type: ["[data-testid=champion-filter]", "ah"],
+  },
   { name: "state-map-1280x800", route: "/tier-list?view=shelves&role=middle", size: [1280, 800], click: "[data-testid=open-map]" },
   { name: "state-map-all-1280x800", route: "/tier-list?view=shelves&role=all", size: [1280, 800], click: "[data-testid=open-map]" },
   { name: "state-map-420x800", route: "/tier-list?view=shelves&role=middle", size: [420, 800], click: "[data-testid=open-map]" },

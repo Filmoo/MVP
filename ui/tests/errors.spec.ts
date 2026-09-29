@@ -226,10 +226,11 @@ test("aram: before your champion is there, the list says what will show", async 
   expect(errors).toEqual([]);
 });
 
-test("champion page for an unknown id: the champion list", async ({ page, t }) => {
+test("champion page for an unknown id: the tier list, where champions are found", async ({ page, t }) => {
   await openApp(page, { view: "/champions?id=999999" });
-  await expect(page.getByRole("heading", { level: 1, name: t.champions.title })).toBeVisible();
-  await expect(page.getByTestId("champion-tile").first()).toBeVisible();
+  await expect(page).toHaveURL(/#\/tier-list$/);
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(t.tierList.title);
+  await expect(page.getByTestId("tier-row").first()).toBeVisible();
 });
 
 // Stats pages: nothing published is an empty state (no retry), failures say why and retry.
@@ -241,33 +242,33 @@ test("stats not published yet: the pages say so, champions still show", async ({
   await openApp(page, { view: "/champions?id=103", scenario: "stats-empty" });
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Ahri");
   await expect(page.locator("main")).toContainText(t.stats.errors.notFound.title);
-  await openApp(page, { view: "/champions", scenario: "stats-empty" });
+  // The tier list still leads to every champion (by class, no lanes to filter).
+  await openApp(page, { view: "/tier-list", scenario: "stats-empty" });
   expect(await page.getByTestId("champion-tile").count(), "the list needs no stats").toBeGreaterThan(160);
   await expect(page.getByTestId("role-filter")).toHaveCount(0);
-  await expect(page.getByText(t.champions.noStats(t.stats.errors.notFound.title)), "why it isn't sorted by stats").toBeVisible();
   await expect(page.getByRole("button", { name: t.common.tryAgain }), "asking again can't help").toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
-test("stats offline on /champions: every champion by class, why, and a retry that asks again", async ({ page, t }) => {
+test("stats offline on the tier list: every champion by class, why, and a retry that asks again", async ({ page, t }) => {
   const errors = trackErrors(page);
-  await openApp(page, { view: "/champions", scenario: "stats-offline" });
-  const notice = page.getByText(t.champions.noStats(t.stats.errors.network.title));
-  await expect(notice).toBeVisible();
+  await openApp(page, { view: "/tier-list", scenario: "stats-offline" });
+  const alert = page.getByRole("alert");
+  await expect(alert).toContainText(t.stats.errors.network.title);
   await expect(page.getByTestId("role-filter")).toHaveCount(0);
-  await expect(page.getByRole("radiogroup", { name: t.champions.sort })).toHaveCount(0);
-  const heads = await page
-    .locator("[data-widget=champion-grid] h2")
-    .evaluateAll((els) => els.map((el) => el.firstElementChild?.textContent));
+  await expect(page.getByTestId("view-switch")).toHaveCount(0);
+  const heads = await page.locator("[data-widget=tier-no-stats] h2").evaluateAll((els) => els.map((el) => el.firstChild?.textContent));
   expect(heads).toEqual(["Assassin", "Fighter", "Mage", "Marksman", "Support", "Tank"].map((tag) => t.classes[tag]));
   const tiles = page.getByTestId("champion-tile");
   expect(await tiles.count()).toBeGreaterThan(160);
-  await expect(tiles.first().getByRole("img", { name: /^Tier/ }), "no tiers").toHaveCount(0);
+  // The filter still works, and a tile opens its champion.
+  await page.getByTestId("champion-filter").fill("ahr");
+  await expect(tiles.first()).toContainText("Ahri");
   const calls = () => page.evaluate(() => window.__SCOUT_MOCK__?.calls.filter((name) => name === "tier_list").length ?? 0);
   const before = await calls();
-  await page.getByRole("button", { name: t.common.tryAgain }).click();
+  await alert.getByRole("button", { name: t.common.tryAgain }).click();
   await expect.poll(calls).toBe(before + 1);
-  await expect(notice, "still offline: still says so").toBeVisible();
+  await expect(page.getByRole("alert"), "still offline: still says so").toContainText(t.stats.errors.network.title);
   expect(errors).toEqual([]);
 });
 
@@ -288,7 +289,7 @@ for (const { view, command } of [
   });
 }
 
-for (const view of ["/tier-list", "/champions?id=103", "/champions"]) {
+for (const view of ["/tier-list", "/champions?id=103", "/tier-list?view=table"]) {
   test(`slow stats on ${view}: skeletons first, then the numbers without layout jumps`, async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.addInitScript(() => {
@@ -302,7 +303,7 @@ for (const view of ["/tier-list", "/champions?id=103", "/champions"]) {
     await page.goto(`/?scenario=stats-slow#${view}`);
     await expect(page.locator("main [data-state=loading]").first()).toBeVisible();
     await settle(page);
-    await expect(page.locator("[data-widget=tier-list], [data-widget=champion-runes], [data-testid=champion-tile]").first()).toBeVisible();
+    await expect(page.locator("[data-widget=tier-shelves], [data-widget=tier-table], [data-widget=champion-runes]").first()).toBeVisible();
     const cls = await page.evaluate(() => (window as unknown as { __cls: number }).__cls);
     expect(cls, "cumulative layout shift").toBeLessThan(0.1);
   });

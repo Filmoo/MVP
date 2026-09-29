@@ -85,9 +85,9 @@ for (const { view, scenario } of [
   { view: "/tier-list?queue=450", scenario: "default" },
   { view: "/tier-list", scenario: "stats-empty" },
   { view: "/tier-list", scenario: "stats-offline" },
-  { view: "/champions", scenario: "stats-offline" },
-  { view: "/champions", scenario: "stats-empty" },
-  { view: "/champions?queue=450", scenario: "default" },
+  { view: "/tier-list?view=table", scenario: "default" },
+  { view: "/tier-list?view=table&queue=450", scenario: "default" },
+  { view: "/tier-list?view=table", scenario: "stats-first-patch" },
   { view: "/__harness?show=build-summary", scenario: "default" },
 ] as const) {
   test(`${view}/${scenario} only uses design tokens`, async ({ page }) => {
@@ -115,16 +115,24 @@ test("stats pages after switching (all rows, a role, duos, another rune page) on
   // Segments and pills glide to their new colors: audit the settled ones.
   await animationsDone(page);
   expect(await page.evaluate(auditTokens), "champion page").toEqual([]);
-  // The champion list in a role by pick rate (tiles with a badge and a rate), a tile hovered.
-  await openApp(page, { view: "/champions?role=bottom" });
-  await page.getByRole("radiogroup", { name: t.champions.sort }).getByRole("radio", { name: t.champions.sorts.pickRate }).click();
-  await page.getByTestId("champion-tile").first().hover();
+  // The table in every lane (a champion once per lane, trends), a row hovered; the rank menu.
+  await openApp(page, { view: "/tier-list?view=table&role=all" });
+  await page.getByTestId("tier-row").first().hover();
   await animationsDone(page);
-  expect(await page.evaluate(auditTokens), "champion list").toEqual([]);
+  expect(await page.evaluate(auditTokens), "tier table").toEqual([]);
+  await page.getByTestId("rank-button").click();
+  await animationsDone(page);
+  expect(await page.evaluate(auditTokens), "rank menu").toEqual([]);
+  // The full meta map.
+  await openApp(page, { view: "/tier-list?view=shelves&role=middle" });
+  await page.getByTestId("open-map").click();
+  await page.getByTestId("map-point").first().waitFor();
+  await animationsDone(page);
+  expect(await page.evaluate(auditTokens), "meta map").toEqual([]);
 });
 
-test("the champion list's skeleton only uses design tokens", async ({ page }) => {
-  await page.goto("/?scenario=stats-slow#/champions");
+test("the tier list's skeleton only uses design tokens", async ({ page }) => {
+  await page.goto("/?scenario=stats-slow#/tier-list");
   await page.locator("main [data-state=loading]").first().waitFor();
   expect(await page.evaluate(auditTokens)).toEqual([]);
 });

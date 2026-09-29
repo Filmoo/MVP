@@ -239,13 +239,16 @@
   outline-offset: 0;
 }
 
-/* The tooltip: a small glass label under the lane, after a short hover (not on a pass). */
+/*
+ * The tooltip: a small glass label under the lane, after a short hover (not on a pass). Out of the
+ * layout while hidden (`display: none`, faded in and out): it never widens the row of lanes.
+ */
 .tip {
   position: absolute;
   top: calc(100% + var(--space-4));
   left: 50%;
   z-index: 3;
-  display: flex;
+  display: none;
   align-items: baseline;
   gap: var(--space-3);
   padding: var(--space-2) var(--space-4);
@@ -259,12 +262,11 @@
   white-space: nowrap;
   pointer-events: none;
   opacity: 0;
-  visibility: hidden;
   translate: -50% calc(-1 * var(--space-2));
   transition:
     opacity var(--dur-1) var(--ease),
     translate var(--dur-2) var(--ease),
-    visibility 0s linear var(--dur-2);
+    display var(--dur-2) allow-discrete;
 }
 
 /* The first lane's tooltip starts at its left edge: it never leaves a narrow window. */
@@ -280,18 +282,31 @@
 
 .lane:hover .tip,
 .lane:focus-visible .tip {
+  display: flex;
   opacity: 1;
-  visibility: visible;
   translate: -50% 0;
   transition:
     opacity var(--dur-2) var(--ease) 120ms,
     translate var(--dur-2) var(--ease) 120ms,
-    visibility 0s linear 120ms;
+    display 0s allow-discrete;
 }
 
 .lane:first-of-type:hover .tip,
 .lane:first-of-type:focus-visible .tip {
   translate: 0 0;
+}
+
+/* Where the fade in starts from, now that the tooltip appears from `display: none`. */
+@starting-style {
+  .lane:hover .tip,
+  .lane:focus-visible .tip {
+    opacity: 0;
+    translate: -50% calc(-1 * var(--space-2));
+  }
+  .lane:first-of-type:hover .tip,
+  .lane:first-of-type:focus-visible .tip {
+    translate: 0 calc(-1 * var(--space-2));
+  }
 }
 
 /* ——— Rank: a button with the bracket's emblem, a glass grid of brackets ——— */

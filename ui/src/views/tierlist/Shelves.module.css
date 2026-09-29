@@ -250,7 +250,7 @@
   display: flex;
   flex-wrap: wrap;
   align-content: center;
-  gap: var(--space-5) var(--space-4);
+  gap: var(--space-4) var(--space-2);
   margin: 0;
   padding: var(--space-5) var(--space-6) var(--space-5) 0;
   list-style: none;
@@ -260,8 +260,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-2);
-  width: 52px;
+  width: 56px;
   color: inherit;
   text-decoration: none;
   border-radius: var(--radius-3);
@@ -271,10 +270,11 @@
   outline: none;
 }
 
+/* The portrait with room around it for its role badge, which sits on its corner. */
 .face {
   position: relative;
   display: block;
-  border-radius: var(--radius-3);
+  padding: var(--space-2);
   transition: transform var(--dur-2) var(--ease);
 }
 
@@ -282,8 +282,8 @@
 .face::after {
   content: "";
   position: absolute;
-  inset: 0;
-  border-radius: inherit;
+  inset: var(--space-2);
+  border-radius: var(--radius-3);
   box-shadow: inset 0 0 0 1px var(--line-glass);
   pointer-events: none;
   transition: box-shadow var(--dur-1) var(--ease);
@@ -313,8 +313,8 @@
 /* All roles: each face says its role, in the role's colour. */
 .roleBadge {
   position: absolute;
-  right: calc(-1 * var(--space-2));
-  bottom: calc(-1 * var(--space-2));
+  right: 0;
+  bottom: 0;
   display: grid;
   place-items: center;
   width: 20px;
@@ -483,7 +483,7 @@
 /* ——— Wide: bigger faces, the room is there ——— */
 @container shelves (min-width: 1200px) {
   .tile {
-    width: 60px;
+    width: 64px;
   }
   .face > :first-child {
     width: 56px;
@@ -544,11 +544,11 @@
     gap: 0 var(--space-4);
   }
   .tiles {
-    gap: var(--space-4) var(--space-3);
+    gap: var(--space-3) var(--space-1);
     padding: var(--space-4) var(--space-5) var(--space-5) var(--space-6);
   }
   .tile {
-    width: 44px;
+    width: 48px;
   }
   .face > :first-child {
     width: 40px;

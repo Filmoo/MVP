@@ -118,8 +118,13 @@ export const widgetRegistry: Record<string, () => JSX.Element> = {
       onCheck={() => {}}
     />
   ),
-  // Its first 50 rows (then "Show all").
-  "tier-table": () => <TierTable rows={tierRows} filtering={false} aram={false} trends={trends} />,
+  // Its first 50 rows (then "Show all"). In an element, as the page's widget has it: the table
+  // starts with a <Show>, which the harness can't mount alone.
+  "tier-table": () => (
+    <div>
+      <TierTable rows={tierRows} filtering={false} aram={false} trends={trends} />
+    </div>
+  ),
   // The podium, the mini map (a dot per row) and the first slice of faces.
   "tier-shelves": () => (
     <Shelves
@@ -134,7 +139,11 @@ export const widgetRegistry: Record<string, () => JSX.Element> = {
     />
   ),
   // Without stats: every champion by class, its first slice.
-  "tier-no-stats": () => <NoStatsChampions query="" />,
+  "tier-no-stats": () => (
+    <div>
+      <NoStatsChampions query="" />
+    </div>
+  ),
   "champion-hero": () => (
     <ChampionHero
       championId={99}

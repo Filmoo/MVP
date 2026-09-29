@@ -82,7 +82,7 @@ for (const [width, height] of [
 for (const view of VIEWS.slice(1)) {
   test(`${view} 1280x800`, async ({ page }) => {
     await openApp(page, { view });
-    await page.screenshot({ path: `${OUT}/${view.slice(1)}-default-1280x800.png` });
+    await page.screenshot({ path: `${OUT}/${view.slice(1).replace(/[^a-z0-9-]+/gi, "-")}-default-1280x800.png` });
   });
 }
 
@@ -325,7 +325,7 @@ test("player loading 1280x720", async ({ page }) => {
   await page.screenshot({ path: `${OUT}/player-loading-1280x720.png` });
 });
 
-// Stats pages: tier list, champion page, champion list, and their states.
+// Stats pages: the tier list (shelves and table), a champion's page, and their states.
 for (const [width, height] of [
   [1280, 800],
   [1920, 1080],
@@ -333,24 +333,24 @@ for (const [width, height] of [
   [420, 800],
 ] as const) {
   test(`tier list ${width}x${height}`, async ({ page }) => {
-    await openApp(page, { view: "/tier-list", width, height });
+    await openApp(page, { view: "/tier-list?view=shelves", width, height });
     await capture(page, `${OUT}/tierlist-default-${width}x${height}.png`, width < 900);
+  });
+
+  test(`tier table ${width}x${height}`, async ({ page }) => {
+    await openApp(page, { view: "/tier-list?view=table&role=all", width, height });
+    await capture(page, `${OUT}/tierlist-table-${width}x${height}.png`, false);
   });
 
   test(`champion page ${width}x${height}`, async ({ page }) => {
     await openApp(page, { view: "/champions?id=103", width, height });
     await capture(page, `${OUT}/champion-ahri-${width}x${height}.png`, true);
   });
-
-  test(`champion list ${width}x${height}`, async ({ page }) => {
-    await openApp(page, { view: "/champions", width, height });
-    await capture(page, `${OUT}/champions-list-${width}x${height}.png`, false);
-  });
 }
 
 for (const { name, view } of [
-  { name: "tierlist-aram", view: "/tier-list?queue=450" },
-  { name: "tierlist-support", view: "/tier-list?queue=420&role=support" },
+  { name: "tierlist-aram", view: "/tier-list?queue=450&view=table" },
+  { name: "tierlist-support", view: "/tier-list?queue=420&role=support&view=shelves" },
   { name: "champion-lux-support", view: "/champions?id=99" },
   { name: "champion-thresh", view: "/champions?id=412" },
   { name: "champion-lux-aram", view: "/champions?id=99&queue=450" },
@@ -371,10 +371,10 @@ for (const scenario of ["stats-empty", "stats-offline"] as const) {
   }
 }
 
-// The champion list, in English and French (`fr-…`): grouped by tier, a role by pick rate, the
-// filter, and without stats (grouped by class, and why).
+// The tier list's states, in English and French (`fr-…`): the hover card, the rank menu, the
+// filter, the full meta map, the table without trends (the first patch published).
 for (const lang of ["en", "fr"] as const) {
-  test.describe(lang === "fr" ? "champion list in French" : "champion list states", () => {
+  test.describe(lang === "fr" ? "tier list in French" : "tier list states", () => {
     if (lang === "fr") test.use({ locale: "fr-FR" });
     const prefix = lang === "fr" ? "fr-" : "";
     for (const [width, height] of [
@@ -382,49 +382,48 @@ for (const lang of ["en", "fr"] as const) {
       [1280, 800],
       [2560, 1440],
     ] as const) {
-      test(`${prefix}champions by tier ${width}x${height}`, async ({ page }) => {
-        await openApp(page, { view: "/champions", width, height });
-        await capture(page, `${OUT}/${prefix}champions-tier-${width}x${height}.png`, false);
+      test(`${prefix}tier list mid ${width}x${height}`, async ({ page }) => {
+        await openApp(page, { view: "/tier-list?view=shelves&role=middle", width, height });
+        await capture(page, `${OUT}/${prefix}tierlist-mid-${width}x${height}.png`, false);
       });
-      test(`${prefix}champions mid by pick rate ${width}x${height}`, async ({ page, t }) => {
-        await openApp(page, { view: "/champions?role=middle", width, height });
-        await page.getByRole("radiogroup", { name: t.champions.sort }).getByRole("radio", { name: t.champions.sorts.pickRate }).click();
+      test(`${prefix}tier table ${width}x${height}`, async ({ page }) => {
+        await openApp(page, { view: "/tier-list?view=table&role=all", width, height });
+        await capture(page, `${OUT}/${prefix}tierlist-table-all-${width}x${height}.png`, false);
+      });
+      test(`${prefix}meta map ${width}x${height}`, async ({ page }) => {
+        await openApp(page, { view: "/tier-list?view=shelves&role=middle", width, height });
+        await page.getByTestId("open-map").click();
+        await page.getByTestId("map-point").first().waitFor();
         await page.mouse.move(0, 0);
         await settle(page);
         await animationsDone(page);
-        await capture(page, `${OUT}/${prefix}champions-mid-pick-${width}x${height}.png`, false);
-      });
-      test(`${prefix}champions offline ${width}x${height}`, async ({ page }) => {
-        await openApp(page, { view: "/champions", scenario: "stats-offline", width, height });
-        await capture(page, `${OUT}/${prefix}champions-offline-${width}x${height}.png`, false);
+        await page.screenshot({ path: `${OUT}/${prefix}tierlist-map-${width}x${height}.png` });
       });
     }
-    test(`${prefix}champions filtered 1280x800`, async ({ page }) => {
-      await openApp(page, { view: "/champions" });
-      await page.getByTestId("champion-search").fill("ka");
+    test(`${prefix}tier list card 1280x800`, async ({ page }) => {
+      await openApp(page, { view: "/tier-list?view=shelves&role=middle" });
+      await page.getByTestId("tier-row").first().hover();
       await settle(page);
-      await capture(page, `${OUT}/${prefix}champions-filtered-1280x800.png`, false);
+      await capture(page, `${OUT}/${prefix}tierlist-card-1280x800.png`, false);
     });
-    test(`${prefix}champions not published 1280x800`, async ({ page }) => {
-      await openApp(page, { view: "/champions", scenario: "stats-empty" });
-      await capture(page, `${OUT}/${prefix}champions-empty-1280x800.png`, false);
-    });
-    test(`${prefix}champions end of the list 1280x800`, async ({ page }) => {
-      await openApp(page, { view: "/champions" });
-      await page.locator("main").evaluate((main) => main.scrollTo(0, main.scrollHeight));
+    test(`${prefix}tier list rank menu 1280x800`, async ({ page }) => {
+      await openApp(page, { view: "/tier-list?view=shelves&role=middle" });
+      await page.getByTestId("rank-button").click();
       await settle(page);
-      await capture(page, `${OUT}/${prefix}champions-end-1280x800.png`, false);
+      await capture(page, `${OUT}/${prefix}tierlist-rank-1280x800.png`, false);
+    });
+    test(`${prefix}tier list filtered 1280x800`, async ({ page }) => {
+      await openApp(page, { view: "/tier-list?view=table&role=all" });
+      await page.getByTestId("champion-filter").fill("ka");
+      await settle(page);
+      await capture(page, `${OUT}/${prefix}tierlist-filtered-1280x800.png`, false);
+    });
+    test(`${prefix}tier list first patch 1280x800`, async ({ page }) => {
+      await openApp(page, { view: "/tier-list?view=table&role=middle", scenario: "stats-first-patch" });
+      await capture(page, `${OUT}/${prefix}tierlist-first-patch-1280x800.png`, false);
     });
   });
 }
-
-test("champions loading 1280x720", async ({ page }) => {
-  await page.setViewportSize({ width: 1280, height: 720 });
-  await page.goto("/?scenario=stats-slow#/champions");
-  await page.locator("main [data-state=loading]").first().waitFor();
-  await page.waitForTimeout(300);
-  await page.screenshot({ path: `${OUT}/champions-loading-1280x720.png` });
-});
 
 for (const view of ["/tier-list", "/champions?id=103"]) {
   test(`${view} loading 1280x720`, async ({ page }) => {
@@ -453,7 +452,6 @@ for (const [view, width, height, by] of [
   ["/", 420, 800, 470],
   ["/tier-list", 420, 800, 300],
   // Mid-way through the A group: its letter stays in view beside the tiles.
-  ["/champions", 1280, 800, 640],
 ] as const) {
   test(`scrolled ${view} ${width}x${height}`, async ({ page }) => {
     await openApp(page, { view, width, height });
@@ -605,7 +603,6 @@ test.describe("in French", () => {
     { name: "live", view: "/live", scenario: "live" },
     { name: "live-build", view: "/live?tab=build", scenario: "live" },
     { name: "champion", view: "/champions?id=103", scenario: "default" },
-    { name: "champions", view: "/champions", scenario: "default" },
     { name: "tierlist", view: "/tier-list", scenario: "default" },
     { name: "settings", view: "/settings", scenario: "default" },
     { name: "player-404", view: "/player/euw1/Nobody/404", scenario: "default" },

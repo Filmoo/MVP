@@ -18,7 +18,10 @@
   border-spacing: 0;
 }
 
-/* Column widths: the champion takes what is left. */
+/*
+ * Column widths: the champion takes what is left. Each fits its header in French too, sort arrow
+ * included (glyph, label and arrow: "Victoires" is the longest).
+ */
 .cRank {
   width: 48px;
 }
@@ -26,16 +29,16 @@
   width: 96px;
 }
 .cTier {
-  width: 56px;
+  width: 64px;
 }
 .cWr {
-  width: 104px;
+  width: 120px;
 }
 .cRate {
   width: 92px;
 }
 .cGames {
-  width: 88px;
+  width: 104px;
 }
 
 .table th,
@@ -75,7 +78,7 @@
 .sort {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-1);
   max-width: 100%;
   padding: 0;
   border: 0;
@@ -95,6 +98,13 @@
 
 .headGlyph {
   flex: none;
+  margin-right: var(--space-1);
+}
+
+/* The lane column's header, when its word no longer fits (narrow). */
+.laneGlyph {
+  display: none;
+  flex: none;
 }
 
 .arrow {
@@ -102,7 +112,7 @@
   opacity: 0;
   transition:
     opacity var(--dur-1) var(--ease),
-    transform var(--dur-2) var(--ease);
+    scale var(--dur-2) var(--ease);
 }
 
 .sorted .arrow {
@@ -113,8 +123,9 @@
   opacity: 0.5;
 }
 
+/* Flipped, not turned: mid-way, a turning arrow is wider than its place. */
 .flip {
-  transform: rotate(180deg);
+  scale: 1 -1;
 }
 
 /* While the filter shows the best matches first, the sort waits. */
@@ -287,6 +298,9 @@ td.games {
   .cLane {
     width: 80px;
   }
+  .cWr {
+    width: 100px;
+  }
   .cRate {
     width: 76px;
   }
@@ -296,32 +310,35 @@ td.games {
 }
 
 /* ——— Narrow: rank, champion, lane (its icon), tier and win rate ——— */
-@container tiertable (max-width: 559px) {
+@container tiertable (max-width: 639px) {
   .pick,
   .ban {
     display: none;
   }
   .cRank {
-    width: 32px;
-  }
-  .cLane {
-    width: 32px;
-  }
-  .cTier {
     width: 36px;
   }
+  .cLane {
+    width: 40px;
+  }
+  .cTier {
+    width: 56px;
+  }
   .cWr {
-    width: 72px;
+    width: 92px;
   }
   .table th,
   .table td {
     padding-left: var(--space-2);
     padding-right: var(--space-2);
   }
-  /* The lane says itself with its icon; the header's word would not fit. */
+  /* The lane says itself with its icon; its header too (the word would not fit). */
   .share,
-  th.lane .sort span {
+  .laneWord {
     display: none;
+  }
+  .laneGlyph {
+    display: block;
   }
   .laneIcon {
     margin-right: 0;

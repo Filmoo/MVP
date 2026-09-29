@@ -255,6 +255,7 @@
   border-radius: var(--radius-full);
   color: inherit;
   text-decoration: none;
+  transition: scale var(--dur-spring) var(--ease-spring);
 }
 
 .face {
@@ -266,7 +267,6 @@
   box-shadow:
     0 0 0 2px var(--ring),
     0 3px 10px -2px var(--line-shade);
-  transition: transform var(--dur-spring) var(--ease-spring);
 }
 
 .face > * {
@@ -274,16 +274,12 @@
   height: 100%;
 }
 
+/* Pointed at: the point grows (LIT_SCALE in MapDialog.tsx), over the others. */
 .point:hover,
 .point:focus-visible,
 .point.lit {
   z-index: 3;
-}
-
-.point:hover .face,
-.point:focus-visible .face,
-.point.lit .face {
-  transform: scale(1.35);
+  scale: 1.35;
 }
 
 .point:focus-visible {
@@ -300,12 +296,13 @@
   box-shadow: 0 0 0 2px var(--bg-2);
 }
 
-/* The name over a face, when it is pointed at. */
+/* The name of the face pointed at: one tag, placed by MapDialog.tsx inside the plot. */
 .tag {
   position: absolute;
-  left: 50%;
-  bottom: calc(100% + var(--space-4));
-  display: flex;
+  top: 0;
+  left: 0;
+  z-index: 4;
+  display: none;
   align-items: baseline;
   gap: var(--space-3);
   padding: var(--space-2) var(--space-4);
@@ -313,25 +310,19 @@
   background: var(--bg-2);
   box-shadow: var(--shadow-float);
   white-space: nowrap;
-  opacity: 0;
-  visibility: hidden;
-  translate: -50% var(--space-2);
-  transition:
-    opacity var(--dur-1) var(--ease),
-    translate var(--dur-2) var(--ease),
-    visibility 0s linear var(--dur-2);
   pointer-events: none;
 }
 
-.point:hover .tag,
-.point:focus-visible .tag,
-.point.lit .tag {
+.tag[data-shown] {
+  display: flex;
   opacity: 1;
-  visibility: visible;
-  translate: -50% 0;
-  transition:
-    opacity var(--dur-1) var(--ease),
-    translate var(--dur-2) var(--ease);
+  transition: opacity var(--dur-1) var(--ease);
+}
+
+@starting-style {
+  .tag[data-shown] {
+    opacity: 0;
+  }
 }
 
 .tagName {

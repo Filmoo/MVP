@@ -105,12 +105,12 @@ function Podium(props: { rows: RankedEntry[]; allRoles: boolean; onLight: (key: 
                     {percent(e.winRate, 1)}
                   </span>
                   <span class={styles.stepFacts}>
-                    <span title={t().champions.pickRate}>
+                    <span title={t().tierList.columns.pick}>
                       <Glyph name="pick" size={14} />
                       {percent(e.pickRate, 1)}
                     </span>
                     <Show when={e.banRate > 0}>
-                      <span title={t().champions.banRate}>
+                      <span title={t().tierList.columns.ban}>
                         <Glyph name="ban" size={14} />
                         {percent(e.banRate, 1)}
                       </span>
@@ -287,7 +287,7 @@ function PeekCard(props: { entry: RankedEntry; name: string; trend: Trend | unde
         <div>
           <dt>
             <Glyph name="winRate" size={14} />
-            {t().champions.winRate}
+            {t().tierList.columns.winRate}
           </dt>
           <dd data-wr={wrSide(e().winRate)}>{percent(e().winRate, 1)}</dd>
           <Show when={props.trend}>{(trend) => <TrendMark points={trend().winRate} tone />}</Show>
@@ -295,7 +295,7 @@ function PeekCard(props: { entry: RankedEntry; name: string; trend: Trend | unde
         <div>
           <dt>
             <Glyph name="pick" size={14} />
-            {t().champions.pickRate}
+            {t().tierList.columns.pick}
           </dt>
           <dd>{percent(e().pickRate, 1)}</dd>
           <Show when={props.trend}>{(trend) => <TrendMark points={trend().pickRate} tone={false} />}</Show>
@@ -304,7 +304,7 @@ function PeekCard(props: { entry: RankedEntry; name: string; trend: Trend | unde
           <div>
             <dt>
               <Glyph name="ban" size={14} />
-              {t().champions.banRate}
+              {t().tierList.columns.ban}
             </dt>
             <dd>{percent(e().banRate, 1)}</dd>
           </div>

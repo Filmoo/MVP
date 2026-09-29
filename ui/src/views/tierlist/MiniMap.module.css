@@ -20,10 +20,12 @@
   background-color: var(--bg-3);
 }
 
+/* Its right padding is the room the chevron moves into on hover. */
 .head {
   display: flex;
   align-items: center;
   gap: var(--space-3);
+  padding-right: var(--space-1);
   font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
   color: var(--text-2);
@@ -105,11 +107,11 @@
 }
 
 /* One champion lit (here or on its face): the others step back. */
-.plot[data-lit] .dot {
+.plot[data-dim] .dot {
   opacity: 0.35;
 }
 
-.plot[data-lit] .dot[data-lit] {
+.plot[data-dim] .dot[data-lit] {
   z-index: 1;
   opacity: 1;
   transform: scale(1.9);

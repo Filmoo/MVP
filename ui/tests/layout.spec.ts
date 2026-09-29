@@ -55,9 +55,10 @@ const SCENARIO_VIEWS = [
   { view: "/champions?id=412", scenario: "default" },
   { view: "/champions?id=99&queue=450", scenario: "default" },
   { view: "/tier-list?queue=450", scenario: "default" },
-  // The champion list in one role (a link picks it), and in ARAM (no roles).
-  { view: "/champions?role=support", scenario: "default" },
-  { view: "/champions?queue=450", scenario: "default" },
+  // The tier list: one lane's shelves, the table in every lane and in ARAM (no lanes, no bans).
+  { view: "/tier-list?view=shelves&role=support", scenario: "default" },
+  { view: "/tier-list?view=table&role=all", scenario: "default" },
+  { view: "/tier-list?view=table&queue=450", scenario: "default" },
 ] as const;
 
 // Their other states at the extreme sizes.
@@ -84,8 +85,7 @@ const STATE_VIEWS = [
   { view: "/champions?id=103", scenario: "stats-empty" },
   { view: "/champions?id=103", scenario: "stats-offline" },
   { view: "/champions?id=904", scenario: "default" },
-  { view: "/champions", scenario: "stats-offline" },
-  { view: "/champions", scenario: "stats-empty" },
+  { view: "/tier-list?view=table", scenario: "stats-first-patch" },
 ] as const;
 for (const { view, scenario } of STATE_VIEWS) {
   for (const size of [SIZES[0], SIZES[3], SIZES[6]]) {
