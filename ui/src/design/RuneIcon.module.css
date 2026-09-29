@@ -38,28 +38,30 @@
 .chosen {
   background: var(--bg-4);
   border-color: currentColor;
+  color: var(--shard-tone);
 }
 
-.chosen.adaptive {
-  color: var(--tier-s);
+/* Each stat's colour, for the chosen shard and its tooltip (design/tip reads it). */
+.adaptive {
+  --shard-tone: var(--tier-s);
 }
-.chosen.attackSpeed {
-  color: var(--warn);
+.attackSpeed {
+  --shard-tone: var(--warn);
 }
-.chosen.haste {
-  color: var(--win);
+.haste {
+  --shard-tone: var(--win);
 }
-.chosen.moveSpeed {
-  color: var(--role-support);
+.moveSpeed {
+  --shard-tone: var(--role-support);
 }
-.chosen.health,
-.chosen.healthScaling {
-  color: var(--good);
+.health,
+.healthScaling {
+  --shard-tone: var(--good);
 }
-.chosen.tenacity,
-.chosen.magicResist {
-  color: var(--accent);
+.tenacity,
+.magicResist {
+  --shard-tone: var(--accent);
 }
-.chosen.armor {
-  color: var(--tier-c);
+.armor {
+  --shard-tone: var(--tier-c);
 }

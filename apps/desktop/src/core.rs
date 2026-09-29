@@ -1,6 +1,7 @@
 //! Runs the app core next to the window and bridges it to the UI.
 
-use std::path::Path;
+use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 
 use companion::automation::CoreEvent;
@@ -14,8 +15,8 @@ use companion::settings::SettingsStore;
 use companion::stats::StatsClient;
 use companion::{ScoutingHandle, Services, ViewReporter};
 use domain::{
-    ClientStatus, DraftView, GameData, ImportWarning, Language, LiveGame, RankEmblem, RankEmblems,
-    StatsIndex,
+    ClientStatus, Description, DraftView, GameData, ImportWarning, Language, LiveGame, RankEmblem,
+    RankEmblems, StatsIndex,
 };
 use tauri::{AppHandle, Emitter as _, Manager as _, Runtime};
 use tokio::sync::watch;
@@ -113,6 +114,58 @@ impl<R: Runtime> GameIds for LoadedGameIds<R> {
     }
 }
 
+/// The stat shards' names and effects of one patch and language (`CommunityDragon`, kept on
+/// disk with the patch): loaded the first time a shard is described, then kept for the session,
+/// empty when they couldn't be had (the UI names shards itself then), not tried again.
+#[derive(Debug, Default)]
+pub struct ShardTexts(tokio::sync::Mutex<Option<LoadedShards>>);
+
+#[derive(Debug)]
+struct LoadedShards {
+    version: String,
+    locale: &'static str,
+    shards: Arc<BTreeMap<u32, Description>>,
+}
+
+impl ShardTexts {
+    /// The shards of `version` in `locale`, loaded once (a download at most, on first use).
+    pub async fn get(
+        &self,
+        source: &static_data::DataDragon,
+        version: &str,
+        locale: &'static str,
+    ) -> Arc<BTreeMap<u32, Description>> {
+        let mut slot = self.0.lock().await;
+        if let Some(loaded) = slot.as_ref()
+            && loaded.version == version
+            && loaded.locale == locale
+        {
+            return Arc::clone(&loaded.shards);
+        }
+        let shards = Arc::new(source.shards(version).await.unwrap_or_else(|error| {
+            tracing::info!(%error, version, locale, "stat shard texts unavailable");
+            BTreeMap::new()
+        }));
+        *slot = Some(LoadedShards {
+            version: version.to_owned(),
+            locale,
+            shards: Arc::clone(&shards),
+        });
+        shards
+    }
+}
+
+/// Where Data Dragon's files are cached, per patch and language.
+pub fn ddragon_cache<R: Runtime>(app: &AppHandle<R>) -> Option<PathBuf> {
+    match app.path().app_cache_dir() {
+        Ok(dir) => Some(dir.join("ddragon")),
+        Err(error) => {
+            tracing::error!(%error, "no cache directory for game data");
+            None
+        }
+    }
+}
+
 /// The UI's language with `auto` resolved (the UI knows the system's): the core's own words
 /// follow it (the tray menu, MVP's item set blocks in the League client). English until the UI
 /// says, unless French was chosen.
@@ -148,7 +201,7 @@ impl UiLanguage {
 
 /// This run's log file (`None` when it couldn't be written): see `logging`.
 #[derive(Debug)]
-pub struct LogFile(pub Option<std::path::PathBuf>);
+pub struct LogFile(pub Option<PathBuf>);
 
 /// Riot's ranked emblems, once downloaded (or read from the cache).
 #[derive(Debug, Default)]
@@ -287,6 +340,7 @@ pub fn start<R: Runtime>(app: &AppHandle<R>, settings: &SettingsStore) {
     let game_data = GameDataState::new(settings.get().language.data_dragon_locale());
     let wanted = game_data.wanted.subscribe();
     app.manage(game_data);
+    app.manage(ShardTexts::default());
     follow_game_data(app, wanted);
     let ui_language = UiLanguage::new(settings.get().language);
     let language = ui_language.subscribe();
@@ -486,12 +540,8 @@ fn load_rank_emblems<R: Runtime>(app: &AppHandle<R>) {
 /// Loads champion/item/spell data (cached per patch and locale) in the language the UI asks for,
 /// and hands it to the UI; again whenever it asks for another language.
 fn follow_game_data<R: Runtime>(app: &AppHandle<R>, mut wanted: watch::Receiver<&'static str>) {
-    let cache = match app.path().app_cache_dir() {
-        Ok(dir) => dir.join("ddragon"),
-        Err(error) => {
-            tracing::error!(%error, "no cache directory for game data");
-            return;
-        }
+    let Some(cache) = ddragon_cache(app) else {
+        return;
     };
     let app = app.clone();
     tauri::async_runtime::spawn(async move {

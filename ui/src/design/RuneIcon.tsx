@@ -1,22 +1,27 @@
 import { createSignal, type JSX, Show } from "solid-js";
 import { useData } from "../data/context";
 import { t } from "../i18n";
-import { type ShardGlyph, shard } from "../lib/runes";
+import { type ShardGlyph, type ShardRow, shard } from "../lib/runes";
 import styles from "./RuneIcon.module.css";
 
 type Size = 16 | 20 | 24 | 28 | 32 | 36 | 40 | 44 | 48;
 
+/**
+ * A rune or a tree, what it is on hover (design/tip: `tip`), and on keyboard focus unless it is
+ * decorative.
+ */
 function Picture(props: {
   src: string | undefined;
   name: string;
-  title: string;
+  tip: string;
   size: Size;
-  /** Not chosen: shown for context, silent for screen readers. */
+  /** Not chosen: shown for context, silent for screen readers (its tooltip still shows on hover). */
   decorative: boolean;
   class: string;
 }): JSX.Element {
   const [failed, setFailed] = createSignal(false);
   const box = () => ({ width: `${props.size}px`, height: `${props.size}px` });
+  const tabIndex = () => (props.decorative ? undefined : 0);
   return (
     <Show
       when={props.src && !failed()}
@@ -27,7 +32,8 @@ function Picture(props: {
           role="img"
           aria-label={props.name}
           aria-hidden={props.decorative ? "true" : undefined}
-          title={props.title}
+          data-tip={props.tip}
+          tabIndex={tabIndex()}
           data-free-style
         >
           {props.size >= 28 ? props.name.slice(0, 2) : ""}
@@ -38,7 +44,8 @@ function Picture(props: {
         class={props.class}
         src={props.src}
         alt={props.decorative ? "" : props.name}
-        title={props.title}
+        data-tip={props.tip}
+        tabIndex={tabIndex()}
         width={props.size}
         height={props.size}
         loading="lazy"
@@ -50,16 +57,15 @@ function Picture(props: {
   );
 }
 
-/** A rune (keystone or minor) from game data, with its description as a tooltip. */
+/** A rune (keystone or minor) from game data, what it does in a tooltip. */
 export function RuneIcon(props: { runeId: number; size: Size; decorative?: boolean; class?: string | undefined }): JSX.Element {
   const { gameData } = useData();
   const entry = () => gameData()?.runes.get(props.runeId);
-  const name = () => entry()?.rune.name ?? t().common.runeN(props.runeId);
   return (
     <Picture
       src={entry() ? `${gameData()?.artBase}/img/${entry()?.rune.icon}` : undefined}
-      name={name()}
-      title={entry()?.rune.shortDesc ? t().common.colon(name(), entry()?.rune.shortDesc ?? "") : name()}
+      name={entry()?.rune.name ?? t().common.runeN(props.runeId)}
+      tip={`rune:${props.runeId}`}
       size={props.size}
       decorative={props.decorative ?? false}
       class={`${styles.rune} ${props.class ?? ""}`}
@@ -71,12 +77,11 @@ export function RuneIcon(props: { runeId: number; size: Size; decorative?: boole
 export function RuneStyleIcon(props: { styleId: number; size: Size; decorative?: boolean; class?: string | undefined }): JSX.Element {
   const { gameData } = useData();
   const style = () => gameData()?.runeStyles.get(props.styleId);
-  const name = () => style()?.name ?? t().common.runeTreeN(props.styleId);
   return (
     <Picture
       src={style() ? `${gameData()?.artBase}/img/${style()?.icon}` : undefined}
-      name={name()}
-      title={name()}
+      name={style()?.name ?? t().common.runeTreeN(props.styleId)}
+      tip={`tree:${props.styleId}`}
       size={props.size}
       decorative={props.decorative ?? false}
       class={`${styles.style} ${props.class ?? ""}`}
@@ -96,8 +101,17 @@ const GLYPHS: Record<ShardGlyph, string> = {
   magicResist: "M12 3 5 6v5c0 4.4 3 8.2 7 10 4-1.8 7-5.6 7-10V6zM12 10a2 2 0 1 0 0 4 2 2 0 0 0 0-4z",
 };
 
-/** A stat shard as a round glyph in its stat's color (Data Dragon has no shard art). */
-export function ShardIcon(props: { shardId: number; size: 20 | 24 | 28; chosen?: boolean; class?: string | undefined }): JSX.Element {
+/**
+ * A stat shard as a round glyph in its stat's color (Data Dragon has no shard art); what it gives
+ * in a tooltip (with its `row` of the page), on keyboard focus too when it is the chosen one.
+ */
+export function ShardIcon(props: {
+  shardId: number;
+  size: 20 | 24 | 28;
+  chosen?: boolean;
+  row?: ShardRow;
+  class?: string | undefined;
+}): JSX.Element {
   const s = () => shard(props.shardId);
   return (
     <span
@@ -106,7 +120,8 @@ export function ShardIcon(props: { shardId: number; size: 20 | 24 | 28; chosen?:
       role="img"
       aria-label={`${s().name} (${s().stat})`}
       aria-hidden={props.chosen ? undefined : "true"}
-      title={t().common.colon(s().name, s().stat)}
+      data-tip={`shard:${props.shardId}${props.row ? `:${props.row}` : ""}`}
+      tabIndex={props.chosen ? 0 : undefined}
     >
       <svg
         width={Math.round(props.size * 0.62)}

@@ -16,7 +16,6 @@ import { ChampionIcon } from "../../design/GameIcon";
 import { Icon } from "../../design/Icon";
 import { Segmented } from "../../design/Segmented";
 import { EmptyState, ErrorState, Skeleton } from "../../design/States";
-import { GradeBadge } from "../../design/TierBadge";
 import { t } from "../../i18n";
 import { percent, timeAgo } from "../../lib/format";
 import { backendError } from "../../lib/players";
@@ -26,7 +25,7 @@ import { Widget } from "../../widgets/Widget";
 import page from "../page.module.css";
 import { ScopeSwitches } from "../stats/common";
 import styles from "./Mayhem.module.css";
-import { AugmentIcon, ChampionAugments, RankPill, sentence, useAugments } from "./parts";
+import { AugmentIcon, ChampionAugments, RankPill, sentence, TierMark, useAugments } from "./parts";
 
 const TIERS: AugmentTier[] = ["S", "A", "B", "C"];
 /** Augments without a tier shown before "Show all" (keeps the page light). */
@@ -58,7 +57,8 @@ function AugmentCard(props: { augment: AugmentInfo; tier?: AugmentTier; rank?: n
         </div>
         <span class={`${styles.meta} num`}>{meta()}</span>
         <Show when={props.augment.description}>
-          <p class={styles.description} title={props.augment.description}>
+          {/* Its whole text on hover when it's cut (a hint that only restores text: no tab stop). */}
+          <p class={styles.description} data-hint={props.augment.description}>
             {props.augment.description}
           </p>
         </Show>
@@ -102,7 +102,7 @@ export function AugmentTiers(props: {
           <Card
             title={
               <span class={styles.tierTitle}>
-                <GradeBadge grade={group.tier} size="md" />
+                <TierMark tier={group.tier} />
                 {t().mayhem.tier(group.tier)}
               </span>
             }
@@ -189,7 +189,7 @@ function ChampionFilter(props: { championId: number | undefined }): JSX.Element 
               type="button"
               class={styles.clear}
               aria-label={t().mayhem.clear}
-              title={t().mayhem.clear}
+              data-hint={t().mayhem.clear}
               onClick={() => navigate("/mayhem")}
             >
               <Icon name="close" size={14} />

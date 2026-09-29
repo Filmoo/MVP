@@ -30,7 +30,10 @@ test("client not answering: the title bar and Home say so, the profile loads onc
   await openApp(page, { scenario: "client-not-answering" });
   const status = page.getByTestId("client-status");
   await expect(status).toContainText(t.shell.connection.notAnswering);
-  await expect(status).toHaveAttribute("title", t.shell.connection.notAnswering);
+  // Hovered, it says what that means (design/tip).
+  await status.hover();
+  await expect(page.locator("#hint")).toContainText(t.tip.status.notAnswering);
+  await page.mouse.move(640, 700);
   // A wait, not an error: the title bar's words and MVP's own sentence, never the request's address.
   const card = page.getByRole("status").filter({ has: page.getByRole("heading", { name: t.shell.connection.notAnswering }) });
   await expect(card).toContainText(t.home.notAnswering.text);

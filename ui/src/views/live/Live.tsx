@@ -47,7 +47,7 @@ function ScoutingStatus(props: { game: LiveGame }): JSX.Element {
           {(waiting) => {
             const text = () => (waiting().filtered ? t().live.names.filtered(queueName(props.game.queueId)) : t().live.names.waiting);
             return (
-              <span class={styles.status} data-testid="scouting-status" data-state="waiting" title={text()}>
+              <span class={styles.status} data-testid="scouting-status" data-state="waiting" data-hint={text()}>
                 <Icon name="info" size={14} class={styles.statusIcon} />
                 <span class={styles.statusText}>{text()}</span>
               </span>

@@ -17,8 +17,9 @@ function NavItem(props: { route: Route }): JSX.Element {
       href={`#${props.route.path}`}
       class={`${styles.item} ${active() ? styles.active : ""} ${props.route.planned ? styles.planned : ""}`}
       aria-current={active() ? "page" : undefined}
-      title={words().label}
       aria-label={words().label}
+      // Its name and what it holds, on hover or focus (design/tip).
+      data-tip={`nav:${props.route.nav}`}
     >
       <Icon name={props.route.icon} size={20} />
       <span class={styles.label}>{words().short}</span>

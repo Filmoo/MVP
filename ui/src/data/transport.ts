@@ -3,6 +3,8 @@ import type { AutoAcceptEvent } from "./generated/AutoAcceptEvent";
 import type { Bracket } from "./generated/Bracket";
 import type { ChampionPage } from "./generated/ChampionPage";
 import type { ClientStatus } from "./generated/ClientStatus";
+import type { Description } from "./generated/Description";
+import type { DescriptionKind } from "./generated/DescriptionKind";
 import type { DraftView } from "./generated/DraftView";
 import type { GameData } from "./generated/GameData";
 import type { GradedMatch } from "./generated/GradedMatch";
@@ -57,6 +59,12 @@ export interface Commands {
    * in another language makes the core load that one and emit `game-data` again.
    */
   game_data: { args: { language: Language }; result: GameData | null };
+  /**
+   * What a rune, stat shard, summoner spell or item does, in the loaded game data's patch and
+   * language (Riot's markup already turned into text and tones); `null` without game data or
+   * without a text for it. Asked when a tooltip first shows it, never with the names.
+   */
+  game_description: { args: { kind: DescriptionKind; id: number }; result: Description | null };
   /** Riot's ranked emblems, `null` until the core has them (a `rank-emblems` event follows). */
   rank_emblems: { args: undefined; result: RankEmblems | null };
   /** Current champion select, `null` outside of it (`draft` events follow changes). */

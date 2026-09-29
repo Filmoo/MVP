@@ -85,12 +85,36 @@ export function AugmentIcon(props: { augment: AugmentInfo | undefined; size: 24 
   );
 }
 
-/** An augment's tier and its rank in it (`S · 2`: first is best), in the tier's colour. */
+/**
+ * An augment's tier and its rank in it (`S · 2`: first is best), in the tier's colour; on hover,
+ * what MVP's tiers are (design/tip). Not the stats pages' grade badge: that one explains win rates.
+ */
 export function RankPill(props: { tier: AugmentTier; rank: number }): JSX.Element {
   const words = () => t().mayhem.ranked(props.tier, props.rank);
   return (
-    <span class={`${styles.rank} ${styles[`tier${props.tier}`]} num`} role="img" aria-label={words()} title={words()}>
+    <span
+      class={`${styles.rank} ${styles[`tier${props.tier}`]} num`}
+      role="img"
+      aria-label={words()}
+      data-hint-title={words()}
+      data-hint={t().mayhem.tierHint}
+    >
       {props.tier} · {props.rank}
+    </span>
+  );
+}
+
+/** A tier's letter as a badge in its colour (the Mayhem page's headings), with what MVP's tiers are. */
+export function TierMark(props: { tier: AugmentTier }): JSX.Element {
+  return (
+    <span
+      class={`${styles.mark} ${styles[`tier${props.tier}`]}`}
+      role="img"
+      aria-label={t().mayhem.tier(props.tier)}
+      data-hint-title={t().mayhem.tier(props.tier)}
+      data-hint={t().mayhem.tierHint}
+    >
+      {props.tier}
     </span>
   );
 }
@@ -102,7 +126,8 @@ export function pickLine(entry: AugmentPriority, champion: string): string {
 
 /**
  * An augment in a list: tile, name, a line under it (a pick rate), and at the end its tier and
- * rank, or a number (`value`, its words in `valueTitle`).
+ * rank, or a number (`value`, its words in `valueHint`). What it does shows on hover and on
+ * keyboard focus (design/tip).
  */
 export function AugmentRow(props: {
   augment: AugmentInfo | undefined;
@@ -110,12 +135,18 @@ export function AugmentRow(props: {
   tier?: AugmentTier | null;
   rank?: number | null;
   value?: string;
-  valueTitle?: string;
+  valueHint?: string;
   size?: 24 | 32;
 }): JSX.Element {
   const placed = () => (props.tier && props.rank ? { tier: props.tier, rank: props.rank } : undefined);
+  const does = () => props.augment?.description || undefined;
   return (
-    <li class={styles.row} title={props.augment?.description || undefined}>
+    <li
+      class={styles.row}
+      data-hint={does()}
+      // What it does (design/tip) shows on keyboard focus too.
+      tabIndex={does() ? 0 : undefined}
+    >
       <AugmentIcon augment={props.augment} size={props.size ?? 32} />
       <span class={styles.text}>
         <span class={styles.name}>{props.augment?.name ?? t().mayhem.augments}</span>
@@ -125,7 +156,7 @@ export function AugmentRow(props: {
       </span>
       <Show when={placed()}>{(p) => <RankPill tier={p().tier} rank={p().rank} />}</Show>
       <Show when={props.value}>
-        <span class={`${styles.value} num`} title={props.valueTitle}>
+        <span class={`${styles.value} num`} data-hint={props.valueHint}>
           {props.value}
         </span>
       </Show>
@@ -159,7 +190,8 @@ export function TopAugments(props: { championId: number; name: string }): JSX.El
               return (
                 <span
                   class={styles.topTile}
-                  title={`${augment()?.name ?? ""} · ${t().mayhem.pickedBy(percent(pick.n / Math.max(games, 1)), props.name)}`}
+                  data-hint-title={augment()?.name}
+                  data-hint={sentence(t().mayhem.pickedBy(percent(pick.n / Math.max(games, 1)), props.name))}
                 >
                   <AugmentIcon augment={augment()} size={24} />
                 </span>
@@ -300,7 +332,7 @@ export function ChampionAugmentsView(props: {
                   <AugmentRow
                     augment={props.augments?.get(pick.id)}
                     value={rate(pick.n)}
-                    valueTitle={sentence(t().mayhem.pickedBy(rate(pick.n), props.name))}
+                    valueHint={sentence(t().mayhem.pickedBy(rate(pick.n), props.name))}
                   />
                 )}
               </For>
@@ -312,7 +344,7 @@ export function ChampionAugmentsView(props: {
               <For each={c().items.slice(0, 8)}>
                 {(item) => (
                   <li class={styles.item}>
-                    <ItemIcon itemId={item.id} size={32} tooltip />
+                    <ItemIcon itemId={item.id} size={32} focusable />
                     <span class={`${styles.line} num`}>{rate(item.n)}</span>
                   </li>
                 )}

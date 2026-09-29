@@ -4,8 +4,7 @@
  * with the views' words (RecentMatches `provideDetails`); while the game loads, the row's
  * Suspense shows a skeleton of the table's height.
  */
-import { createResource, createSignal, For, type JSX, onCleanup, onMount, Show } from "solid-js";
-import { render } from "solid-js/web";
+import { createResource, For, type JSX, onCleanup, Show } from "solid-js";
 import { useData } from "../../data/context";
 import type { BackendError } from "../../data/generated/BackendError";
 import type { GradeFactor } from "../../data/generated/GradeFactor";
@@ -17,6 +16,7 @@ import type { MatchTeam } from "../../data/generated/MatchTeam";
 import type { RiotId } from "../../data/generated/RiotId";
 import { ChampionIcon, ItemIcon, SpellIcon } from "../../design/GameIcon";
 import { ErrorState } from "../../design/States";
+import { tip, untip } from "../../design/tip/Tip";
 import { t } from "../../i18n";
 import { decimal, integer, kdaRatio, percent, signedPoints } from "../../lib/format";
 import { onHowlingAbyss } from "../../lib/queues";
@@ -47,9 +47,9 @@ export function factorWords(f: GradeFactor, deaths: number): string {
 }
 
 /**
- * A keystone or a rune tree, small, its name on hover. Not the design system's `RuneIcon`: that
- * one lives in the Champions page's chunk, and sharing it would split it into a chunk of its own
- * (0.35 KB more to download in all).
+ * A keystone or a rune tree, small, what it is in a tooltip. Not the design system's `RuneIcon`:
+ * that one lives in the Champions page's chunk, and sharing it would split it into a chunk of its
+ * own (0.35 KB more to download in all).
  */
 function Rune(props: { id: number | null; tree?: boolean }): JSX.Element {
   const { gameData } = useData();
@@ -62,7 +62,16 @@ function Rune(props: { id: number | null; tree?: boolean }): JSX.Element {
   return (
     <Show when={rune()} fallback={<span class={styles.rune} />}>
       {(r) => (
-        <img class={styles.rune} src={`${gameData()?.artBase}/img/${r().icon}`} alt={r().name} title={r().name} width={16} height={16} />
+        <img
+          class={styles.rune}
+          src={`${gameData()?.artBase}/img/${r().icon}`}
+          alt={r().name}
+          data-tip={`${props.tree ? "tree" : "rune"}:${r().id}`}
+          // biome-ignore lint/a11y/noNoninteractiveTabindex: focusable so its tooltip shows without a pointer (content on hover or focus)
+          tabIndex={0}
+          width={16}
+          height={16}
+        />
       )}
     </Show>
   );
@@ -89,12 +98,12 @@ function PlayerLine(props: { player: MatchPlayer; marked: boolean; top: number }
       data-marked={props.marked ? "" : undefined}
     >
       <span class={`${table.champ} ${styles.champ}`}>
-        <span class={styles.portrait} title={t().matchDetails.level(p().championLevel)}>
+        <span class={styles.portrait} data-hint={t().matchDetails.level(p().championLevel)}>
           <ChampionIcon championId={p().championId} size={32} />
           <span class={`${styles.level} num`}>{p().championLevel}</span>
         </span>
         <span class={styles.pair}>
-          <For each={p().spells}>{(id) => <SpellIcon spellId={id} size={16} tooltip />}</For>
+          <For each={p().spells}>{(id) => <SpellIcon spellId={id} size={16} focusable />}</For>
         </span>
         <span class={styles.pair}>
           <Rune id={p().keystone} />
@@ -102,7 +111,7 @@ function PlayerLine(props: { player: MatchPlayer; marked: boolean; top: number }
         </span>
       </span>
       <span class={`${table.name} ${styles.who}`}>
-        <span class={`${styles.riotId} ${p().riotId ? "" : styles.unnamed}`} title={whole()}>
+        <span class={`${styles.riotId} ${p().riotId ? "" : styles.unnamed}`} data-hint={whole()}>
           {p().riotId?.gameName ?? (p().hidden ? t().live.hidden : t().live.unknown)}
           <Show when={p().riotId?.tagLine}>{(tag) => <span class={styles.tag}> #{tag()}</span>}</Show>
         </span>
@@ -115,7 +124,7 @@ function PlayerLine(props: { player: MatchPlayer; marked: boolean; top: number }
         </span>
         <span class={styles.sub}>{kdaRatio(p().kills, p().deaths, p().assists)}</span>
       </span>
-      <span class={`${table.damage} ${styles.stat} num`} title={t().matchDetails.damageTitle(integer(p().damageToChampions))}>
+      <span class={`${table.damage} ${styles.stat} num`} data-hint={t().matchDetails.damageTitle(integer(p().damageToChampions))}>
         <span>{integer(p().damageToChampions)}</span>
         <span class={styles.bar} aria-hidden="true">
           <span class={styles.fill} style={{ width: `${(p().damageToChampions / props.top) * 100}%` }} />
@@ -125,8 +134,8 @@ function PlayerLine(props: { player: MatchPlayer; marked: boolean; top: number }
       <span class={`${table.cs} num`}>{p().creepScore}</span>
       <span class={`${table.vision} num`}>{p().visionScore}</span>
       <span class={`${table.items} ${styles.items}`}>
-        <For each={slots()}>{(id) => <ItemIcon itemId={id} size={20} tooltip />}</For>
-        <ItemIcon itemId={p().trinket ?? undefined} size={20} tooltip />
+        <For each={slots()}>{(id) => <ItemIcon itemId={id} size={20} focusable />}</For>
+        <ItemIcon itemId={p().trinket ?? undefined} size={20} focusable />
       </span>
       <span class={`${table.grade} ${styles.grade}`}>
         <Show when={p().grade}>
@@ -159,7 +168,14 @@ function TeamLines(props: { team: MatchTeam; marked: MatchPlayer | undefined; to
         <span class={table.cs}>{columns().cs}</span>
         <span class={table.vision}>{columns().vision}</span>
         <span class={table.items}>{t().champions.items}</span>
-        <span class={table.grade} title={t().matchDetails.note}>
+        {/* How a grade is made, on hover or focus (design/tip). */}
+        <span
+          class={table.grade}
+          data-hint-title={columns().grade}
+          data-hint={t().matchDetails.note}
+          // biome-ignore lint/a11y/noNoninteractiveTabindex: its explanation (design/tip) shows on keyboard focus too
+          tabIndex={0}
+        >
           {columns().grade}
         </span>
       </li>
@@ -236,25 +252,13 @@ export function MatchDetails(props: { matchId: string; focus: RiotId | undefined
 }
 
 /**
- * Why a game got its grade, under its chip (over it when there's no room below): the grade, the
- * place, and the facts that moved it most. A popover over everything, anchored to the chip in
- * CSS so it follows the page as it scrolls; it goes when the pointer or the focus leaves, on
- * Escape, or on a click elsewhere.
+ * Why a game got its grade (design/tip's pane, under its chip or over it when there's no room
+ * below): the grade, the place, and the facts that moved it most.
  */
-export function GradeWhy(props: { grade: MatchGrade; match: { deaths: number }; onClose: () => void }): JSX.Element {
-  let el!: HTMLDivElement;
+export function GradeWhy(props: { grade: MatchGrade; match: { deaths: number } }): JSX.Element {
   const words = () => t().gradeWhy;
-  onMount(() => el.showPopover());
   return (
-    <div
-      ref={el}
-      id="grade-why"
-      popover="auto"
-      role="tooltip"
-      class={`${styles.why} glass-rim`}
-      data-testid="grade-why"
-      onToggle={(e) => e.newState === "closed" && props.onClose()}
-    >
+    <>
       <p class={styles.whyTitle}>
         <GradeChip grade={props.grade} />
         <span class="num">{words().title(props.grade.letter, decimal(props.grade.score, 1))}</span>
@@ -267,33 +271,8 @@ export function GradeWhy(props: { grade: MatchGrade; match: { deaths: number }; 
           {(f) => <li class={`num ${f.points >= 0 ? styles.up : styles.down}`}>{factorWords(f, props.match.deaths)}</li>}
         </For>
       </ul>
-    </div>
+    </>
   );
-}
-
-/** A grade being explained, and the chip it hangs from. */
-interface Shown {
-  match: MatchSummary;
-  grade: MatchGrade;
-  chip: HTMLElement;
-}
-
-const [shown, setShown] = createSignal<Shown>();
-/**
- * Where the why is drawn: in the match list (it floats over everything as a popover), boxless
- * so the list's layout doesn't see it.
- */
-let host: HTMLElement | undefined;
-let unmount: (() => void) | undefined;
-
-/** Explains `next` (or nothing): its chip becomes the popover's anchor and its row is described by it. */
-function show(next?: Shown): void {
-  const last = shown();
-  last?.chip.style.removeProperty("anchor-name");
-  last?.chip.closest("button")?.removeAttribute("aria-describedby");
-  next?.chip.style.setProperty("anchor-name", "--grade-why");
-  next?.chip.closest("button")?.setAttribute("aria-describedby", "grade-why");
-  setShown(next);
 }
 
 /**
@@ -302,25 +281,15 @@ function show(next?: Shown): void {
  */
 export function hint(e: Event, find: (matchId: string) => { match: MatchSummary; grade: MatchGrade } | undefined): void {
   const target = e.target as Element;
-  const row = target.closest("button[id^='match-']");
+  const row = target.closest<HTMLElement>("button[id^='match-']");
   const chip = row?.querySelector<HTMLElement>("[data-chip]");
   const on = e.type === "pointerover" ? target.closest("[data-grade]") : e.type === "focusin" && row?.matches(":focus-visible");
   const found = on && row && find(row.id.slice("match-".length));
   if (found && chip && row) {
-    if (shown()?.chip === chip) return;
-    if (!host?.isConnected) {
-      unmount?.();
-      host = document.createElement("div");
-      host.style.display = "contents";
-      row.closest("ol")?.after(host);
-      unmount = render(() => <Show when={shown()}>{(s) => <GradeWhy {...s()} onClose={() => show()} />}</Show>, host);
-    }
-    show({ ...found, chip });
-  } else if (
-    e.type.endsWith("out") &&
-    ((e as PointerEvent).relatedTarget as Element | null)?.closest("[data-grade]") !== target.closest("[data-grade]")
-  ) {
-    // Leaving for another part of the same grade keeps it.
-    show();
+    tip({ anchor: chip, owner: row, id: "grade-why", body: () => <GradeWhy {...found} /> });
+  } else if (e.type.endsWith("out")) {
+    // Out of the grade (not into another part of it), or the focus out of its row.
+    const to = (e as FocusEvent).relatedTarget as Element | null;
+    if (e.type === "focusout" ? !row?.contains(to) : to?.closest("[data-grade]") !== target.closest("[data-grade]")) untip(chip);
   }
 }
