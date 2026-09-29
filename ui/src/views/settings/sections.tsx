@@ -1,9 +1,8 @@
-import { createContext, createEffect, createMemo, createSignal, type JSX, on, Show, useContext } from "solid-js";
+import { createContext, createEffect, createMemo, createSignal, createUniqueId, type JSX, on, Show, useContext } from "solid-js";
 import { useData } from "../../data/context";
 import type { AppInfo } from "../../data/generated/AppInfo";
 import type { Effects } from "../../data/generated/Effects";
 import type { FlashKey } from "../../data/generated/FlashKey";
-import type { ImportMode } from "../../data/generated/ImportMode";
 import type { Language } from "../../data/generated/Language";
 import type { Settings } from "../../data/generated/Settings";
 import type { UpdateStatus } from "../../data/generated/UpdateStatus";
@@ -131,56 +130,60 @@ export function AutomationSettings(props: SectionProps & { autoAcceptPaused?: bo
   );
 }
 
-const importModes = (): ReadonlyArray<ChoiceOption<ImportMode>> => {
-  const modes = t().settings.imports.modes;
-  return [
-    { value: "off", label: modes.off },
-    { value: "oneClick", label: modes.oneClick },
-    { value: "onLockIn", label: modes.onLockIn },
-  ];
-};
-
 const flashKeys = (): ReadonlyArray<ChoiceOption<FlashKey>> => [
   { value: "auto", label: t().settings.imports.fromGames },
   { value: "d", label: "D" },
   { value: "f", label: "F" },
 ];
 
-/** Build imports into the League client: when each part is imported, and where Flash goes. */
+/**
+ * Build imports into the League client: which parts also import by themselves, once, at the
+ * first lock-in (their buttons in Draft and on champion pages always work), and where Flash goes.
+ */
 export function ImportSettings(props: SectionProps): JSX.Element {
   const { gameData } = useData();
   const words = () => t().settings.imports;
   const match = useContext(SearchMatch);
   const flash = () => flashName(gameData());
-  const mode = (
+  const auto = (
     id: SearchId,
     row: () => { title: string; text: string },
-    key: "importRunes" | "importItemSet" | "importSpells",
+    key: "autoImportRunes" | "autoImportItemSet" | "autoImportSpells",
     testId: string,
   ) => (
     <SettingRow title={row().title} description={row().text} match={match(id)}>
-      {(ids) => (
-        <Choice
-          value={props.settings[key]}
-          options={importModes()}
-          onChange={(next) => {
-            const patch: Partial<Settings> = {};
-            patch[key] = next;
-            props.onChange(patch);
-          }}
-          labelledBy={ids.label}
-          describedBy={ids.description}
-          testId={testId}
-        />
-      )}
+      {(ids) => {
+        // The switch reads "Auto import", then the part: "Auto import Rune page". Its words flip it too.
+        const label = createUniqueId();
+        const control = createUniqueId();
+        return (
+          <div class={styles.auto}>
+            <label class={styles.autoLabel} id={label} for={control}>
+              {words().auto}
+            </label>
+            <Toggle
+              id={control}
+              checked={props.settings[key]}
+              onChange={(on) => {
+                const patch: Partial<Settings> = {};
+                patch[key] = on;
+                props.onChange(patch);
+              }}
+              labelledBy={`${label} ${ids.label}`}
+              describedBy={ids.description}
+              testId={testId}
+            />
+          </div>
+        );
+      }}
     </SettingRow>
   );
   return (
     <Card title={<Title id="imports" text={words().title} />}>
       <SettingList>
-        {mode("runes", () => words().runes, "importRunes", "setting-import-runes")}
-        {mode("itemSet", () => words().itemSet, "importItemSet", "setting-import-item-set")}
-        {mode("spells", () => words().spells, "importSpells", "setting-import-spells")}
+        {auto("runes", () => words().runes, "autoImportRunes", "setting-import-runes")}
+        {auto("itemSet", () => words().itemSet, "autoImportItemSet", "setting-import-item-set")}
+        {auto("spells", () => words().spells, "autoImportSpells", "setting-import-spells")}
         <SettingRow nested title={words().flashKey.title(flash())} description={words().flashKey.text(flash())} match={match("flashKey")}>
           {(ids) => (
             <Choice
@@ -189,13 +192,14 @@ export function ImportSettings(props: SectionProps): JSX.Element {
               onChange={(flashKey) => props.onChange({ flashKey })}
               labelledBy={ids.label}
               describedBy={ids.description}
-              disabled={props.settings.importSpells === "off"}
               testId="setting-flash-key"
             />
           )}
         </SettingRow>
       </SettingList>
-      <p class={styles.footnote}>{words().footnote}</p>
+      <p class={styles.footnote}>
+        <span class={styles.footnoteText}>{words().footnote}</span>
+      </p>
       <SaveError message={props.error} />
     </Card>
   );

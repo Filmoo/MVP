@@ -80,7 +80,7 @@ export const widgetRegistry: Record<string, () => JSX.Element> = {
   "draft-comps": () => <Comps comps={champSelectDraft.comps} data={champSelectDraft.data} aram={false} />,
   // ARAM: your team only.
   "draft-comps-aram": () => <Comps comps={aramDraft.comps} data={aramDraft.data} aram />,
-  // Every state at once: done, busy, failed.
+  // Every state at once: done, busy, failed, and the warning after a trade.
   "draft-imports": () => (
     <ImportPanel
       championId={54}
@@ -92,6 +92,12 @@ export const widgetRegistry: Record<string, () => JSX.Element> = {
       ]}
       status={{ tone: "hint", text: t().imports.idle("Flash") }}
       onImport={() => {}}
+      warning={{
+        text: t().imports.warning.text(`Shen ${roleLabel("top")}`, "Malphite"),
+        action: t().imports.warning.importFor("Malphite"),
+        busy: false,
+        onImport: () => {},
+      }}
     />
   ),
   "settings-automation": () => <AutomationSettings settings={defaultSettings} onChange={() => {}} />,

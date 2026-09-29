@@ -130,6 +130,20 @@
   --tone: var(--good);
 }
 
+.warn {
+  --tone: var(--warn);
+}
+
+/* The message, and under it the toast's one click when it has one. */
+.toastText {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-4);
+  min-width: 0;
+  text-wrap: balance;
+}
+
 .toast button {
   margin-left: auto;
   border: 0;
@@ -137,4 +151,22 @@
   color: var(--text-3);
   cursor: pointer;
   padding: 0;
+}
+
+/* A toast's action ("Import for Lux"): the same accent button as in Draft's import bar. */
+.toast .toastAction {
+  margin-left: 0;
+  height: 28px;
+  padding: 0 var(--space-5);
+  border-radius: var(--radius-3);
+  background: var(--accent);
+  color: var(--text-on-accent);
+  box-shadow: inset 0 1px 0 var(--line-rim);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+  transition: background-color var(--dur-1) var(--ease);
+}
+
+.toast .toastAction:hover {
+  background: var(--accent-strong);
 }

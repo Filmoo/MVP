@@ -77,6 +77,7 @@ pub fn run() {
             commands::mayhem_overview,
             commands::mayhem_champion,
             commands::import_build,
+            commands::import_warning,
             commands::remote_config,
             commands::open_banner_link,
             commands::update_status,

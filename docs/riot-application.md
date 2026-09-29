@@ -46,8 +46,9 @@ is inbound only).
    frontline); the build for the chosen champion with an import bar. No ban or dodge advice.
    Only champion-level data about the other nine players: their identities are never read.
 3. **Imports:** the build's rune page, item set and summoner spells written into the player's own
-   client, on their click (or on lock-in, if they turn that on per part). Only MVP's own rune page
-   and item set are ever replaced; nothing is deleted.
+   client, on their click, or once by itself at their first lock-in for the parts they switch to
+   "Auto import" (after a trade or role swap MVP only warns, with a one-click import). Only MVP's
+   own rune page and item set are ever replaced; nothing is deleted.
 4. **Loading screen (Live):** once the game has started and the game itself shows every name,
    cards for the ten players (rank, main roles, recent form), looked up on our server by Riot ID.
    Streamer-mode players stay hidden and are never looked up. Nothing during the game: no timers,
@@ -58,8 +59,8 @@ is inbound only).
 7. **ARAM and ARAM: Mayhem:** ARAM builds, the bench ranked in champion select; for Mayhem,
    augment tiers written by hand and popularity (pick rate only, never win rates); being built
    (2026-09-29).
-8. **Settings:** every automation is off by default (auto-accept, imports on lock-in, crash
-   reports, sharing), with what it does and what it sends written next to it.
+8. **Settings:** every automation is off by default (auto-accept, auto imports, crash reports,
+   sharing), with what it does and what it sends written next to it.
 
 ## Riot API (from our server only)
 
@@ -96,8 +97,10 @@ player's sets sent back untouched, MVP's set replaced), `PATCH /lol-champ-select
 
 ## App notes (the gray areas, declared up front)
 
-- **Rune page, item set and summoner spell imports:** user-triggered by default, per-part opt-in
-  on lock-in; only MVP's own page and set are replaced; spells never in a turn's last 5 seconds.
+- **Rune page, item set and summoner spell imports:** user-triggered by default; a per-part
+  opt-in "Auto import" imports once, at the first lock-in of a champion select, and never again
+  by itself (a later trade or role swap only shows a warning); only MVP's own page and set are
+  replaced; spells never in a turn's last 5 seconds.
 - **Auto-accept:** off by default, a visible delay before accepting, never after a decline.
 - **Loading-screen scouting:** only once the game has started, never from champion select;
   streamer mode respected (never looked up); positive or neutral tags only, no MMR.

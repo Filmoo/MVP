@@ -78,7 +78,8 @@ Everything below is merged on `claude/upbeat-hamilton-0bms1t` and green on
   stats-only model on the published stats, pool-first picks, both teams' compositions, ARAM's
   bench ranked by the team's chances), Live (loading-screen scouting of
   all 10 players), player search (title bar, Ctrl+K) + player pages, build imports (rune page,
-  item set, spells: one click in Draft, on a champion page or on lock-in), Tier list and
+  item set, spells: one click in Draft or on a champion page; per-part "Auto import" once at the
+  first lock-in, then a warning if the champion or role changes), Tier list and
   Champions pages (builds, runes, items, matchups), Live's "My build" tab, Settings (auto-accept
   opt-in, imports, stats rank, window follows the game, close to tray, launch at startup, visual
   effects, language). English and French. Liquid glass that refracts the page behind it, ambient
@@ -142,7 +143,9 @@ Everything below is merged on `claude/upbeat-hamilton-0bms1t` and green on
    imports", policy.md "Build imports"): MVP's own rune page (never touches the player's pages),
    MVP's item set per champion (the player's sets round-trip untouched), summoner spells in champ
    select (Flash on the player's key from their games or Settings, never with ≤ 5 s left). Per
-   part: off / one click (default, Draft's import bar) / on lock-in (once per lock, toast), plus
+   part: the buttons always (Draft's import bar, champion pages) and an "Auto import" switch
+   (off by default: once at the first lock-in, toast; a later trade or role swap warns in Draft
+   with "Import for <champion>", never imports by itself; decisions.md "Auto import, once"), plus
    the Flash key (auto/D/F) in Settings → Imports. The stats client is the
    `BuildSource` (`Services.builds`, wired in `apps/desktop/src/core.rs`); the remote config can
    pause each part for everyone (`SkipReason::Paused`). Champion pages import the build shown
@@ -274,7 +277,7 @@ Draft insights (with published stats that have `compositions.json`; without Leag
   Diamond+ at once (Emerald+ when Diamond+ isn't published); the Tier list opens on it.
 
 Build imports (needs a `BuildSource` with real stats; the logs say "rune page imported", "item set
-imported", "summoner spells imported", "automatic import on lock-in"):
+imported", "summoner spells imported", "automatic import at the first lock-in"):
 - **Runes:** with a free slot, Runes creates "MVP · <Champion> <Role>" and selects it; again (other
   role) replaces the same page; with every slot used, the message asks to free or rename one;
   renaming a page "MVP" makes MVP use it. Your other pages keep their names and runes. Check the
@@ -286,9 +289,16 @@ imported", "summoner spells imported", "automatic import on lock-in"):
 - **Spells:** set during picks and finalization, Flash on your key (try `Flash key` D/F/auto);
   refused in the last 5 s; that `timer.internalNowInEpochMs` is this PC's clock (time-left math);
   never outside champ select.
-- **On lock-in:** exactly one import per lock-in, none on hovers; a trade imports the new champion;
-  ARAM imports on the given champion and after rerolls/bench swaps; blind pick and ARAM (no
-  `assignedPosition`) use the most played role.
+- **Auto import:** exactly one import, at the first lock-in, none on hovers; ARAM imports on the
+  given champion; a trade, a reroll or bench swap, or a role swap afterwards imports nothing and
+  shows Draft's warning (a toast when MVP is on another page), whose "Import for …" imports the
+  new champion's build and makes it go; changing your own rune page, spells or item sets never
+  warns; blind pick and ARAM (no `assignedPosition`) use the most played role. Check that
+  `assignedPosition` stays filled in the sessions the client sends again (an empty one is taken
+  as "no change", `LockTracker::on_session`).
+- **Draft's bar after a spells change:** the result stays (the client sends its session again;
+  this used to reset the bar to its idle hint). A click as the game starts says "Champion select
+  ended before the import" (it used to say "No build…").
 
 Match insights (Home after a few games; a player page with the backend running):
 - **Your grades:** chips fill in a moment after Home shows (a game the client doesn't return logs

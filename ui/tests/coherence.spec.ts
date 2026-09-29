@@ -1,6 +1,6 @@
 // Brings the window.__SCOUT_MOCK__ declaration into scope.
 import type {} from "../src/data/mock";
-import { lockInImport } from "../src/data/mock/import-fixtures";
+import { lockInImport, tradedWarning } from "../src/data/mock/import-fixtures";
 import { scenarioNames } from "../src/data/mock/scenarios";
 import { animationsDone, expect, openApp, test, VIEWS } from "./app";
 import { auditTokens } from "./coherence-rules";
@@ -35,7 +35,7 @@ for (const scenario of ["champ-select", "aram-champ-select", "draft-planning"] a
   });
 }
 
-for (const scenario of ["import-lock-in", "draft-no-stats", "aram-champ-select"] as const) {
+for (const scenario of ["import-lock-in", "import-warning", "draft-no-stats", "aram-champ-select"] as const) {
   test(`/draft/${scenario} only uses design tokens`, async ({ page }) => {
     await openApp(page, { view: "/draft", scenario });
     if (scenario === "import-lock-in") {
@@ -47,6 +47,14 @@ for (const scenario of ["import-lock-in", "draft-no-stats", "aram-champ-select"]
     expect(await page.evaluate(auditTokens)).toEqual([]);
   });
 }
+
+test("the warning's toast and its one click only use design tokens", async ({ page }) => {
+  await openApp(page, { scenario: "import-warning" });
+  await page.evaluate((warning) => window.__SCOUT_MOCK__?.emit("import-warning", warning), tradedWarning);
+  await page.getByTestId("toast-action").waitFor();
+  await animationsDone(page);
+  expect(await page.evaluate(auditTokens)).toEqual([]);
+});
 
 test("the import bar only uses design tokens in every state", async ({ page, t }) => {
   // Done and warn (the Flash note), then failed and skipped.

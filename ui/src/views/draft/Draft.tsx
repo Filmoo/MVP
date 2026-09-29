@@ -7,10 +7,11 @@ import { Card } from "../../design/Card";
 import { championArtUrl } from "../../design/GameIcon";
 import { EmptyState, ErrorState, Skeleton } from "../../design/States";
 import { t } from "../../i18n";
+import { draftImports } from "../../lib/imports";
 import { Widget } from "../../widgets/Widget";
 import page from "../page.module.css";
 import styles from "./Draft.module.css";
-import { ImportBar, useImportModes } from "./ImportBar";
+import { ImportBar, useAutoImports, useImportWarning } from "./ImportBar";
 import { PhasePill } from "./PhasePill";
 import { Suggestions } from "./Suggestions";
 import { selectedPick } from "./selection";
@@ -48,28 +49,31 @@ export function DraftContent(props: { draft: DraftView }): JSX.Element {
     // does and the panel stays.
     if (!narrow() && tab() !== "augments") setTab("pick");
   };
-  // Imports of your hovered or locked champion's build, unless every part is turned off.
-  const modes = useImportModes();
-  const imports = () => Object.values(modes()).some((mode) => mode !== "off");
+  // Imports of your hovered or locked champion's build: every button always works; the parts
+  // switched on also import by themselves at your first lock-in, and a warning follows if your
+  // champion or role changes after it. Results last the champion select (`draftImports`).
+  const auto = useAutoImports();
+  const warning = useImportWarning();
   const me = () => props.draft.allies.find((slot) => slot.isMe);
   return (
-    <div class={`${styles.grid} ${imports() ? "" : styles.noImports}`}>
+    <div class={styles.grid}>
       <Widget name="draft-teams" class={styles.teams}>
         <Teams draft={props.draft} />
       </Widget>
-      <Show when={imports()}>
-        <Widget name="draft-imports" class={styles.imports}>
-          <ImportBar
-            championId={me()?.championId ?? null}
-            role={props.draft.myRole}
-            hovering={me()?.hovering ?? false}
-            available={props.draft.data !== null}
-            inChampSelect
-            clientReady
-            modes={modes()}
-          />
-        </Widget>
-      </Show>
+      <Widget name="draft-imports" class={styles.imports}>
+        <ImportBar
+          championId={me()?.championId ?? null}
+          role={props.draft.myRole}
+          hovering={me()?.hovering ?? false}
+          available={props.draft.data !== null}
+          inChampSelect
+          clientReady
+          champSelect
+          auto={auto()}
+          warning={warning()}
+          memory={draftImports}
+        />
+      </Widget>
       <Widget name="draft-suggestions" class={styles.picks}>
         <Suggestions draft={props.draft} selected={selected()} expanded={expanded()} onSelect={select} />
       </Widget>
