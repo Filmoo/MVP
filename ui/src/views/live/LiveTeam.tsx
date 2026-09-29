@@ -29,7 +29,7 @@ function Spells(props: { spells: readonly number[] }): JSX.Element {
       <For each={[0, 1]}>
         {(i) => (
           <Show when={props.spells[i]} fallback={<span class={styles.noSpell} aria-hidden="true" />}>
-            {(id) => <SpellIcon spellId={id()} size={20} />}
+            {(id) => <SpellIcon spellId={id()} size={20} focusable />}
           </Show>
         )}
       </For>
@@ -78,7 +78,7 @@ function Experience(props: { card: ScoutCard; championId: number | null }): JSX.
         fallback={
           <>
             <span class={styles.muted}>–</span>
-            <span class={styles.small} title={name()}>
+            <span class={styles.small} data-hint={name()}>
               {name() ?? t().common.champion}
             </span>
           </>
@@ -90,7 +90,12 @@ function Experience(props: { card: ScoutCard; championId: number | null }): JSX.
           return (
             <>
               <span class={styles.expGames}>{t().common.games(r().games)}</span>
-              <span class={styles.small} title={t().live.kdaOn(kdaRatio(r().kills, r().deaths, r().assists), name())}>
+              <span
+                class={styles.small}
+                data-hint={t().live.kdaOn(kdaRatio(r().kills, r().deaths, r().assists), name())}
+                // biome-ignore lint/a11y/noNoninteractiveTabindex: its explanation (design/tip) shows on keyboard focus too
+                tabIndex={0}
+              >
                 <span class={tone()}>{percent(wr())}</span> {t().live.wr}
               </span>
             </>
@@ -101,22 +106,36 @@ function Experience(props: { card: ScoutCard; championId: number | null }): JSX.
   );
 }
 
-/** Their most played champions lately, with games under each (wide cards only). */
+/**
+ * Their most played champions lately, with games under each (wide cards only); each one's games
+ * and win rate in one tooltip on hover or focus (design/tip).
+ */
 function Pool(props: { card: ScoutCard }): JSX.Element {
   const { gameData } = useData();
+  const shown = () => props.card.topChampions.slice(0, 3);
+  const records = () =>
+    shown()
+      .map((c) =>
+        t().live.poolTitle(
+          gameData()?.champions.get(c.championId)?.name ?? t().common.champion,
+          c.games,
+          percent(c.wins / Math.max(1, c.games)),
+        ),
+      )
+      .join("\n");
   return (
     <Show when={props.card.topChampions.length > 0}>
-      <ul class={`${styles.pool} num`} aria-label={t().live.mostPlayed}>
-        <For each={props.card.topChampions.slice(0, 3)}>
+      <ul
+        class={`${styles.pool} num`}
+        aria-label={t().live.mostPlayed}
+        data-hint-title={t().live.mostPlayed}
+        data-hint={records()}
+        // biome-ignore lint/a11y/noNoninteractiveTabindex: its explanation (design/tip) shows on keyboard focus too
+        tabIndex={0}
+      >
+        <For each={shown()}>
           {(c) => (
-            <li
-              class={styles.poolItem}
-              title={t().live.poolTitle(
-                gameData()?.champions.get(c.championId)?.name ?? t().common.champion,
-                c.games,
-                percent(c.wins / Math.max(1, c.games)),
-              )}
-            >
+            <li class={styles.poolItem}>
               <ChampionIcon championId={c.championId} size={24} round />
               <span class={styles.poolGames}>{c.games}</span>
             </li>
@@ -146,7 +165,7 @@ function Form(props: { results: readonly boolean[] }): JSX.Element {
 function RiotIdLink(props: { id: RiotId; platform: string | undefined }): JSX.Element {
   const label = () => (
     <>
-      <span class={styles.name} title={`${props.id.gameName}#${props.id.tagLine}`}>
+      <span class={styles.name} data-hint={`${props.id.gameName}#${props.id.tagLine}`}>
         {props.id.gameName}
       </span>
       <span class={styles.tag}>#{props.id.tagLine}</span>
@@ -279,7 +298,12 @@ function PlayerCard(props: {
                 <ul class={styles.chips}>
                   <For each={chips(c().tags, championName)}>
                     {(chip) => (
-                      <li class={`${styles.chip} ${styles[chip.kind]}`} title={chip.title}>
+                      <li
+                        class={`${styles.chip} ${styles[chip.kind]}`}
+                        data-hint={chip.title}
+                        // biome-ignore lint/a11y/noNoninteractiveTabindex: its explanation (design/tip) shows on keyboard focus too
+                        tabIndex={0}
+                      >
                         {chip.label}
                       </li>
                     )}

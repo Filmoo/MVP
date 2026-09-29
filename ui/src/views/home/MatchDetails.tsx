@@ -1,10 +1,10 @@
 /**
  * The whole game, as an opened game shows it (GameSheet.tsx): both teams, every player's grade
  * with its why, each Riot ID a link to that player's page; and the why of a grade on a match
- * row. Lazy: it rides in the opened game's chunk, which the match list loads on first use.
+ * row. Lazy: it rides in the opened game's code, in the player page's chunk, which the match list
+ * loads on first use. Its tooltips are the app's (design/tip).
  */
-import { createSignal, For, type JSX, onMount, Show } from "solid-js";
-import { render } from "solid-js/web";
+import { For, type JSX, Show } from "solid-js";
 import { useData } from "../../data/context";
 import type { GradeFactor } from "../../data/generated/GradeFactor";
 import type { MatchDetails as Game } from "../../data/generated/MatchDetails";
@@ -14,6 +14,7 @@ import type { MatchSummary } from "../../data/generated/MatchSummary";
 import type { MatchTeam } from "../../data/generated/MatchTeam";
 import type { RiotId } from "../../data/generated/RiotId";
 import { ChampionIcon, ItemIcon, SpellIcon } from "../../design/GameIcon";
+import { tip, untip } from "../../design/tip/Tip";
 import { t } from "../../i18n";
 import { decimal, integer, kdaRatio, percent, signedPoints } from "../../lib/format";
 import { onHowlingAbyss } from "../../lib/queues";
@@ -49,9 +50,9 @@ export function factorWords(f: GradeFactor, deaths: number): string {
 }
 
 /**
- * A keystone or a rune tree, small, its name on hover. Not the design system's `RuneIcon`: that
- * one lives in the Champions page's chunk, and sharing it would split it into a chunk of its own
- * (0.35 KB more to download in all).
+ * A keystone or a rune tree, small, what it is in a tooltip. Not the design system's `RuneIcon`:
+ * that one lives in the Champions page's chunk, and sharing it would split it into a chunk of its
+ * own (0.35 KB more to download in all).
  */
 function Rune(props: { id: number | null; tree?: boolean }): JSX.Element {
   const { gameData } = useData();
@@ -64,7 +65,16 @@ function Rune(props: { id: number | null; tree?: boolean }): JSX.Element {
   return (
     <Show when={rune()} fallback={<span class={styles.rune} />}>
       {(r) => (
-        <img class={styles.rune} src={`${gameData()?.artBase}/img/${r().icon}`} alt={r().name} title={r().name} width={16} height={16} />
+        <img
+          class={styles.rune}
+          src={`${gameData()?.artBase}/img/${r().icon}`}
+          alt={r().name}
+          data-tip={`${props.tree ? "tree" : "rune"}:${r().id}`}
+          // biome-ignore lint/a11y/noNoninteractiveTabindex: focusable so its tooltip shows without a pointer (content on hover or focus)
+          tabIndex={0}
+          width={16}
+          height={16}
+        />
       )}
     </Show>
   );
@@ -81,7 +91,7 @@ function PlayerLine(props: {
   marked: boolean;
   top: number;
   platform: string | undefined;
-  onPlayer?: OpenPlayer;
+  onPlayer?: OpenPlayer | undefined;
 }): JSX.Element {
   const { gameData } = useData();
   const p = () => props.player;
@@ -115,12 +125,12 @@ function PlayerLine(props: {
       data-marked={props.marked ? "" : undefined}
     >
       <span class={`${table.champ} ${styles.champ}`}>
-        <span class={styles.portrait} title={t().matchDetails.level(p().championLevel)}>
+        <span class={styles.portrait} data-hint={t().matchDetails.level(p().championLevel)}>
           <ChampionIcon championId={p().championId} size={32} />
           <span class={`${styles.level} num`}>{p().championLevel}</span>
         </span>
         <span class={styles.pair}>
-          <For each={p().spells}>{(id) => <SpellIcon spellId={id} size={16} tooltip />}</For>
+          <For each={p().spells}>{(id) => <SpellIcon spellId={id} size={16} focusable />}</For>
         </span>
         <span class={styles.pair}>
           <Rune id={p().keystone} />
@@ -128,12 +138,19 @@ function PlayerLine(props: {
         </span>
       </span>
       <span class={`${table.name} ${styles.who}`}>
-        <Show when={page()} fallback={<span class={`${styles.riotId} ${p().riotId ? "" : styles.unnamed}`}>{name()}</span>}>
+        <Show
+          when={page()}
+          fallback={
+            <span class={`${styles.riotId} ${p().riotId ? "" : styles.unnamed}`} data-hint={whole()}>
+              {name()}
+            </span>
+          }
+        >
           {(to) => (
             <a
               class={`${styles.riotId} ${styles.link}`}
               href={`#${to()}`}
-              title={whole()}
+              data-hint={whole()}
               onClick={(e) => {
                 if (!props.onPlayer) return;
                 e.preventDefault();
@@ -153,7 +170,7 @@ function PlayerLine(props: {
         </span>
         <span class={styles.sub}>{kdaRatio(p().kills, p().deaths, p().assists)}</span>
       </span>
-      <span class={`${table.damage} ${styles.stat} num`} title={t().matchDetails.damageTitle(integer(p().damageToChampions))}>
+      <span class={`${table.damage} ${styles.stat} num`} data-hint={t().matchDetails.damageTitle(integer(p().damageToChampions))}>
         <span>{integer(p().damageToChampions)}</span>
         <span class={styles.bar} aria-hidden="true">
           <span class={styles.fill} style={{ width: `${(p().damageToChampions / props.top) * 100}%` }} />
@@ -163,8 +180,8 @@ function PlayerLine(props: {
       <span class={`${table.cs} num`}>{p().creepScore}</span>
       <span class={`${table.vision} num`}>{p().visionScore}</span>
       <span class={`${table.items} ${styles.items}`}>
-        <For each={slots()}>{(id) => <ItemIcon itemId={id} size={20} tooltip />}</For>
-        <ItemIcon itemId={p().trinket ?? undefined} size={20} tooltip />
+        <For each={slots()}>{(id) => <ItemIcon itemId={id} size={20} focusable />}</For>
+        <ItemIcon itemId={p().trinket ?? undefined} size={20} focusable />
       </span>
       {/* Focusable: the keyboard gets the why too. */}
       <span class={`${table.grade} ${styles.grade}`} data-grade={p().grade ? "" : undefined} tabindex={p().grade ? 0 : undefined}>
@@ -204,7 +221,14 @@ function TeamLines(props: {
         <span class={table.cs}>{columns().cs}</span>
         <span class={table.vision}>{columns().vision}</span>
         <span class={table.items}>{t().champions.items}</span>
-        <span class={table.grade} title={t().matchDetails.note}>
+        {/* How a grade is made, on hover or focus (design/tip). */}
+        <span
+          class={table.grade}
+          data-hint-title={columns().grade}
+          data-hint={t().matchDetails.note}
+          // biome-ignore lint/a11y/noNoninteractiveTabindex: its explanation (design/tip) shows on keyboard focus too
+          tabIndex={0}
+        >
           {columns().grade}
         </span>
       </li>
@@ -215,7 +239,7 @@ function TeamLines(props: {
             marked={player === props.marked}
             top={props.top}
             platform={props.platform}
-            {...(props.onPlayer ? { onPlayer: props.onPlayer } : {})}
+            onPlayer={props.onPlayer}
           />
         )}
       </For>
@@ -239,15 +263,14 @@ export function MatchTable(props: { game: Game; focus: RiotId | undefined; onPla
     const id = props.game.matchId.split("_")[0]?.toLowerCase() ?? "";
     return isPlatform(id) ? id : undefined;
   };
-  const explainHere = (e: Event) => explain(e, locateInGame);
   return (
     <div
       class={`${table.table} ${noVision() ? table.noVision : ""}`}
       data-vision={noVision() ? "none" : undefined}
-      onPointerOver={explainHere}
-      onPointerOut={explainHere}
-      onFocusIn={explainHere}
-      onFocusOut={explainHere}
+      onPointerOver={explainInGame}
+      onPointerOut={explainInGame}
+      onFocusIn={explainInGame}
+      onFocusOut={explainInGame}
     >
       <For each={props.game.teams}>
         {(team) => <TeamLines team={team} marked={marked()} top={top()} platform={platform()} onPlayer={props.onPlayer} />}
@@ -257,25 +280,13 @@ export function MatchTable(props: { game: Game; focus: RiotId | undefined; onPla
 }
 
 /**
- * Why a game got its grade, under its chip (over it when there's no room below): the grade, the
- * place, and the facts that moved it most. A popover over everything, anchored to the chip in
- * CSS so it follows the page as it scrolls; it goes when the pointer or the focus leaves, on
- * Escape, or on a click elsewhere.
+ * Why a game got its grade (design/tip's pane, under its chip or over it when there's no room
+ * below): the grade, the place, and the facts that moved it most.
  */
-export function GradeWhy(props: { grade: MatchGrade; deaths: number; onClose: () => void }): JSX.Element {
-  let el!: HTMLDivElement;
+export function GradeWhy(props: { grade: MatchGrade; match: { deaths: number } }): JSX.Element {
   const words = () => t().gradeWhy;
-  onMount(() => el.showPopover());
   return (
-    <div
-      ref={el}
-      id="grade-why"
-      popover="auto"
-      role="tooltip"
-      class={`${styles.why} glass-rim`}
-      data-testid="grade-why"
-      onToggle={(e) => e.newState === "closed" && props.onClose()}
-    >
+    <>
       <p class={styles.whyTitle}>
         <GradeChip grade={props.grade} />
         <span class="num">{words().title(props.grade.letter, decimal(props.grade.score, 1))}</span>
@@ -285,98 +296,49 @@ export function GradeWhy(props: { grade: MatchGrade; deaths: number; onClose: ()
       </p>
       <ul class={styles.factors}>
         <For each={props.grade.factors}>
-          {(f) => <li class={`num ${f.points >= 0 ? styles.up : styles.down}`}>{factorWords(f, props.deaths)}</li>}
+          {(f) => <li class={`num ${f.points >= 0 ? styles.up : styles.down}`}>{factorWords(f, props.match.deaths)}</li>}
         </For>
       </ul>
-    </div>
+    </>
   );
 }
 
-/** A grade being explained: the facts, its chip (the popover's anchor), what it describes and where the popover lives. */
-interface Shown {
-  grade: MatchGrade;
-  deaths: number;
-  chip: HTMLElement;
-  /** Described by the why while it shows: a match row, a player's grade. */
-  owner: HTMLElement;
-  /** Where the popover is drawn (its widget: inside the sheet for the sheet's grades). */
-  at: Element;
-}
-
-const [shown, setShown] = createSignal<Shown>();
-/** Where the why is drawn: boxless, so the layout around it doesn't see it. */
-let host: HTMLElement | undefined;
-let unmount: (() => void) | undefined;
-
-/** Explains `next` (or nothing): its chip becomes the popover's anchor and its owner is described by it. */
-function show(next?: Shown): void {
-  const last = shown();
-  last?.chip.style.removeProperty("anchor-name");
-  last?.owner.removeAttribute("aria-describedby");
-  next?.chip.style.setProperty("anchor-name", "--grade-why");
-  next?.owner.setAttribute("aria-describedby", "grade-why");
-  setShown(next);
-}
-
-/** Hides a why that shows (Escape in the sheet goes to it first): whether one showed. */
-export function dismissWhy(): boolean {
-  const was = !!shown();
-  show();
-  return was;
-}
-
 /**
- * Follows pointer and focus events: a grade's why shows while its chip is hovered, or while its
- * row or grade has the keyboard focus, and goes when they leave. `locate` finds the grade an
- * event is about.
+ * A player's grade in an opened game explains itself (design/tip) while its chip is hovered, or
+ * while its cell has the keyboard focus, and goes when they leave.
  */
-function explain(e: Event, locate: (target: Element) => Shown | undefined): void {
+function explainInGame(e: Event): void {
   const target = e.target as Element;
-  const on = e.type === "pointerover" ? target.closest("[data-grade]") : e.type === "focusin" && target.matches(":focus-visible");
-  const found = on ? locate(target) : undefined;
-  if (found) {
-    if (shown()?.chip === found.chip) return;
-    if (host?.parentElement !== found.at) {
-      unmount?.();
-      host?.remove();
-      host = document.createElement("div");
-      host.style.display = "contents";
-      found.at.append(host);
-      unmount = render(
-        () => <Show when={shown()}>{(s) => <GradeWhy grade={s().grade} deaths={s().deaths} onClose={() => show()} />}</Show>,
-        host,
-      );
-    }
-    show(found);
-  } else if (
-    e.type.endsWith("out") &&
-    ((e as PointerEvent).relatedTarget as Element | null)?.closest("[data-grade]") !== target.closest("[data-grade]")
-  ) {
-    // Leaving for another part of the same grade keeps it.
-    show();
-  }
-}
-
-/** A player's grade in an opened game. */
-function locateInGame(target: Element): Shown | undefined {
   const cell = target.closest<HTMLElement>("[data-grade]");
+  const chip = cell?.querySelector<HTMLElement>("[data-chip]");
   const line = cell?.closest("[data-testid=game-player]");
   const player = line && lines.get(line);
-  const chip = cell?.querySelector<HTMLElement>("[data-chip]");
-  const at = cell?.closest("[data-widget]");
-  return cell && player?.grade && chip && at ? { grade: player.grade, deaths: player.deaths, chip, owner: cell, at } : undefined;
+  const on = e.type === "pointerover" || (e.type === "focusin" && target.matches(":focus-visible"));
+  if (on && cell && chip && player?.grade) {
+    const grade = player.grade;
+    tip({ anchor: chip, owner: cell, id: "grade-why", body: () => <GradeWhy grade={grade} match={player} /> });
+  } else if (e.type.endsWith("out") && chip) {
+    // Out of the grade (not into another part of it).
+    const to = (e as FocusEvent).relatedTarget as Element | null;
+    if (to?.closest("[data-grade]") !== cell) untip(chip);
+  }
 }
 
 /**
  * Follows the match list's pointer and focus events (it forwards them all): a grade's why shows
- * while its chip is hovered, or while its row has the keyboard focus.
+ * while its chip is hovered, or while its row has the keyboard focus, and goes when they leave.
  */
 export function hint(e: Event, find: (matchId: string) => { match: MatchSummary; grade: MatchGrade } | undefined): void {
-  explain(e, (target) => {
-    const row = target.closest<HTMLElement>("button[id^='match-']");
-    const chip = row?.querySelector<HTMLElement>("[data-chip]");
-    const found = row && find(row.id.slice("match-".length));
-    const at = row?.closest("[data-widget]");
-    return found && chip && row && at ? { grade: found.grade, deaths: found.match.deaths, chip, owner: row, at } : undefined;
-  });
+  const target = e.target as Element;
+  const row = target.closest<HTMLElement>("button[id^='match-']");
+  const chip = row?.querySelector<HTMLElement>("[data-chip]");
+  const on = e.type === "pointerover" ? target.closest("[data-grade]") : e.type === "focusin" && row?.matches(":focus-visible");
+  const found = on && row && find(row.id.slice("match-".length));
+  if (found && chip && row) {
+    tip({ anchor: chip, owner: row, id: "grade-why", body: () => <GradeWhy {...found} /> });
+  } else if (e.type.endsWith("out")) {
+    // Out of the grade (not into another part of it), or the focus out of its row.
+    const to = (e as FocusEvent).relatedTarget as Element | null;
+    if (e.type === "focusout" ? !row?.contains(to) : to?.closest("[data-grade]") !== target.closest("[data-grade]")) untip(chip);
+  }
 }

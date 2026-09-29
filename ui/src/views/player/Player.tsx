@@ -65,5 +65,7 @@ export default function Player(): JSX.Element {
   );
 }
 
-// An opened game's code rides in this chunk: Home's match history loads it from here too (App.tsx).
+// An opened game's code rides in this chunk: Home's match history loads it from here too, and
+// every page its tooltips (design/tip, which an opened game uses; see App.tsx).
+export { hint as tipHint } from "../../design/tip/Tip";
 export { GameSheet, hint } from "../home/GameSheet";

@@ -39,7 +39,7 @@ export function Segments(props: { items: Segment[]; class?: string | undefined }
       <For each={props.items}>
         {(seg, i) => (
           <>
-            <span class={`${styles.seg} ${seg.class ?? ""}`} title={seg.title}>
+            <span class={`${styles.seg} ${seg.class ?? ""}`} data-hint={seg.title} tabIndex={seg.title ? 0 : undefined}>
               {seg.text}
               {i() < props.items.length - 1 ? " ·" : ""}
             </span>{" "}

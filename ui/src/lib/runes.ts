@@ -63,8 +63,10 @@ export function shard(id: number): Shard {
   return named && glyph ? { id, ...named, glyph } : { id, name: words.unknown, stat: words.unknownN(id), glyph: "adaptive" };
 }
 
+export type ShardRow = "offense" | "flex" | "defense";
+
 /** The three shard rows of the rune page (offense, flex, defense), as the client lays them out. */
-export const SHARD_ROWS: ReadonlyArray<{ row: "offense" | "flex" | "defense"; ids: readonly number[] }> = [
+export const SHARD_ROWS: ReadonlyArray<{ row: ShardRow; ids: readonly number[] }> = [
   { row: "offense", ids: [5008, 5005, 5007] },
   { row: "flex", ids: [5008, 5010, 5001] },
   { row: "defense", ids: [5011, 5013, 5001] },

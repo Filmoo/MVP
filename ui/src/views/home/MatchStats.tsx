@@ -162,9 +162,15 @@ export function MatchStats(props: { game: MatchDetails; marked: MatchPlayer | un
         <thead>
           <tr>
             <td class={styles.corner} />
+            {/* Each head: its champion and player, as its name and in its card on hover (quiet: no echo). */}
             <For each={columns()}>
               {(c, i) => (
-                <th scope="col" class={`${cell(c, i())} ${c.win ? styles.win : styles.loss}`} title={name(c.player)}>
+                <th
+                  scope="col"
+                  class={`${cell(c, i())} ${c.win ? styles.win : styles.loss}`}
+                  aria-label={name(c.player)}
+                  data-hint={name(c.player)}
+                >
                   <ChampionIcon championId={c.player.championId} size={24} />
                 </th>
               )}
@@ -190,12 +196,7 @@ export function MatchStats(props: { game: MatchDetails; marked: MatchPlayer | un
                         const v = row.values[i()] ?? null;
                         const top = v === row.top;
                         return (
-                          <td
-                            class={cell(c, i())}
-                            data-top={top ? "" : undefined}
-                            data-zero={v === 0 ? "" : undefined}
-                            title={top ? words().top : undefined}
-                          >
+                          <td class={cell(c, i())} data-top={top ? "" : undefined} data-zero={v === 0 ? "" : undefined}>
                             {value(row, c.player, v)}
                           </td>
                         );

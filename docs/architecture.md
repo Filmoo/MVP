@@ -46,7 +46,9 @@ flowchart LR
   (Tauri IPC in the app, scripted mock scenarios in a browser, HTTP later for a web version).
   The mock only ships in browser builds (`pnpm dev`, `build:preview` for the UI tests, into
   `ui/dist-preview`); the desktop build (`pnpm build` = `vite build --mode app`, into `ui/dist`,
-  the one the bundle budgets measure) leaves it out with the widget harness.
+  the one the bundle budgets measure) leaves it out with the widget harness. Both builds shrink
+  the same code (`ui/vite.config.ts`): short CSS module class names, lazy views' preload lists
+  without the startup files, constant classes set once (Solid's `@once`, written at build time).
 - **Light next to League.** No overlay, no injection, no polling loops in the UI; the webview can
   be closed while the core keeps following the client from the tray. Budgets and an idle-work
   test guard this in CI, plus a real-app memory/CPU check on Windows.
@@ -287,26 +289,28 @@ Every finished game in a match history gets a grade, and a match row opens on th
   compacted, under 11 KB a game, 12,000 kept); failures aren't cached.
 - **UI, the rows**: a match row is a button (`aria-haspopup="dialog"`, `aria-expanded` while its
   game is open) with the grade chip (`GradeChip`, the tier list's grade colours) over the place or
-  MVP/ACE. Hovering a grade, or focusing its row from the keyboard, shows its why: a popover
-  anchored to the chip in CSS (`anchor-name`, `position-try-fallbacks`), gone on leave, Escape or
-  a click. Grades never show in Draft or on the Live cards.
+  MVP/ACE. Hovering a grade, or focusing its row from the keyboard, shows its why: the app's
+  tooltip ("Tooltips" below) anchored to the chip, gone on leave, Escape or a click. Grades never
+  show in Draft or on the Live cards.
 - **UI, an opened game** (`GameSheet.tsx`, decisions.md "An opened game is a sheet of glass"):
   click, Enter or Space opens the game in a native modal `<dialog>` over the page (`showModal`:
   the page behind is inert; labelled by its title, "Victory · Ranked Solo"). The dialog is the
   whole window — its own box around the sheet is "outside": a press and release there closes it —
   over `::backdrop`'s `--bg-scrim`; the sheet sits beside the rail, as tall as the window allows,
-  in the app's liquid glass (`liquid(el, "panel")` on a layer inside it, tinted `--bg-card`: the
-  page shows bent along its rim, frosted in its middle; its shadow on a layer of its own). Its head
+  in the app's liquid glass (`liquid(el, "panel")` on a layer inside it, tinted `--bg-float`: the
+  page shows bent along its rim, frosted and tinted in its middle; its shadow on a layer of its
+  own). Its head
   (champion, result, queue, duration, when, close button) comes from the row at once; its body
   scrolls (`overscroll-behavior: none`) and holds the teams (`MatchTable`: each named player's
   Riot ID a link to `playerPath`, which closes the sheet and navigates; hidden players and bots
-  plain text; each grade focusable, its why on hover or focus) and the stats (`MatchStats.tsx`:
+  plain text; each grade focusable, its why a tooltip on hover or focus; the runes, spells and
+  items say what they do, the level, damage and a cut name are hover hints) and the stats (`MatchStats.tsx`:
   groups of rows, the ten players as columns with champion heads on their team's colour, the page
   owner's column marked, each row's top value marked, a row no player has left out — Howling
   Abyss drops vision like the teams' column —, a sticky label column and sideways scrolling on
   narrow sheets). Meanwhile a skeleton of the teams' exact height (540 px); errors in place with a
-  retry when it helps. **Closing**: Escape (a showing why first), a click outside, the close
-  button, a player's link, and **scroll to close** (`pull.ts`, pure and unit-tested): past the
+  retry when it helps. **Closing**: Escape (a tooltip showing first: design/tip closes it alone), a
+  click outside, the close button, a player's link, and **scroll to close** (`pull.ts`, pure and unit-tested): past the
   body's end or top, wheel deltas pull the sheet along (`rubber`: follows with resistance, into
   `translate`), a hint "Keep scrolling to close" shows with a bar filling up to the close; at
   `WHEEL_CLOSE` (360 px, four notches) it closes, flying out the way it was pulled; after
@@ -327,6 +331,70 @@ Every finished game in a match history gets a grade, and a match row opens on th
   `match-details-error`, `match-details-gone`, `match-details-unavailable`, `howling-abyss` and
   `extreme`; `mock-lcu` serves whole games (`mock_lcu::history`, one player in streamer mode, the
   end-of-game stats in the client's shape).
+
+## Tooltips (`ui/src/design/tip`, `static_data::descriptions`)
+Every hover explains what it is in a designed card, never the system's plain `title` box (a test
+checks no view has one). Runes, stat shards, summoner spells and items say what they do, in the
+UI's language, wherever their icons show: champion pages (and Live's *My build*, the same cards),
+match rows, opened games, Live's cards. Everything else gets a compact card:
+- **`data-hint="…"`** (lines split on `\n`, a heading in `data-hint-title`): the words the
+  component already computes, e.g. a build option's `812 wins in 1,530 games` and pick count in
+  one card, a matchup row's record and what its effect means, a disabled import button's reason,
+  a tier-list column's definition, the grade column's formula, a cut name in full.
+- **Ideas the app explains** (`data-tip="tier:S"`, `nav:draft`, `status:connected`): a tier's
+  meaning, what each page of the rail holds, what the client's status means for MVP; their words
+  are in the lazy catalogue (`t().tip`), so first-screen components only carry the short key.
+- **Keyboard**: a hint shows when its element, or a control inside it (a tier-list column's sort
+  button, a matchup's link), gets the keyboard focus. Explanations of numbers and definitions are
+  focusable (`tabindex="0"`, with a reasoned lint suppression); hints that only restore a cut
+  label (names) or name what a column already says (an opened game's level and damage), and
+  those inside another control (a suggestion's mastery line), are hover-only: an opened game
+  would otherwise double its tab stops.
+  An icon button's hint that repeats its `aria-label` isn't read twice (no `aria-describedby`).
+- **Hover intent**: a card shows after 200 ms of hovering, at once when another one showed
+  within 400 ms (the pointer moves along a list), and immediately on keyboard focus.
+- Things covered by a stretched link (a tier-list row) lift their badge over it; a click on the
+  badge still opens the row.
+- **Texts from the core, when asked**: `game_description { kind, id }` → `Description`, in the
+  loaded `GameData`'s patch and language (so it reads like the names beside it); never with the
+  names (`GameData` no longer carries the runes' short texts). Data Dragon's own texts, read from
+  the patch's cached files: runes' `longDesc` (their `shortDesc` when the long one has values only
+  the game fills in, `@f1@`), spells' `description` and `cooldownBurn`, items' `description`
+  (their `plaintext` when it shows nothing). Stat shards aren't in Data Dragon: their names and
+  effects come from the League client's `perks.json` as `CommunityDragon` mirrors it (the patch's
+  folder, else `latest`), downloaded the first time a shard is described and kept as
+  `shards.json` beside the patch's files; the core keeps them for the session (`ShardTexts`: a
+  failed download isn't tried again before a restart) and the UI falls back to its own words
+  (`t().shards`). Items, runes and spells are read from disk per request (one file, a few ms, off
+  the async threads): nothing stays in memory.
+- **Riot's markup never reaches the page**: `static_data::rich_text` turns it into lines of text
+  spans, each with a tone (`strong`: stats' values, passives' and actives' names; `subtle`: rules
+  and flavour; `physical`, `magic`, `true`, `heal`: the game's colours); every tag is dropped,
+  entities decoded, whitespace collapsed, an empty line between paragraphs, `<li>` bulleted. The
+  UI only writes text nodes. The browser mock has a port (`data/mock/descriptions.ts`); both are
+  held to the cases in `fixtures/rich-text-cases.json` (cargo test and vitest).
+- **One tooltip layer** (`design/tip/Tip.tsx`), the grade's why included: a `popover="auto"` in
+  the top layer (no card clips it), anchored in CSS (`anchor-name` on the element, `position-area:
+  bottom`, flipping above near the window's bottom, sliding along the edge to stay 8 px inside,
+  hidden with its anchor), `aria-describedby` on what it explains; gone on leave, when the focus
+  moves on, on Escape (only the tooltip: an opened game under it stays) or a click. It is drawn in
+  `#root` beside the shell, not under the backdrop's panes (no backdrop render).
+- **The card** (owner, 2026-09-28): the thing's icon, its name (an item's cost beside it) and what
+  it is (*Keystone · Domination*, *Summoner spell · 300 s cooldown*, *Stat shard · Offense*), then
+  its full text; behind it the thing's own picture, much larger, blurred and dimmed, fading out
+  before the text (a shard: a glow in its stat's colour, `--shard-tone`); glass like the app's
+  drops (`.glass-drop`: an even tint, a sheen over the upper half, a rim lit along the top).
+- **At rest it costs nothing**: icons only carry `data-tip="item:3031"` (a shard adds its row:
+  `shard:5008:offense`) and a `tabindex` where they aren't inside another control (a match row
+  keeps one tab stop; unchosen runes and shards are hover-only). One set of document listeners
+  (`follow.ts`, startup) forwards pointer and focus events once one reached a `data-tip` or
+  `data-hint` element; the tooltip's code rides in the player page's chunk (like an opened
+  game's) and loads then, with the views' words. A text is asked once per thing and game data;
+  the card waits for it within the hover's 200 ms (the core answers in a few ms), else shows and
+  fills in.
+- Mock: the dev cache (Data Dragon's files, and CommunityDragon's perks for the fixtures' patch:
+  `scripts/fetch-dev-assets.mjs`), read like the core does; scenarios `descriptions-missing` and
+  `descriptions-slow`; the cards side by side: `#/__harness?show=game-tips`.
 
 ## Search (title bar)
 Champions match locally and instantly (fuzzy: prefix, word, initials, subsequence); a Riot ID
@@ -377,7 +445,8 @@ The Tier list and Champions pages read the published stats through the core only
   built): switching to it doesn't wait for ~170 tiles, the first screen shows at once.
 - **Runes** come from `GameData.runes` (Data Dragon `runesReforged.json`, cached with the patch;
   icons under `artBase/img/…`). Stat shards (5001–5013) aren't in Data Dragon: `lib/runes.ts` names
-  them and `design/RuneIcon.tsx` draws them as glyphs (no Riot art).
+  them and `design/RuneIcon.tsx` draws them as glyphs (no Riot art); their tooltips use the League
+  client's own words when the core has them ("Tooltips" below).
 - **Controls**: `design/Segmented.tsx` is the radio group used for every filter and tab (one tab
   stop, arrow keys, Home/End; the selection is a separate thumb element). Not every choice should
   look like a pill: the champion list's sort is the same group restyled as words with a gliding
@@ -421,8 +490,8 @@ The Tier list and Champions pages read the published stats through the core only
 
 ## Languages (`ui/src/i18n`)
 English and French, for every word the player reads (views, states, toasts, tooltips,
-`aria-label`s). Riot's own names (champions, items, spells, runes) come from Data Dragon in the
-same language.
+`aria-label`s). Riot's own names (champions, items, spells, runes) and what they do (tooltips)
+come from Data Dragon in the same language (stat shards: the League client's own words).
 - **Catalogues**: `en.ts` + `en-views.ts` are the source, nested objects of strings and small
   functions for anything carrying a value (plurals, agreement, French elision `d’Ahri`), always
   whole sentences. `fr.ts` + `fr-views.ts` have exactly their shapes (`satisfies`): a missing or
@@ -828,7 +897,7 @@ enemy's `role`/`roleOdds` (≥ 5 %).
 | `mock-lcu` | fake League client for tests and development (match history with whole games) |
 | `companion` | Tauri-free core: client status, champ select → `DraftView` (+ draft helper), loading screen → `LiveGame`, settings, automations, build imports, your games' grades and details, backend client, stats download + disk cache, remote config, crash reports, update policy |
 | `scrub` | removes personal data (Riot IDs, PUUIDs, user names in paths, e-mails, credentials, IPs) from crash reports, in the app and on the server |
-| `static-data` | Data Dragon download (champions, items, spells, rune trees) + per-patch cache + offline fallback |
+| `static-data` | Data Dragon download (champions, items, spells, rune trees) + per-patch cache + offline fallback; what each rune, shard, spell and item does (Riot's markup to safe text), ranked emblems |
 | `stats` | statistics, the draft model and the per-game grade |
 | `aggregate` | stats pipeline core: Match-V5 → facts → mergeable aggregates → published JSON |
 | `riot-api` | Riot Web API client for the backend (rate limits, retries) |

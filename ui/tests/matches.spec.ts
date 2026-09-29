@@ -154,8 +154,10 @@ test("matches: Escape closes the game and gives the focus back; the focus stays 
     await page.keyboard.press(i % 3 === 2 ? "Shift+Tab" : "Tab");
     expect(await page.evaluate(() => !!document.activeElement?.closest("dialog")), `tab ${i}`).toBe(true);
   }
-  // On a player's link (not a grade: its why would take the first Escape).
-  await sheet(page).getByTestId("game").getByRole("link").first().focus();
+  // From the game's body: no tooltip there (one showing, a link's or a grade's, takes the first
+  // Escape: tooltips.spec.ts).
+  await body(page).focus();
+  await expect(page.locator("[role=tooltip]")).toHaveCount(0);
   await page.keyboard.press("Escape");
   await expect(sheet(page)).toHaveCount(0);
   await expect(row).toBeFocused();

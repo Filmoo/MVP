@@ -190,6 +190,14 @@ td.rank {
   outline-offset: -2px;
 }
 
+/* The tier's badge sits over the row's link, so hovering it explains the tier (design/tip); a
+   click on it still opens the champion (TierTable forwards it to the link). */
+.tier > * {
+  position: relative;
+  z-index: 1;
+  cursor: pointer;
+}
+
 .names {
   display: flex;
   flex-direction: column;

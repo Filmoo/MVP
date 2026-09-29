@@ -53,7 +53,7 @@ export function BuildSummary(props: { championId: number; build: BuildStats; tit
           <Show when={spells()} fallback={<span class={styles.none}>–</span>}>
             {(s) => (
               <span class={styles.icons}>
-                <For each={flashFirst(s().ids)}>{(id) => <SpellIcon spellId={id} size={28} tooltip />}</For>
+                <For each={flashFirst(s().ids)}>{(id) => <SpellIcon spellId={id} size={28} focusable />}</For>
               </span>
             )}
           </Show>
@@ -76,7 +76,7 @@ export function BuildSummary(props: { championId: number; build: BuildStats; tit
                 <For each={c().ids}>
                   {(id, i) => (
                     <>
-                      <ItemIcon itemId={id} size={28} tooltip />
+                      <ItemIcon itemId={id} size={28} focusable />
                       <Show when={i() < c().ids.length - 1}>
                         <span class={styles.then} aria-hidden="true">
                           ›

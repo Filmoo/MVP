@@ -217,6 +217,31 @@ picked per-part switches.
   session again (they went back to the idle hint after a spells change), and an import clicked as
   champion select ends says so instead of "No build for this champion and role".
 
+## 2026-09-29 — What runes, shards, spells and items do, and every hover designed (owner asked, Claude designed)
+Owner: "runes/spell explanation on hover. Same for shards and summoner spell. Same for item", then
+"the full description, with a nice popup that shows icons, background is the spell/item/rune/
+summoner hovered + description". Design calls:
+- **Full texts**: a rune's long text (the rune page's), an item's stats and passives/actives, a
+  spell's text and cooldown, a shard's effect; Riot's structure kept (stats' values and passives'
+  names stressed, damage types and healing in the game's colours), its markup never used as HTML.
+- **A card**: the thing's icon, name (an item's cost) and what it is, its own picture enlarged,
+  blurred and dimmed behind (fading before the text, so words stay readable), glass like the
+  app's drops. One tooltip for the whole app, the grade's why included.
+- **Keyboard too**: icons take the focus where they aren't inside another control (a match row
+  keeps one tab stop); Escape closes the tooltip only.
+- **Light**: the texts are asked from the core when a tooltip shows (never with the names at
+  startup), the code loads on the first one; the shards' texts come from the League client's
+  data (CommunityDragon, like the ranked emblems), the UI's own words meanwhile.
+- **Every hover, designed** (owner: "not one default black box"): no native `title` left; every
+  explanation is the same card, compact for plain words, and says what the thing means where it
+  is (a disabled import button why, a tier what it means, a number what it counts). Explanations
+  are keyboard-reachable; hints that only restore a cut name stay hover-only, so the tab order
+  isn't doubled. A short hover intent (200 ms, then instant while moving along) keeps sweeping
+  the pointer across a table calm.
+- **Budgets not raised**: the tooltips' ~2.7 KB of JS (words in both languages included) are paid
+  by build savings on the same code (shorter CSS module class names, preload lists without the
+  startup files, constant classes set once): 128.6 KB of 131 in all, 43.7 of 46 at startup.
+
 ## 2026-09-29 — An opened game is a sheet of glass (owner asked, Claude designed)
 Owner: "On DPM, in history, you click on a game and it opens. I'd prefer having an in window match
 preview, with the glass effect. I want to have a scroll to close … after a big enough scroll.
@@ -225,9 +250,10 @@ clickable. I also want a detail of the game with raw table that shows stats give
 the game in client. Only nice information, but complete enough. Keep it sober." Calls:
 - **A modal sheet over the page, not a row that unfolds**: the native `<dialog>` (the page behind
   inert, focus kept inside and given back to the row), beside the rail, as tall as the window
-  allows, in the "panel" liquid glass tinted like a card (the page bent at the rim, frosted in the
-  middle; a denser tint read as a dark slab over the dimmed page). Its head (result, queue,
-  champion, duration, when) shows at once from the row, the game when it lands.
+  allows (edge to edge over the page's column up to 1359 px), in the "panel" liquid glass (the
+  page bent at the rim, frosted and tinted in the middle: a card's lighter tint let the page's
+  numbers show between the tables' columns). Its head (result, queue, champion, duration, when)
+  shows at once from the row, the game when it lands. Its hovers are the app's tooltips.
 - **Scroll to close, deliberate only**: past the end (or the top) the sheet follows the extra
   scroll with a rubber band's resistance under "Keep scrolling to close", whose bar fills up;
   four wheel notches (360 px) close it, flying out the way it was pulled; less springs back half
@@ -246,8 +272,9 @@ the game in client. Only nice information, but complete enough. Keep it sober." 
   on teammates), never a row of zeros. Left out as noise: total damage dealt (minions), largest
   critical strike, the time spent living.
 - **Budget**: the sheet (with its gestures), the links, the table and their words cost 4.4 KB of
-  JS; the desktop build's CSS class names dropped their line numbers (`_title_rt7mq` instead of
-  `_title_rt7mq_115`), 2.0 KB less in all. Still 1.9 KB over the 131 KB total: for the owner.
+  JS (still in the player page's chunk: a chunk of its own weighed 1.5 KB more). 133.0 KB of the
+  131 KB total, 2.0 KB over: the owner's call (the build savings found meanwhile went to the
+  tooltips).
 - **Planned, not built**: the game over time (graphs of gold, XP, CS and damage, the teams' gold
   difference, a kill/death heatmap and positions, animated): HANDOFF "Planned for the next
   version".

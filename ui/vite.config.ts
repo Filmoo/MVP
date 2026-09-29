@@ -6,22 +6,13 @@ import { defineConfig, type Plugin } from "vite";
 import solid from "vite-plugin-solid";
 
 /**
- * The desktop build's CSS module class names: the class and a hash of its file
- * (`_statsTitle_rt7mq`), without the line number Vite's default adds (`_statsTitle_rt7mq_199`):
- * spelled out in every chunk's class map and stylesheet, the digits were what gzip couldn't
- * squeeze (2 KB of JS in all). A module's classes are unique within it; two files hashing alike
- * fail the build. The browser preview (the UI tests, the dev server) keeps Vite's names.
+ * CSS modules' class names: the local name and one short hash of its file (`tip_k3Zq9`), the same
+ * for every class of the file. The default (`_tip_1m7gl_3`) adds the class's line, digits that
+ * compress badly, to every name in the JS maps and the stylesheets.
  */
-function shortClassNames(): (local: string, file: string) => string {
-  const owners = new Map<string, string>();
-  return (local, file) => {
-    const path = relative(import.meta.dirname, file.split("?")[0] ?? file).replaceAll("\\", "/");
-    const suffix = createHash("sha256").update(path).digest("base64url").slice(0, 5);
-    const owner = owners.get(suffix);
-    if (owner && owner !== path) throw new Error(`CSS modules ${owner} and ${path} both hash to ${suffix}`);
-    owners.set(suffix, path);
-    return `_${local}_${suffix}`;
-  };
+function scopedName(name: string, filename: string): string {
+  const file = relative(import.meta.dirname, filename.split("?")[0] ?? filename).replaceAll("\\", "/");
+  return `${name}_${createHash("sha256").update(file).digest("base64url").slice(0, 5)}`;
 }
 
 // Dev/test only: serve Data Dragon assets downloaded by `scripts/fetch-dev-assets.mjs`
@@ -64,15 +55,106 @@ function serveFrom(dir: string) {
 }
 
 /**
+ * The chunks the page has from the start: the entry and everything it imports statically (what
+ * index.html lists), found once the bundle is written (before Vite writes the lazy chunks'
+ * preload lists: `pre`). Those lists leave them out, and the CSS those chunks brought: the page
+ * loaded it all already, and Vite's preload helper skipped it at run time anyway; listed, it
+ * weighed on the first load. Vite adds CSS files to a list after `resolveDependencies`: they're
+ * taken out of its lists once written (`post`), the indices that point into them renumbered.
+ */
+function startupChunks(): { plugins: Plugin[]; loaded: Set<string> } {
+  const loaded = new Set<string>();
+  const find: Plugin = {
+    name: "scout-startup-chunks",
+    enforce: "pre",
+    generateBundle(_options, bundle) {
+      loaded.clear();
+      const add = (file: string) => {
+        const chunk = bundle[file];
+        if (loaded.has(file) || chunk?.type !== "chunk") return;
+        loaded.add(file);
+        for (const imported of chunk.imports) add(imported);
+      };
+      for (const chunk of Object.values(bundle)) if (chunk.type === "chunk" && chunk.isEntry) add(chunk.fileName);
+    },
+  };
+  const trimCss: Plugin = {
+    name: "scout-startup-css",
+    enforce: "post",
+    generateBundle: {
+      order: "post",
+      handler(_options, bundle) {
+        const css = new Set<string>();
+        for (const file of loaded) {
+          const chunk = bundle[file];
+          if (chunk?.type === "chunk") for (const sheet of chunk.viteMetadata?.importedCss ?? []) css.add(sheet);
+        }
+        for (const chunk of Object.values(bundle)) {
+          // Vite's helper holds the list, `(m.f||(m.f=["assets/a.js","assets/b.css"]))`, and each
+          // import names its entries, `__vite__mapDeps([0,1])`.
+          const list = chunk.type === "chunk" ? /\(m\.f\|\|\(m\.f=(\[[^\]]*\])/.exec(chunk.code) : null;
+          if (chunk.type !== "chunk" || !list?.[1]) continue;
+          let files: string[];
+          try {
+            files = JSON.parse(list[1]) as string[];
+          } catch {
+            continue; // not plain file names (a runtime expression): left as Vite wrote it
+          }
+          const renumbered = new Map<number, number>();
+          files.forEach((file, i) => {
+            if (!css.has(file)) renumbered.set(i, renumbered.size);
+          });
+          if (renumbered.size === files.length) continue;
+          const kept = (ids: string) =>
+            ids
+              .split(",")
+              .filter(Boolean)
+              .flatMap((i) => renumbered.get(Number(i)) ?? []);
+          chunk.code = chunk.code
+            .replace(list[0], `(m.f||(m.f=${JSON.stringify(files.filter((_, i) => renumbered.has(i)))}`)
+            .replace(/__vite__mapDeps\(\[([\d,]*)\]\)/g, (_, ids: string) => `__vite__mapDeps([${kept(ids)}])`);
+        }
+      },
+    },
+  };
+  return { plugins: [find, trimCss], loaded };
+}
+
+/**
+ * A CSS module's class names never change: an element's `class={styles.x}`, or a template of
+ * such names and plain words, is set once when the element is made (Solid's `@once`) instead of
+ * being watched like a reactive expression, an effect per element in the bundle. Written at build
+ * time, before Solid compiles the file, so the source stays plain; the dev server leaves it be.
+ */
+function onceClasses(): Plugin {
+  return {
+    name: "scout-once-classes",
+    enforce: "pre",
+    apply: "build",
+    transform(code, id) {
+      if (!id.endsWith(".tsx")) return null;
+      const modules = [...code.matchAll(/^import (\w+) from "[^"]+\.module\.css";$/gm)].map((m) => m[1]);
+      if (modules.length === 0) return null;
+      const name = `(?:${modules.join("|")})\\.[A-Za-z_$][\\w$]*`;
+      const constant = new RegExp(`(?<![\\w-])class=\\{(${name}|\`(?:[^\`$\\\\]|\\$\\{${name}\\})*\`)\\}`, "g");
+      return { code: code.replace(constant, (_, value: string) => `class={/*@once*/ ${value}}`), map: null };
+    },
+  };
+}
+
+/**
  * `vite build --mode app` is what ships in the desktop app (`pnpm build`, Tauri's before-build
  * command): it leaves out the browser mock (scripted scenarios, stats fixtures, the widget
  * harness), which only the browser preview, the dev server and the UI tests use.
  */
+const startup = startupChunks();
+
 export default defineConfig(({ mode }) => ({
-  plugins: [solid(), devAssets()],
+  // onceClasses before solid(): both run first (`pre`), in this order.
+  plugins: [onceClasses(), solid(), devAssets(), ...startup.plugins],
   define: { __MVP_MOCK__: JSON.stringify(mode !== "app") },
-  css: mode === "app" ? { modules: { generateScopedName: shortClassNames() } } : {},
   clearScreen: false,
+  css: { modules: { generateScopedName: scopedName } },
   server: { port: 1420, strictPort: true, host: "127.0.0.1" },
   preview: { port: 4173, strictPort: true, host: "127.0.0.1" },
   envPrefix: ["VITE_", "TAURI_ENV_"],
@@ -80,7 +162,12 @@ export default defineConfig(({ mode }) => ({
     // WebView2 is evergreen Chromium: no legacy transpilation needed.
     target: "chrome120",
     sourcemap: false,
-    modulePreload: { polyfill: false },
+    // Lazy chunks preload what they import, except what the page has from the start (CSS files
+    // aren't passed here: Vite adds them all). index.html (`html`) keeps its whole list.
+    modulePreload: {
+      polyfill: false,
+      resolveDependencies: (_file, deps, { hostType }) => (hostType === "js" ? deps.filter((dep) => !startup.loaded.has(dep)) : deps),
+    },
     reportCompressedSize: false,
   },
   test: {

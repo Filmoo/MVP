@@ -54,9 +54,20 @@ check the latest run before building on it.
    composition readings and ARAM length buckets (job 9), the draft model (job 4).
 7. Crawl again for `compositions.json` (older games lack the numbers); check real published files
    against the pages (sizes, thin Master+ data, `n = 0` sections).
-8. Bundle: at 45.1 / 46 KB and 123.1 / 125 KB. Look for savings before the next feature: lazy
-   views re-list ~6 startup files in their preload lists; shared startup code splits into a new
-   chunk whenever a lazy chunk imports part of it.
+8. Bundle: startup JS 43.7 / 46 KB, startup CSS 10.8 / 12 KB, total JS 128.6 / 131 KB with the
+   tooltips (they cost ~2.7 KB of JS in all, words in both languages included; the app before
+   them and the savings below measured 45.5 / 11.4 / 130.4 at 9472c3c). Three build savings paid
+   for them, the same code made smaller: CSS modules' class names are the local name and one hash
+   of the file (`tip_k3Zq9`, `scopedName` in `ui/vite.config.ts`; the default added each class's
+   line number, ~2.1 KB of JS and 0.6 KB of startup CSS); the lazy views' preload lists no longer
+   re-list the startup files, JS or CSS (`startupChunks`, ~0.4 KB); and constant classes
+   (`class={styles.x}`, or a template of such names and plain words) are set once: `onceClasses`
+   writes Solid's `/*@once*/` on them at build time, where Solid compiled each into an effect
+   (~2.7 KB of JS, 1.0 KB of it at startup). Known traps: shared startup code splits into a new
+   chunk whenever a lazy chunk imports part of it (the tooltips ride in the player page's chunk
+   for that reason: a chunk of their own split `solid-js/web` out of the startup chunk, +0.3 KB);
+   Solid drops `@once` on JSX inside an expression (`{open() && <p class=…>}`, `{list.map(…)}`),
+   whose classes stay effects.
 9. Production Riot key: register the product (policy.md lists the endpoints to declare); a dev
    key crawls ~2k games a day.
 
@@ -115,7 +126,10 @@ Everything below is merged on `claude/upbeat-hamilton-0bms1t` and green on
   Champions pages (builds, runes, items, matchups), Live's "My build" tab, Settings (auto-accept
   opt-in, imports, stats rank, window follows the game, close to tray, launch at startup, visual
   effects, language). English and French. Liquid glass that refracts the page behind it, ambient
-  light sampled from champion art, Riot's ranked emblems (downloaded at run time).
+  light sampled from champion art, Riot's ranked emblems (downloaded at run time). Tooltips on
+  every rune, stat shard, summoner spell and item (hover and keyboard focus): a card with the
+  thing's icon and art and its full text (architecture.md "Tooltips"; built against mock-lcu and
+  the dev cache only).
 - **Backend** `apps/backend` (`mvp-backend`): player profiles, batch scouting, `/v1/stats/*` file
   serving, caches. **Crawler** `apps/crawler` (`mvp-crawler crawl|publish|status`) + `crates/aggregate`:
   Emerald+ ranked/ARAM aggregates → per-patch JSON (tier list, builds, matchups, priors).
@@ -242,9 +256,8 @@ Everything below is merged on `claude/upbeat-hamilton-0bms1t` and green on
      the why (in the player page's chunk) and their words +4.7 KB; the budgets were raised for it
      with the owner's OK (46 KB startup, 125 KB total). *(2026-09-29)* The sheet, the scroll to
      close, the links and the stats table (still in the player page's chunk: a chunk of their own
-     weighed 1.5 KB more) and their words cost +4.4 KB; the desktop build's CSS class names lost
-     their line numbers for it (−2.0 KB of JS in all, −0.5 KB of startup CSS): 132.9 / 131 KB
-     total, over by 1.9 KB, for the owner to decide.
+     weighed 1.5 KB more) and their words cost +4.4 KB: 133.0 / 131 KB total (main 128.6), over
+     by 2.0 KB, for the owner to decide (startup unchanged, 43.7 / 46 KB).
 
 9. *(built, against mock-lcu and synthetic stats only)* **Draft insights** (architecture.md "Stats
    pipeline" and "Stats in the app"): the crawler keeps each game's length and every player's
@@ -375,6 +388,25 @@ Match insights (Home after a few games; a player page with the backend running):
   `timeCCingOthers`, `turretKills`/`inhibitorKills` and `firstBloodKill` in the client's shape.
 - **Grades look right:** the MVP is the best of the winners, an obviously bad game gets a C, a
   support with high vision isn't punished for low CS, and the why's facts match the end screen.
+
+Tooltips (a champion page, an opened game, Live's cards; the app in English, then in French):
+- **Texts:** a rune's full text (the client's rune page), an item's stats and passives, a spell's
+  text and cooldown read like the League client's, in the UI's language (`fr_FR` files); an item of
+  another mode (Arena, ARAM's) still has one; no `@value@` ever shows (those fall back to the
+  short text, or to the name alone).
+- **Stat shards:** the first shard tooltip downloads the client's `perks.json` from
+  CommunityDragon (`…/raw.communitydragon.org/<patch>/…`, else `latest`) and keeps
+  `shards.json` beside the patch's Data Dragon files (`%LOCALAPPDATA%\gg.mvp.companion\ddragon\
+  <version>\<locale>\`); its values match the client's (e.g. +2.5 % move speed); offline on a first
+  start the UI's own words show, and the log says "stat shard texts unavailable".
+- **The card:** its icon and the blurred picture behind are the hovered thing's (a shard: its
+  glyph and colour); it stays inside the window near every edge at 100 % and 150 % scaling; Tab
+  reaches the icons of a champion page and of an opened game (not inside a match row), Escape
+  closes only the tooltip; nothing runs once it's gone (Task Manager: the webview at rest).
+- **Compact cards:** the title bar's client status explains itself on hover, and **dragging the
+  window from it still moves the window** (it became a drag region of its own to be hoverable);
+  the window buttons, the rail, tier badges (a click on one in the tier list still opens the
+  champion), build numbers, matchups, a disabled import button: each says what it means.
 
 Platform services (a `config.json` in the backend's data dir drives the config; config and
 crash reports work with a local backend and `pnpm app`, updates need a release build with the

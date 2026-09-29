@@ -29,7 +29,7 @@ import { dayLabel } from "../../lib/days";
 import { duration, queueName, REMAKE_MAX_SECONDS } from "../../lib/format";
 import { Widget } from "../../widgets/Widget";
 import styles from "./GameSheet.module.css";
-import { dismissWhy, MatchTable, markedIn } from "./MatchDetails";
+import { MatchTable, markedIn } from "./MatchDetails";
 import { MatchStats } from "./MatchStats";
 import { RELEASE_MS, rubber, TOUCH_CLOSE, touchPull, WHEEL_CLOSE, wheelPull } from "./pull";
 
@@ -149,20 +149,25 @@ export function GameSheet(props: { match: MatchSummary; focus: RiotId | undefine
   };
 
   // ── Keyboard and pointer ─────────────────────────────────────────────────────────────────────
+  /**
+   * Escape: a tooltip showing goes first (design/tip closes it alone, stopping the key), then the
+   * sheet. Heard before anything else (the window, capturing), so the dialog's own close never
+   * runs: the sheet leaves its way, whatever else hears the key.
+   */
+  const onEscape = (e: KeyboardEvent) => {
+    if (e.key !== "Escape" || !dialog.open) return;
+    e.preventDefault();
+    if (!document.querySelector("[role=tooltip]:popover-open")) close("away");
+  };
   const onKeyDown = (e: KeyboardEvent) => {
-    if (e.key === "Escape") {
-      // A grade's why goes first, then the sheet.
+    if (e.key !== "Tab") return;
+    // The focus stays in the sheet: past its last stop back to its first, and the other way.
+    const stops = [...dialog.querySelectorAll<HTMLElement>("a[href], button, [tabindex='0']")].filter(
+      (el) => el.getClientRects().length > 0,
+    );
+    if (document.activeElement === (e.shiftKey ? stops[0] : stops.at(-1))) {
       e.preventDefault();
-      if (!dismissWhy()) close("away");
-    } else if (e.key === "Tab") {
-      // The focus stays in the sheet: past its last stop back to its first, and the other way.
-      const stops = [...dialog.querySelectorAll<HTMLElement>("a[href], button, [tabindex='0']")].filter(
-        (el) => el.getClientRects().length > 0,
-      );
-      if (document.activeElement === (e.shiftKey ? stops[0] : stops.at(-1))) {
-        e.preventDefault();
-        (e.shiftKey ? stops.at(-1) : stops[0])?.focus();
-      }
+      (e.shiftKey ? stops.at(-1) : stops[0])?.focus();
     }
   };
   /** A click outside: pressed and released on the dialog's own box (the page around the sheet). */
@@ -172,6 +177,7 @@ export function GameSheet(props: { match: MatchSummary; focus: RiotId | undefine
     dialog.showModal();
     // The keyboard scrolls the game at once.
     body.focus({ preventScroll: true });
+    window.addEventListener("keydown", onEscape, true);
     panel.addEventListener("wheel", onWheel, { passive: true });
     panel.addEventListener("touchstart", onTouchStart, { passive: true });
     panel.addEventListener("touchmove", onTouchMove, { passive: false });
@@ -180,6 +186,7 @@ export function GameSheet(props: { match: MatchSummary; focus: RiotId | undefine
   });
   onCleanup(() => {
     clearTimeout(timer);
+    window.removeEventListener("keydown", onEscape, true);
     if (dialog.open) dialog.close();
   });
 
@@ -200,6 +207,12 @@ export function GameSheet(props: { match: MatchSummary; focus: RiotId | undefine
       onCancel={(e) => {
         e.preventDefault();
         close("away");
+      }}
+      // Closed some other way (the browser's own close): the list still hears it.
+      onClose={() => {
+        if (closing) return;
+        closing = true;
+        props.onClosed();
       }}
     >
       <div ref={panel} class={`${styles.panel} glass-rim`} data-testid="game">
