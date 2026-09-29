@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // One entry point for every quality gate, used locally, by the Claude Code hook and by CI.
 //   node scripts/check.mjs fast   → lint, types, unit tests, UI build/budgets, Rust tests (~1 min)
-//   node scripts/check.mjs full   → fast + UI suites (layout, coherence, errors, perf)
-//   node scripts/check.mjs ui     → build + UI suites only
+//   node scripts/check.mjs full   → fast + UI suites (layout, coherence, errors, perf) + website
+//   node scripts/check.mjs ui     → build + UI suites + website (the browser suites)
+//   node scripts/check.mjs site   → website only (site/: pages, releases, links, EN/FR; ~15 s)
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 
@@ -46,11 +47,18 @@ const ui = [
   ],
   ["UI: performance budgets", "pnpm", ["--filter", "@scout/ui", "exec", "playwright", "test", "--project=perf", "--workers=1"]],
 ];
+// The website (mvpgg.com): static pages served like production, GitHub's API mocked.
+const site = [["Website: pages, releases, links (EN/FR)", "pnpm", ["--filter", "@scout/site", "exec", "playwright", "test", "--project=smoke"]]];
 
-const plans = { fast: [...web, ...build, ...rust], full: [...web, ...build, ...rust, ...ui], ui: [...build, ...ui] };
+const plans = {
+  fast: [...web, ...build, ...rust],
+  full: [...web, ...build, ...rust, ...ui, ...site],
+  ui: [...build, ...ui, ...site],
+  site,
+};
 const steps = plans[mode];
 if (!steps) {
-  console.error(`unknown mode "${mode}" (fast | full | ui)`);
+  console.error(`unknown mode "${mode}" (fast | full | ui | site)`);
   process.exit(2);
 }
 
