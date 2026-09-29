@@ -187,8 +187,9 @@ detection, composite player scores, live win probability, sending data to third-
   player's own standing before a ranked game and after the client has counted it, and shows the
   difference (100 LP per division, apex tiers plain LP). Two numbers the player saw and their
   difference, kept on their machine only: **no MMR, no hidden-rating estimate**, no prediction.
-  The post-game summary uses the end-of-game numbers everyone in the game saw (the grade's rules
-  above apply); the lane opponent's Riot ID links to their page, a hidden player stays hidden.
+  The game that just ended opens by itself (2026-09-30: a window of the stack of opened games, once
+  per game) and shows what any opened game shows: the end-of-game numbers everyone in the game saw
+  (the grade's rules above apply; named players link to their pages, a hidden player stays hidden).
   LCU endpoints (reads, declare at product registration): `GET /lol-ranked/v1/current-ranked-stats`
   (and its event), `GET /lol-gameflow/v1/session` (the game's id and queue at its start),
   `GET /lol-match-history/v1/games/{gameId}`, `GET /lol-match-history/v1/products/lol/current-summoner/matches`

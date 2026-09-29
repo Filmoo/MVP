@@ -336,3 +336,39 @@ nothing to crawl. Offered editorial tiers or opt-in sharing, the owner took both
   augment parts 3.1 KB, words in both languages 1.6 KB, the four integrations 0.8 KB, the route
   0.1 KB, chunking 0.3 KB. The total budget went 131 → 136 KB in its own commit when it merged
   (startup unchanged at 40.8 of 46 KB).
+
+## 2026-09-30 — Opened games are a stack of windows (owner asked, Claude designed)
+Owner: "It should be a proper window, that takes the whole window but still have previous
+background behind (with glass of course). I want to be able to scroll between those windows. It
+almost becomes a list of opened windows, even though I want it to be more window-like, taking
+almost all of the main layout." And on Home's "Your last game" card: "I don't like the little
+unusable bubble for last game in MVP. I want it to be the same as when you click a game." (DPM's
+post-game scoreboard shared as inspiration, not to copy.) Calls:
+- **One window of glass per game, stacked in the history's order** (newest on top) in a modal
+  dialog over the page: the current window takes the page's column beside the rail and under the
+  title bar but for a thin band at its top and bottom, where its neighbours' edges peek (clean
+  glass: a neighbour's game fades in as it arrives; a click on an edge goes there). The "panel"
+  liquid glass bends the page at every rim; the scrim went 60 → 40 % so the page stays seen around
+  the stack and through it.
+- **Scrolling carries you from game to game**: a game scrolls first; going on past its end is a
+  deliberate pull (the sheet's rules: a gesture that scrolled the game stops at its edge, momentum
+  never adds up) under a hint saying what it does; two notches glide on to the next game on a
+  spring, and the rest of that gesture is swallowed, so a game always arrives at its top (going
+  up, at its end: the stack reads like one long page). Past the newest game's top, four notches
+  close (as before); past the last game loaded, the history's next page loads and the stack moves
+  on to it; at the history's very end it only gives. The keyboard does the same (↑/↓,
+  PageUp/PageDown, Space: the game, then the next one; Home/End: the ends of the stack).
+- **Only what is seen is built**: the current window and its two neighbours, their games asked for
+  as they are built and kept while the stack is open; nothing runs when it is still.
+- **The game that just ended opens by itself**, once, instead of Home's card: its window's head
+  says what the card said (the LP it was worth, your grade and what moved it); closed, it's gone
+  for good; the next champion select stops it. The lane-opponent comparison is left out: the
+  scoreboard shows both lines. The core's LP tracking and the rows' LP stay.
+- **A scoreboard after DPM's, MVP's own**: the level on the portrait, spells, keystone and tree,
+  the Riot ID (a link), K / D / A with the ratio and the kill participation, damage with a bar, CS
+  with its pace, items and trinket, MVP's grade and its why. Gold and vision moved to the details
+  (the League client's end-of-game numbers), a tab away: "Scoreboard | Details" keeps each view to
+  one window on most screens.
+- **Budget, over**: the sheet merged onto main (with ARAM: Mayhem) was already 139.3 KB of JS in
+  all, over the 136 KB budget; the stack adds 1.1 KB (140.3 KB; startup 41.0 of 46 KB). Not raised:
+  the owner's call (raise it in its own commit, or trim elsewhere).
