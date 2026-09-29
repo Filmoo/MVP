@@ -165,6 +165,8 @@ buttons, vary". Design calls:
   can help), the champions are grouped by Data Dragon class.
 - **Budget**: the JS bundle had 1.3 KB left; the list fits in it (the loading skeleton is drawn by
   CSS, constant classes are set once with `/*@once*/`).
+- Superseded on 2026-09-29: the champion list is gone, tiers and builds are one hub (below). Its
+  filter and its champions-by-class without stats live on in the tier list.
 
 ## 2026-09-29 — Live names from Riot's live game, then the game (owner's brief, Claude built)
 A real client (2026-09-28, EUW, ARAM: Mayhem and custom games) names nobody but the local player
@@ -217,3 +219,31 @@ picked per-part switches.
   session again (they went back to the idle hint after a spells change), and an import clicked as
   champion select ends says so instead of "No build for this champion and role".
 
+## 2026-09-29 — Tiers and builds, one hub (owner decided, Claude designed)
+Owner, on three tier list directions: "I love the shelves view and the top 3. A mix would be
+nice", with the meta map "small inside shelves view, which is the main view" and full screen;
+"jungle icon should be more league like, same for supp". Then: "champs tab makes no sense if we
+have tiers. Tiers and build should be one", pointing at DPM.lol ("way easier to chose lanes,
+more compact, rank also better, no region list, no patch") and its spreadsheet-like list where
+every column sorts. Calls:
+- **One hub**: no Champions entry in the nav; `/champions` without an id is the tier list (the
+  link's filters kept); a champion anywhere opens its build page, Tiers stays lit there, and the
+  way back returns to the same queue, rank, lane and view.
+- **A compact header**: queue tabs (room for ARAM: Mayhem), lanes as a row of icon buttons with
+  tooltips (the vertical role rail of the first drafts is gone), the rank as a button with its
+  emblem opening a grid of the published brackets, a champion filter. The patch is text; no
+  region list, no patch picker.
+- **Two views, remembered**: Shelves (default: podium, mini meta map, a shelf per tier, a glass
+  card with the numbers) and Table (every header sorts, again the other way; essential columns
+  on narrow windows). "All roles" shows a champion once per lane it's played in.
+- **The meta map**: small next to the podium (a bar on narrow pages), full screen on a click as a
+  modal dialog; its code loads then.
+- **Medallions** for tiers (S gem, A shield, B tile, C coin, D ring), **Jungle and Support icons**
+  redrawn to read like League's positions (a thorned claw, a winged crest; our own drawings),
+  **the penguin** waiting for the client, when nothing is published, and in About.
+- **Trends** only where data allows: the previous patch's published list (kept on disk with the
+  current one); nothing shows on a first patch.
+- **Budget** (Claude): the hub's code is roughly 11 KB of gzipped JS; the build pays for it. The first
+  screen's code is one chunk (it was ~20 small ones, each re-listed in every view's preload list),
+  and CSS modules get short class names in builds. Main before the hub: 130.4 KB in total, 45.5 KB
+  at startup; with it: 130.6 of 131 KB in total, 38.4 of 46 KB at startup.

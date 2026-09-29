@@ -54,17 +54,17 @@ check the latest run before building on it.
    composition readings and ARAM length buckets (job 9), the draft model (job 4).
 7. Crawl again for `compositions.json` (older games lack the numbers); check real published files
    against the pages (sizes, thin Master+ data, `n = 0` sections).
-8. Bundle: at 45.1 / 46 KB and 123.1 / 125 KB. Look for savings before the next feature: lazy
-   views re-list ~6 startup files in their preload lists; shared startup code splits into a new
-   chunk whenever a lazy chunk imports part of it.
+8. Bundle: 38.4 / 46 KB at startup and 130.6 / 131 KB in total with the tier list hub. The first
+   screen is one chunk and CSS modules get short class names in builds (architecture.md,
+   Principles). Next savings, before the next feature: the small chunks the views share (stats,
+   medallions, import bar: ~2.5 KB if grouped, at the cost of views loading code they don't use).
 9. Production Riot key: register the product (policy.md lists the endpoints to declare); a dev
    key crawls ~2k games a day.
 
 **To implement next** (none started)
 - Match history: filters (queue, champion), "load more", LP won/lost per game and a post-game
   summary card.
-- Tier list trends (this patch against the last: win/pick rate arrows) and champion mastery on
-  the profile.
+- Champion mastery on the profile.
 - The updater's `requireSignedVersion` once signatures carry the version (job 6).
 - Later, by the owner's earlier calls: an in-game overlay (the architecture is ready for it, not
   wanted yet); no ban suggestions, no AI picks.
@@ -127,10 +127,11 @@ Everything below is merged on `claude/upbeat-hamilton-0bms1t` and green on
    the commands `stats_index` / `tier_list` / `champion_stats` and the `stats-index` event are
    wired, and `companion::draft` fills `DraftView` (team odds, pool-first picks with reasons,
    enemy roles) from mastery, own games and pickable champions. No ban suggestions (owner's call).
-   The **Tier list** (`/tier-list`) and **Champions** pages (`/champions`: grid; `?id=…`: builds,
-   runes, spells, skill order, items, matchups) run on those commands (architecture.md "Stats
-   pages"; rune trees in `GameData`, the `Segmented` control, mock scenarios `stats-empty` /
-   `stats-offline` / `stats-slow` / `stats-aram-only`). Left:
+   The **Tier list** (`/tier-list`: shelves or a table, trends from `previous_tier_list`; the one
+   hub where champions are found) and champion pages (`/champions?id=…`: builds, runes, spells,
+   skill order, items, matchups) run on those commands (architecture.md "Stats pages"; rune trees
+   in `GameData`, mock scenarios `stats-empty` / `stats-offline` / `stats-slow` /
+   `stats-aram-only` / `stats-first-patch`). Left:
    - check the pages against real published files (the mock is synthetic: sizes, option counts,
      thin Master+ data, sections with `n = 0`, long lane lists);
    - check against a real client: mastery field names (`championId`, `championLevel`,
@@ -275,6 +276,9 @@ Draft insights (with published stats that have `compositions.json`; without Leag
   decides.
 - **Rank setting:** Settings → Stats → Rank → Diamond+ mid champion select: the data line says
   Diamond+ at once (Emerald+ when Diamond+ isn't published); the Tier list opens on it.
+- **Tier list trends:** with two patches published, the table's win rates show their change and
+  the hover card says "since the last patch"; the previous patch's files download once (then the
+  disk cache, offline too); with one patch, no trend shows anywhere.
 
 Build imports (needs a `BuildSource` with real stats; the logs say "rune page imported", "item set
 imported", "summoner spells imported", "automatic import at the first lock-in"):

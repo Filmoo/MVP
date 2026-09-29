@@ -54,7 +54,7 @@
   color: var(--rank-challenger);
 }
 
-/* Tier-list grades (S–D): a filled square in the tier color; D an outline. */
+/* A game's grade (GradeChip, S–D): a filled square in the tier color; D an outline. */
 .grade {
   flex: none;
   display: inline-grid;
@@ -66,25 +66,11 @@
   letter-spacing: 0;
 }
 
-.sm {
-  width: 20px;
-  height: 20px;
-  border-radius: var(--radius-1);
-  font-size: var(--text-xs);
-}
-
 .md {
   width: 24px;
   height: 24px;
   border-radius: var(--radius-2);
   font-size: var(--text-sm);
-}
-
-.lg {
-  width: 40px;
-  height: 40px;
-  border-radius: var(--radius-3);
-  font-size: var(--text-xl);
 }
 
 .gradeS {

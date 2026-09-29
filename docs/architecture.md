@@ -47,6 +47,12 @@ flowchart LR
   The mock only ships in browser builds (`pnpm dev`, `build:preview` for the UI tests, into
   `ui/dist-preview`); the desktop build (`pnpm build` = `vite build --mode app`, into `ui/dist`,
   the one the bundle budgets measure) leaves it out with the widget harness.
+- **A small bundle** (`ui/vite.config.ts`, budgets in `ui/scripts/check-bundle.mjs`): everything
+  the first screen loads is one chunk (code-splitting group `app`, Rolldown's `$initial` tag;
+  none of its modules may await at top level, lazy chunks import from it) and every view loads
+  lazily. Builds give CSS modules short class names (four letters per file from its path, the
+  first a capital, then the class's rank: `Qxtb0`), so the class maps shipped in JS stay light; a
+  clash of two files' letters stops the build. The dev server keeps Vite's readable names.
 - **Light next to League.** No overlay, no injection, no polling loops in the UI; the webview can
   be closed while the core keeps following the client from the tray. Budgets and an idle-work
   test guard this in CI, plus a real-app memory/CPU check on Windows.
@@ -299,9 +305,15 @@ when it is pressed. Lookups are shared with the player page (2 min in memory, fa
 Recent searches (max 8) and the region live in `localStorage`.
 
 ## Stats pages (`ui/src/views/tierlist`, `ui/src/views/champions`)
-The Tier list and Champions pages read the published stats through the core only (`stats_index`,
-`tier_list`, `champion_stats`, event `stats-index`; see `transport.ts`); failures carry a
-`BackendError` and read as "nothing published yet" (empty state) or an error with a retry.
+The Tier list and champion pages read the published stats through the core only (`stats_index`,
+`tier_list`, `previous_tier_list`, `champion_stats`, event `stats-index`; see `transport.ts`);
+failures carry a `BackendError` and read as "nothing published yet" (empty state) or an error
+with a retry.
+- **One hub for tiers and builds**: the nav has Tiers, no champion list. A champion anywhere (the
+  tier list, Ctrl+K search, matchups, Draft) opens its page, `#/champions?id=…`, and the nav keeps
+  Tiers lit there (`Route.also` in `app/router.ts`). `/champions` without an id goes to the tier
+  list with the link's filters (`location.replace`). The page's way back returns to the tier list
+  in the same scope (the filters and the view are shared and remembered).
 - **Scope**: queue (420 ranked solo · 450 ARAM), rank bracket and the tier-list role filter are
   remembered in `localStorage["mvp.stats-filters.v1"]` (`lib/stats-filters.ts`) and shared by both
   pages. Links can set them: `#/tier-list?queue=450&role=middle`; on a champion page `role` picks the
@@ -313,38 +325,53 @@ The Tier list and Champions pages read the published stats through the core only
   filter never blanks the page), drops answers to older keys and never triggers the app's
   Suspense. The `stats-index` event bumps a version in every request key: pages refetch when a new
   publication lands. No timers, no polling.
-- **Tier list**: rows ranked by score within the role shown (a divider opens each tier), sortable
-  columns (`aria-sort`), 50 rows then "Show all" (keeps the DOM small), each row a link to the
-  champion in that role; win rate is the shrunk one with its games, a footnote explains score and
-  grades.
+- **Tier list** (`views/tierlist`): a compact header, then one of two views.
+  - **Header**: the queue as tabs with a line under the one shown (room for more, ARAM: Mayhem
+    one day); lanes as a row of icon buttons (All, Top, Jungle, Mid, Bot, Support; the one chosen
+    on a glass drop in its role's colour, each with a tooltip: its name, how many champions it
+    ranks); the rank as a button with the bracket's emblem opening a grid of the brackets published
+    for the queue (native popover, anchored in CSS; Escape, a click outside or a choice closes
+    it); a champion filter (fuzzy, best match first, Enter opens the first; the sort waits). No
+    region or patch picker: the patch, games and last update are text on the title's line.
+  - **Two views**, remembered with the table's sort in `localStorage["mvp.tier-view.v1"]`
+    (`lib/tier-view.ts`; a link can pick one, `#/tier-list?view=table`). **Shelves** (default): a
+    podium of the top three (the first taller; gold, silver, bronze; the champion's art), a mini
+    meta map, then a shelf per tier (medallion, size, average win rate) with the champions as
+    faces, strongest first; a glass card glides from face to face with the numbers and their
+    trends. A face under the pointer lights its dot on the map and the reverse. **Table**: rank,
+    champion, lane (icon and the share of the champion's games played there), tier, win rate
+    (the change since the previous patch under it), pick, ban, games; every header sorts (again:
+    the other way; `aria-sort`), 44 px rows, 50 rows then "Show all"; under 800 px no games, under
+    640 px rank, champion, lane icon, tier and win rate. With every lane shown, a champion is a
+    face or a row per lane it is played in.
+  - **The full meta map** (`MapDialog.tsx`, a chunk loaded when first opened) opens from the mini
+    map (a bar on pages under 900 px): a modal `<dialog>` (focus kept inside, Escape or the close
+    button, the focus back on the mini map). Strength (score) up, popularity (pick rate, log scale)
+    across, tier bands; faces pushed apart where they would overlap, dots in their lane's colour
+    when every lane shows; one name tag for the point lit, kept inside the plot.
+  - **Trends**: `previous_tier_list` answers the tier list of the patch before the current one,
+    same queue and bracket (`DataSet::previous`; the disk cache keeps the current and the previous
+    patch), or `null` when there is none: then nothing shows. The change in points shows under the
+    table's win rates and in the hover card (win and pick rate, "since the last patch").
+  - **Without stats** (offline, nothing published): why (with Try again when that can help), then
+    every champion by Data Dragon class, filtered as you type, built a slice at a time
+    (`NoStats.tsx`, `lib/progressive.ts`).
+  - **Medallions** (`design/TierMark.tsx`): S a gem, A a shield, B a tile, C a coin, D a ring, CSS
+    shapes in the tier colours, wherever a tier shows (shelves, table, hover card, the map's bands,
+    the champion page's hero). Widgets: `tier-shelves`, `tier-table`, `tier-no-stats`.
 - **Champion page**: hero (art, role tabs with their share of the champion's games, tier, win/pick/ban
   rates with their counts, patch), then for the chosen role: the full rune page (both trees, the
   chosen runes lit in the tree's color, shards; the next most played pages one click away), spells,
   skill max order and first points (keycaps), items (starting, core in order, boots, 4th/5th/6th),
   every option with win rate, games and pick share; matchups best/worst by the shrunk effect `d`
   (lane, vs jungler, duos; rows open the other champion). ARAM: no roles, no bans, no matchups.
-- **Champion list** (`/champions` without an id; `lib/champion-grid.ts`, `views/champions/ChampionGrid.tsx`):
-  every champion as a tile (icon, name, and the number it's sorted by). A role shows the champions
-  with a tier-list row in it, so one played in two roles is in both (the tier list's role filter,
-  shared and remembered); "all" takes each champion's most played role for its tier and adds its
-  roles up for its pick rate. Sorted by tier (default), pick rate or name, the choice remembered in
-  `localStorage["mvp.champion-sort.v1"]`; by tier, groups read like a tier list (the letter and
-  the group's size in a column left of its tiles, sticky while the group scrolls by, champions
-  with too few games last) and tiles leave their badge to the heading. The field filters as you
-  type (fuzzy, best match first, ungrouped; Enter opens the first; the sort waits, dimmed, until
-  the field is empty). Without stats (offline, nothing published) the page still works: one line
-  says why ("Try again" ending it when that can help), the role and sort go away and the
-  champions are grouped by Data Dragon class. The grid is built a slice at a time
-  (`lib/progressive.ts`: 36 tiles with the view, 36 more whenever the page is idle, again from the
-  start when a filter changes; `aria-busy` meanwhile; a group shows once some of its tiles are
-  built): switching to it doesn't wait for ~170 tiles, the first screen shows at once.
 - **Runes** come from `GameData.runes` (Data Dragon `runesReforged.json`, cached with the patch;
   icons under `artBase/img/…`). Stat shards (5001–5013) aren't in Data Dragon: `lib/runes.ts` names
   them and `design/RuneIcon.tsx` draws them as glyphs (no Riot art).
 - **Controls**: `design/Segmented.tsx` is the radio group used for every filter and tab (one tab
   stop, arrow keys, Home/End; the selection is a separate thumb element). Not every choice should
-  look like a pill: the champion list's sort is the same group restyled as words with a gliding
-  accent bar (`.sortTabs` in `Champions.module.css`).
+  look like a pill: the tier list's queue tabs, view switch and lanes are the same pattern drawn
+  their own way (`Radios` in `views/tierlist/Toolbar.tsx`).
 - **For later**: `views/champions/BuildSummary.tsx` (keystone + secondary tree, spells, max order,
   core items) is ready for the Live page (the local player's champion and role, the game's queue);
   an "Import" action (rune page, item set: HANDOFF job 5) belongs in the Runes card header, next to
