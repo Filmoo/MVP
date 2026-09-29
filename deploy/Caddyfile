@@ -1,0 +1,10 @@
+# MVP server: /etc/caddy/Caddyfile. HTTPS with a Cloudflare origin certificate (Cloudflare's
+# SSL mode is Full (strict)); the backend only listens on the loopback.
+api.mvpgg.com {
+    tls /etc/caddy/origin.pem /etc/caddy/origin.key
+    encode zstd gzip
+    reverse_proxy 127.0.0.1:8787 {
+        # Only Cloudflare can reach this server (firewall), so its client-IP header is trustworthy.
+        header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
+    }
+}

@@ -46,8 +46,28 @@ Mock scenarios: add `?scenario=<name>` to the dev URL — `default`, `not-runnin
 
 ```
 apps/desktop   Tauri shell (window, tray, commands)
+apps/backend   the server's API: lookups, stats files, updates (the only holder of the Riot key)
+apps/crawler   builds the published stats from Riot's API
 crates/        Rust core: domain types, League client API, statistics
 ui/            SolidJS UI, mock scenarios, Playwright suites
+deploy/        the server: its configuration, the deploy script, the runbook
 docs/          decisions, Riot policy notes, research
 scripts/       checks, dev assets, hooks
 ```
+
+## Contributing
+
+Pull requests are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md). You need no Riot key and no
+server to build and test MVP. Security problems go to [SECURITY.md](SECURITY.md), never to a
+public issue.
+
+## Licence
+
+MVP is free software under the [GNU Affero General Public License v3.0](LICENSE): anyone may use,
+study, change and share it, and every modified version, a server included, must stay open under
+the same licence. MVP itself is free and ad-free. The licence covers the code, not the MVP name
+and logo: please give a fork its own name and logo.
+
+MVP is not endorsed by Riot Games and does not reflect the views or opinions of Riot Games or
+anyone officially involved in producing or managing Riot Games properties. Riot Games and all
+associated properties are trademarks or registered trademarks of Riot Games, Inc.

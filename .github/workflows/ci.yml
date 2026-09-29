@@ -5,6 +5,11 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Read-only token: checks never write to the repository. Pull requests from forks run with no
+# secrets at all (GitHub's default), and first-time contributors' runs wait for the maintainer.
+permissions:
+  contents: read
+
 # One run per branch at a time. A running build is never cancelled (it has to finish to save
 # its cache); a newer push waits, and replaces any older run still waiting.
 concurrency:
@@ -20,16 +25,18 @@ jobs:
     name: Lint · types · unit · Rust tests
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: System libraries for Tauri
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libsoup-3.0-dev
       - name: Rust toolchain (from rust-toolchain.toml)
         run: rustup show active-toolchain || rustup toolchain install
-      - uses: Swatinem/rust-cache@v2
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
           cache: pnpm
@@ -40,9 +47,11 @@ jobs:
     name: UI suites · layout · coherence · errors · perf
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
           cache: pnpm
@@ -50,7 +59,7 @@ jobs:
       - name: Chromium for Playwright
         run: pnpm --filter @scout/ui exec playwright install --with-deps chromium
       - name: Cache game assets (Data Dragon)
-        uses: actions/cache@v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .cache/ddragon
           key: ddragon-${{ hashFiles('fixtures/ddragon-version.txt', 'scripts/fetch-dev-assets.mjs') }}
@@ -59,7 +68,7 @@ jobs:
       - name: Screenshots for review
         if: always()
         run: pnpm --filter @scout/ui screenshots
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: ui-reports
@@ -73,7 +82,9 @@ jobs:
     name: Backend Docker image
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Build (no push)
         run: docker build -f apps/backend/Dockerfile -t mvp-backend:ci .
       - name: Starts and answers /health without a key
@@ -133,7 +144,9 @@ jobs:
     name: Crawler Docker image
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Build (no push)
         run: docker build -f apps/crawler/Dockerfile -t mvp-crawler:ci .
       - name: Runs against an empty store and publishes nothing
@@ -145,12 +158,14 @@ jobs:
     name: Windows build (.exe)
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Rust toolchain (from rust-toolchain.toml)
         run: rustup show active-toolchain || rustup toolchain install
-      - uses: Swatinem/rust-cache@v2
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
           cache: pnpm
@@ -163,13 +178,13 @@ jobs:
       - name: Footprint of the real app (RAM, idle CPU)
         shell: pwsh
         run: ./scripts/windows-footprint.ps1 -Exe target/release/MVP.exe
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: footprint-windows
           path: reports/footprint.json
           if-no-files-found: ignore
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: scout-windows
           path: |
