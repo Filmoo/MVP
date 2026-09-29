@@ -3,20 +3,17 @@ import { useData } from "../../data/context";
 import type { ClientError } from "../../data/generated/ClientError";
 import type { ClientStatus } from "../../data/generated/ClientStatus";
 import { useAmbient } from "../../design/ambient";
+import { Button } from "../../design/Button";
 import { Card } from "../../design/Card";
+import { Icon } from "../../design/Icon";
 import { EmptyState, ErrorState } from "../../design/States";
 import { t } from "../../i18n";
 import page from "../page.module.css";
 import { ProfileContent, ProfileSkeleton, profileArt } from "./Profile";
 
-/**
- * Why the profile couldn't load, in words: a client that doesn't answer gets MVP's own sentence
- * (never the request's text, with its address); any other failure, the client's words.
- */
-function failure(error: unknown): string {
-  const detail = (error as { detail?: ClientError } | undefined)?.detail;
-  if (detail?.kind === "notAnswering") return t().home.notAnswering;
-  return String((error as Error | undefined)?.message ?? error);
+/** The League client is up but doesn't answer: a wait (the core asks it again by itself), not an error. */
+function notAnswering(error: unknown): boolean {
+  return (error as { detail?: ClientError } | undefined)?.detail?.kind === "notAnswering";
 }
 
 export function Home(): JSX.Element {
@@ -40,10 +37,34 @@ export function Home(): JSX.Element {
   return (
     <div class={page.page}>
       <Switch>
+        <Match when={profile.state === "errored" && notAnswering(profile.error)}>
+          {/* MVP's own words, the title bar's, never the request's text with its address. */}
+          <div class={page.centered} role="status">
+            <Card>
+              <EmptyState
+                heading
+                icon="plug"
+                title={t().shell.connection.notAnswering}
+                text={t().home.notAnswering.text}
+                action={
+                  <Button onClick={() => void refetch()}>
+                    <Icon name="refresh" size={16} />
+                    {t().home.notAnswering.retry}
+                  </Button>
+                }
+              />
+            </Card>
+          </div>
+        </Match>
         <Match when={profile.state === "errored"}>
           <div class={page.centered}>
             <Card>
-              <ErrorState heading title={t().home.loadFailed} message={failure(profile.error)} onRetry={() => void refetch()} />
+              <ErrorState
+                heading
+                title={t().home.loadFailed}
+                message={String(profile.error?.message ?? profile.error)}
+                onRetry={() => void refetch()}
+              />
             </Card>
           </div>
         </Match>

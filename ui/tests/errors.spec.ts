@@ -31,19 +31,29 @@ test("client not answering: the title bar and Home say so, the profile loads onc
   const status = page.getByTestId("client-status");
   await expect(status).toContainText(t.shell.connection.notAnswering);
   await expect(status).toHaveAttribute("title", t.shell.connection.notAnswering);
-  // MVP's own words, never the request's address.
-  const alert = page.getByRole("alert");
-  await expect(alert).toContainText(t.home.loadFailed);
-  await expect(alert).toContainText(t.home.notAnswering);
-  await expect(alert).not.toContainText("127.0.0.1");
-  // It answers again: the profile loads by itself, no "Try again".
+  // A wait, not an error: the title bar's words and MVP's own sentence, never the request's address.
+  const card = page.getByRole("status").filter({ has: page.getByRole("heading", { name: t.shell.connection.notAnswering }) });
+  await expect(card).toContainText(t.home.notAnswering.text);
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(page.locator("main")).not.toContainText("127.0.0.1");
+  // It answers again: the profile loads by itself, nothing to click.
   const reads = () => page.evaluate(() => window.__SCOUT_MOCK__?.calls.filter((c) => c === "current_profile").length);
   expect(await reads()).toBe(1);
   await page.evaluate(() => window.__SCOUT_MOCK__?.emit("client-status", { connection: "connected", phase: "idle" }));
   await expect(status).toContainText(t.shell.connection.connected);
   await expect(page.locator("[data-widget=profile-header]")).toContainText("Fillmo");
-  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(card).toHaveCount(0);
   expect(await reads()).toBe(2);
+  expect(errors).toEqual([]);
+});
+
+test("client not answering: Retry now asks again at once", async ({ page, t }) => {
+  const errors = trackErrors(page);
+  await openApp(page, { scenario: "client-not-answering" });
+  const reads = () => page.evaluate(() => window.__SCOUT_MOCK__?.calls.filter((c) => c === "current_profile").length);
+  await page.getByRole("button", { name: t.home.notAnswering.retry }).click();
+  await expect.poll(reads).toBe(2);
+  await expect(page.locator("[data-widget=profile-header]")).toContainText("Fillmo");
   expect(errors).toEqual([]);
 });
 

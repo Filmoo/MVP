@@ -94,6 +94,14 @@
   }
 }
 
+/* Wide, without vision: the freed width goes to the damage bar, not to a gap before the KDA. */
+@container game (width > 899px) {
+  .noVision .head,
+  .noVision .player {
+    grid-template-columns: 68px minmax(0, 1fr) 96px 130px 52px 40px 152px 56px;
+  }
+}
+
 @container game (max-width: 739px) {
   .head,
   .player {
