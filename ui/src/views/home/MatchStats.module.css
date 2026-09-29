@@ -5,6 +5,7 @@
  * the well's).
  */
 .scroll {
+  container: stats / inline-size;
   overflow-x: auto;
   border-radius: var(--radius-3);
   background: var(--bg-1);
@@ -120,4 +121,20 @@ tbody:last-child tr:last-child > * {
 /* The row under the pointer, across all ten players. */
 .table tbody tr:not(.group):hover > * {
   background: var(--bg-3);
+}
+
+/* Narrow sheets: the labels wrap (two lines at most), so more players fit beside them. */
+@container stats (max-width: 599px) {
+  .table th[scope="row"] {
+    width: 120px;
+    padding-block: var(--space-2);
+    white-space: normal;
+    line-height: 1.25;
+  }
+  .table th.sub {
+    padding-left: var(--space-7);
+  }
+  .table td {
+    min-width: 56px;
+  }
 }
