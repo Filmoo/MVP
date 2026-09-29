@@ -880,6 +880,72 @@
       "proposedBy": "claude",
       "createdOn": "2026-09-29",
       "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/riot-application.md", "label": "docs/riot-application.md" }]
+    },
+    {
+      "key": "mayhem-gathering-progress",
+      "title": "Mayhem: \"gathering data\" with a progress bar",
+      "description": "Owner, 2026-09-30: no hand-written tiers for now, \"we simply have to get games going\". Until the shared games cover enough, every Mayhem view says so kindly and shows a progress bar: games gathered against what full coverage needs (every champion, every augment), so players know when the percentages switch on.",
+      "version": "0.3",
+      "status": "accepted",
+      "area": "aram",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-30",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/decisions.md", "label": "docs/decisions.md" }]
+    },
+    {
+      "key": "mayhem-own-games-first",
+      "title": "Mayhem: percentages from your own games first",
+      "description": "Read every ARAM: Mayhem game in the player's client history (ten players each: champions, augments, final items; no names, no results) and start the pick rates from them, sent once the player says yes to sharing. The owner's games are the first data.",
+      "version": "0.3",
+      "status": "accepted",
+      "area": "aram",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-30",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/decisions.md", "label": "docs/decisions.md" }]
+    },
+    {
+      "key": "first-start-data-question",
+      "title": "First start: one simple question about game data",
+      "description": "On first start, one easy-to-read screen asks whether to share game data: it is only game data (champions, augments, items; no names, no results) to improve MVP's percentages and switch features on. It shows a progress bar for every feature still waiting for data. Off until the player says yes; changeable in Settings.",
+      "version": "0.3",
+      "status": "accepted",
+      "area": "settings",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-30",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/decisions.md", "label": "docs/decisions.md" }]
+    },
+    {
+      "key": "game-windows-stack",
+      "title": "Game windows you scroll between",
+      "description": "Owner, 2026-09-30: the game view is a near full-size glass window over the page, one per game; scrolling carries you from one game to the next (a stack in history order), the page stays visible behind. It opens by itself on the game that just ended (replacing the \"Your last game\" card) and on any game you click.",
+      "version": "0.3",
+      "status": "accepted",
+      "area": "profile",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-30",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/HANDOFF.md", "label": "docs/HANDOFF.md" }]
+    },
+    {
+      "key": "mayhem-augments-in-game-window",
+      "title": "Mayhem: every player's augments in the game window",
+      "description": "Your client records each player's augments in Mayhem games (playerAugment1..6); show them in the game window with the same hover cards as items.",
+      "version": "0.3",
+      "status": "proposed",
+      "area": "aram",
+      "proposedBy": "claude",
+      "createdOn": "2026-09-30",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/HANDOFF.md", "label": "docs/HANDOFF.md" }]
+    },
+    {
+      "key": "website-live",
+      "title": "Website: live on mvpgg.com",
+      "description": "Deploy site/ with the Caddy block from site/README.md once the owner fills in the legal pages (name, country, contact e-mail, governing law) and picks the hosting; then Riot's riot.txt after the product is registered.",
+      "version": "0.3",
+      "status": "accepted",
+      "area": "website",
+      "proposedBy": "claude",
+      "createdOn": "2026-09-30",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/site/README.md", "label": "site/README.md" }]
     }
   ]
 }
