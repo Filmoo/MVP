@@ -33,23 +33,26 @@ export function MatchHistory(props: {
   const [queue, setQueue] = createSignal<QueueFilter>(QUEUES.find((q) => q === queryParam("queue")) ?? "all");
   const [champion, setChampion] = createSignal(Number(queryParam("champion")) || 0);
   const [older, setOlder] = createSignal<MatchSummary[]>([]);
-  const [more, setMore] = createSignal<"idle" | "loading" | "failed" | "end">("idle");
+  // A short first page is the whole history: nothing further back.
+  const [more, setMore] = createSignal<"idle" | "loading" | "failed" | "end">(props.matches.length < PAGE ? "end" : "idle");
   // Games read further back (duplicates included): where the next page begins.
   let read = 0;
   let generation = 0;
-  // A new first page (a game ended, the client came back): the older pages start over.
+  // A new first page (a game ended, the client came back): the older pages start over. Not on
+  // the first run: the rows would all be built twice.
   createEffect(
     on(
       () => props.matches,
       (first) => {
         generation++;
         read = 0;
-        setOlder([]);
+        if (older().length > 0) setOlder([]);
         setMore(first.length < PAGE ? "end" : "idle");
       },
+      { defer: true },
     ),
   );
-  const all = createMemo(() => [...props.matches, ...older()]);
+  const all = createMemo(() => (older().length > 0 ? [...props.matches, ...older()] : props.matches));
   const loadMore = async () => {
     const load = props.older;
     if (!load || more() === "loading") return;
@@ -68,8 +71,11 @@ export function MatchHistory(props: {
   };
   const canLoad = () => !!props.older && more() !== "end";
 
+  // Unfiltered, the list itself (the rows aren't built again).
   const shown = createMemo(() =>
-    all().filter((m) => (queue() === "all" || queueGroup(m.queueId) === queue()) && (!champion() || m.championId === champion())),
+    queue() === "all" && !champion()
+      ? all()
+      : all().filter((m) => (queue() === "all" || queueGroup(m.queueId) === queue()) && (!champion() || m.championId === champion())),
   );
   // Older games' grades: asked for the rows shown, each once; the first page's come with `late`.
   const first = createMemo(() => new Set(props.matches));

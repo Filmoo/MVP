@@ -42,6 +42,8 @@ const graded = withGrades(profile);
 const firstMatch = profile.recentMatches[0];
 if (!firstMatch) throw new Error("the profile fixture has games");
 const firstGame = gameFor(firstMatch, profile.riotId);
+/** The LP of the fixture's ranked games, as Home gets it (computed once, not measured). */
+const lp = lpFor(profile);
 
 /**
  * Every widget with representative data, for isolated performance measurement
@@ -49,8 +51,8 @@ const firstGame = gameFor(firstMatch, profile.riotId);
  */
 export const widgetRegistry: Record<string, () => JSX.Element> = {
   // Your own profile: the LP graph in the ranked pane, filters over the list, mastery.
-  "profile-header": () => <ProfileHeader profile={profile} lp={lpFor(profile)} />,
-  "recent-matches": () => <MatchHistory matches={graded.recentMatches} focus={graded.riotId} lp={lpFor(profile)} />,
+  "profile-header": () => <ProfileHeader profile={profile} lp={lp} />,
+  "recent-matches": () => <MatchHistory matches={graded.recentMatches} focus={graded.riotId} lp={lp} />,
   "match-details": () => <MatchTable game={firstGame} focus={profile.riotId} />,
   "performance-summary": () => <PerformanceSummary matches={profile.recentMatches} mastery={masteryFixture} />,
   // A ranked win with its LP, a lane opponent and the grade's why: every part shown.
