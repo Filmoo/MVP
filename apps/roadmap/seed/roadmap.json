@@ -847,6 +847,39 @@
       "proposedBy": "claude",
       "createdOn": "2026-09-27",
       "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/CLAUDE.md", "label": "CLAUDE.md · Decisions" }]
+    },
+    {
+      "key": "live-bot-seats",
+      "title": "Live: bots in custom and co-op games",
+      "description": "Riot's live game and the client's own session list only the humans of a game with bots, so Live shows them alone (seen in a custom game on 2026-09-29). Fill the missing seats from the game's own Live Client Data API (`allPlayers`, `isBot`) when Riot's list is shorter than the game.",
+      "version": "0.3",
+      "status": "proposed",
+      "area": "live",
+      "proposedBy": "claude",
+      "createdOn": "2026-09-29",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/HANDOFF.md", "label": "docs/HANDOFF.md" }]
+    },
+    {
+      "key": "imports-other-app-note",
+      "title": "Imports: say when another app also auto-imports",
+      "description": "On the owner's PC, DPM's app imported its own rune page after MVP's and made it current (2026-09-29). MVP never re-imports or reads the player's pages to warn, by design; a one-time note in Settings > Imports (\"another companion may also import at lock-in: keep one\") would explain it without watching anything.",
+      "version": "Later",
+      "status": "proposed",
+      "area": "imports",
+      "proposedBy": "claude",
+      "createdOn": "2026-09-29",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/decisions.md", "label": "docs/decisions.md" }]
+    },
+    {
+      "key": "scout-cards-rate-budget",
+      "title": "Live cards within the API key's rate limit",
+      "description": "In a real game (2026-09-29) all ten names came in 5 s but the cards' batch answered 504 after 30 s on the development key (about 90 calls cold for ten players, 100 allowed per 2 minutes). The production key fixes most of it; until then, names first and cards as the budget allows, cached for the game.",
+      "version": "0.3",
+      "status": "proposed",
+      "area": "platform",
+      "proposedBy": "claude",
+      "createdOn": "2026-09-29",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/riot-application.md", "label": "docs/riot-application.md" }]
     }
   ]
 }
