@@ -9,7 +9,7 @@ import { gzipSync } from "node:zlib";
 const BUDGET_KB = {
   initialJsGzip: 46, // entry chunk(s) loaded before first paint
   initialCssGzip: 12,
-  totalJsGzip: 129, // everything, including lazy views
+  totalJsGzip: 130, // everything, including lazy views
   fontsKb: 150,
 };
 

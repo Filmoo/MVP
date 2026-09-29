@@ -165,3 +165,32 @@ buttons, vary". Design calls:
   can help), the champions are grouped by Data Dragon class.
 - **Budget**: the JS bundle had 1.3 KB left; the list fits in it (the loading skeleton is drawn by
   CSS, constant classes are set once with `/*@once*/`).
+
+## 2026-09-29 — Live names from Riot's live game, then the game (owner's brief, Claude built)
+A real client (2026-09-28, EUW, ARAM: Mayhem and custom games) names nobody but the local player
+in its gameflow session, so every real game showed nine "Unknown player" cards. Calls:
+- **Riot's live game first** (Spectator-V5 on our server): answers from the loading screen on,
+  applies Streamer Mode itself (anonymous players have no PUUID; their name is dropped), and
+  brings the cards in the same round trip. The app sends only its own player's Riot ID and the
+  game's id; the server keeps each game for its duration under every visible player's PUUID,
+  so the other nine players of that game cost no Riot call.
+- **The game itself second** (Live Client Data API): only when Riot has nothing (no server,
+  not listed yet, "filtered" for Ranked Flex and Arena). It answers once the loading screen is
+  over, so it is asked every 2 s during a game until it does, then never again (idle means
+  idle); its streamer-mode stand-ins (no tag, a champion's name, a shared name) stay hidden.
+  Riot's filter has no stated intent: asking Riot in an App Note before the production key.
+- **Seats by side and champion**, not by name or order: both lists name the players of the
+  session's seats, the same champion twice on a side in order; bots the session missed get
+  seats. A seat marked hidden never gets a name.
+- **Names before cards**: when Riot's cards take longer than 5 s the names go out without them
+  and the batch picks the rest up, so a slow or rate-limited key never holds the names back.
+- **Say where the names are**: `LiveGame.names` (asking / waiting / known) drives a name
+  placeholder per seat (still during the minute or two the game takes to load: nothing pulses
+  that long) and one line in the page head, in a slot that never makes the head wrap; a filtered
+  queue is named plainly ("Riot doesn't share live Ranked Flex games"), neutral, with nothing
+  to retry. Your own card doesn't wait for the others' names.
+- **Bots read "AI bot"** with their champion under it ("Bot" alone is the bottom lane's name);
+  streamer-mode players keep their lane ("Streamer mode · Jungle").
+- **Riot IDs on Live cards open the player's page** (owner's ask, 2026-09-29): visible players
+  only; hidden players and bots have no name to open.
+

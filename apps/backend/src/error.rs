@@ -40,6 +40,15 @@ impl Failure {
         Self::new(StatusCode::NOT_FOUND, ApiErrorCode::NotFound, "not found")
     }
 
+    /// Riot doesn't share this with apps (a live game of a "filtered" queue).
+    pub fn filtered() -> Self {
+        Self::new(
+            StatusCode::NOT_FOUND,
+            ApiErrorCode::Filtered,
+            "Riot doesn't share live games of this queue with apps",
+        )
+    }
+
     pub fn key_missing() -> Self {
         Self::new(
             StatusCode::SERVICE_UNAVAILABLE,
@@ -61,6 +70,7 @@ impl From<RiotError> for Failure {
     fn from(e: RiotError) -> Self {
         match e {
             RiotError::NotFound => Self::not_found(),
+            RiotError::Filtered => Self::filtered(),
             RiotError::RateLimited { retry_after_secs } => {
                 let mut f = Self::new(
                     StatusCode::TOO_MANY_REQUESTS,
