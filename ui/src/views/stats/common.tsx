@@ -47,24 +47,42 @@ export function useLinkFilters(options: { role: boolean }): void {
   );
 }
 
-/** Queue and rank switches, remembered for every stats page. */
-export function ScopeSwitches(props: { class?: string | undefined }): JSX.Element {
+/** ARAM: Mayhem as a third queue tab: its own page from the tier list, a champion's Mayhem tab. */
+export interface MayhemTab {
+  selected: boolean;
+  onSelect: () => void;
+  /** Ranked or ARAM chosen while Mayhem is shown. */
+  onLeave?: () => void;
+}
+
+const MAYHEM = 2400;
+
+/** Queue and rank switches, remembered for every stats page; `rank: false` leaves the rank out. */
+export function ScopeSwitches(props: { class?: string | undefined; mayhem?: MayhemTab; rank?: boolean }): JSX.Element {
+  const queues = () => (props.mayhem ? [...queueOptions(), { value: MAYHEM, label: t().queues[MAYHEM] }] : queueOptions());
   return (
     <div class={`${styles.switches} ${props.class ?? ""}`}>
-      <Segmented
+      <Segmented<number>
         label={t().stats.queue}
-        options={queueOptions()}
-        value={filters().queue}
-        onChange={(queue) => setFilter({ queue })}
+        options={queues()}
+        value={props.mayhem?.selected ? MAYHEM : filters().queue}
+        onChange={(queue) => {
+          const published = parseQueue(queue);
+          if (!published) return props.mayhem?.onSelect();
+          setFilter({ queue: published });
+          props.mayhem?.onLeave?.();
+        }}
         testId="queue-switch"
       />
-      <Segmented
-        label={t().stats.rank}
-        options={bracketOptions()}
-        value={filters().bracket}
-        onChange={(bracket) => setFilter({ bracket })}
-        testId="bracket-switch"
-      />
+      <Show when={props.rank !== false}>
+        <Segmented
+          label={t().stats.rank}
+          options={bracketOptions()}
+          value={filters().bracket}
+          onChange={(bracket) => setFilter({ bracket })}
+          testId="bracket-switch"
+        />
+      </Show>
     </div>
   );
 }

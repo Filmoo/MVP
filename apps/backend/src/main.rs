@@ -3,7 +3,7 @@
 //! ```text
 //! RIOT_API_KEY=RGAPI-… cargo run -p mvp-backend      # listens on BIND (127.0.0.1:8787)
 //! mvp-backend healthcheck                              # exit 0 if GET /health answers ok
-//! mvp-backend release|config|reports …                 # admin commands (see admin.rs)
+//! mvp-backend release|config|reports|mayhem …          # admin commands (see admin.rs)
 //! ```
 
 use std::process::ExitCode;
@@ -27,7 +27,13 @@ async fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    let result = if admin::is_admin(&args) {
+    let result = if let Some(force) = admin::builds_augments(&args) {
+        let data_dir = &ops_settings.data_dir;
+        mvp_backend::mayhem::build_catalog(data_dir, &ops_settings.cdragon_url, force)
+            .await
+            .map(|done| tracing::info!("{done}"))
+            .map_err(Into::into)
+    } else if admin::is_admin(&args) {
         admin::run(&args, &ops_settings.data_dir, &mut std::io::stdout()).map_err(Into::into)
     } else {
         match args.first().map(String::as_str) {
@@ -98,6 +104,18 @@ async fn serve(
             let _ = tokio::task::spawn_blocking(move || ops.prune_reports()).await;
         }
     });
+    if ops.settings().mayhem_catalog {
+        // The Mayhem augments follow the game's version: checked at start, then every 6 h
+        // (one small request; the game files are downloaded only when the version changed).
+        let builder = std::sync::Arc::clone(&ops);
+        tokio::spawn(async move {
+            let mut every = tokio::time::interval(Duration::from_secs(6 * 60 * 60));
+            loop {
+                every.tick().await;
+                builder.refresh_mayhem_catalog().await;
+            }
+        });
+    }
 
     axum::serve(
         listener,

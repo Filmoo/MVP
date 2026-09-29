@@ -1,4 +1,5 @@
 import { createMemo, For, type JSX, Match, Show, Switch } from "solid-js";
+import { navigate } from "../../app/router";
 import { useData } from "../../data/context";
 import { Card } from "../../design/Card";
 import { Segmented } from "../../design/Segmented";
@@ -45,7 +46,8 @@ export default function TierListView(): JSX.Element {
         <Show when={list.data()}>{(l) => <DataBadge info={l().info} index={index()} />}</Show>
       </div>
       <div class={styles.filters}>
-        <ScopeSwitches />
+        {/* ARAM: Mayhem's augments have a page of their own. */}
+        <ScopeSwitches mayhem={{ selected: false, onSelect: () => navigate("/mayhem") }} />
         <Show when={queue() !== ARAM}>
           <Segmented
             label={t().stats.role}

@@ -83,6 +83,52 @@ jobs:
           docker logs mvp-backend
           exit 1
 
+  roadmap:
+    name: Roadmap (dev.mvpgg.com) · UI against the service
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rust toolchain (from rust-toolchain.toml)
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Chromium for Playwright
+        run: pnpm --filter @scout/roadmap exec playwright install --with-deps chromium
+      - run: node scripts/check.mjs roadmap
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: roadmap-test-results
+          path: apps/roadmap/web/test-results
+          retention-days: 14
+
+  roadmap-image:
+    name: Roadmap Docker image
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build (no push)
+        run: docker build -f apps/roadmap/Dockerfile -t mvp-roadmap:ci .
+      - name: Refuses to start without its secrets, answers /health with them
+        run: |
+          if docker run --rm mvp-roadmap:ci serve; then echo "started without secrets"; exit 1; fi
+          docker run -d --name mvp-roadmap -p 127.0.0.1:8790:8790 \
+            -e ROADMAP_PUBLIC_URL=https://dev.mvpgg.com -e ROADMAP_GITHUB_CLIENT_ID=ci \
+            -e ROADMAP_GITHUB_CLIENT_SECRET=ci -e ROADMAP_SESSION_KEY="$(openssl rand -hex 32)" mvp-roadmap:ci
+          for i in $(seq 1 20); do
+            if curl -fsS http://127.0.0.1:8790/health; then
+              curl -fsS http://127.0.0.1:8790/ | grep -q '<div id="root">' && exit 0
+            fi
+            sleep 1
+          done
+          docker logs mvp-roadmap
+          exit 1
+
   crawler-image:
     name: Crawler Docker image
     runs-on: ubuntu-24.04

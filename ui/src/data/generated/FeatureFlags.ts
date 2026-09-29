@@ -4,4 +4,8 @@
  * Which features the app shows. Used for staged launches and to hide a feature whose data is
  * broken (e.g. stats on patch day). `true` = available.
  */
-export type FeatureFlags = { scouting: boolean, draftHelper: boolean, playerSearch: boolean, autoAccept: boolean, runeImport: boolean, itemSets: boolean, summonerSpells: boolean, };
+export type FeatureFlags = { scouting: boolean, draftHelper: boolean, playerSearch: boolean, autoAccept: boolean, runeImport: boolean, itemSets: boolean, summonerSpells: boolean, 
+/**
+ * Opted-in players' Mayhem games are sent (off: nothing is sent, whatever the setting).
+ */
+mayhemSharing: boolean, };

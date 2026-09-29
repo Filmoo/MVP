@@ -28,8 +28,15 @@ export function DraftContent(props: { draft: DraftView }): JSX.Element {
   const [clicked, setClicked] = createSignal<number>();
   // Narrow windows explain a pick under its row; a second tap folds it away again.
   const [expanded, setExpanded] = createSignal<number>();
-  // The side panel explains the pick, or shows both teams' compositions.
-  const [tab, setTab] = createSignal<WhyTab>(narrow() ? "teams" : "pick");
+  // The side panel explains the pick, shows both teams' compositions, or (Mayhem) the augments:
+  // their tab first until the player picks another one.
+  const mayhem = () => props.draft.mode === "mayhem";
+  const [chosen, setTab] = createSignal<WhyTab>();
+  const tab = (): WhyTab => {
+    const picked = chosen();
+    if (picked && (picked !== "augments" || mayhem())) return picked;
+    return mayhem() ? "augments" : narrow() ? "teams" : "pick";
+  };
   const selected = () => selectedPick(props.draft, clicked());
   const suggestion = () => props.draft.suggestions.find((s) => s.championId === selected());
   // The screen takes the colors of the pick being explained.
@@ -38,8 +45,9 @@ export function DraftContent(props: { draft: DraftView }): JSX.Element {
   const select = (championId: number) => {
     setClicked(championId);
     setExpanded((open) => (open === championId ? undefined : championId));
-    // Beside the list, the panel explains it; stacked under it, the row does and the panel stays.
-    if (!narrow()) setTab("pick");
+    // Beside the list, the panel explains it (or shows its augments); stacked under it, the row
+    // does and the panel stays.
+    if (!narrow() && tab() !== "augments") setTab("pick");
   };
   // Imports of your hovered or locked champion's build: every button always works; the parts
   // switched on also import by themselves at your first lock-in, and a warning follows if your
@@ -78,6 +86,7 @@ export function DraftContent(props: { draft: DraftView }): JSX.Element {
           data={props.draft.data}
           aram={props.draft.queue === ARAM}
           mine={me()?.championId}
+          augments={mayhem() ? (selected() ?? me()?.championId ?? null) : undefined}
           tab={tab()}
           onTab={setTab}
         />

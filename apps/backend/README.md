@@ -1,7 +1,7 @@
 # mvp-backend
 
-The HTTP service the desktop app calls for Riot-backed data, app updates, remote config and
-opt-in crash reports. **The Riot API key lives only here** (never in the app, see
+The HTTP service the desktop app calls for Riot-backed data, app updates, remote config,
+opt-in crash reports and ARAM: Mayhem's augments. **The Riot API key lives only here** (never in the app, see
 `docs/policy.md`). Axum + Tokio, reusing `crates/riot-api` (routing, header-driven rate limits,
 retries) and `crates/players` (mapping to domain types).
 
@@ -22,6 +22,10 @@ JSON, camelCase. Types come from `crates/domain` and are exported to
 | `GET /metrics` | Prometheus text; only with `METRICS_TOKEN` (bearer) or on `ADMIN_BIND` |
 | `GET /v1/stats/index` | `StatsIndex`: published patches and the `current` one |
 | `GET /v1/stats/{patch}/{queue}/{file…}` | a published stats file, e.g. `16.19/420/emeraldPlus/builds/103.json` |
+| `GET /v1/mayhem/tiers` | `MayhemTiers`: the owner's augment tiers + `ETag` (see [ARAM: Mayhem](#aram-mayhem)) |
+| `GET /v1/mayhem/augments` | `AugmentCatalog`: Mayhem's augments in English and French + `ETag`; 404 until built |
+| `POST /v1/mayhem/games` (`MayhemUpload`, opt-in) | `MayhemUploadAnswer` `{ accepted, duplicates }` |
+| `GET /v1/mayhem/stats?patch=` | `MayhemStats`: pick counts of the shared games + `ETag`; 404 without games |
 
 Stats routes serve the files `mvp-crawler publish` wrote under `STATS_DIR` (layout and types:
 `docs/architecture.md`, Stats pipeline). They need no Riot key, answer with an `ETag` (send
@@ -66,7 +70,7 @@ with `If-None-Match` rather than refetching a whole patch at once.
 | 400 | `badPlatform` / `badRequest` | unknown platform, malformed body or Riot ID, 0 or > 10 players, bad version/channel |
 | 404 | `notFound` | no such Riot ID / route; no live game listed for that player |
 | 404 | `filtered` | Riot doesn't share live games of that queue with apps (Spectator-V5) |
-| 413 | `badRequest` | body over the limit (16 KB; 40 KB for reports) |
+| 413 | `badRequest` | body over the limit (16 KB; 40 KB for reports, 64 KB for Mayhem games) |
 | 429 | `rateLimited` | Riot's limit, or ours per client; `retryAfter` seconds (also a `Retry-After` header) |
 | 502 / 504 | `upstream` | Riot refused (bad key), failed, or took > 30 s; any request over 45 s |
 | 503 | `riotKeyMissing` | the server runs without `RIOT_API_KEY` |
@@ -93,12 +97,16 @@ rather than a database: the caches are bounded (tens of MB) and only a crash los
 data/
 ├── releases.json          app releases (edited with `mvp-backend release …`)
 ├── config.json            remote config (edited by hand, checked with `mvp-backend config check`)
+├── mayhem-tiers.json      Mayhem augment tiers (edited by hand, checked with `mvp-backend mayhem check`)
+├── mayhem/augments.json   Mayhem augments, built from the game's files (`mvp-backend mayhem augments`)
+├── mayhem/games/{patch}.jsonl   shared Mayhem games, one JSON object per line
 ├── reports/YYYY-MM-DD.jsonl   crash reports, one JSON object per line, 30 days
+├── cache/cdragon/         game files the augments were built from (current game version only)
 └── cache/riot-cache.json  Riot cache snapshot (written on shutdown)
 ```
 
-`releases.json` and `config.json` are validated when the service starts (it refuses to start
-on a broken file) and reloaded when they change: requests look at the file's mtime and size at
+`releases.json`, `config.json`, `mayhem-tiers.json` and `mayhem/augments.json` are validated
+when the service starts (it refuses to start on a broken file) and reloaded when they change: requests look at the file's mtime and size at
 most every 2 s, no watcher and no polling. A broken edit is logged and the previous version
 keeps being served. Missing files mean "no releases" and the default config.
 
@@ -289,6 +297,93 @@ and UI crashes once each per session; turning the setting off deletes reports no
   lines; a report arriving during the rewrite may be lost). Uninstalling the app removes the id.
 - Logs keep method, route, status and duration per request, never bodies or the install id.
 
+## ARAM: Mayhem
+
+Riot keeps ARAM: Mayhem games (queue 2400) off Match-V5 and forbids augment win rates, so these
+routes serve the owner's tiers, the augments as the game describes them, and **pick counts** from
+players who opt in to share their games. Nothing here receives, stores or computes a win
+(`docs/policy.md`, "ARAM: Mayhem augments").
+
+### Tiers: `mayhem-tiers.json`, edited by hand
+
+```json
+{
+  "patch": "26.19",
+  "updatedAt": "2026-09-29",
+  "tiers": {
+    "S": [2137, 1344],
+    "A": [1028],
+    "B": [],
+    "C": []
+  },
+  "notes": { "en": "First pass: more after a week of games.", "fr": "Premier jet : la suite après une semaine de parties." }
+}
+```
+
+- `tiers.S` … `tiers.C` list augment ids (the numbers `mvp-backend mayhem list` prints).
+  **The order inside a tier is the rank: the first is the best.** The app shows "S · 1",
+  "S · 2"… and ranks each champion's augments by tier, then by this rank (then, with enough shared
+  games, the untiered augments its players pick). An augment goes in one tier, once; one left out
+  reads "Not tiered yet". Never copy another site's tiers.
+- `patch`: the patch the tiers are for, as players name it (`26.19`); `updatedAt`: a date
+  (`2026-09-29`) or an RFC 3339 time; `notes` (optional, English and French, ≤ 300 characters
+  each) shows with the tiers. Every key is optional; no file means no tiers (the app says so).
+- Checked like `config.json`: an unknown key (a misspelled tier) or an id listed twice is refused;
+  a broken file stops the service at start, a broken edit is logged and the previous version
+  keeps being served. Served with an `ETag` and `Cache-Control: no-cache`; apps ask again at
+  most every 5 minutes, when the player opens something that shows augments.
+
+Workflow:
+
+```sh
+cp apps/backend/mayhem-tiers.sample.json "$DATA_DIR/mayhem-tiers.json"   # the first time
+mvp-backend mayhem list --rarity prismatic   # every augment of the catalog: id, rarity, tier, name
+# edit "$DATA_DIR/mayhem-tiers.json", best first in each tier
+mvp-backend mayhem check                     # valid? each tier in rank order, with names; ids that
+                                             # aren't Mayhem augments of the current patch are flagged
+```
+
+### Augments: `mayhem/augments.json`, built
+
+`GET /v1/mayhem/augments` → `AugmentCatalog`: the pool's names, rarities, icon paths and short
+descriptions in English and French, built from the game's own files on `CommunityDragon`'s mirror
+(`CDRAGON_URL`). At startup and every 6 hours the service reads the mirror's game version (one
+small file); when it changed, it downloads the sources (~80 MB, kept under `cache/cdragon/` for
+that version only) and writes the catalog (a few hundred KB). 404 until built (the app says the
+augments are on their way). `MAYHEM_CATALOG=0` turns the background task off;
+`mvp-backend mayhem augments [--force]` builds it by hand. Nothing of it is committed.
+
+### Shared games: `POST /v1/mayhem/games`
+
+Sent by apps whose player turned on Settings → Stats → "Help build Mayhem stats" (off by
+default), after each Mayhem game and once for the recent ones:
+
+```json
+{ "platform": "EUW1",
+  "games": [ { "game": "<SHA-256 of the platform and game id, 64 hex digits>", "patch": "16.19",
+               "players": [ { "champion": 103, "augments": [2137, 1028], "items": [3089, 6655] } ] } ] }
+```
+
+(ten players per game) → `{ "accepted": 1, "duplicates": 0 }`.
+
+- **Validated**: a known platform; 1–20 games; each with a 64-hex hash, a patch like `16.19` not
+  newer than the catalog's, 10 players on 10 different champions with ≤ 6 distinct augments and
+  ≤ 6 items each, and at least one augment in the game. Body ≤ 64 KB (413); per install a burst of
+  10, then 30 an hour (429 + `Retry-After`). Unknown fields are dropped.
+- **Counted once**: every player of a game computes the same hash, so a game shared twice counts
+  once (`duplicates`); the hashes are kept in memory and rebuilt from the files at start.
+- **Stored**: one line per game in `mayhem/games/{patch}.jsonl`: arrival time, platform, hash,
+  patch and the ten players' champion, augments and final items. **Not** the install id (used
+  for the rate limit only, in memory), the IP, names, player ids or results. A patch's file stops
+  growing at 256 MB (games are then counted as `dropped`).
+- **Stats**: `GET /v1/mayhem/stats[?patch=16.19]` → `MayhemStats` (default: the newest patch with
+  games, not newer than the catalog's): games, champion games, every augment's pick count, and
+  per champion its games, its augment picks and its 20 most common final items. Rendered at most
+  once a minute while games arrive; `ETag`, `Cache-Control: public, max-age=300`; 404 without
+  games.
+- Metrics: `mvp_mayhem_games_total{outcome}` (`accepted`, `duplicate`, `invalid`, `tooLarge`,
+  `rateLimited`, `dropped`, `failed`).
+
 ## Hardening
 
 - **Rate limit** on `/v1/*` (not `/health`, not CORS preflights): a token bucket per
@@ -297,13 +392,15 @@ and UI crashes once each per session; turning the setting off deletes reports no
   the IP is the last `X-Forwarded-For` hop; never expose the container directly with it on.
   An install id is self-declared: the limit protects against runaway clients, the Riot rate
   limiter and caches protect the key.
-- **Body limits** 16 KB (40 KB for reports), **timeout** 45 s per request (Riot calls 30 s).
+- **Body limits** 16 KB (40 KB for reports, 64 KB for Mayhem games), **timeout** 45 s per
+  request (Riot calls 30 s).
 - **Logs:** `tracing`, one span per request with its id, method and route; `LOG_FORMAT=json` for
   one JSON object per line (the Docker image sets it).
 - **Metrics:** `mvp_http_requests_total{route,method,status}`,
   `mvp_http_request_duration_seconds_{sum,count}{route}`, `mvp_riot_calls_total{result}`,
   `mvp_cache_{hits,misses}_total{cache}`, `mvp_cache_entries{cache}`,
-  `mvp_rate_limited_total`, `mvp_reports_total{outcome}`, `mvp_build_info{version}`. Served on
+  `mvp_rate_limited_total`, `mvp_reports_total{outcome}`, `mvp_mayhem_games_total{outcome}`,
+  `mvp_build_info{version}`. Served on
   `ADMIN_BIND` (keep it private, e.g. `127.0.0.1:9100`) without auth, and/or on the public port
   to `Authorization: Bearer $METRICS_TOKEN` (≥ 16 characters). Neither set: no `/metrics`.
 - **Graceful shutdown** on SIGTERM/Ctrl-C: stops accepting, finishes in-flight requests, then
@@ -324,6 +421,8 @@ and UI crashes once each per session; turning the setting off deletes reports no
 | `REQUEST_TIMEOUT_SECS` | `45` | Whole-request timeout. |
 | `CACHE_SNAPSHOT` | on | `0` to skip saving/restoring the Riot caches. |
 | `STATS_DIR` | — | Published stats root (e.g. `.cache/crawler/stats`); stats routes 404 without it. |
+| `MAYHEM_CATALOG` | on | `0` stops building Mayhem's augment catalog in the background (`mvp-backend mayhem augments` still does). |
+| `CDRAGON_URL` | `https://raw.communitydragon.org/latest` | The `CommunityDragon` mirror the augments are read from. |
 | `RUST_LOG` | `info` | Log filter (`tracing`). |
 | `LOG_FORMAT` | text | `json` for JSON lines (set in the image). |
 
@@ -344,7 +443,9 @@ A development key (developer.riotgames.com) expires every 24 h and must never ba
 app: production needs the registered product's key.
 
 Tests run without network (`cargo test -p mvp-backend`): `tests/api.rs` against a fake Riot API,
-`tests/platform.rs` for updates, config, reports, rate limits, metrics and the cache snapshot.
+`tests/platform.rs` for updates, config, reports, rate limits, metrics and the cache snapshot,
+`tests/mayhem.rs` for the Mayhem routes (tiers and their reload, the catalog, uploads,
+deduplication, stats, limits).
 
 ## Deploy (VPS + Docker + Caddy)
 
@@ -358,8 +459,8 @@ docker run -d --name mvp-backend --restart unless-stopped \
 ```
 
 `/etc/mvp-backend.env` (mode 600, never committed) holds `RIOT_API_KEY=…`. The `mvp-data`
-volume keeps `releases.json`, `config.json`, reports and the cache snapshot across deploys
-(back up the first two). `docker stop` sends SIGTERM and waits 10 s: enough to save the
+volume keeps `releases.json`, `config.json`, `mayhem-tiers.json`, the shared Mayhem games,
+reports and the cache snapshot across deploys (back up the first three and `mayhem/games/`). `docker stop` sends SIGTERM and waits 10 s: enough to save the
 snapshot. The container publishes only on loopback; Caddy terminates HTTPS in front of it
 (`/etc/caddy/Caddyfile`):
 

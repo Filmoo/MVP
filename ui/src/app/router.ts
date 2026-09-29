@@ -9,6 +9,8 @@ export interface Route {
   /** Not built yet: the rail marks it. */
   planned?: boolean;
   icon: IconName;
+  /** Other pages of the same section: the rail lights it there too. */
+  also?: readonly string[];
 }
 
 export const mainRoutes: readonly Route[] = [
@@ -16,7 +18,7 @@ export const mainRoutes: readonly Route[] = [
   { path: "/draft", nav: "draft", icon: "draft" },
   { path: "/live", nav: "live", icon: "live" },
   { path: "/champions", nav: "champions", icon: "champions" },
-  { path: "/tier-list", nav: "tierList", icon: "tiers" },
+  { path: "/tier-list", nav: "tierList", icon: "tiers", also: ["/mayhem"] },
 ];
 
 export const settingsRoute: Route = { path: "/settings", nav: "settings", icon: "settings" };

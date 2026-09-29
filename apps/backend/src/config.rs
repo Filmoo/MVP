@@ -83,7 +83,7 @@ const BANNER_KEYS: [&str; 8] = [
 ];
 
 /// Unknown keys are typos (a misspelled kill switch must not be silently ignored).
-fn check_keys(value: &Value, allowed: &[&str], at: &str) -> Result<(), String> {
+pub(crate) fn check_keys(value: &Value, allowed: &[&str], at: &str) -> Result<(), String> {
     if let Some(map) = value.as_object() {
         for key in map.keys() {
             if !allowed.contains(&key.as_str()) {
@@ -220,7 +220,7 @@ pub struct Params {
 }
 
 /// Whether `If-None-Match` lists `etag` (or `*`); weak validators compare equal too.
-fn matches(if_none_match: &str, etag: &str) -> bool {
+pub(crate) fn matches(if_none_match: &str, etag: &str) -> bool {
     if_none_match
         .split(',')
         .map(str::trim)

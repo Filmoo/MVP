@@ -97,6 +97,15 @@ for (const { view, scenario } of [
   { view: "/champions", scenario: "stats-empty" },
   { view: "/champions?queue=450", scenario: "default" },
   { view: "/__harness?show=build-summary", scenario: "default" },
+  // ARAM: Mayhem: its page and states, a champion's augments, the champion page's tab, a game.
+  { view: "/mayhem", scenario: "default" },
+  { view: "/mayhem", scenario: "mayhem-empty" },
+  { view: "/mayhem", scenario: "mayhem-offline" },
+  { view: "/mayhem", scenario: "mayhem-unbuilt" },
+  { view: "/mayhem?champion=103", scenario: "default" },
+  { view: "/champions?id=103&mode=mayhem", scenario: "default" },
+  { view: "/live?tab=build", scenario: "mayhem-live" },
+  { view: "/draft", scenario: "mayhem-champ-select" },
 ] as const) {
   test(`${view}/${scenario} only uses design tokens`, async ({ page }) => {
     await openApp(page, { view, scenario });

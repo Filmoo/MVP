@@ -6,6 +6,7 @@ import { aramDraft, champSelectDraft } from "../data/mock/draft-fixtures";
 import { profile } from "../data/mock/fixtures";
 import { liveGame } from "../data/mock/live-fixtures";
 import { gameFor, withGrades } from "../data/mock/match-fixtures";
+import { mayhemAugments, mayhemChampion, mayhemOverview } from "../data/mock/mayhem-fixtures";
 import { outageBanner, patchBanner, requiredConfig, updateReady } from "../data/mock/platform-fixtures";
 import { lpFor, masteryFixture, winPostGame } from "../data/mock/progress-fixtures";
 import { defaultSettings } from "../data/mock/settings-fixtures";
@@ -34,6 +35,8 @@ import { PerformanceSummary } from "../views/home/PerformanceSummary";
 import { PostGameCard } from "../views/home/PostGame";
 import { ProfileHeader } from "../views/home/ProfileHeader";
 import { LiveTeam } from "../views/live/LiveTeam";
+import { AugmentTiers } from "../views/mayhem/Mayhem";
+import { ChampionAugmentsView } from "../views/mayhem/parts";
 import { About, AppSettings, AutomationSettings, ImportSettings, NoMatch, StatsSettings } from "../views/settings/sections";
 import { TierTable } from "../views/tierlist/TierTable";
 
@@ -115,6 +118,9 @@ if (!firstMatch) throw new Error("the profile fixture has games");
 const firstGame = gameFor(firstMatch, profile.riotId, false, false);
 /** The LP of the fixture's ranked games, as Home gets it (computed once, not measured). */
 const lp = lpFor(profile);
+
+// ARAM: Mayhem: every made-up augment by tier, and a champion with plenty of shared games (Ahri).
+const augments = new Map(mayhemAugments.augments.map((a) => [a.id, a]));
 
 /**
  * Every widget with representative data, for isolated performance measurement
@@ -219,6 +225,12 @@ export const widgetRegistry: Record<string, () => JSX.Element> = {
   "champion-items": () => <ItemsCard build={luxBuild} />,
   "champion-matchups": () => <MatchupsCard page={lux} forRole="support" />,
   "build-summary": () => <BuildSummary championId={99} build={luxBuild} />,
+  "mayhem-augments": () => <AugmentTiers augments={augments} overview={mayhemOverview} rarity="all" />,
+  "mayhem-champion": () => (
+    <div>
+      <ChampionAugmentsView champion={mayhemChampion(103)} augments={augments} name="Ahri" full />
+    </div>
+  ),
   "game-tips": () => <GameTips />,
   // A champion page's bar, outside of champion select: spells wait for it.
   "champion-import": () => (

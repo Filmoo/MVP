@@ -1,0 +1,16 @@
+# A consistent copy of the roadmap every night (mvp-roadmap-backup.timer), kept 14 days in the
+# volume's backups/ folder. /etc/systemd/system/mvp-roadmap-backup.service.
+[Unit]
+Description=MVP roadmap: back up the database
+Requires=mvp-roadmap.service
+After=mvp-roadmap.service
+
+[Service]
+Type=oneshot
+# SQLite's VACUUM INTO, taken while the service runs: a whole database file, never a torn one.
+ExecStart=/usr/bin/docker exec mvp-roadmap mvp-roadmap backup --out /data/backups/ --keep 14
+# Optional: a copy off the server (the crawler's rclone remote, apps/crawler/README.md). Remove if unused.
+ExecStart=-/usr/bin/docker run --rm --name mvp-roadmap-upload \
+  -v mvp-roadmap:/data:ro -v /etc/mvp/rclone.conf:/config/rclone/rclone.conf:ro \
+  rclone/rclone:1 sync /data/backups r2:${R2_BUCKET}/roadmap-backups --checksum
+EnvironmentFile=-/etc/mvp/crawler.env

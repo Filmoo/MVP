@@ -17,6 +17,9 @@ import type { LiveGame } from "./generated/LiveGame";
 import type { LpGame } from "./generated/LpGame";
 import type { MatchDetails } from "./generated/MatchDetails";
 import type { MatchSummary } from "./generated/MatchSummary";
+import type { MayhemAugments } from "./generated/MayhemAugments";
+import type { MayhemChampion } from "./generated/MayhemChampion";
+import type { MayhemOverview } from "./generated/MayhemOverview";
 import type { PlayerProfile } from "./generated/PlayerProfile";
 import type { PostGame } from "./generated/PostGame";
 import type { RankEmblems } from "./generated/RankEmblems";
@@ -116,6 +119,21 @@ export interface Commands {
    * data set at all.
    */
   champion_stats: { args: { championId: number; queue: number; bracket: Bracket }; result: ChampionPage };
+  /**
+   * ARAM: Mayhem's augments in `language` (names, rarities, icons, descriptions), from our
+   * server's catalog (cached on disk: answers offline). `null` before the server has built it.
+   * Rejects with a `BackendError` as the error's `detail` when nothing is cached and the server
+   * can't be reached.
+   */
+  mayhem_augments: { args: { language: Language }; result: MayhemAugments | null };
+  /** The owner's augment tiers and every augment's pick count (never win rates); `null` parts aren't published yet. */
+  mayhem_overview: { args: undefined; result: MayhemOverview };
+  /**
+   * One champion in Mayhem: its augments ranked per rarity with their reasons (tier, rank, its
+   * pick rate once it has enough shared games), its most picked augments and common items.
+   * Rejects like `mayhem_augments` when the augments can't be had.
+   */
+  mayhem_champion: { args: { championId: number }; result: MayhemChampion };
   /**
    * Imports parts of a build into the League client: MVP's own rune page (made current), its
    * item set for the champion, the summoner spells (champion select only, Flash on the player's

@@ -14,6 +14,7 @@ pub mod imports;
 pub mod live;
 pub mod lp;
 pub mod matches;
+pub mod mayhem;
 pub mod post_game;
 pub mod profile;
 pub mod remote;

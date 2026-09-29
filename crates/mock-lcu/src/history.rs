@@ -1,7 +1,8 @@
 //! The local player's match history as the League client serves it: the list, which holds only
 //! the local player's side of each game, and whole games (`/lol-match-history/v1/games/{id}`:
-//! ten participants with their identities, stats, spells and runes). Made-up players and
-//! numbers, the same on every run.
+//! ten participants with their identities, stats, spells and runes; ARAM: Mayhem games, queue
+//! 2400, also carry each player's augments, `playerAugment1`…`6`). Made-up players and numbers,
+//! the same on every run.
 
 use serde_json::{Value, json};
 
@@ -110,9 +111,31 @@ const TELEPORT: u32 = 12;
 const HEAL: u32 = 7;
 const EXHAUST: u32 = 3;
 
+/// ARAM: Mayhem's queue: its games carry augments (`playerAugment1`…`6`).
+pub const MAYHEM_QUEUE: u32 = 2400;
+/// Augment ids of the Mayhem pool (numbers only, as the client's match history has them).
+const AUGMENTS: [u32; 8] = [2137, 2077, 1344, 1028, 1305, 1103, 1004, 1205];
+/// The client's game version (`gameVersion`): patch 16.19.
+pub const GAME_VERSION: &str = "16.19.712.4";
+
 impl Game {
     fn aram(&self) -> bool {
         self.map_id == 12
+    }
+
+    fn mayhem(&self) -> bool {
+        self.queue_id == MAYHEM_QUEUE
+    }
+
+    /// Seat `seat`'s augments in slot order (0 = an empty slot, like the client), Mayhem only.
+    fn augments(&self, seat: usize) -> [u32; 6] {
+        let mut slots = [0; 6];
+        if self.mayhem() {
+            for (i, slot) in slots.iter_mut().take(4).enumerate() {
+                *slot = AUGMENTS[(seat + i * 3) % AUGMENTS.len()];
+            }
+        }
+        slots
     }
 
     fn my_seat(&self) -> usize {
@@ -183,6 +206,7 @@ impl Game {
             if won { 3089 } else { 0 },
         ];
         let trinket = if lane == 4 { 3364 } else { 3340 };
+        let augments = self.augments(seat);
         let (keystone, primary, secondary) = [
             (8010, 8000, 8400),
             (8005, 8000, 8100),
@@ -206,7 +230,9 @@ impl Game {
             "damageDealtToObjectives": objectives,
             "item0": items[0], "item1": items[1], "item2": items[2], "item3": 0,
             "item4": items[3], "item5": 0, "item6": trinket,
-            "perk0": keystone, "perkPrimaryStyle": primary, "perkSubStyle": secondary
+            "perk0": keystone, "perkPrimaryStyle": primary, "perkSubStyle": secondary,
+            "playerAugment1": augments[0], "playerAugment2": augments[1], "playerAugment3": augments[2],
+            "playerAugment4": augments[3], "playerAugment5": augments[4], "playerAugment6": augments[5]
         });
         let totals = Totals {
             kills,
@@ -293,9 +319,16 @@ impl Game {
 
     /// The whole game, as `/lol-match-history/v1/games/{id}` answers it.
     pub fn document(&self, me: &Local) -> Value {
+        let mode = if self.mayhem() {
+            "KIWI"
+        } else if self.aram() {
+            "ARAM"
+        } else {
+            "CLASSIC"
+        };
         json!({
             "gameId": self.game_id, "platformId": "EUW1", "queueId": self.queue_id, "mapId": self.map_id,
-            "gameCreation": self.created, "gameDuration": self.duration, "gameMode": if self.aram() { "ARAM" } else { "CLASSIC" },
+            "gameCreation": self.created, "gameDuration": self.duration, "gameMode": mode, "gameVersion": GAME_VERSION,
             "participantIdentities": (0..10).map(|seat| self.identity(seat, me)).collect::<Vec<_>>(),
             "participants": (0..10).map(|seat| self.participant(seat)).collect::<Vec<_>>(),
             "teams": [{ "teamId": 100, "win": if self.win { "Win" } else { "Fail" } },

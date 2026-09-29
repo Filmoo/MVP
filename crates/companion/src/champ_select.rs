@@ -205,6 +205,8 @@ pub fn map_session(value: &serde_json::Value) -> Option<DraftView> {
         bench,
         rerolls: session.allow_rerolling.then_some(session.rerolls_remaining),
         comps: None,
+        // The session doesn't say: the draft helper reads the mode from the gameflow session.
+        mode: None,
     })
 }
 

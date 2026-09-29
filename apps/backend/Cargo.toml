@@ -19,6 +19,7 @@ axum = { workspace = true, features = ["matched-path", "query"] }
 domain.workspace = true
 futures-util.workspace = true
 players.workspace = true
+static-data.workspace = true
 regex.workspace = true
 riot-api.workspace = true
 scrub.workspace = true
