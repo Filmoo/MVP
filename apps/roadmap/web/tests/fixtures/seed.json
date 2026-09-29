@@ -1,0 +1,131 @@
+{
+  "$comment": "A small, stable roadmap for the UI tests (the committed seed changes with the docs).",
+  "areas": [
+    { "key": "draft", "name": "Draft", "color": "accent" },
+    { "key": "live", "name": "Live", "color": "win" },
+    { "key": "design", "name": "Design & glass", "color": "rank-master" },
+    { "key": "platform", "name": "Platform & server", "color": "rank-bronze" }
+  ],
+  "versions": [
+    { "name": "0.2", "goal": "The first whole companion.", "releasedOn": "2026-09-28" },
+    { "name": "0.3", "goal": "What the first real sessions asked for." },
+    { "name": "0.4", "goal": "Ready for players.", "targetDate": "2026-11-15" }
+  ],
+  "features": [
+    {
+      "key": "draft-helper",
+      "title": "Draft helper",
+      "description": "Statistics only.",
+      "version": "0.2",
+      "status": "done",
+      "area": "draft",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-27",
+      "doneOn": "2026-09-27",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/decisions.md", "label": "decisions" }]
+    },
+    {
+      "key": "liquid-glass",
+      "title": "Liquid glass",
+      "description": "Glass that bends the page behind it.",
+      "version": "0.2",
+      "status": "done",
+      "area": "design",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-28",
+      "doneOn": "2026-09-28"
+    },
+    {
+      "key": "settings-search",
+      "title": "Settings search",
+      "description": "Find a setting by what players call it.",
+      "version": "0.3",
+      "status": "done",
+      "area": "draft",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-28",
+      "doneOn": "2026-09-29",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/commit/143afc9", "label": "143afc9" }]
+    },
+    {
+      "key": "live-names",
+      "title": "Live names from Spectator-V5",
+      "description": "Riot's live game names the players.",
+      "version": "0.3",
+      "status": "in_progress",
+      "area": "live",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-28"
+    },
+    {
+      "key": "website",
+      "title": "The website on mvpgg.com",
+      "description": "What MVP does, the download, **every version**.",
+      "version": "0.3",
+      "status": "accepted",
+      "area": "platform",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-29"
+    },
+    {
+      "key": "hover-cards",
+      "title": "Designed hover cards",
+      "description": "What runes and items do.",
+      "version": "0.3",
+      "status": "accepted",
+      "area": "design",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-29"
+    },
+    {
+      "key": "tier-trends",
+      "title": "Tier list trends",
+      "description": "Arrows on win and pick rates.",
+      "version": "0.4",
+      "status": "accepted",
+      "area": "draft",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-28"
+    },
+    {
+      "key": "first-release",
+      "title": "First signed release",
+      "description": "The update key, then a tag.",
+      "version": "0.4",
+      "status": "accepted",
+      "area": "platform",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-28"
+    },
+    {
+      "key": "uptime-alerts",
+      "title": "Uptime alerts for the API",
+      "description": "Know when `/health` stops answering.",
+      "version": "0.4",
+      "status": "proposed",
+      "area": "platform",
+      "proposedBy": "claude",
+      "createdOn": "2026-09-29"
+    },
+    {
+      "key": "draft-explainer",
+      "title": "How the draft helper ranks picks",
+      "description": "Plain words on the model.",
+      "version": "0.4",
+      "status": "proposed",
+      "area": "draft",
+      "proposedBy": "claude",
+      "createdOn": "2026-09-29"
+    },
+    {
+      "key": "ban-suggestions",
+      "title": "Ban suggestions",
+      "description": "Rejected by the owner.",
+      "version": "0.4",
+      "status": "rejected",
+      "area": "draft",
+      "proposedBy": "claude",
+      "createdOn": "2026-09-27"
+    }
+  ]
+}

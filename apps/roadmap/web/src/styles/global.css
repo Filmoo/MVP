@@ -1,0 +1,115 @@
+/* The app's design tokens and glass (ui/src/design): the roadmap looks like MVP. */
+@import "../../../../../ui/src/design/tokens.css";
+@import "../../../../../ui/src/design/glass.css";
+@import "./fonts.css";
+
+:root {
+  /* The roadmap's own layout sizes, on the app's scale. */
+  --topbar-h: 56px;
+  --column-w: 280px;
+  --sheet-w: 480px;
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  color: var(--text-1);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: 1.45;
+  font-feature-settings: "cv11", "ss01";
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  /* Ambient light, static: lavender from the top left, a breath of blue and pink. */
+  background:
+    radial-gradient(60% 50% at 12% -10%, color-mix(in oklab, var(--accent) 20%, transparent), transparent 70%),
+    radial-gradient(45% 45% at 100% 0%, color-mix(in oklab, var(--win) 11%, transparent), transparent 70%),
+    radial-gradient(55% 40% at 70% 115%, color-mix(in oklab, var(--role-support) 7%, transparent), transparent 70%), var(--bg-0);
+  background-attachment: fixed;
+  overflow: hidden;
+}
+
+h1,
+h2,
+h3,
+h4,
+p,
+ul,
+ol {
+  margin: 0;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+a {
+  color: var(--accent-strong);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--accent-soft);
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--bg-4);
+  border: 3px solid transparent;
+  border-radius: var(--radius-full);
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    /* biome-ignore lint/complexity/noImportantStyles: the user's preference wins over component styles */
+    animation-duration: 0ms !important;
+    /* biome-ignore lint/complexity/noImportantStyles: the user's preference wins over component styles */
+    animation-delay: 0ms !important;
+    /* biome-ignore lint/complexity/noImportantStyles: the user's preference wins over component styles */
+    transition-duration: 0ms !important;
+  }
+}
