@@ -1,8 +1,11 @@
 import type { Page } from "@playwright/test";
 import type { Settings } from "../src/data/generated/Settings";
+import type { TierEntry } from "../src/data/generated/TierEntry";
 // Brings the window.__SCOUT_MOCK__ declaration into scope.
 import type {} from "../src/data/mock";
-import { mockStatsIndex } from "../src/data/mock/stats-fixtures";
+import { mockStatsIndex, mockTierList } from "../src/data/mock/stats-fixtures";
+import type { Messages } from "../src/i18n";
+import { percent } from "../src/lib/format";
 import { expect, openApp, SIZES, settle, test, trackErrors } from "./app";
 import { auditLayout } from "./layout-rules";
 
@@ -11,6 +14,11 @@ const argsOf = (page: Page, command: "tier_list" | "champion_stats") =>
   page.evaluate((c) => window.__SCOUT_MOCK__?.log.filter((l) => l.command === c).map((l) => l.args) ?? [], command);
 
 const segment = (page: Page, group: string, name: string | RegExp) => page.getByTestId(group).getByRole("radio", { name });
+/** A sort of the champion list: its radio group is named by its visible label ("Sort by"). */
+const sortBy = (page: Page, t: Messages, name: string) =>
+  page.getByRole("radiogroup", { name: t.champions.sort }).getByRole("radio", { name });
+/** The champion list's group headings. */
+const headings = (page: Page) => page.locator("[data-widget=champion-grid] h2");
 const rows = (page: Page) => page.getByTestId("tier-row");
 
 test.describe("tier list", () => {
@@ -223,23 +231,147 @@ test.describe("champion page", () => {
 });
 
 test.describe("champion list", () => {
-  test("search by name, filter by role, open a champion", async ({ page, t }) => {
+  const tiles = (page: Page) => page.getByTestId("champion-tile");
+  /** The tiles' champions, in order (from their links). */
+  const tileIds = (page: Page) =>
+    tiles(page).evaluateAll((els) => els.map((el) => Number(/id=(\d+)/.exec(el.getAttribute("href") ?? "")?.[1])));
+  /** The group headings in order: the tier's letter (or the group's name) and its size. */
+  const groups = (page: Page) =>
+    headings(page).evaluateAll((els) =>
+      els.map((el) => [el.firstElementChild?.textContent ?? "", Number(el.lastElementChild?.textContent)] as const),
+    );
+  /** Names in the grid are in order (compared by the page, in its language). */
+  const inNameOrder = (page: Page) =>
+    tiles(page).evaluateAll((els) => {
+      const names = els.map((el) => el.firstElementChild?.getAttribute("alt") ?? el.firstElementChild?.getAttribute("aria-label") ?? "");
+      return names.every((name, i) => i === 0 || (names[i - 1] ?? "").localeCompare(name) <= 0);
+    });
+  const list = mockTierList(420, "emeraldPlus");
+  /** Each champion's row in all roles: its most played role's. */
+  const mains = new Map<number, TierEntry>();
+  for (const e of list.entries) if ((mains.get(e.id)?.g ?? -1) < e.g) mains.set(e.id, e);
+
+  test("by tier at first: a group per tier from S down, best first, the win rate under each name", async ({ page, t }) => {
     const errors = trackErrors(page);
     await openApp(page, { view: "/champions" });
-    const tiles = page.getByTestId("champion-tile");
-    expect(await tiles.count()).toBeGreaterThan(160);
-    await page.getByTestId("champion-search").fill("ahr");
-    await expect(tiles.first()).toContainText("Ahri");
-    await page.getByTestId("champion-search").fill("zzzz");
-    await expect(page.locator("main")).toContainText(t.champions.noMatch("zzzz"));
-    await page.getByTestId("champion-search").fill("");
+    await expect(sortBy(page, t, t.champions.sorts.tier)).toHaveAttribute("aria-checked", "true");
+    const ids = await tileIds(page);
+    expect(ids.length).toBeGreaterThan(160);
+    const scores = ids.map((id) => mains.get(id)?.score ?? Number.NEGATIVE_INFINITY);
+    expect(scores, "best first").toEqual([...scores].sort((a, b) => b - a));
+    // One heading per tier, in the tiles' order, with its size; champions without a row last.
+    const expected: Array<readonly [string, number]> = [];
+    for (const id of ids) {
+      const head = mains.get(id)?.tier ?? t.champions.fewGames;
+      const last = expected.at(-1);
+      if (last?.[0] === head) expected[expected.length - 1] = [head, last[1] + 1];
+      else expected.push([head, 1]);
+    }
+    expect(await groups(page)).toEqual(expected);
+    expect(expected.map(([head]) => head).slice(0, 2)).toEqual(["S", "A"]);
+    const first = mains.get(ids[0] ?? 0);
+    await expect(tiles(page).first()).toContainText(percent(first?.winRate ?? 0, 1));
+    await expect(
+      tiles(page)
+        .first()
+        .getByRole("img", { name: t.stats.tier("S") }),
+      "the heading says the tier",
+    ).toHaveCount(0);
+    expect(errors).toEqual([]);
+  });
+
+  test("a role holds every champion with a row in it, so one played in two roles is in both", async ({ page, t }) => {
+    const errors = trackErrors(page);
+    await openApp(page, { view: "/champions" });
+    const asked = (await argsOf(page, "tier_list")).length;
+    await segment(page, "role-filter", t.roles.middle).click();
+    await settle(page);
+    const middle = list.entries.filter((e) => e.role === "middle").map((e) => e.id);
+    expect((await tileIds(page)).sort((a, b) => a - b)).toEqual(middle.sort((a, b) => a - b));
+    const hrefs = await tiles(page).evaluateAll((els) => els.map((el) => el.getAttribute("href") ?? ""));
+    expect(hrefs.every((h) => h.endsWith("&role=middle"))).toBe(true);
+    // Lux is played support and mid (the fixture's table): in both.
+    expect(await tileIds(page)).toContain(99);
     await segment(page, "role-filter", t.roles.support).click();
-    const hrefs = await tiles.evaluateAll((els) => els.map((el) => el.getAttribute("href") ?? ""));
-    expect(hrefs.length).toBeGreaterThan(20);
-    expect(hrefs.every((h) => h.endsWith("&role=support"))).toBe(true);
-    const name = await tiles.first().locator("span").last().innerText();
-    await tiles.first().click();
-    await expect(page.getByRole("heading", { level: 1 })).toHaveText(name);
+    await settle(page);
+    expect(await tileIds(page)).toContain(99);
+    expect(await argsOf(page, "tier_list"), "the list is filtered, not asked again").toHaveLength(asked);
+    const name = await tiles(page).first().locator("img").getAttribute("alt");
+    await tiles(page).first().click();
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(name ?? "");
+    await expect(page.getByTestId("champion-tier")).toContainText(t.roles.support);
+    expect(errors).toEqual([]);
+  });
+
+  test("by pick rate (most picked first, the rate under each name) or by name; the sort is remembered", async ({ page, t }) => {
+    const errors = trackErrors(page);
+    await openApp(page, { view: "/champions?role=middle" });
+    await sortBy(page, t, t.champions.sorts.pickRate).click();
+    await settle(page);
+    const rates = new Map(list.entries.filter((e) => e.role === "middle").map((e) => [e.id, e.pickRate]));
+    const shown = (await tileIds(page)).map((id) => rates.get(id) ?? -1);
+    expect(shown, "most picked first").toEqual([...shown].sort((a, b) => b - a));
+    await expect(headings(page), "no groups").toHaveCount(0);
+    await expect(tiles(page).first()).toContainText(percent(shown[0] ?? 0, 1));
+
+    await page.reload();
+    await settle(page);
+    await expect(sortBy(page, t, t.champions.sorts.pickRate)).toHaveAttribute("aria-checked", "true");
+    await expect(segment(page, "role-filter", t.roles.middle)).toHaveAttribute("aria-checked", "true");
+    await sortBy(page, t, t.champions.sorts.name).click();
+    await settle(page);
+    expect(await inNameOrder(page), "A to Z").toBe(true);
+    await expect(headings(page)).toHaveCount(0);
+    expect(errors).toEqual([]);
+  });
+
+  test("the filter: matches as you type, best first; Enter opens the first; Escape clears it", async ({ page, t }) => {
+    const errors = trackErrors(page);
+    await openApp(page, { view: "/champions" });
+    const search = page.getByTestId("champion-search");
+    await search.fill("ahr");
+    await expect(tiles(page).first()).toHaveAttribute("href", "#/champions?id=103");
+    await expect(headings(page), "matches aren't grouped").toHaveCount(0);
+    await expect(tiles(page).first().getByRole("img", { name: /^Tier/ }), "so each tile shows its tier").toHaveCount(1);
+    await search.press("Enter");
+    await expect(page).toHaveURL(/#\/champions\?id=103$/);
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Ahri");
+
+    await page.goBack();
+    await settle(page);
+    await search.fill("zzzz");
+    await expect(page.locator("main")).toContainText(t.champions.noMatch("zzzz"));
+    await search.press("Enter");
+    await expect(page, "nothing to open").toHaveURL(/#\/champions$/);
+    await search.press("Escape");
+    await expect(search).toHaveValue("");
+    await settle(page);
+    expect(await tiles(page).count()).toBeGreaterThan(160);
+    expect(errors).toEqual([]);
+  });
+
+  test("keyboard: Tab goes through the controls, arrows pick, Enter opens a tile", async ({ page, t }) => {
+    const errors = trackErrors(page);
+    await openApp(page, { view: "/champions" });
+    await page.getByTestId("champion-search").focus();
+    await page.keyboard.press("Tab");
+    await expect(segment(page, "role-filter", t.stats.all)).toBeFocused();
+    await page.keyboard.press("ArrowRight");
+    await expect(segment(page, "role-filter", t.roles.top)).toHaveAttribute("aria-checked", "true");
+    await page.keyboard.press("Tab");
+    await expect(sortBy(page, t, t.champions.sorts.tier)).toBeFocused();
+    await page.keyboard.press("End");
+    await expect(sortBy(page, t, t.champions.sorts.name)).toHaveAttribute("aria-checked", "true");
+    await settle(page);
+    // The scope's link to the tier list, then the first tile.
+    await page.keyboard.press("Tab");
+    await expect(page.locator("main").getByRole("link", { name: t.champions.tiersFrom.link, exact: true })).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(tiles(page).first()).toBeFocused();
+    const href = (await tiles(page).first().getAttribute("href")) ?? "";
+    expect(href).toMatch(/&role=top$/);
+    await page.keyboard.press("Enter");
+    await expect(page).toHaveURL(new RegExp(`${href.replace(/[?]/g, "\\?")}$`));
     expect(errors).toEqual([]);
   });
 });
@@ -257,6 +389,23 @@ for (const size of SIZES) {
     await page.getByTestId("rune-page").nth(1).click();
     await settle(page);
     expect(await page.evaluate(auditLayout), "duos, second rune page").toEqual([]);
+    expect(errors).toEqual([]);
+  });
+
+  // The champion list: a role by pick rate (a badge and a rate per tile), by name, filtered, offline.
+  test(`champion list: switched states lay out @ ${size.name} ${size.width}×${size.height}`, async ({ page, t }) => {
+    const errors = trackErrors(page);
+    await openApp(page, { view: "/champions", width: size.width, height: size.height });
+    await segment(page, "role-filter", t.roles.support).click();
+    await sortBy(page, t, t.champions.sorts.pickRate).click();
+    await settle(page);
+    expect(await page.evaluate(auditLayout), "support by pick rate").toEqual([]);
+    await sortBy(page, t, t.champions.sorts.name).click();
+    await page.getByTestId("champion-search").fill("a");
+    await settle(page);
+    expect(await page.evaluate(auditLayout), "by name, filtered").toEqual([]);
+    await openApp(page, { view: "/champions", scenario: "stats-offline", width: size.width, height: size.height });
+    expect(await page.evaluate(auditLayout), "offline: by class").toEqual([]);
     expect(errors).toEqual([]);
   });
 }

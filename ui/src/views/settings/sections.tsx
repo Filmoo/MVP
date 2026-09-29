@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createSignal, createUniqueId, type JSX, on, Show } from "solid-js";
+import { createContext, createEffect, createMemo, createSignal, createUniqueId, type JSX, on, Show, useContext } from "solid-js";
 import { useData } from "../../data/context";
 import type { AppInfo } from "../../data/generated/AppInfo";
 import type { Effects } from "../../data/generated/Effects";
@@ -6,14 +6,17 @@ import type { FlashKey } from "../../data/generated/FlashKey";
 import type { Language } from "../../data/generated/Language";
 import type { Settings } from "../../data/generated/Settings";
 import type { UpdateStatus } from "../../data/generated/UpdateStatus";
+import type { GameDataView } from "../../data/static-data";
 import { Button } from "../../design/Button";
 import { osEnvironment, rendered, setEffects } from "../../design/backdrop";
 import { Card } from "../../design/Card";
 import { Choice, type ChoiceOption } from "../../design/Choice";
 import { Icon } from "../../design/Icon";
 import { Mark } from "../../design/Logo";
-import { SettingList, SettingRow } from "../../design/SettingRow";
+import { Marked } from "../../design/Marked";
+import { type RowMatch, SettingList, SettingRow } from "../../design/SettingRow";
 import { Slider } from "../../design/Slider";
+import { EmptyState } from "../../design/States";
 import { Toggle } from "../../design/Toggle";
 import { setLanguage, t } from "../../i18n";
 import { FLASH_ID } from "../../lib/imports";
@@ -21,6 +24,19 @@ import { MAX_AUTO_ACCEPT_DELAY } from "../../lib/settings";
 import { bracketOptions } from "../../lib/stats";
 import { aboutLine } from "../../lib/updates";
 import styles from "./Settings.module.css";
+import type { SearchId } from "./search";
+
+/** What the page's search found in a card, a setting or a section of About (`undefined`: no search). */
+export const SearchMatch = createContext<(id: SearchId) => RowMatch>(() => undefined);
+
+/** A card's title, marked where the page's search found it. */
+function Title(props: { id: SearchId; text: string }): JSX.Element {
+  const match = useContext(SearchMatch);
+  return <Marked text={props.text} marks={match(props.id)?.title} />;
+}
+
+/** Flash as the game names it in the player's language (`Saut éclair`). */
+export const flashName = (data: GameDataView | undefined): string => data?.spells.get(FLASH_ID)?.name ?? "Flash";
 
 export interface SectionProps {
   settings: Settings;
@@ -48,10 +64,11 @@ function SaveError(props: { message: string | undefined }): JSX.Element {
 
 export function AutomationSettings(props: SectionProps & { autoAcceptPaused?: boolean }): JSX.Element {
   const words = () => t().settings.automation;
+  const match = useContext(SearchMatch);
   return (
-    <Card title={words().title}>
+    <Card title={<Title id="automation" text={words().title} />}>
       <SettingList>
-        <SettingRow title={words().autoAccept.title} description={words().autoAccept.text}>
+        <SettingRow title={words().autoAccept.title} description={words().autoAccept.text} match={match("autoAccept")}>
           {(ids) => (
             <Toggle
               checked={props.settings.autoAccept}
@@ -62,7 +79,7 @@ export function AutomationSettings(props: SectionProps & { autoAcceptPaused?: bo
             />
           )}
         </SettingRow>
-        <SettingRow nested title={words().delay}>
+        <SettingRow nested title={words().delay} match={match("delay")}>
           {(ids) => (
             <div class={styles.slider}>
               <Slider
@@ -79,7 +96,7 @@ export function AutomationSettings(props: SectionProps & { autoAcceptPaused?: bo
             </div>
           )}
         </SettingRow>
-        <SettingRow title={words().bringToFront.title} description={words().bringToFront.text}>
+        <SettingRow title={words().bringToFront.title} description={words().bringToFront.text} match={match("bringToFront")}>
           {(ids) => (
             <Toggle
               checked={props.settings.bringToFrontOnChampSelect}
@@ -90,7 +107,7 @@ export function AutomationSettings(props: SectionProps & { autoAcceptPaused?: bo
             />
           )}
         </SettingRow>
-        <SettingRow title={words().autoSwitch.title} description={words().autoSwitch.text}>
+        <SettingRow title={words().autoSwitch.title} description={words().autoSwitch.text} match={match("autoSwitch")}>
           {(ids) => (
             <Toggle
               checked={props.settings.autoSwitchView}
@@ -126,14 +143,15 @@ const flashKeys = (): ReadonlyArray<ChoiceOption<FlashKey>> => [
 export function ImportSettings(props: SectionProps): JSX.Element {
   const { gameData } = useData();
   const words = () => t().settings.imports;
-  // Flash as the game names it in the player's language (`Saut éclair`).
-  const flash = () => gameData()?.spells.get(FLASH_ID)?.name ?? "Flash";
+  const match = useContext(SearchMatch);
+  const flash = () => flashName(gameData());
   const auto = (
+    id: SearchId,
     row: () => { title: string; text: string },
     key: "autoImportRunes" | "autoImportItemSet" | "autoImportSpells",
     testId: string,
   ) => (
-    <SettingRow title={row().title} description={row().text}>
+    <SettingRow title={row().title} description={row().text} match={match(id)}>
       {(ids) => {
         // The switch reads "Auto import", then the part: "Auto import Rune page". Its words flip it too.
         const label = createUniqueId();
@@ -161,12 +179,12 @@ export function ImportSettings(props: SectionProps): JSX.Element {
     </SettingRow>
   );
   return (
-    <Card title={words().title}>
+    <Card title={<Title id="imports" text={words().title} />}>
       <SettingList>
-        {auto(() => words().runes, "autoImportRunes", "setting-import-runes")}
-        {auto(() => words().itemSet, "autoImportItemSet", "setting-import-item-set")}
-        {auto(() => words().spells, "autoImportSpells", "setting-import-spells")}
-        <SettingRow nested title={words().flashKey.title(flash())} description={words().flashKey.text(flash())}>
+        {auto("runes", () => words().runes, "autoImportRunes", "setting-import-runes")}
+        {auto("itemSet", () => words().itemSet, "autoImportItemSet", "setting-import-item-set")}
+        {auto("spells", () => words().spells, "autoImportSpells", "setting-import-spells")}
+        <SettingRow nested title={words().flashKey.title(flash())} description={words().flashKey.text(flash())} match={match("flashKey")}>
           {(ids) => (
             <Choice
               value={props.settings.flashKey}
@@ -190,10 +208,11 @@ export function ImportSettings(props: SectionProps): JSX.Element {
 /** Whose games the stats count: the draft's numbers, imported builds, the stats pages' start. */
 export function StatsSettings(props: SectionProps): JSX.Element {
   const words = () => t().settings.stats;
+  const match = useContext(SearchMatch);
   return (
-    <Card title={words().title}>
+    <Card title={<Title id="stats" text={words().title} />}>
       <SettingList>
-        <SettingRow title={words().bracket} description={words().bracketText}>
+        <SettingRow title={words().bracket} description={words().bracketText} match={match("bracket")}>
           {(ids) => (
             <Choice
               value={props.settings.statsBracket}
@@ -254,10 +273,11 @@ export function AppSettings(props: SectionProps & { installId?: string | null | 
     return reason === "reduced-transparency" ? words.windowsOff : words.fallback(words.reasons[reason] ?? reason);
   };
   const words = () => t().settings.app;
+  const match = useContext(SearchMatch);
   return (
-    <Card title={words().title}>
+    <Card title={<Title id="app" text={words().title} />}>
       <SettingList>
-        <SettingRow title={words().language.title} description={words().language.text}>
+        <SettingRow title={words().language.title} description={words().language.text} match={match("language")}>
           {(ids) => (
             <Choice
               options={LANGUAGES}
@@ -269,7 +289,7 @@ export function AppSettings(props: SectionProps & { installId?: string | null | 
             />
           )}
         </SettingRow>
-        <SettingRow title={words().closeToTray.title} description={words().closeToTray.text}>
+        <SettingRow title={words().closeToTray.title} description={words().closeToTray.text} match={match("closeToTray")}>
           {(ids) => (
             <Toggle
               checked={props.settings.closeToTray}
@@ -280,7 +300,7 @@ export function AppSettings(props: SectionProps & { installId?: string | null | 
             />
           )}
         </SettingRow>
-        <SettingRow title={words().launchAtStartup.title} description={words().launchAtStartup.text}>
+        <SettingRow title={words().launchAtStartup.title} description={words().launchAtStartup.text} match={match("launchAtStartup")}>
           {(ids) => (
             <Toggle
               checked={props.settings.launchAtStartup}
@@ -291,7 +311,7 @@ export function AppSettings(props: SectionProps & { installId?: string | null | 
             />
           )}
         </SettingRow>
-        <SettingRow title={words().crashReports.title} description={words().crashReports.text}>
+        <SettingRow title={words().crashReports.title} description={words().crashReports.text} match={match("crashReports")}>
           {(ids) => (
             <Toggle
               checked={props.settings.crashReports}
@@ -304,7 +324,7 @@ export function AppSettings(props: SectionProps & { installId?: string | null | 
         </SettingRow>
         <Show when={props.settings.crashReports && props.installId}>
           {(id) => (
-            <SettingRow nested title={words().reportId.title} description={words().reportId.text}>
+            <SettingRow nested title={words().reportId.title} description={words().reportId.text} match={match("reportId")}>
               {() => (
                 <span class={`${styles.installId} num`} data-testid="install-id">
                   {id()}
@@ -317,6 +337,7 @@ export function AppSettings(props: SectionProps & { installId?: string | null | 
           title={words().effects.title}
           description={words().effects.text}
           note={effectsNote() && <span data-testid="effects-fallback">{effectsNote()}</span>}
+          match={match("effects")}
         >
           {(ids) => (
             <Choice
@@ -335,12 +356,34 @@ export function AppSettings(props: SectionProps & { installId?: string | null | 
   );
 }
 
+/**
+ * A section of About: the page's search finds it like a setting (hidden when it found nothing
+ * there, its words marked where it did).
+ */
+function Note(props: { id: SearchId; title: string; text?: string; children?: JSX.Element }): JSX.Element {
+  const match = useContext(SearchMatch);
+  return (
+    <section class={styles.note} hidden={match(props.id) === null}>
+      <h3 class={styles.noteTitle}>
+        <Marked text={props.title} marks={match(props.id)?.title} />
+      </h3>
+      <Show when={props.text}>
+        {(text) => (
+          <p>
+            <Marked text={text()} marks={match(props.id)?.text} />
+          </p>
+        )}
+      </Show>
+      {props.children}
+    </section>
+  );
+}
+
 /** Settings → About: the app's own update, with the one action that fits. */
 function Updates(props: { update: UpdateStatus; onCheck: () => void; onRestart: () => void }): JSX.Element {
   const line = () => aboutLine(props.update);
   return (
-    <section class={styles.note}>
-      <h3 class={styles.noteTitle}>{t().settings.about.updates}</h3>
+    <Note id="updates" title={t().settings.about.updates}>
       <div class={styles.update}>
         <p data-testid="update-status">{line().text}</p>
         <Show when={line().action}>
@@ -356,7 +399,7 @@ function Updates(props: { update: UpdateStatus; onCheck: () => void; onRestart: 
           )}
         </Show>
       </div>
-    </section>
+    </Note>
   );
 }
 
@@ -390,9 +433,7 @@ function Help(): JSX.Element {
     }
   };
   return (
-    <section class={styles.note}>
-      <h3 class={styles.noteTitle}>{t().settings.about.helpTitle}</h3>
-      <p>{t().settings.about.help}</p>
+    <Note id="help" title={t().settings.about.helpTitle} text={t().settings.about.help}>
       <div class={styles.helpActions}>
         <Button variant="secondary" onClick={() => void copy()} testId="copy-diagnostics">
           {t().settings.about.copy}
@@ -404,7 +445,7 @@ function Help(): JSX.Element {
       <p role="status" class={styles.helpStatus} data-testid="copy-status">
         {copied() === "yes" ? t().settings.about.copied : copied() === "failed" ? t().settings.about.copyFailed : ""}
       </p>
-    </section>
+    </Note>
   );
 }
 
@@ -416,7 +457,7 @@ export function About(props: {
   onRestart?: () => void;
 }): JSX.Element {
   return (
-    <Card title={t().settings.about.title}>
+    <Card title={<Title id="about" text={t().settings.about.title} />}>
       <div class={styles.about}>
         <div class={styles.identity}>
           <div class={styles.mark}>
@@ -439,16 +480,29 @@ export function About(props: {
         <Show when={props.update}>
           {(update) => <Updates update={update()} onCheck={() => props.onCheckUpdates?.()} onRestart={() => props.onRestart?.()} />}
         </Show>
-        <section class={styles.note}>
-          <h3 class={styles.noteTitle}>{t().settings.about.dataTitle}</h3>
-          <p>{t().settings.about.data}</p>
-        </section>
+        <Note id="data" title={t().settings.about.dataTitle} text={t().settings.about.data} />
         <Help />
-        <section class={styles.note}>
-          <h3 class={styles.noteTitle}>{t().settings.about.legalTitle}</h3>
-          <p>{t().settings.about.legal}</p>
-        </section>
+        <Note id="legal" title={t().settings.about.legalTitle} text={t().settings.about.legal} />
       </div>
+    </Card>
+  );
+}
+
+/** The page's search found nothing: says so, with the way back to every setting. */
+export function NoMatch(props: { query: string; onClear: () => void }): JSX.Element {
+  const words = () => t().settings.search;
+  return (
+    <Card>
+      <EmptyState
+        icon="search"
+        title={words().noMatch(props.query.trim())}
+        text={words().tryOther}
+        action={
+          <Button onClick={props.onClear} testId="settings-search-reset">
+            {words().clear}
+          </Button>
+        }
+      />
     </Card>
   );
 }

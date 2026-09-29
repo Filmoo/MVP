@@ -3,6 +3,7 @@ import { savedLanguage } from "../../i18n";
 import type { BackendError } from "../generated/BackendError";
 import type { Bracket } from "../generated/Bracket";
 import type { ChampionPage } from "../generated/ChampionPage";
+import type { ClientError } from "../generated/ClientError";
 import type { ClientStatus } from "../generated/ClientStatus";
 import type { PlayerProfile } from "../generated/PlayerProfile";
 import type { Settings } from "../generated/Settings";
@@ -18,9 +19,20 @@ import {
   champSelectPlanning,
 } from "./draft-fixtures";
 import { rankEmblemsFixture } from "./emblem-fixtures";
-import { corruptProfile, extremeProfile, newPlayerProfile, profile } from "./fixtures";
+import { aramProfile, corruptProfile, extremeProfile, newPlayerProfile, profile } from "./fixtures";
 import { flashKept, importAnswer, importFailures, tradedWarning, warningResponses } from "./import-fixtures";
-import { liveExtreme, liveFailed, liveGame, liveScouting, otherProfile, searchPlayer } from "./live-fixtures";
+import {
+  liveAsking,
+  liveBots,
+  liveExtreme,
+  liveFailed,
+  liveFiltered,
+  liveGame,
+  liveHidden,
+  liveScouting,
+  otherProfile,
+  searchPlayer,
+} from "./live-fixtures";
 import { detailsFrom, gradesFrom, withGrades } from "./match-fixtures";
 import {
   autoAcceptKilledConfig,
@@ -147,6 +159,30 @@ const base: Scenario["responses"] = {
   import_warning: { data: null },
 };
 
+/**
+ * The client's list guesses each game's role from your line alone (its legacy lanes): here it
+ * calls five of your mid games top. Their whole games, read for the grades, say mid.
+ */
+const guessedRoles: PlayerProfile = {
+  ...profile,
+  recentMatches: profile.recentMatches.map((m, i) => (i < 5 ? { ...m, role: "top" } : m)),
+};
+
+/**
+ * The League client stopped answering (another app holds every connection it accepts): the
+ * first read of your profile fails like the core says it, the next ones answer. The error's
+ * text is the request's, as the core logs it: the page must not show it.
+ */
+function answersAfterFirstRead(): () => PlayerProfile {
+  let reads = 0;
+  return () => {
+    reads += 1;
+    if (reads > 1) return profile;
+    const unanswered = "client not reachable: error sending request for url (https://127.0.0.1:61773/lol-summoner/v1/current-summoner)";
+    throw new CommandError("current_profile", unanswered, { kind: "notAnswering" } satisfies ClientError);
+  };
+}
+
 const inGame: ClientStatus = { connection: "connected", phase: "inGame" };
 
 /** Mid-draft, with imports that work (each takes a moment, like the real client). */
@@ -226,6 +262,15 @@ export const scenarios = {
       current_profile: { data: null },
     },
   },
+  "client-not-answering": {
+    description:
+      "The League client is up but doesn't answer (another app holds its connections): the title bar says so in amber, Home says MVP retries on its own, and your profile loads once a `client-status` says it answers again.",
+    responses: {
+      ...base,
+      client_status: { data: { connection: "notAnswering", phase: "idle" } },
+      current_profile: { handle: answersAfterFirstRead() },
+    },
+  },
   "slow-loading": {
     description: "Core answers slowly: skeletons must show, no layout jump.",
     responses: {
@@ -258,6 +303,20 @@ export const scenarios = {
       match_grades: { handle: gradesFrom([extremeProfile], true), delayMs: 300 },
       match_details: { handle: detailsFrom([extremeProfile], true), delayMs: 250 },
     },
+  },
+  "howling-abyss": {
+    description: "Your latest games are ARAM: Mayhem and ARAM: opened, they have no roles and no vision column (0 for everyone there).",
+    responses: {
+      ...base,
+      current_profile: { data: aramProfile },
+      match_grades: { handle: gradesFrom([aramProfile]), delayMs: 300 },
+      match_details: { handle: detailsFrom([aramProfile]), delayMs: 250 },
+    },
+  },
+  "roles-guessed": {
+    description:
+      "The client's list calls five of your mid games top: the main role and the roles bar follow the whole games (mid) once your grades are in.",
+    responses: { ...base, current_profile: { data: guessedRoles } },
   },
   "match-details-slow": {
     description: "Opening a game takes 2.5 s: a skeleton the size of the table, then the game in place.",
@@ -299,6 +358,27 @@ export const scenarios = {
   "live-failed": {
     description: "The backend can't be reached: the game still shows, with a retry in the head.",
     responses: { ...base, client_status: { data: inGame }, live_game: { data: liveFailed } },
+  },
+  "live-names": {
+    description:
+      "Names arriving: only you are named at first, everyone's names land 1.5 s later (Riot's live game), the cards 1.5 s after.",
+    responses: { ...base, client_status: { data: inGame }, live_game: { data: liveAsking } },
+    timeline: [
+      { afterMs: 1_500, event: "live", payload: liveScouting },
+      { afterMs: 3_000, event: "live", payload: liveGame },
+    ],
+  },
+  "live-filtered": {
+    description: "Ranked Flex: Riot doesn't share its live games, so the names wait for the game itself (after the loading screen).",
+    responses: { ...base, client_status: { data: inGame }, live_game: { data: liveFiltered } },
+  },
+  "live-bots": {
+    description: "Co-op vs AI: five bots, labelled as bots, without cards.",
+    responses: { ...base, client_status: { data: inGame }, live_game: { data: liveBots } },
+  },
+  "live-hidden": {
+    description: "Streamer mode on both sides: four hidden players, never named.",
+    responses: { ...base, client_status: { data: inGame }, live_game: { data: liveHidden } },
   },
   "live-extreme": {
     description: "Longest names, apex ranks and every tag: cards must hold.",

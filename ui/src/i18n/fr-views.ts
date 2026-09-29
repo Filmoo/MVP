@@ -249,6 +249,10 @@ export const frViews = {
     show: "Afficher",
     tabs: { players: "Joueurs", build: "Mon build" },
     lookingUp: "Recherche des joueurs…",
+    names: {
+      waiting: "Noms après le chargement",
+      filtered: (queue: string) => `Noms après le chargement\u00A0: Riot ne partage pas les parties en ${queue} en cours`,
+    },
     readFailed: "Impossible de lire la partie",
     idle: {
       title: "Pas en partie",
@@ -276,6 +280,7 @@ export const frViews = {
     streamer: "Mode streamer",
     mains: (list: string) => `Main ${list}`,
     hidden: "Joueur masqué",
+    bot: "Bot IA",
     unknown: "Joueur inconnu",
     cardUnavailable: "Carte indisponible",
     noRankedData: "Aucune partie classée",
@@ -360,6 +365,10 @@ export const frViews = {
     noneYet: "Aucun champion pour l’instant",
     checkSpelling: "Vérifiez l’orthographe, ou effacez la recherche.",
     whenLoaded: "Les champions s’affichent une fois les données du jeu et les stats chargées.",
+    sort: "Trier par",
+    sorts: { tier: "Tier", pickRate: "Popularité", name: "A–Z" },
+    fewGames: "Trop peu de parties",
+    noStats: (reason: string) => `${reason}. Les champions sont groupés par classe en attendant les tiers et les taux de sélection.`,
     noBuild: {
       title: "Pas encore de données de build",
       text: (champion: string, role: Role | undefined) =>
@@ -538,6 +547,30 @@ export const frViews = {
       legalTitle: "Mentions légales",
       legal:
         "MVP n’est pas approuvé par Riot Games et ne reflète pas les opinions de Riot Games ni de quiconque officiellement impliqué dans la production ou la gestion des propriétés de Riot Games. Riot Games et toutes les propriétés associées sont des marques commerciales ou des marques déposées de Riot Games, Inc.",
+    },
+    search: {
+      label: "Rechercher un paramètre",
+      shortcut: "Ctrl F",
+      clear: "Effacer la recherche",
+      noMatch: (query: string) => `Aucun paramètre ne correspond à « ${query} »`,
+      tryOther: "Essayez un autre mot, ou moins de mots.",
+      keywords: {
+        autoAccept: "acceptation, file d’attente, queue, ready check",
+        bringToFront: "focus, avant-plan",
+        runes: "rune clé, keystone",
+        itemSet: "items, stuff",
+        spells: "summoners",
+        flashKey: "flash, D, F, raccourci",
+        bracket: "elo, ranked, classé",
+        language: "Français, anglais, English",
+        closeToTray: "tray, systray, arrière-plan",
+        launchAtStartup: "boot, autostart, startup",
+        crashReports: "bug, crash, télémétrie",
+        effects: "flou, transparence, animations",
+        updates: "version, maj, update",
+        data: "confidentialité, vie privée",
+        help: "logs, bug, support, problème",
+      },
     },
   },
 

@@ -37,15 +37,42 @@ detection, composite player scores, live win probability, sending data to third-
   cancelled as soon as the phase leaves the ready check; a toast confirms every accept.
   LCU endpoints: `GET /lol-matchmaking/v1/ready-check`, `POST /lol-matchmaking/v1/ready-check/accept`
   (declare both at product registration).
-- **Loading-screen scouting (2026-09-27, shipped).** Player cards appear only once the game has
-  started (Loading/InGame), when the game itself shows every name; champion select is never read
-  for identities. Streamer-mode players (`nameVisibilityType: HIDDEN`) are shown as "Hidden
-  player": their PUUID and name are dropped in the core before any lookup. Visible players are
-  looked up on our backend **by Riot ID** (what the loading screen shows); the client's PUUIDs
-  never leave the app (they aren't our API key's anyway), and the backend stores the Riot ID
-  next to its own PUUID. Tags are positive or neutral only (one-trick, win streak, veteran,
-  main role); no "first time", no MMR, no grades of other players. LCU endpoints: `GET /lol-gameflow/v1/session`, `GET /lol-summoner/v1/current-summoner`,
-  `GET /riotclient/region-locale` (declare at product registration).
+- **Loading-screen scouting (2026-09-27, shipped; name sources revised 2026-09-29).** Player
+  cards appear only once the game has started (Loading/InGame), when the game itself shows every
+  name; champion select is never read for identities. The League client's gameflow session no
+  longer names anyone but the local player (seen 2026-09-28: no `gameName`/`tagLine`, no
+  `nameVisibilityType`), so the names come from Riot's two supported sources for a running game,
+  **both of which keep Streamer Mode players anonymous**, in this order:
+  1. **Riot's live game** (Spectator-V5, asked by our backend: `GET /v1/live/…`). The app sends
+     only the local player's own Riot ID (from `current-summoner`, as for their own card) and
+     the game's id. Since 2025-10 Riot's live-game results "respect players' streamer mode
+     settings": an anonymous player comes without a PUUID, and the backend drops whatever name
+     comes with them (never answered, looked up, stored or logged). Riot answers 404
+     "filtered" for Ranked Flex and Arena live games (2026-06): the app says so plainly and
+     doesn't try Spectator-V5 another way.
+  2. **The game itself** (Live Client Data API, `https://127.0.0.1:2999`), only when Riot has no
+     answer (no server, not listed, filtered): the in-game player list, i.e. the names the game
+     shows every player once the loading screen is over. Asked only while the game runs and
+     until it answers (then never again for that game). Riot says streamer-mode players have
+     "no reliable identifier" there: a missing or partial Riot ID, a champion's name in its
+     place, or a name several players share is taken for a stand-in, never for a Riot ID — the
+     player shows as "Hidden player" and is never looked up. **Open question for Riot (App
+     Note):** Spectator-V5's Flex/Arena filter has no stated intent; if it is meant to keep
+     those players from apps, this fallback must stop for those queues (one condition in
+     `companion::live::find_names`).
+  Seats are matched to these lists by side and champion, never by anything hidden; a seat the
+  client marks hidden stays hidden whatever a list says. Bots are shown as bots, never looked
+  up. Visible players are looked up on our backend **by Riot ID** (what the loading screen
+  shows); the client's PUUIDs never leave the app (they aren't our API key's anyway), and the
+  backend stores the Riot ID next to its own PUUID. Tags are positive or neutral only
+  (one-trick, win streak, veteran, main role); no "first time", no MMR, no grades of other
+  players. Endpoints to declare at product registration: LCU `GET /lol-gameflow/v1/session`,
+  `GET /lol-summoner/v1/current-summoner`, `GET /riotclient/region-locale`; Game Client API
+  `GET https://127.0.0.1:2999/liveclientdata/allgamedata` (only `allPlayers` is read); Riot
+  API (server) `GET /riot/account/v1/accounts/by-riot-id/{gameName}/{tagLine}`,
+  `GET /lol/spectator/v5/active-games/by-summoner/{encryptedPUUID}`, and for the cards
+  `GET /lol/league/v4/entries/by-puuid/{puuid}`, `GET /lol/match/v5/matches/by-puuid/{puuid}/ids`,
+  `GET /lol/match/v5/matches/{matchId}`.
 - **Window follows the game (not gray, noted for completeness).** Bringing MVP to the front in
   champ select and switching views only moves our own window; both can be turned off, and a view
   the player opened themselves is never switched away from.

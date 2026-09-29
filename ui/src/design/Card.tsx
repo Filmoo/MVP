@@ -2,7 +2,8 @@ import { type JSX, Show } from "solid-js";
 import styles from "./Card.module.css";
 
 export function Card(props: {
-  title?: string;
+  /** Text, or text with what a search found marked (`Marked`). */
+  title?: JSX.Element;
   actions?: JSX.Element;
   /** Body without side padding, for full-bleed lists. */
   flush?: boolean;

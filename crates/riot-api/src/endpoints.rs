@@ -51,6 +51,39 @@ pub struct LeagueList {
     pub entries: Vec<LeagueEntry>,
 }
 
+/// A live game as Spectator-V5 shows it to apps. Riot keeps players in streamer mode
+/// anonymous here (`puuid` null; 2025-10: results "respect players' streamer mode settings").
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CurrentGame {
+    pub game_id: u64,
+    /// Queue id; absent for some custom games.
+    #[serde(default)]
+    pub game_queue_config_id: u32,
+    #[serde(default)]
+    pub participants: Vec<CurrentGameParticipant>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CurrentGameParticipant {
+    /// Our key's PUUID; `None` when Riot keeps the player anonymous, and for bots.
+    #[serde(default)]
+    pub puuid: Option<String>,
+    /// `gameName#tagLine`. Only trusted with a `puuid`: an anonymous player has no name.
+    #[serde(default)]
+    pub riot_id: Option<String>,
+    /// 100 (blue side) or 200 (red side).
+    pub team_id: u32,
+    pub champion_id: u32,
+    #[serde(default)]
+    pub bot: bool,
+    #[serde(default)]
+    pub spell1_id: u32,
+    #[serde(default)]
+    pub spell2_id: u32,
+}
+
 /// Filters for match id lists.
 #[derive(Debug, Clone, Default)]
 pub struct MatchQuery {
@@ -209,12 +242,13 @@ impl RiotClient {
             .await
     }
 
-    /// Live game of a player; `NotFound` when not in game.
-    pub async fn active_game(
+    /// Live game of a player (by our key's PUUID); `NotFound` when Riot lists none for them,
+    /// `Filtered` when Riot doesn't share live games of that queue with apps.
+    pub async fn current_game(
         &self,
         platform: Platform,
         puuid: &str,
-    ) -> Result<serde_json::Value, RiotError> {
+    ) -> Result<CurrentGame, RiotError> {
         let path = format!(
             "/lol/spectator/v5/active-games/by-summoner/{}",
             segment(puuid)

@@ -133,6 +133,22 @@
   color: var(--text-3);
 }
 
+/* A visible player's Riot ID opens their page: it looks like the name until pointed at. */
+.nameLink {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+  border-radius: var(--radius-1);
+  color: inherit;
+  text-decoration: none;
+}
+.nameLink:hover .name {
+  text-decoration: underline;
+  text-decoration-color: var(--text-3);
+  text-underline-offset: 3px;
+}
+
 .hiddenIcon {
   flex: none;
   align-self: center;
@@ -335,14 +351,15 @@
   color: var(--warn);
 }
 
-/* Waiting for the card: the same boxes, quietly pulsing. */
+/* Waiting for the card: the same boxes, quietly pulsing while it is asked for, still while the
+ * game hasn't named anyone yet. A translucent fill: it shows on the champion's tint too. */
 .skeletonCrest,
 .skeletonLine,
 .skeletonShort,
 .skeletonWide {
   display: block;
   border-radius: var(--radius-2);
-  background: var(--bg-3);
+  background: var(--bg-drop);
 }
 .skeletonCrest {
   flex: none;
@@ -362,6 +379,23 @@
 .skeletonShort {
   width: 56px;
   height: 12px;
+}
+/* A name on its way: the line keeps a name's height (its text is a no-break space), the bar is
+ * as tall and as round as the other skeleton lines. */
+.skeletonName {
+  position: relative;
+  display: inline-block;
+  width: 112px;
+  max-width: 100%;
+}
+.skeletonName::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  height: 12px;
+  margin-block: auto;
+  border-radius: var(--radius-2);
+  background: var(--bg-drop);
 }
 .card [data-state="loading"] {
   animation: pulse 1.6s var(--ease) infinite;

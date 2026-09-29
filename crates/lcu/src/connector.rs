@@ -1,10 +1,18 @@
 //! Keeps a connection to the League client alive: discovers it, connects, streams events,
 //! and starts over when the client closes. Cheap while idle: one file read per poll.
+//!
+//! The event socket staying up doesn't mean the client answers requests: when another app holds
+//! every connection it accepts, or it is too busy, requests fail while events still flow. Such a
+//! failure (any request, anywhere in the app) makes the state [`ConnectionState::NotAnswering`];
+//! the next answer makes it `Connected` again. Meanwhile one cheap request (the gameflow phase)
+//! asks again after [`ConnectorConfig::poll_interval`], then after twice as long each time, up to
+//! 30 s. Nothing is polled while the client answers.
 
 use std::sync::Arc;
 use std::time::Duration;
 
 use rustls::ClientConfig;
+use serde_json::Value;
 use tokio::sync::{mpsc, watch};
 use tokio::task::JoinHandle;
 
@@ -12,11 +20,16 @@ use crate::{Credentials, EventStream, LcuClient, LcuEvent, topic_for};
 
 pub const GAMEFLOW_PHASE: &str = "/lol-gameflow/v1/gameflow-phase";
 
+/// The longest pause between two checks of a client that doesn't answer.
+const RECHECK_MAX: Duration = Duration::from_secs(30);
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConnectionState {
     NotRunning,
     Connecting,
     Connected,
+    /// The event socket is up, but requests fail without an answer (see the module docs).
+    NotAnswering,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -35,7 +48,8 @@ pub struct ConnectorConfig {
     pub tls: Arc<ClientConfig>,
     /// Paths to receive events for, besides the gameflow phase.
     pub paths: Vec<String>,
-    /// Pause between discovery attempts while no client is reachable.
+    /// Pause between discovery attempts while no client is reachable, and before asking a
+    /// client that stopped answering again (then doubling).
     pub poll_interval: Duration,
     /// How long a freshly started client may take before its API answers.
     pub startup_grace: Duration,
@@ -112,23 +126,60 @@ async fn run(
             continue;
         };
         failed = None;
-        client_tx.send_replace(Some(client));
+        let mut answering = client.answering();
+        client_tx.send_replace(Some(client.clone()));
         set_state(&tx, &mut state, ConnectionState::Connected).await;
         if tx.send(ConnectorUpdate::Phase(phase)).await.is_err() {
             return;
         }
-        while let Some(Ok(event)) = events.next().await {
-            let update = if event.uri == GAMEFLOW_PHASE {
-                match event.data.as_str() {
-                    Some(phase) => ConnectorUpdate::Phase(phase.to_owned()),
-                    None => continue,
+        let mut recheck: Option<JoinHandle<()>> = None;
+        let open = loop {
+            tokio::select! {
+                event = events.next() => {
+                    let Some(Ok(event)) = event else { break true };
+                    let update = if event.uri == GAMEFLOW_PHASE {
+                        match event.data.as_str() {
+                            Some(phase) => ConnectorUpdate::Phase(phase.to_owned()),
+                            None => continue,
+                        }
+                    } else {
+                        ConnectorUpdate::Event(event)
+                    };
+                    if tx.send(update).await.is_err() {
+                        break false;
+                    }
                 }
-            } else {
-                ConnectorUpdate::Event(event)
-            };
-            if tx.send(update).await.is_err() {
-                return;
+                Ok(()) = answering.changed() => {
+                    let answers = *answering.borrow_and_update();
+                    if answers {
+                        if let Some(task) = recheck.take() {
+                            task.abort();
+                        }
+                    } else if recheck.as_ref().is_none_or(JoinHandle::is_finished) {
+                        let task = ask_again(client.clone(), config.poll_interval);
+                        recheck = Some(tokio::spawn(task));
+                    }
+                    let next = if answers {
+                        ConnectionState::Connected
+                    } else {
+                        ConnectionState::NotAnswering
+                    };
+                    if state != next {
+                        if answers {
+                            tracing::info!("league client answers again");
+                        } else {
+                            tracing::warn!("league client not answering");
+                        }
+                        set_state(&tx, &mut state, next).await;
+                    }
+                }
             }
+        };
+        if let Some(task) = recheck.take() {
+            task.abort();
+        }
+        if !open {
+            return;
         }
         tracing::info!("league client disconnected");
         client_tx.send_replace(None);
@@ -137,6 +188,21 @@ async fn run(
             return;
         }
         tokio::time::sleep(config.poll_interval).await;
+    }
+}
+
+/// While `client` doesn't answer: one cheap request after `first`, then after twice as long
+/// each time (up to [`RECHECK_MAX`]), until one gets an answer, which turns the client back to
+/// answering (the connector then stops this).
+async fn ask_again(client: LcuClient, first: Duration) {
+    let mut pause = first.min(RECHECK_MAX);
+    loop {
+        tokio::time::sleep(pause).await;
+        let answer = client.get::<Value>(GAMEFLOW_PHASE).await;
+        if answer.is_ok() || client.is_answering() {
+            return;
+        }
+        pause = (pause * 2).min(RECHECK_MAX);
     }
 }
 
