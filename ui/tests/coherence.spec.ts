@@ -112,6 +112,20 @@ test("stats pages after switching (all rows, a role, duos, another rune page) on
   expect(await page.evaluate(auditTokens), "champion page").toEqual([]);
 });
 
+test("the history's filters, older games and their failure only use design tokens", async ({ page, t }) => {
+  await openApp(page, { scenario: "history-more-error" });
+  await page.getByTestId("champion-filter").selectOption("103");
+  await page.getByTestId("queue-filter").getByRole("radio", { name: t.matches.filters.queues.flex }).click();
+  await expect(page.getByText(t.matches.filters.none.title)).toBeVisible();
+  await page.mouse.move(0, 0);
+  await animationsDone(page);
+  expect(await page.evaluate(auditTokens), "filtered to nothing").toEqual([]);
+  await page.getByRole("button", { name: t.matches.filters.clear }).click();
+  await page.getByTestId("load-more").click();
+  await expect(page.getByRole("alert").filter({ hasText: t.matches.more.failed })).toBeVisible();
+  expect(await page.evaluate(auditTokens), "older games failed").toEqual([]);
+});
+
 test("live cards while scouting only use design tokens", async ({ page }) => {
   await page.goto("/?scenario=live-scouting#/live");
   await page.getByTestId("live-card").first().waitFor();

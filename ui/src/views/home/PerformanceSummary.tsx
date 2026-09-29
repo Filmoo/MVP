@@ -1,11 +1,12 @@
 import { createMemo, For, type JSX, Show } from "solid-js";
 import { useData } from "../../data/context";
+import type { ChampionMastery } from "../../data/generated/ChampionMastery";
 import type { MatchSummary } from "../../data/generated/MatchSummary";
 import { Card } from "../../design/Card";
 import { ChampionIcon } from "../../design/GameIcon";
 import { EmptyState } from "../../design/States";
 import { t } from "../../i18n";
-import { kdaRatio, percent } from "../../lib/format";
+import { games, integer, kdaRatio, percent } from "../../lib/format";
 import { roleLabel } from "../../lib/roles";
 import styles from "./PerformanceSummary.module.css";
 import { summarize } from "./summary";
@@ -19,11 +20,18 @@ function wrClass(wins: number, games: number): string {
   return (wins / games >= 0.5 ? styles.good : styles.bad) ?? "";
 }
 
-/** Recent champions and the role split (the headline numbers live in the profile hero). */
-export function PerformanceSummary(props: { matches: readonly MatchSummary[] }): JSX.Element {
+/** Champions shown with their mastery. */
+const MAX_MASTERY = 5;
+
+/** Recent champions and the role split (the headline numbers live in the profile hero); your mastery on Home. */
+export function PerformanceSummary(props: {
+  matches: readonly MatchSummary[];
+  mastery?: readonly ChampionMastery[] | undefined;
+}): JSX.Element {
   const { gameData } = useData();
   const s = createMemo(() => summarize(props.matches));
   const remakes = () => props.matches.length - s().games;
+  const name = (id: number) => gameData()?.champions.get(id)?.name ?? t().common.championN(id);
 
   return (
     <Card title={t().summary.title(s().games)}>
@@ -35,9 +43,7 @@ export function PerformanceSummary(props: { matches: readonly MatchSummary[] }):
                 <li class={styles.champ}>
                   <ChampionIcon championId={c.championId} size={36} round />
                   <span class={styles.champName}>
-                    <span class={styles.champTitle}>
-                      {gameData()?.champions.get(c.championId)?.name ?? t().common.championN(c.championId)}
-                    </span>
+                    <span class={styles.champTitle}>{name(c.championId)}</span>
                     <span class={`${styles.champMeta} num`}>{t().common.kda(kdaRatio(c.kills, c.deaths, c.assists))}</span>
                   </span>
                   <span class={`${styles.champWr} num`}>
@@ -82,6 +88,25 @@ export function PerformanceSummary(props: { matches: readonly MatchSummary[] }):
               </For>
             </ul>
           </div>
+
+          <Show when={props.mastery?.length}>
+            <div class={styles.rolesSection}>
+              <h3 class={styles.sectionTitle}>{t().summary.mastery}</h3>
+              <ol class={styles.mastery}>
+                <For each={props.mastery?.slice(0, MAX_MASTERY)}>
+                  {(m) => (
+                    <li class={styles.masteryItem} title={t().summary.masteryTitle(name(m.championId), m.level, integer(m.points))}>
+                      <span class={styles.masteryIcon}>
+                        <ChampionIcon championId={m.championId} size={40} round />
+                        <span class={`${styles.masteryLevel} num`}>{m.level}</span>
+                      </span>
+                      <span class={`${styles.masteryPoints} num`}>{games(m.points)}</span>
+                    </li>
+                  )}
+                </For>
+              </ol>
+            </div>
+          </Show>
 
           <Show when={remakes() > 0}>
             <p class={styles.note}>{t().summary.remakes(remakes())}</p>

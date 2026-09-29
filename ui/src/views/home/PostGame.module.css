@@ -1,0 +1,344 @@
+/* The last game, at the top of Home. */
+.wrap {
+  min-width: 0;
+}
+
+/* The champion played lights the card from the right, like the profile's hero. */
+.card {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  container: postgame / inline-size;
+}
+
+.art {
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  right: 0;
+  width: min(55%, 640px);
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 15%;
+  opacity: 0.35;
+  pointer-events: none;
+  mask-image: linear-gradient(90deg, transparent, black 45%, black 70%, transparent);
+}
+
+/* The result's colour down the left edge, as on the match rows. */
+.card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--text-3);
+}
+.win::before {
+  background: var(--win);
+}
+.loss::before {
+  background: var(--loss);
+}
+
+.close {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+}
+.close:hover {
+  background: var(--bg-3);
+  color: var(--text-1);
+}
+
+/* Who, the grade and the LP side by side; under each other on narrow cards. */
+.top {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-6) var(--space-8);
+}
+
+.who {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.result {
+  font-size: var(--text-xl);
+  font-weight: var(--weight-bold);
+  line-height: 1.2;
+  color: var(--text-2);
+}
+.win .result {
+  color: var(--win);
+}
+.loss .result {
+  color: var(--loss);
+}
+
+.sub {
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  color: var(--text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.meta {
+  font-size: var(--text-sm);
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.grade,
+.lp {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.score {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.big {
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-bold);
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.big[data-lp="1"] {
+  color: var(--win);
+}
+.big[data-lp="-1"] {
+  color: var(--loss);
+}
+
+.outOf {
+  font-size: var(--text-sm);
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.stackNote {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--text-2);
+}
+
+.badge {
+  color: var(--accent);
+  font-weight: var(--weight-semibold);
+}
+
+.moved {
+  color: var(--accent);
+  font-weight: var(--weight-semibold);
+}
+
+/* What moved the grade, then your numbers against your opponent's. */
+.body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
+  gap: var(--space-6) var(--space-9);
+  margin-top: var(--space-7);
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--line-1);
+}
+
+.why,
+.vs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.heading {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.factors {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-md);
+  color: var(--text-1);
+}
+
+.vsHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-5);
+}
+
+.them {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  font-size: var(--text-sm);
+}
+
+.caption {
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.theirName {
+  min-width: 0;
+  font-weight: var(--weight-semibold);
+  color: var(--text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Their player page. */
+.link {
+  text-decoration: none;
+  border-radius: var(--radius-1);
+}
+.link:hover {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Up or down: a dot in the win or loss colour before the fact (as in a grade's why). */
+.up,
+.down {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+.up::before,
+.down::before {
+  content: "";
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  transform: translateY(-1px);
+}
+
+.up::before {
+  background: var(--win);
+}
+
+.down::before {
+  background: var(--loss);
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Label, yours, the split, theirs: the one ahead is brighter. */
+.row {
+  display: grid;
+  grid-template-columns: 64px 76px minmax(48px, 1fr) 76px;
+  align-items: center;
+  gap: var(--space-5);
+  font-size: var(--text-md);
+}
+
+.label {
+  color: var(--text-3);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mine,
+.theirs {
+  color: var(--text-2);
+  white-space: nowrap;
+}
+
+.mine {
+  text-align: right;
+}
+
+.ahead {
+  color: var(--text-1);
+  font-weight: var(--weight-semibold);
+}
+
+/* Your share in the accent (your line's colour in an opened game), theirs quiet. */
+.split {
+  display: flex;
+  gap: var(--space-1);
+  height: 6px;
+}
+
+.split > span {
+  flex-basis: 0;
+  min-width: var(--space-1);
+  border-radius: var(--radius-full);
+  background: var(--line-2);
+}
+
+.split > span:first-child {
+  background: var(--accent);
+}
+
+@container postgame (max-width: 759px) {
+  .top {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .who {
+    grid-column: 1 / -1;
+  }
+  .body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@container postgame (max-width: 419px) {
+  .row {
+    grid-template-columns: 52px 64px minmax(32px, 1fr) 64px;
+    gap: var(--space-4);
+  }
+}

@@ -190,6 +190,8 @@ export const en = {
       averageGame: "Average game",
     },
     roleShare: (games: number, of: number) => `${games} of ${of}`,
+    /** The LP graph in the ranked pane, for screen readers and on hover: its games and their sum. */
+    lpTrend: (games: number, total: string) => `${total} over your last ${games} ranked games MVP followed`,
   },
 
   matches: {
@@ -198,6 +200,30 @@ export const en = {
     perfectKda: "Perfect KDA",
     perMinute: (value: string) => `${value} / min`,
     empty: { title: "No recent games", text: "Finish a game and it shows up here, with your stats and build." },
+    /** LP won or lost in a ranked game: `+19 LP`, `−17 LP`. */
+    lp: (signed: string) => `${signed} LP`,
+    filters: {
+      queue: "Queue",
+      queues: { all: "All", solo: "Solo", flex: "Flex", aram: "ARAM", other: "Other" },
+      champion: "Champion",
+      allChampions: "All champions",
+      /** A champion in the filter's list, with the games loaded on it: `Ahri · 3`. */
+      championGames: (name: string, games: number) => `${name} · ${games}`,
+      clear: "Clear filters",
+      none: {
+        title: "No games match these filters",
+        text: (games: number, more: boolean) =>
+          more
+            ? `None of the ${games} games loaded so far. Load more to look further back.`
+            : `None of your last ${plural(games, "game", `${games} games`)}.`,
+      },
+    },
+    more: {
+      load: "Load more games",
+      loading: "Loading older games…",
+      failed: "Couldn't load older games",
+      end: "No older games",
+    },
   },
 
   /** MVP's grade of a game, on each match row (what moved it is in the views' words, `gradeWhy`). */
@@ -216,6 +242,9 @@ export const en = {
     empty: { title: "No stats yet", text: "Play a few games to see your form." },
     roles: "Roles",
     remakes: (n: number) => `${n} ${plural(n, "remake", "remakes")} not counted`,
+    mastery: "Mastery",
+    /** On a champion's mastery badge: `Ahri · mastery level 12 · 412,300 points`. */
+    masteryTitle: (champion: string, level: number, points: string) => `${champion} · mastery level ${level} · ${points} points`,
   },
 };
 
