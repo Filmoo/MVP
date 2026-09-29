@@ -1,5 +1,6 @@
 packages:
   - ui
+  - site
 
 onlyBuiltDependencies:
   - "@biomejs/biome"

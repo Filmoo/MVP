@@ -224,14 +224,27 @@ td.lane {
   color: var(--text-2);
 }
 
+.laneIcon > svg {
+  display: block;
+}
+
+/* Over the row's link, so hovering them explains them (design/tip); a click still opens the
+   champion (TierTable forwards it to the link). */
+.laneIcon,
+.table td.tier > * {
+  position: relative;
+  z-index: 1;
+  cursor: pointer;
+}
+
+.table td.tier > * {
+  vertical-align: middle;
+}
+
 /* Centred under its header's word (the arrow after it takes 16 px): room on the right. */
 .table td.tier {
   padding-right: var(--space-8);
   text-align: center;
-}
-
-td.tier > * {
-  vertical-align: middle;
 }
 
 td.wr {

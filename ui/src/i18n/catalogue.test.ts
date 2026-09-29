@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { decimal, integer, percent, timeAgo } from "../lib/format";
+import { decimal, integer, percent, signedPoints, timeAgo } from "../lib/format";
 import { setLanguage } from ".";
 import { en } from "./en";
 import { enViews } from "./en-views";
@@ -22,7 +22,6 @@ const samples = (): Record<string, unknown[][]> => ({
   "common.spellN": [[4]],
   "common.runeN": [[8112]],
   "common.runeTreeN": [[8100]],
-  "common.colon": [["Conqueror", "Gain stacks."]],
   "common.games": [[1], [3], [3244], [1_912_400]],
   "common.lp": [[75]],
   "common.record": [[12, 8]],
@@ -178,6 +177,7 @@ const samples = (): Record<string, unknown[][]> => ({
     ["Ahri", undefined],
   ],
   "champions.pointsVs50": [[1.2], [-0.8], [3.1]],
+  "champions.effectOf": [[signedPoints(2.5)], [signedPoints(-4)]],
   "champions.ofGames": [[412_000], [1_912_400]],
   "champions.bans": [[1], [812]],
   // ARAM's line is the same words in both languages: only the ranked one is compared.
@@ -196,6 +196,8 @@ const samples = (): Record<string, unknown[][]> => ({
   ],
   "champions.buildRecord": [[1], [812], [1_912_400]],
   "shards.unknownN": [[5099]],
+  "tip.gold": [[integer(3000)], [integer(450)]],
+  "tip.cooldown": [[300], [15]],
   "settings.saveFailed": [["Settings file not writable."]],
   "settings.seconds": [[4]],
   "settings.spokenSeconds": [[1], [4]],
@@ -293,6 +295,7 @@ const SAME = new Set([
   "champions.matchups",
   "champions.duos",
   "champions.summary.runes",
+  "tip.rune",
   "settings.about.version",
   "settings.search.shortcut",
   "settings.about.platforms.windows",

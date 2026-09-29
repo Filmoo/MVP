@@ -116,12 +116,12 @@ function Podium(props: { rows: RankedEntry[]; allRoles: boolean; onLight: (key: 
                     {percent(e.winRate, 1)}
                   </span>
                   <span class={styles.stepFacts}>
-                    <span title={t().tierList.columns.pick}>
+                    <span data-hint-title={t().tierList.columns.pick} data-hint={t().tierList.titles.pick}>
                       <Glyph name="pick" size={14} />
                       {percent(e.pickRate, 1)}
                     </span>
                     <Show when={e.banRate > 0}>
-                      <span title={t().tierList.columns.ban}>
+                      <span data-hint-title={t().tierList.columns.ban} data-hint={t().tierList.titles.ban}>
                         <Glyph name="ban" size={14} />
                         {percent(e.banRate, 1)}
                       </span>
@@ -208,7 +208,7 @@ function Board(props: ShelvesProps): JSX.Element {
           return (
             <section class={`${styles.shelf} ${styles[`tier${group.tier}`]} glass-rim`} aria-label={t().stats.tier(group.tier)}>
               <div class={styles.plate}>
-                <TierMark grade={group.tier} size="lg" decorative class={styles.mark} />
+                <TierMark grade={group.tier} size="lg" decorative tip class={styles.mark} />
                 <div class={styles.plateText}>
                   <span class={`${styles.plateCount} num`}>{t().tierList.champions(size())}</span>
                   <span class={`${styles.plateAvg} num`} data-wr={wrSide(average())}>

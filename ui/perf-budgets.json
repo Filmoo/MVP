@@ -117,6 +117,10 @@
       "renderMs": 2,
       "domNodes": 48
     },
+    "game-tips": {
+      "renderMs": 2,
+      "domNodes": 80
+    },
     "champion-import": {
       "renderMs": 2,
       "domNodes": 30

@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { plainText } from "../data/mock/game-data";
 import { runePage, SHARD_ROWS, SHARDS, shard, styleTone } from "./runes";
 
 describe("rune pages", () => {
@@ -23,12 +22,5 @@ describe("rune pages", () => {
   it("color each tree, neutral for unknown ones", () => {
     expect(styleTone(8000)).toBe("precision");
     expect(styleTone(9999)).toBe("neutral");
-  });
-
-  it("dev descriptions drop markup like the core does", () => {
-    expect(plainText("Deal <b>bonus</b> <lol-uikit-tooltipped-keyword key='x'>damage</lol-uikit-tooltipped-keyword>.")).toBe(
-      "Deal bonus damage.",
-    );
-    expect(plainText("Gain stacks.<br>Heal.<br/>Done")).toBe("Gain stacks. Heal. Done");
   });
 });

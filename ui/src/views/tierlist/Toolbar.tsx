@@ -62,6 +62,9 @@ export function ViewSwitch(): JSX.Element {
       onChange={setTierView}
       class={styles.views}
       optionClass={() => styles.view}
+      // Its word goes on narrow pages: the name and the tooltip stay.
+      optionLabel={(view) => t().tierList.views[view]}
+      optionHint={(view) => t().tierList.views[view]}
       testId="view-switch"
     >
       {(view) => (
@@ -77,18 +80,14 @@ export function ViewSwitch(): JSX.Element {
 const LANES: readonly RoleFilter[] = ["all", ...ROLES];
 
 /**
- * Lanes as a row of icon buttons; the chosen one sits on a drop of glass in its colour. Each
- * says its name (and how many champions it ranks) in a tooltip under it, on hover or focus.
+ * Lanes as a row of icon buttons; the chosen one sits on a drop of glass in its colour. Each says
+ * its name in the app's tooltip (design/tip), on hover or focus.
  */
-export function LaneButtons(props: { counts: (role: RoleFilter) => number | undefined }): JSX.Element {
+export function LaneButtons(): JSX.Element {
   // Every lane on a neutral drop, in white: the accent is Mid's colour.
   const tone = (role: RoleFilter) => (role === "all" ? "var(--text-1)" : ROLE_TONE[role]);
   const soft = (role: RoleFilter) => (role === "all" ? "var(--bg-drop)" : `var(--role-${role}-soft)`);
   const label = (role: RoleFilter) => (role === "all" ? t().stats.allRoles : roleLabel(role));
-  const count = (role: RoleFilter) => {
-    const n = props.counts(role);
-    return n === undefined ? undefined : t().tierList.champions(n);
-  };
   const index = () => Math.max(0, LANES.indexOf(filters().role));
   return (
     <Radios
@@ -99,20 +98,15 @@ export function LaneButtons(props: { counts: (role: RoleFilter) => number | unde
       class={styles.lanes}
       style={{ "--index": String(index()), "--drop": soft(filters().role) }}
       optionClass={() => styles.lane}
-      optionLabel={(role) => (count(role) ? `${label(role)}, ${count(role)}` : label(role))}
+      optionLabel={label}
+      optionHint={label}
       testId="role-filter"
       before={<span class={`${styles.drop} glass-rim`} aria-hidden="true" ref={(el) => liquid(el, "lens")} />}
     >
       {(role) => (
-        <>
-          <span class={styles.laneIcon} style={{ "--tone": tone(role) }}>
-            <LineIcon d={role === "all" ? glyphPath("roleAll") : iconPath(ROLE_ICON[role])} size={20} />
-          </span>
-          <span class={`${styles.tip} glass-rim`} aria-hidden="true">
-            {label(role)}
-            <Show when={count(role)}>{(n) => <span class={`${styles.tipCount} num`}>{n()}</span>}</Show>
-          </span>
-        </>
+        <span class={styles.laneIcon} style={{ "--tone": tone(role) }}>
+          <LineIcon d={role === "all" ? glyphPath("roleAll") : iconPath(ROLE_ICON[role])} size={20} />
+        </span>
       )}
     </Radios>
   );

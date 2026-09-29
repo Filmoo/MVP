@@ -219,6 +219,31 @@ picked per-part switches.
   session again (they went back to the idle hint after a spells change), and an import clicked as
   champion select ends says so instead of "No build for this champion and role".
 
+## 2026-09-29 — What runes, shards, spells and items do, and every hover designed (owner asked, Claude designed)
+Owner: "runes/spell explanation on hover. Same for shards and summoner spell. Same for item", then
+"the full description, with a nice popup that shows icons, background is the spell/item/rune/
+summoner hovered + description". Design calls:
+- **Full texts**: a rune's long text (the rune page's), an item's stats and passives/actives, a
+  spell's text and cooldown, a shard's effect; Riot's structure kept (stats' values and passives'
+  names stressed, damage types and healing in the game's colours), its markup never used as HTML.
+- **A card**: the thing's icon, name (an item's cost) and what it is, its own picture enlarged,
+  blurred and dimmed behind (fading before the text, so words stay readable), glass like the
+  app's drops. One tooltip for the whole app, the grade's why included.
+- **Keyboard too**: icons take the focus where they aren't inside another control (a match row
+  keeps one tab stop); Escape closes the tooltip only.
+- **Light**: the texts are asked from the core when a tooltip shows (never with the names at
+  startup), the code loads on the first one; the shards' texts come from the League client's
+  data (CommunityDragon, like the ranked emblems), the UI's own words meanwhile.
+- **Every hover, designed** (owner: "not one default black box"): no native `title` left; every
+  explanation is the same card, compact for plain words, and says what the thing means where it
+  is (a disabled import button why, a tier what it means, a number what it counts). Explanations
+  are keyboard-reachable; hints that only restore a cut name stay hover-only, so the tab order
+  isn't doubled. A short hover intent (200 ms, then instant while moving along) keeps sweeping
+  the pointer across a table calm.
+- **Budgets not raised**: the tooltips' ~2.7 KB of JS (words in both languages included) are paid
+  by build savings on the same code (shorter CSS module class names, preload lists without the
+  startup files, constant classes set once): 128.6 KB of 131 in all, 43.7 of 46 at startup.
+
 ## 2026-09-29 — Tiers and builds, one hub (owner decided, Claude designed)
 Owner, on three tier list directions: "I love the shelves view and the top 3. A mix would be
 nice", with the meta map "small inside shelves view, which is the main view" and full screen;
@@ -243,7 +268,9 @@ every column sorts. Calls:
   **the penguin** waiting for the client, when nothing is published, and in About.
 - **Trends** only where data allows: the previous patch's published list (kept on disk with the
   current one); nothing shows on a first patch.
-- **Budget** (Claude): the hub's code is roughly 11 KB of gzipped JS; the build pays for it. The first
-  screen's code is one chunk (it was ~20 small ones, each re-listed in every view's preload list),
-  and CSS modules get short class names in builds. Main before the hub: 130.4 KB in total, 45.5 KB
-  at startup; with it: 130.6 of 131 KB in total, 38.4 of 46 KB at startup.
+- **Budget** (Claude): the hub's code is roughly 11 KB of gzipped JS; the build pays for most of
+  it. The first screen's code is one chunk (it was ~20 small ones), and the small controls the
+  views share are one more. Main at 4b8e381: 128.6 KB in total, 43.7 KB at startup; with the hub:
+  130.7 of 131 KB in total, 37.2 of 46 KB at startup (startup CSS 10.8 → 8.9 KB of 12).
+- **Tooltips** (main's cards, design/tip): the medallions say what their tier means, the columns
+  what they count, the lanes and the view switch their names, the rank button whose games count.

@@ -24,10 +24,13 @@ if (!status.trim()) process.exit(0);
 if (existsSync(stateFile) && readFileSync(stateFile, "utf8") === fingerprint) process.exit(0);
 
 const uiChanged = status.split("\n").some((line) => /\bui\//.test(line));
+const siteChanged = status.split("\n").some((line) => /\bsite\//.test(line));
 const run = (mode) => spawnSync("node", ["scripts/check.mjs", mode], { cwd: root, encoding: "utf8" });
 
 let result = run("fast");
+// The ui plan runs the website's suite too.
 if (result.status === 0 && uiChanged) result = run("ui");
+else if (result.status === 0 && siteChanged) result = run("site");
 
 if (result.status === 0) {
   mkdirSync(resolve(root, ".cache"), { recursive: true });

@@ -120,7 +120,7 @@ export default function MapDialog(props: {
           {words().title}
           <span class={styles.titleRole}>{role()}</span>
         </h2>
-        <button type="button" class={styles.close} onClick={() => dialog?.close()} aria-label={words().close}>
+        <button type="button" class={styles.close} onClick={() => dialog?.close()} aria-label={words().close} data-hint={words().close}>
           <Icon name="close" size={20} />
         </button>
       </header>

@@ -39,14 +39,6 @@ function useTierData() {
     const d = list.data();
     return d ? rankEntries(d.entries, role()) : [];
   });
-  const byRole = createMemo(() => {
-    const counts = new Map<RoleFilter, number>();
-    for (const e of list.data()?.entries ?? []) {
-      counts.set("all", (counts.get("all") ?? 0) + 1);
-      if (e.role) counts.set(e.role, (counts.get(e.role) ?? 0) + 1);
-    }
-    return counts;
-  });
   const trends = createMemo(() => {
     const d = list.data();
     return d ? trendsOf(d, previous.data()) : undefined;
@@ -58,7 +50,6 @@ function useTierData() {
     role,
     ranked,
     trends,
-    counts: (r: RoleFilter) => (list.data() ? (byRole().get(r) ?? 0) : undefined),
   };
 }
 
@@ -122,7 +113,7 @@ export default function TierListView(): JSX.Element {
       </div>
       <div class={styles.tools}>
         <Show when={!aram() && failed() === undefined}>
-          <LaneButtons counts={data.counts} />
+          <LaneButtons />
         </Show>
         <RankPicker index={data.index()} />
         <ChampionFilter value={query()} onInput={setQuery} onEnter={openBest} />

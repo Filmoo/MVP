@@ -47,7 +47,14 @@ export function TierTable(props: {
     // The lane's word gives way to a glyph in a narrow table: the button keeps its name.
     const lane = key === "role";
     return (
-      <th scope="col" class={cls} aria-sort={active() ? (tableSort().dir === "asc" ? "ascending" : "descending") : undefined} title={title}>
+      // What the column counts, on hover or when its sort button has the focus (design/tip).
+      <th
+        scope="col"
+        class={cls}
+        aria-sort={active() ? (tableSort().dir === "asc" ? "ascending" : "descending") : undefined}
+        data-hint-title={title ? label : undefined}
+        data-hint={title}
+      >
         <button
           type="button"
           class={`${styles.sort} ${active() ? styles.sorted : ""}`}
@@ -94,7 +101,11 @@ export function TierTable(props: {
               {header("games", columns().games, styles.games, "games", titles().games)}
             </tr>
           </thead>
-          <tbody>
+          {/* A click on a tooltip's anchor over the row's link (medallion, lane) opens the row's champion too. */}
+          {/* biome-ignore lint/a11y/useKeyWithClickEvents: pointer only: the keyboard opens a row with its own link */}
+          <tbody
+            onClick={(e) => (e.target as Element).closest("td [data-tip], td [data-hint]")?.closest("tr")?.querySelector("a")?.click()}
+          >
             <For each={shown()}>
               {(e) => (
                 <tr class={styles.row} data-testid="tier-row" data-champion={e.id} data-role={e.role} data-key={entryKey(e)}>
@@ -106,11 +117,13 @@ export function TierTable(props: {
                       {name(e.id)}
                     </a>
                   </td>
-                  <td class={styles.lane} title={e.role ? roleLabel(e.role) : undefined}>
+                  <td class={styles.lane}>
                     <Show when={e.role}>
                       {(role) => (
                         <>
-                          <LineIcon d={iconPath(ROLE_ICON[role()])} size={16} class={styles.laneIcon} label={roleLabel(role())} />
+                          <span class={styles.laneIcon} data-hint={roleLabel(role())}>
+                            <LineIcon d={iconPath(ROLE_ICON[role()])} size={16} label={roleLabel(role())} />
+                          </span>
                           <Show when={e.share !== undefined}>
                             <span class={styles.share}>{percent(e.share ?? 0, 0)}</span>
                           </Show>

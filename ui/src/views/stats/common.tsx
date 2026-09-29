@@ -104,7 +104,8 @@ export function RankPicker(props: { index: StatsIndex | null | undefined }): JSX
         class={styles.rank}
         popovertarget={id}
         style={{ "anchor-name": `--${id}` }}
-        aria-label={t().common.colon(t().stats.rank, bracketLabel(bracket()))}
+        data-hint-title={t().stats.rank}
+        data-hint={t().stats.rankHint}
         data-testid="rank-button"
       >
         <RankEmblem tier={BRACKET_TIER[bracket()]} size="xs" />

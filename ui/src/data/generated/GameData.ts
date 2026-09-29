@@ -22,6 +22,7 @@ assetBase: string,
 artBase: string, champions: Array<ChampionInfo>, items: Array<ItemInfo>, summonerSpells: Array<SpellInfo>, 
 /**
  * Rune trees (Precision, Domination…), from `runesReforged.json`. Stat shards (ids
- * 5001–5013) aren't in Data Dragon: the UI names them itself.
+ * 5001–5013) aren't in Data Dragon: the UI names them itself. What each rune does comes
+ * apart, when a tooltip asks (`game_description`), not with the names.
  */
 runes: Array<RuneStyle>, };

@@ -63,6 +63,12 @@
   white-space: nowrap;
   /* No clipping here: the dot's glow reaches past the line (the words clip themselves). */
   min-width: 0;
+  /* Hovered, it says what the status means (design/tip); dragged, it moves the window like the
+     rest of the bar (it is a drag region too, and a drag starting on its words lands on it). */
+  cursor: default;
+}
+
+.status > * {
   pointer-events: none;
 }
 

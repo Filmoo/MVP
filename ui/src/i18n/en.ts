@@ -33,8 +33,6 @@ export const en = {
     runeN: (id: number) => `Rune ${id}`,
     runeTreeN: (id: number) => `Rune tree ${id}`,
     profileIcon: "Profile icon",
-    /** `Name: what it does` (tooltips); French puts a no-break space before the colon. */
-    colon: (label: string, text: string) => `${label}: ${text}`,
     /** `812 games`, `1.9M games`. */
     games: (n: number) => `${games(n)} ${plural(n, "game", "games")}`,
     lp: (lp: number) => `${lp} LP`,

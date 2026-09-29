@@ -14,6 +14,8 @@ export function Radios<T extends string | number>(props: {
   class: string | undefined;
   optionClass: (value: T) => string | undefined;
   optionLabel?: (value: T) => string;
+  /** An option's tooltip (design/tip): an icon-only option names itself. */
+  optionHint?: (value: T) => string;
   children: (value: T, checked: boolean) => JSX.Element;
   style?: JSX.CSSProperties;
   testId?: string;
@@ -52,6 +54,7 @@ export function Radios<T extends string | number>(props: {
               class={props.optionClass(value)}
               aria-checked={checked()}
               aria-label={props.optionLabel?.(value)}
+              data-hint={props.optionHint?.(value)}
               tabIndex={checked() ? 0 : -1}
               onClick={() => !checked() && props.onChange(value)}
             >

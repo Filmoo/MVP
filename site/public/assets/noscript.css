@@ -1,0 +1,10 @@
+/* Loaded only without JavaScript (<noscript> in each page's head): the blocks that ask GitHub
+   show their plain link to GitHub instead of a sketch that would never fill in. The selectors
+   match site.css's `:not(.on)` rule in weight, and this file comes after it. */
+.states > [data-state="loading"].on {
+  visibility: hidden;
+}
+
+.states > [data-state="static"]:not(.on) {
+  visibility: visible;
+}

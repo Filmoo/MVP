@@ -12,8 +12,4 @@ key: string, name: string,
 /**
  * Icon path under the version-less art base: `{art_base}/img/{icon}`.
  */
-icon: string, 
-/**
- * One-line description as plain text (Data Dragon's markup removed).
- */
-shortDesc: string, };
+icon: string, };

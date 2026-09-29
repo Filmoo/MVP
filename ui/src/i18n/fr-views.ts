@@ -294,6 +294,7 @@ export const frViews = {
   stats: {
     queue: "File",
     rank: "Rang",
+    rankHint: "Les parties que comptent les stats : celles des joueurs de ce rang et au-dessus.",
     role: "Rôle",
     allRoles: "Tous les rôles",
     errors: {
@@ -436,8 +437,8 @@ export const frViews = {
     worstWith: "Pires avec",
     worstAgainst: "Pires contre",
     noEffect: "Pas encore d’effet net.",
-    effectTitle:
-      "Effet sur le taux de victoire au-delà de la force des deux champions, en points, réduit quand les parties sont peu nombreuses",
+    effectOf: (points: string) =>
+      `${points}\u00A0pts sur le taux de victoire, au-delà de la force propre des deux champions (atténué quand il y a peu de parties).`,
     effectNote:
       "En couleur\u00A0: l’effet du matchup sur le taux de victoire, en points, au-delà de la force propre de chaque champion (atténué quand il y a peu de parties).",
     aram: {
@@ -459,12 +460,40 @@ export const frViews = {
       5005: { name: "Vitesse d’attaque", stat: "+10\u00A0% de vitesse d’attaque" },
       5007: { name: "Accélération de compétence", stat: "+8 accélération de compétence" },
       5008: { name: "Force adaptative", stat: "+9 force adaptative" },
-      5010: { name: "Vitesse de déplacement", stat: "+2\u00A0% de vitesse de déplacement" },
+      5010: { name: "Vitesse de déplacement", stat: "+2,5\u00A0% de vitesse de déplacement" },
       5011: { name: "PV", stat: "+65\u00A0PV" },
-      5013: { name: "Ténacité et résistance aux ralentissements", stat: "+10\u00A0% de ténacité et de résistance aux ralentissements" },
+      5013: { name: "Ténacité et résistance aux ralentissements", stat: "+15\u00A0% de ténacité et de résistance aux ralentissements" },
     },
     unknown: "Fragment de stats",
     unknownN: (id: number) => `Fragment de stats ${id}`,
+  },
+
+  tip: {
+    gold: (cost: string) => `${cost}\u00A0PO`,
+    spell: "Sort d’invocateur",
+    cooldown: (seconds: number) => `${seconds}\u00A0s de recharge`,
+    rune: "Rune",
+    tree: "Voie de runes",
+    tiers: {
+      S: "Parmi les meilleurs choix de ce patch\u00A0: son taux de victoire dépasse 50\u00A0% d’au moins 2 points, petits échantillons lissés.",
+      A: "Un bon choix\u00A0: de 0,75 à 2 points au-dessus de 50\u00A0%.",
+      B: "Plutôt équilibré\u00A0: à moins de 0,75 point de 50\u00A0%.",
+      C: "Un choix plus faible\u00A0: de 0,75 à 2 points sous 50\u00A0%.",
+      D: "Parmi les choix les plus faibles de ce patch\u00A0: au moins 2 points sous 50\u00A0%.",
+    },
+    nav: {
+      home: "Votre profil, votre rang et vos dernières parties, chacune avec sa note.",
+      draft: "La sélection des champions\u00A0: les choix que les stats favorisent pour votre rôle, et pourquoi.",
+      live: "Votre partie en cours\u00A0: le rang et la forme de chaque joueur, et votre build.",
+      tierList: "Les champions classés selon leurs victoires dans chaque rôle sur ce patch.",
+      settings: "Automatisations, import de builds, langue, effets visuels et mises à jour.",
+    },
+    status: {
+      connected: "MVP y suit vos parties, la sélection des champions et la partie en cours.",
+      connecting: "Le client League démarre\u00A0: MVP s’y connecte tout seul.",
+      notRunning: "Lancez League of Legends\u00A0: MVP s’y connecte tout seul, rien à régler.",
+      notAnswering: "Il est lancé mais ne répond pas, peut-être occupé\u00A0: MVP réessaie tout seul.",
+    },
   },
 
   settings: {

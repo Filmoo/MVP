@@ -17,9 +17,15 @@ import { bracketLabel, patchName, type RoleTab, tierFor } from "../../lib/stats"
 import { parseQueue } from "../../lib/stats-filters";
 import styles from "./ChampionHero.module.css";
 
+/** A figure of the hero; `title` explains it on hover or focus (design/tip), headed by its label. */
 function Stat(props: { value: string; label: string; detail: string; tone?: "good" | "bad" | undefined; title?: string }): JSX.Element {
   return (
-    <div class={styles.stat} title={props.title}>
+    <div
+      class={styles.stat}
+      data-hint={props.title}
+      data-hint-title={props.title ? props.label : undefined}
+      tabIndex={props.title ? 0 : undefined}
+    >
       <span class={`${styles.statValue} ${props.tone ? styles[props.tone] : ""}`}>{props.value}</span>
       <span class={styles.statLabel}>
         {props.label}
@@ -105,12 +111,19 @@ export function ChampionHero(props: {
         </Show>
         <Show when={tier()}>
           {(entry) => (
-            <div class={`${styles.grade} glass-rim`} data-testid="champion-tier">
+            // What the tier means, on hover or focus of the whole block (design/tip).
+            <div
+              class={`${styles.grade} glass-rim`}
+              data-testid="champion-tier"
+              data-tip={`tier:${entry().tier}`}
+              // biome-ignore lint/a11y/noNoninteractiveTabindex: its explanation (design/tip) shows on keyboard focus too
+              tabIndex={0}
+            >
               <div class={styles.gradeGlass} aria-hidden="true" ref={(el) => liquid(el, "clear")} />
               <TierMark grade={entry().tier} size="lg" decorative />
               <div class={styles.gradeText}>
                 <span class={styles.gradeTitle}>{t().stats.tier(entry().tier)}</span>
-                <span class={`${styles.gradeDetail} num`} title={t().champions.pointsTitle}>
+                <span class={`${styles.gradeDetail} num`}>
                   {t().champions.pointsVs50(entry().score)}
                   {aram() ? "" : ` · ${roleLabel(entry().role ?? "middle")}`}
                 </span>
