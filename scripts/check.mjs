@@ -48,7 +48,9 @@ const ui = [
   ["UI: performance budgets", "pnpm", ["--filter", "@scout/ui", "exec", "playwright", "test", "--project=perf", "--workers=1"]],
 ];
 // The website (mvpgg.com): static pages served like production, GitHub's API mocked.
-const site = [["Website: pages, releases, links (EN/FR)", "pnpm", ["--filter", "@scout/site", "exec", "playwright", "test", "--project=smoke"]]];
+const site = [
+  ["Website: pages, releases, links (EN/FR)", "pnpm", ["--filter", "@scout/site", "exec", "playwright", "test", "--project=smoke"]],
+];
 
 const plans = {
   fast: [...web, ...build, ...rust],
