@@ -207,9 +207,8 @@ export function mayhemChampion(championId: number, overview: MayhemOverview = ma
       })
       .sort((a, b) => {
         const tier = (e: AugmentPriority) => (e.tier ? TIER_ORDER.indexOf(e.tier) : TIER_ORDER.length);
-        return (
-          tier(a) - tier(b) || (byRate ? b.picks - a.picks : 0) || (a.rank ?? 1e9) - (b.rank ?? 1e9) || a.id - b.id
-        );
+        // The owner's tier and rank first; picks then order the untiered ones.
+        return tier(a) - tier(b) || (a.rank ?? 1e9) - (b.rank ?? 1e9) || b.picks - a.picks || a.id - b.id;
       })
       .slice(0, PER_RARITY);
     return { rarity, byPickRate: byRate, entries };

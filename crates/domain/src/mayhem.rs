@@ -297,7 +297,7 @@ pub struct MayhemChampion {
     pub patch: Option<String>,
     /// Its shared games.
     pub games: u32,
-    /// Games needed before its pick rates order the augments (fewer: the tiers alone).
+    /// Games needed before its pick rates count as the second signal (fewer: the tiers alone).
     pub min_games: u32,
     /// Its most picked augments, most first.
     pub augments: Vec<PickCount>,
@@ -310,13 +310,15 @@ pub struct MayhemChampion {
     pub tiered: bool,
 }
 
-/// The augments of one rarity, best first for this champion.
+/// The augments of one rarity, in order: tier, then the owner's rank, then (untiered) picks.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct AugmentPriorities {
     pub rarity: AugmentRarity,
-    /// The champion's pick rates order augments within a tier (enough games), else the tiers alone.
+    /// Whether the champion's pick rates are the second signal (enough games): shown with every
+    /// entry, and ordering the untiered augments after the tiered ones. Else the tiers alone.
+    /// The owner's tier and rank always come first.
     pub by_pick_rate: bool,
     pub entries: Vec<AugmentPriority>,
 }

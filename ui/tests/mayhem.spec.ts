@@ -60,7 +60,7 @@ test.describe("ARAM: Mayhem page", () => {
     await expect(champion.locator("[data-rarity]")).toHaveCount(3);
     await expect(champion).toContainText(t.mayhem.rarities.silver);
     await expect(champion).toContainText(t.mayhem.mostPicked);
-    // Ahri has enough shared games: pick rates order a tier, and say so.
+    // Ahri has enough shared games: her pick rates come second, shown with each augment.
     await expect(champion).toContainText(t.mayhem.pickedBy("", "Ahri").split(" ").slice(-2).join(" "));
     await page.getByTestId("mayhem-champion-chip").getByRole("button", { name: t.mayhem.clear }).click();
     await expect(page).toHaveURL(/#\/mayhem$/);

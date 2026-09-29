@@ -16,7 +16,7 @@ patch: string | null,
  */
 games: number, 
 /**
- * Games needed before its pick rates order the augments (fewer: the tiers alone).
+ * Games needed before its pick rates count as the second signal (fewer: the tiers alone).
  */
 minGames: number, 
 /**

@@ -3,10 +3,12 @@ import type { AugmentPriority } from "./AugmentPriority";
 import type { AugmentRarity } from "./AugmentRarity";
 
 /**
- * The augments of one rarity, best first for this champion.
+ * The augments of one rarity, in order: tier, then the owner's rank, then (untiered) picks.
  */
 export type AugmentPriorities = { rarity: AugmentRarity, 
 /**
- * The champion's pick rates order augments within a tier (enough games), else the tiers alone.
+ * Whether the champion's pick rates are the second signal (enough games): shown with every
+ * entry, and ordering the untiered augments after the tiered ones. Else the tiers alone.
+ * The owner's tier and rank always come first.
  */
 byPickRate: boolean, entries: Array<AugmentPriority>, };

@@ -178,10 +178,11 @@ pub fn is_mayhem_session(session: &Value) -> bool {
 /// A champion's augments ranked per rarity (silver, gold, prismatic: each offer in Mayhem is
 /// one rarity), plus its most picked augments and most common items.
 ///
-/// Order within a rarity: the editorial tier first (S before A…); inside a tier the champion's
-/// pick rate once it has [`MIN_GAMES`] shared games (the owner's rank breaks ties), else the
-/// owner's rank. Untiered augments follow only when the champion's games show them (picked at
-/// least once, enough games). At most [`PER_RARITY`] each; nothing without a tier or a signal.
+/// Order within a rarity: the editorial tier (S before A…), then the owner's rank inside it
+/// (first = best): the owner's order always holds. The champion's pick rate is the second
+/// signal once it has [`MIN_GAMES`] shared games: every entry shows it, and the augments without
+/// a tier that its players pick follow the tiered ones, most picked first. Fewer games: the
+/// tiers alone. At most [`PER_RARITY`] each; nothing without a tier or a signal.
 pub fn champion(
     champion_id: u32,
     catalog: &AugmentCatalog,
@@ -220,17 +221,13 @@ pub fn champion(
                 .collect();
             let tier_key =
                 |e: &AugmentPriority| e.tier.map_or(AugmentTier::ALL.len(), |t| t as usize);
+            // Ranks are unique inside a tier, so picks only order the untiered augments (which
+            // are listed with enough games only).
             entries.sort_by(|a, b| {
                 tier_key(a)
                     .cmp(&tier_key(b))
-                    .then_with(|| {
-                        if by_rate {
-                            b.picks.cmp(&a.picks)
-                        } else {
-                            std::cmp::Ordering::Equal
-                        }
-                    })
                     .then(a.rank.unwrap_or(u32::MAX).cmp(&b.rank.unwrap_or(u32::MAX)))
+                    .then(b.picks.cmp(&a.picks))
                     .then(a.id.cmp(&b.id))
             });
             entries.truncate(PER_RARITY);
@@ -725,13 +722,15 @@ async fn scan(s: &Sharing, record: &mut Record) {
             return;
         }
     };
-    let region = client
+    // Each listed game names its platform; the client's region is for one that doesn't.
+    let platform = client
         .get::<Value>(crate::profile::REGION)
         .await
         .ok()
-        .and_then(|r| str_at(&r, "region").map(|r| format!("{}1", r.to_ascii_uppercase())))
-        .unwrap_or_else(|| "EUW1".to_owned());
-    let fresh: Vec<(u64, String, String)> = listed_mayhem(&history, &region)
+        .and_then(|r| str_at(&r, "region").and_then(crate::live::platform_for_region))
+        .unwrap_or("euw1")
+        .to_ascii_uppercase();
+    let fresh: Vec<(u64, String, String)> = listed_mayhem(&history, &platform)
         .into_iter()
         .filter(|(_, _, key)| !record.has(key))
         .collect();
@@ -817,6 +816,7 @@ mod tests {
                 augment(2, AugmentRarity::Silver),
                 augment(3, AugmentRarity::Silver),
                 augment(4, AugmentRarity::Silver),
+                augment(5, AugmentRarity::Silver),
                 augment(10, AugmentRarity::Gold),
                 augment(20, AugmentRarity::Prismatic),
             ],
@@ -883,24 +883,27 @@ mod tests {
     }
 
     #[test]
-    fn enough_games_let_the_champions_picks_order_a_tier() {
+    fn enough_games_add_the_champions_picks_after_the_owners_order() {
         let c = champion(
             96,
             &catalog(),
             Some(&tiers()),
-            Some(&stats(40, &[(1, 30), (2, 4), (4, 9)])),
+            Some(&stats(40, &[(1, 30), (2, 4), (4, 9), (5, 12)])),
         );
         assert_eq!(
             order(&c, AugmentRarity::Silver),
-            [1, 2, 3, 4],
-            "within S: 1 picked more; then A; then untiered with picks"
+            [2, 1, 3, 5, 4],
+            "the owner's order holds (1, picked more, stays S · 2); then untiered, most picked first"
         );
-        let first = &c.priorities[0].entries[0];
+        assert!(c.priorities[0].by_pick_rate);
+        let second = &c.priorities[0].entries[1];
         assert_eq!(
-            (first.tier, first.rank, first.picks),
+            (second.tier, second.rank, second.picks),
             (Some(AugmentTier::S), Some(2), 30)
         );
-        assert!((first.pick_rate.unwrap() - 0.75).abs() < 1e-9);
+        assert!((second.pick_rate.unwrap() - 0.75).abs() < 1e-9);
+        let untiered = &c.priorities[0].entries[3];
+        assert_eq!((untiered.id, untiered.tier, untiered.rank), (5, None, None));
         assert_eq!(order(&c, AugmentRarity::Gold), [10]);
         assert!(
             order(&c, AugmentRarity::Prismatic).is_empty(),

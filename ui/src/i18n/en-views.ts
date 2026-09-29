@@ -440,7 +440,7 @@ export const enViews = {
     shared: (n: number) => `${games(n)} shared ${plural(n, "game", "games")}`,
     order: {
       byRate: (champion: string, n: number) =>
-        `By MVP's tiers, then by how often ${champion} players pick them (${games(n)} shared games).`,
+        `By MVP's tiers, best first; then augments without a tier that ${champion} players pick. Pick rates from ${games(n)} shared games.`,
       byTier: (champion: string, n: number, min: number) =>
         `By MVP's tiers: ${champion} has ${games(n)} of the ${min} shared games needed to add its pick rates.`,
       byPicks: (champion: string, n: number) => `No tiers yet: by how often ${champion} players pick them (${games(n)} shared games).`,

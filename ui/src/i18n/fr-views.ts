@@ -450,7 +450,7 @@ export const frViews = {
     shared: (n: number) => count(n, "partie partagée", "parties partagées"),
     order: {
       byRate: (champion: string, n: number) =>
-        `Selon les tiers de MVP, puis selon la fréquence à laquelle les joueurs ${de(champion)} les choisissent (${count(n, "partie partagée", "parties partagées")}).`,
+        `Selon les tiers de MVP, le meilleur d’abord ; puis les augments sans tier que les joueurs ${de(champion)} choisissent. Taux de sélection sur ${count(n, "partie partagée", "parties partagées")}.`,
       byTier: (champion: string, n: number, min: number) =>
         `Selon les tiers de MVP : ${champion} compte ${count(n, "partie partagée", "parties partagées")} sur les ${min} nécessaires pour ajouter ses taux de sélection.`,
       byPicks: (champion: string, n: number) =>
