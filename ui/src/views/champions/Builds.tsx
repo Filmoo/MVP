@@ -10,16 +10,24 @@ import { percent } from "../../lib/format";
 import { optionShare, SKILL_KEYS, winRateOf } from "../../lib/stats";
 import styles from "./Builds.module.css";
 
-/** An option's win rate with its games, and how often it is picked. */
+/**
+ * An option's win rate with its games, and how often it is picked; what both numbers count, on
+ * hover or focus (design/tip).
+ */
 export function OptionStats(props: { option: BuildOption; section: BuildSection; large?: boolean }): JSX.Element {
   const wr = () => winRateOf(props.option);
   return (
-    <span class={`${styles.stats} ${props.large ? styles.large : ""} num`}>
-      <span class={styles.stat} title={t().stats.winsInGames(props.option.w, props.option.g)}>
+    <span
+      class={`${styles.stats} ${props.large ? styles.large : ""} num`}
+      data-hint={`${t().stats.winsInGames(props.option.w, props.option.g)}\n${t().stats.pickedIn(props.option.g, props.section.n)}`}
+      // biome-ignore lint/a11y/noNoninteractiveTabindex: its explanation (design/tip) shows on keyboard focus too
+      tabIndex={0}
+    >
+      <span class={styles.stat}>
         <span class={styles.wr}>{percent(wr() ?? 0, 1)}</span>
         <span class={styles.caption}>{t().common.games(props.option.g)}</span>
       </span>
-      <span class={styles.stat} title={t().stats.pickedIn(props.option.g, props.section.n)}>
+      <span class={styles.stat}>
         <span class={styles.pick}>{percent(optionShare(props.option, props.section), 1)}</span>
         <span class={styles.caption}>{t().stats.pick}</span>
       </span>
@@ -86,7 +94,7 @@ export function SpellsCard(props: { build: BuildStats }): JSX.Element {
             {(o) => (
               <li class={styles.option}>
                 <span class={styles.visual}>
-                  <For each={flashFirst(o.ids)}>{(id) => <SpellIcon spellId={id} size={32} tooltip />}</For>
+                  <For each={flashFirst(o.ids)}>{(id) => <SpellIcon spellId={id} size={32} focusable />}</For>
                   <span class={styles.label}>{flashFirst(o.ids).map(name).join(" + ")}</span>
                 </span>
                 <OptionStats option={o} section={props.build.spells} />
@@ -155,7 +163,7 @@ function ItemRow(props: { option: BuildOption; section: BuildSection; named?: bo
         <For each={props.option.ids}>
           {(id, i) => (
             <>
-              <ItemIcon itemId={id} size={32} tooltip />
+              <ItemIcon itemId={id} size={32} focusable />
               <Show when={props.chain && i() < props.option.ids.length - 1}>
                 <span class={styles.then} aria-hidden="true">
                   ›

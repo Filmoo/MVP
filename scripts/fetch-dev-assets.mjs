@@ -98,6 +98,24 @@ for (const id of [29, 4568, 5205, 6311, 588, 1, 7]) icons.add(`img/profileicon/$
 
 const failures = await pool([...icons], 12, download);
 console.log(`ddragon ${version}: ${fetched} downloaded, ${skipped} cached, ${failures.length} failed → ${out}`);
+
+// Stat shards' names and effects (not in Data Dragon): the client's perks as CommunityDragon
+// mirrors them for this patch, which the browser mock's tooltips read like the core does.
+// Optional: without it the shards' tooltips use the UI's own words.
+const perks = join(out, "cdragon/perks.json");
+if (!existsSync(perks)) {
+  const patch = version.split(".").slice(0, 2).join(".");
+  const url = `https://raw.communitydragon.org/${patch}/plugins/rcp-be-lol-game-data/global/default/v1/perks.json`;
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(20_000) });
+    if (!res.ok) throw new Error(`${res.status} ${url}`);
+    await mkdir(dirname(perks), { recursive: true });
+    await writeFile(perks, Buffer.from(await res.arrayBuffer()));
+    console.log(`perks ${patch} → ${perks}`);
+  } catch (error) {
+    console.log(`perks not downloaded (shard tooltips use the UI's words): ${error.message ?? error}`);
+  }
+}
 if (failures.length) {
   console.log(failures.slice(0, 10).join("\n"));
   process.exitCode = failures.length > icons.size * 0.05 ? 1 : 0;

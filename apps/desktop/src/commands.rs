@@ -3,16 +3,17 @@
 use companion::settings::SettingsStore;
 use companion::stats::StatsClient;
 use domain::{
-    AppInfo, BackendError, Bracket, ChampionPage, ClientStatus, DraftView, GameData, GradedMatch,
-    ImportRequest, ImportResult, Language, LiveGame, MatchDetails, PlayerProfile, RankEmblems,
-    RemoteConfig, RiotId, Settings, StatsIndex, TierList, UpdateStatus,
+    AppInfo, BackendError, Bracket, ChampionPage, ClientStatus, Description, DescriptionKind,
+    DraftView, GameData, GradedMatch, ImportRequest, ImportResult, Language, LiveGame,
+    MatchDetails, PlayerProfile, RankEmblems, RemoteConfig, RiotId, Settings, StatsIndex, TierList,
+    UpdateStatus,
 };
 use tauri::{Emitter as _, Manager as _};
 use tauri_plugin_autostart::ManagerExt as _;
 
 use crate::core::{
-    Backend, Core, Crashes, EmblemState, GameDataState, InstallId, LogFile, Remote, Stats,
-    UiLanguage,
+    Backend, Core, Crashes, EmblemState, GameDataState, InstallId, LogFile, Remote, ShardTexts,
+    Stats, UiLanguage, ddragon_cache,
 };
 use crate::updater::Updates;
 use crate::{diagnostics, logging};
@@ -231,6 +232,40 @@ pub fn game_data(app: tauri::AppHandle, language: Option<Language>) -> Option<Ga
     let locale = language.unwrap_or_default().data_dragon_locale();
     state.want(locale);
     state.get(locale)
+}
+
+/// What a rune, stat shard, summoner spell or item does, in the loaded game data's patch and
+/// language (so it reads like the names next to it); `None` without game data or without a
+/// text for it. Read when a tooltip first shows it: from Data Dragon's cached files, and for
+/// stat shards from `CommunityDragon` (downloaded once per patch and language, then cached).
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub async fn game_description(
+    app: tauri::AppHandle,
+    kind: DescriptionKind,
+    id: u32,
+) -> Option<Description> {
+    let (version, locale) = app.try_state::<GameDataState>()?.loaded()?;
+    let source = static_data::DataDragon::new(static_data::DDRAGON, ddragon_cache(&app)?, locale)
+        .inspect_err(|error| tracing::warn!(%error, "no Data Dragon client"))
+        .ok()?;
+    if kind == DescriptionKind::Shard {
+        let shards = app.try_state::<ShardTexts>()?;
+        return shards
+            .get(&source, &version, locale)
+            .await
+            .get(&id)
+            .cloned();
+    }
+    source
+        .describe(&version, kind, id)
+        .await
+        .inspect_err(|error| tracing::debug!(%error, ?kind, id, "no description"))
+        .ok()
+        .flatten()
 }
 
 /// Riot's ranked emblems, `None` until downloaded or read from the cache (`rank-emblems` follows).

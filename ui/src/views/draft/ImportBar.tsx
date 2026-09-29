@@ -88,7 +88,7 @@ export function ImportPanel(props: {
                   aria-disabled={view().busy ? "true" : undefined}
                   aria-label={t().imports.importPart(view().part)}
                   aria-busy={view().busy ? "true" : undefined}
-                  title={view().disabled ?? (view().automatic ? t().imports.auto : undefined)}
+                  data-hint={view().disabled ?? (view().automatic ? t().imports.auto : undefined)}
                   data-testid={`import-${view().part}`}
                   data-tone={tone()}
                   onClick={() => {

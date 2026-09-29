@@ -1,5 +1,7 @@
-import type { JSX } from "solid-js";
+import { For, type JSX } from "solid-js";
 import { NoticeList, UpdateRequiredDialog } from "../app/notices/Notices";
+import { useData } from "../data/context";
+import type { TextSpan } from "../data/generated/TextSpan";
 import { aramDraft, champSelectDraft } from "../data/mock/draft-fixtures";
 import { profile } from "../data/mock/fixtures";
 import { liveGame } from "../data/mock/live-fixtures";
@@ -7,6 +9,9 @@ import { gameFor, withGrades } from "../data/mock/match-fixtures";
 import { outageBanner, patchBanner, requiredConfig, updateReady } from "../data/mock/platform-fixtures";
 import { defaultSettings } from "../data/mock/settings-fixtures";
 import { mockChampionPage, mockStatsIndex, mockTierList } from "../data/mock/stats-fixtures";
+import { ShardIcon } from "../design/RuneIcon";
+import { GameTip, type GameTipProps } from "../design/tip/Tip";
+import tipStyles from "../design/tip/Tip.module.css";
 import { localized, t } from "../i18n";
 import { roleLabel } from "../lib/roles";
 import { bracketLabel, buildFor, roleTabs } from "../lib/stats";
@@ -34,6 +39,70 @@ const tierList = mockTierList(420, "emeraldPlus");
 const lux = mockChampionPage(99, 420, "emeraldPlus");
 const luxBuild = buildFor(lux, "support");
 if (!luxBuild) throw new Error("the Lux fixture has a support build");
+
+/**
+ * Tooltips' cards (design/tip) side by side, as they float over a page: an item with coloured
+ * text, a keystone, a summoner spell with its cooldown, and a stat shard in the UI's words.
+ * Sample texts: the real ones come from the core (the dev cache in the preview).
+ */
+function GameTips(): JSX.Element {
+  const { gameData } = useData();
+  const data = gameData();
+  const plain = (text: string): TextSpan => ({ text });
+  const strong = (text: string): TextSpan => ({ text, tone: "strong" });
+  const keystone = data?.runes.get(8112)?.rune.icon;
+  const cards: GameTipProps[] = [
+    {
+      kind: "item",
+      id: 6653,
+      data,
+      art: data && `${data.assetBase}/img/item/6653.png`,
+      text: {
+        text: [
+          [strong("60"), plain(" Ability Power")],
+          [strong("300"), plain(" Health")],
+          [],
+          [strong("A passive")],
+          [plain("Deals "), { text: "bonus magic damage", tone: "magic" }, plain(" over a few seconds.")],
+        ],
+      },
+    },
+    {
+      kind: "rune",
+      id: 8112,
+      data,
+      art: data && keystone ? `${data.artBase}/img/${keystone}` : undefined,
+      text: { text: [[plain("Hitting a champion three times deals bonus damage.")], [], [{ text: "A line of flavour.", tone: "subtle" }]] },
+    },
+    {
+      kind: "spell",
+      id: 4,
+      data,
+      art: data && `${data.assetBase}/img/spell/SummonerFlash.png`,
+      text: { cooldown: 300, text: [[plain("Moves you a short way.")]] },
+    },
+    {
+      kind: "shard",
+      id: 5008,
+      row: "offense",
+      data,
+      text: null,
+      glyph: (ShardIcon({ shardId: 5008, size: 24, chosen: true }) as HTMLElement).querySelector("svg") ?? undefined,
+      tone: "var(--tier-s)",
+    },
+  ];
+  return (
+    <div style={{ display: "flex", "flex-wrap": "wrap", gap: "16px", "align-items": "flex-start" }}>
+      <For each={cards}>
+        {(card) => (
+          <div class={tipStyles.tip} style={{ position: "relative" }}>
+            <GameTip {...card} />
+          </div>
+        )}
+      </For>
+    </div>
+  );
+}
 
 // Match rows with their grades (as player pages get them), and the first game opened.
 const graded = withGrades(profile);
@@ -132,6 +201,7 @@ export const widgetRegistry: Record<string, () => JSX.Element> = {
   "champion-items": () => <ItemsCard build={luxBuild} />,
   "champion-matchups": () => <MatchupsCard page={lux} forRole="support" />,
   "build-summary": () => <BuildSummary championId={99} build={luxBuild} />,
+  "game-tips": () => <GameTips />,
   // A champion page's bar, outside of champion select: spells wait for it.
   "champion-import": () => (
     <ImportPanel

@@ -5,6 +5,7 @@ import type { Settings as SettingsData } from "../data/generated/Settings";
 import { Backdrop, setEffects } from "../design/backdrop";
 import { Icon } from "../design/Icon";
 import { liquid } from "../design/liquid/liquid";
+import { followTips } from "../design/tip/follow";
 import { loadViewWords, setLanguage, t } from "../i18n";
 import { dismissIssue, issues, notify, reportError } from "../lib/errors";
 import { listenForLockInImports } from "../lib/lock-in-toasts";
@@ -28,7 +29,8 @@ const Settings = lazy(withWords(() => import("../views/settings/Settings")));
 const Draft = lazy(withWords(() => import("../views/draft/Draft")));
 const Live = lazy(withWords(() => import("../views/live/Live")));
 // The player page's chunk also carries an opened match row's code (the whole game, a grade's
-// why), which Home's match history needs too: it loads them from here.
+// why), which Home's match history needs too, and the tooltips of every page: they load it from
+// here.
 const playerPage = withWords(() => import("../views/player/Player"));
 const Player = lazy(playerPage);
 provideDetails(playerPage);
@@ -47,7 +49,7 @@ function Toasts(): JSX.Element {
             <div class={styles.toastGlass} aria-hidden="true" ref={(el) => liquid(el, "panel")} />
             <Icon name={issue.tone === "success" ? "check" : "alert"} size={16} class={styles.toastIcon} />
             <span>{issue.message}</span>
-            <button type="button" aria-label={t().common.dismiss} onClick={() => dismissIssue(issue.id)}>
+            <button type="button" aria-label={t().common.dismiss} data-hint={t().common.dismiss} onClick={() => dismissIssue(issue.id)}>
               <Icon name="close" size={14} />
             </button>
           </div>
@@ -68,6 +70,7 @@ export function App(): JSX.Element {
     (set) => transport.listen("client-status", set),
   );
   onCleanup(followPointerOnGlass());
+  onCleanup(followTips({ transport, gameData }, playerPage));
   // The core keeps the lasting visual effects and language choices; the first frame used the
   // local copies. The stats pages start from the settings' bracket.
   const apply = (settings: SettingsData) => {

@@ -83,7 +83,7 @@ function Row(props: {
           <span class={styles.name}>{name(props.s.championId)}</span>
           <Show when={yourLine(props.s, props.yours)}>
             {(line) => (
-              <span class={`${styles.mine} num`} title={masteryTitle(props.s)}>
+              <span class={`${styles.mine} num`} data-hint={masteryTitle(props.s)}>
                 {line()}
               </span>
             )}
@@ -173,7 +173,12 @@ export function Suggestions(props: {
       actions={
         <Show when={props.draft.team}>
           {(team) => (
-            <span class={`${styles.teamNow} num`} title={t().draft.teamNow(percentOf100(team().percent))}>
+            <span
+              class={`${styles.teamNow} num`}
+              data-hint={t().draft.teamNow(percentOf100(team().percent))}
+              // biome-ignore lint/a11y/noNoninteractiveTabindex: its explanation (design/tip) shows on keyboard focus too
+              tabIndex={0}
+            >
               {t().draft.ifPicked}
             </span>
           )}

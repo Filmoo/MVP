@@ -73,7 +73,7 @@ export function Segmented<T extends string | number>(props: {
               class={`${styles.segment} ${option.icon ? styles.withIcon : ""}`}
               aria-checked={checked()}
               aria-label={option.detail ? `${option.label} ${option.detail}` : option.label}
-              title={option.icon ? option.label : undefined}
+              data-hint={option.icon ? option.label : undefined}
               tabIndex={checked() ? 0 : -1}
               onClick={() => {
                 if (!checked()) props.onChange(option.value);
