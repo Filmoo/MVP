@@ -5,8 +5,8 @@ use companion::stats::StatsClient;
 use domain::{
     AppInfo, BackendError, Bracket, ChampionPage, ClientError, ClientStatus, Description,
     DescriptionKind, DraftView, GameData, GradedMatch, ImportRequest, ImportResult, Language,
-    LiveGame, MatchDetails, PlayerProfile, RankEmblems, RemoteConfig, RiotId, Settings,
-    StatsIndex, TierList, UpdateStatus,
+    LiveGame, MatchDetails, PlayerProfile, RankEmblems, RemoteConfig, RiotId, Settings, StatsIndex,
+    TierList, UpdateStatus,
 };
 use tauri::{Emitter as _, Manager as _};
 use tauri_plugin_autostart::ManagerExt as _;
