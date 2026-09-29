@@ -544,6 +544,7 @@ for (const lang of ["en", "fr"] as const) {
     for (const [width, height] of [
       [1280, 800],
       [420, 800],
+      [2560, 1440],
     ] as const) {
       test(`${prefix}home game open ${width}x${height}`, async ({ page }) => {
         await gameShot(page, `${prefix}home-game-open`, { width, height, row: 2 });
