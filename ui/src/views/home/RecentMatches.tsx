@@ -7,7 +7,7 @@ import type { MatchSummary } from "../../data/generated/MatchSummary";
 import type { RiotId } from "../../data/generated/RiotId";
 import { Card } from "../../design/Card";
 import { ChampionIcon, ItemIcon } from "../../design/GameIcon";
-import { EmptyState, Skeleton } from "../../design/States";
+import { EmptyState } from "../../design/States";
 import { t } from "../../i18n";
 import { groupByDay } from "../../lib/days";
 import { duration, kda, kdaRatio, perMinute, queueName, REMAKE_MAX_SECONDS, signedPoints, timeAgo } from "../../lib/format";
@@ -17,23 +17,19 @@ import styles from "./RecentMatches.module.css";
 const ITEM_SLOTS = 6;
 
 /**
- * What an opened row, a grade's why and the last game's summary need (`MatchDetails.tsx`,
+ * What an opened game, a grade's why and the last game's summary need (`GameSheet.tsx`,
  * `PostGame.tsx`), loaded on first use.
  */
-type Details = Pick<typeof import("./MatchDetails") & typeof import("./PostGame"), "MatchDetails" | "hint" | "PostGameCard">;
+type Details = Pick<typeof import("./GameSheet") & typeof import("./PostGame"), "GameSheet" | "hint" | "PostGameCard">;
 let load: () => Promise<Details>;
 let loading: Promise<Details> | undefined;
 
-/**
- * Where that code comes from: the app hands in the player page's chunk, which carries it (with
- * the views' words; see App.tsx). A chunk of its own, imported from here, would split the chunks
- * it shares with the first screen and weigh on the app's first load.
- */
+/** Where that code comes from: the app hands in its loader (with the views' words; see App.tsx). */
 export function provideDetails(from: () => Promise<Details>): void {
   load = from;
 }
 export const chunk = () => (loading ??= load());
-const Details = lazy(() => chunk().then((m) => ({ default: m.MatchDetails })));
+const Sheet = lazy(() => chunk().then((m) => ({ default: m.GameSheet })));
 
 /** DPM-style KDA coloring: perfect, great ≥ 5, good ≥ 3, poor < 1.5. */
 function kdaBand(value: number | null): string {
@@ -50,9 +46,7 @@ function MatchRow(props: {
   /** The LP it was worth (your ranked games MVP followed). */
   lp?: LpGame | undefined;
   open: boolean;
-  focus: RiotId | undefined;
-  onToggle: (row: HTMLElement) => void;
-  onClose: () => void;
+  onOpen: () => void;
 }): JSX.Element {
   const m = () => props.match;
   const remake = () => m().durationSeconds <= REMAKE_MAX_SECONDS;
@@ -69,8 +63,9 @@ function MatchRow(props: {
         id={`match-${m().matchId}`}
         class={`${styles.row} ${styles[outcome()]} glass-pill`}
         data-glass
+        aria-haspopup="dialog"
         aria-expanded={props.open}
-        onClick={(e) => props.onToggle(e.currentTarget)}
+        onClick={() => props.onOpen()}
       >
         <ChampionIcon championId={m().championId} size={40} />
         <span class={styles.outcome}>
@@ -123,12 +118,6 @@ function MatchRow(props: {
           <span class={styles.ago}>{timeAgo(m().endedAt)}</span>
         </span>
       </button>
-      <Show when={props.open}>
-        {/* Its height is the table's: nothing moves when the game arrives. */}
-        <Suspense fallback={<Skeleton height="540px" />}>
-          <Details matchId={m().matchId} focus={props.focus} onClose={props.onClose} />
-        </Suspense>
-      </Show>
     </li>
   );
 }
@@ -190,16 +179,9 @@ export function RecentMatches(props: {
   footer?: JSX.Element;
 }): JSX.Element {
   const hasMatches = () => props.matches.length > 0;
-  // One game open at a time; a second click, or Escape, closes it.
-  const [open, setOpen] = createSignal<string>();
+  // A row opens its game in a sheet over the page (GameSheet.tsx), one at a time.
+  const [open, setOpen] = createSignal<MatchSummary>();
   const gradeOf = (m: MatchSummary) => m.grade ?? props.late?.()?.get(m.matchId)?.grade ?? null;
-
-  const toggle = (id: string, row: HTMLElement) => {
-    // The clicked row stays where it is when a game above it closes.
-    const before = row.getBoundingClientRect().top;
-    setOpen((current) => (current === id ? undefined : id));
-    row.closest("main")?.scrollBy(0, row.getBoundingClientRect().top - before);
-  };
   // A grade's why shows while it's hovered, or its row has the keyboard focus: the chunk follows
   // the list's pointer and focus events.
   const find = (id: string) => {
@@ -231,10 +213,8 @@ export function RecentMatches(props: {
                         match={match}
                         grade={gradeOf(match)}
                         lp={props.lp?.(match.matchId)}
-                        open={open() === match.matchId}
-                        focus={props.focus}
-                        onToggle={(row) => toggle(match.matchId, row)}
-                        onClose={() => setOpen(undefined)}
+                        open={open()?.matchId === match.matchId}
+                        onOpen={() => setOpen(match)}
                       />
                     )}
                   </For>
@@ -243,6 +223,14 @@ export function RecentMatches(props: {
             )}
           </For>
         </ol>
+        <Show when={open()}>
+          {(match) => (
+            // Nothing to see while its code loads, but the page says it is loading (tests wait).
+            <Suspense fallback={<div data-state="loading" hidden />}>
+              <Sheet match={match()} focus={props.focus} onClosed={() => setOpen(undefined)} />
+            </Suspense>
+          )}
+        </Show>
       </Show>
       {props.footer}
     </Card>

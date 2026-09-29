@@ -28,8 +28,9 @@ import { ImportPanel } from "../views/draft/ImportBar";
 import { Suggestions } from "../views/draft/Suggestions";
 import { Teams } from "../views/draft/Teams";
 import { Why } from "../views/draft/Why";
-import { MatchTable } from "../views/home/MatchDetails";
+import { MatchTable, markedIn } from "../views/home/MatchDetails";
 import { MatchHistory } from "../views/home/MatchHistory";
+import { MatchStats } from "../views/home/MatchStats";
 import { PerformanceSummary } from "../views/home/PerformanceSummary";
 import { PostGameCard } from "../views/home/PostGame";
 import { ProfileHeader } from "../views/home/ProfileHeader";
@@ -109,11 +110,12 @@ function GameTips(): JSX.Element {
   );
 }
 
-// Match rows with their grades (as player pages get them), and the first game opened.
+// Match rows with their grades (as player pages get them), and the first game opened (from our
+// backend: every stat row).
 const graded = withGrades(profile);
 const firstMatch = profile.recentMatches[0];
 if (!firstMatch) throw new Error("the profile fixture has games");
-const firstGame = gameFor(firstMatch, profile.riotId);
+const firstGame = gameFor(firstMatch, profile.riotId, false, false);
 /** The LP of the fixture's ranked games, as Home gets it (computed once, not measured). */
 const lp = lpFor(profile);
 
@@ -129,6 +131,7 @@ export const widgetRegistry: Record<string, () => JSX.Element> = {
   "profile-header": () => <ProfileHeader profile={profile} lp={lp} />,
   "recent-matches": () => <MatchHistory matches={graded.recentMatches} focus={graded.riotId} lp={lp} />,
   "match-details": () => <MatchTable game={firstGame} focus={profile.riotId} />,
+  "match-stats": () => <MatchStats game={firstGame} marked={markedIn(firstGame, profile.riotId)} />,
   "performance-summary": () => <PerformanceSummary matches={profile.recentMatches} mastery={masteryFixture} />,
   // A ranked win with its LP, a lane opponent and the grade's why: every part shown.
   "post-game": () => <PostGameCard game={winPostGame} onClose={() => {}} />,

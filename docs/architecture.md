@@ -92,10 +92,11 @@ everyone else in that game costs no Riot call, and the accounts Riot showed go t
 cache for the batch that may follow; cards not built within 5 s are left to that batch
 (`cardsComplete: false`) while their lookups carry on. Caches in memory with request
 coalescing: profiles and cards 2 min,
-accounts 1 day, compacted match documents forever (LRU-bounded: the 28 participant fields the
-profile, the grade and match details read, keystone and rune trees only, kept as JSON text);
-accounts and matches are snapshotted to the data dir on shutdown (snapshot format 2: an older
-snapshot is ignored, its matches lack what grades need). Lookups share one rate limiter per
+accounts 1 day, compacted match documents forever (LRU-bounded to 12,000: the 45 participant
+fields the profile, the grade and match details with their end-of-game stats read, keystone and
+rune trees only, kept as JSON text, under 11 KB a game);
+accounts and matches are snapshotted to the data dir on shutdown (snapshot format 3: an older
+snapshot is ignored, its matches lack the end-of-game stats). Lookups share one rate limiter per
 routing value; a 429 is reported to the caller rather than waited out when Riot asks for more
 than 5 s.
 
@@ -285,22 +286,60 @@ Every finished game in a match history gets a grade, and a match row opens on th
   in order), each player's Riot ID (none when hidden: `nameVisibilityType: HIDDEN` in the client,
   no name in Match-V5), champion and level, role, K/D/A, CS, gold, damage to champions, vision
   (no column on Howling Abyss — ARAM, ARAM: Mayhem… `lib/queues.ts` — or whenever everyone's is
-  0), items and trinket, spells, keystone and secondary tree, grade, `isMe`. Your listed games come
-  from the client (the same read as their grades, cached); any other game from
-  `GET /v1/matches/{platform}/{matchId}` (the backend's match cache); failures aren't cached.
-- **UI**: a match row is a button (`aria-expanded`) with the grade chip (`GradeChip`, the tier
-  list's grade colours) over the place or MVP/ACE. Click, Enter or Space opens the game under it,
-  one at a time; a second click or Escape closes it and gives the focus back; when a game above
-  closes, the page scrolls so the clicked row stays put. The game's code rides in the player
-  page's chunk (`provideDetails` in App.tsx: a chunk of its own would split the chunks it shares
-  with the first screen), loaded on first use with the views' words; meanwhile a skeleton of the
-  table's exact height (540 px, fixed line heights). Hovering a grade, or focusing its row from
-  the keyboard, shows its why: the app's tooltip ("Tooltips" below) anchored to the chip, gone on
-  leave, Escape or a click. The page owner's line is marked.
-  Grades never show in Draft or on the Live cards. Mock: `data/mock/match-fixtures.ts` (a seeded
-  whole game per row, graded by a TS port of the formula), scenarios `match-details-slow`,
-  `match-details-error`, `match-details-gone` and `extreme`; `mock-lcu` serves whole games
-  (`mock_lcu::history`, one player in streamer mode).
+  0), items and trinket, spells, keystone and secondary tree, grade, `isMe`, and the end-of-game
+  stats (`EndOfGameStats`: the League client's post-game Stats tab — largest spree and multikill,
+  first blood, damage to champions by type, to turrets and objectives, taken and self-mitigated,
+  healing, healing and shielding on teammates, wards placed and destroyed, control wards, gold
+  spent, minions, monsters, crowd control, turrets and inhibitors; each `None` when the source
+  doesn't carry it, read by `EndOfGameStats::read` from Riot's names, alike in Match-V5 and the
+  client's `participants[].stats`; a server that doesn't send them yet parses as all `None`).
+  Your listed games come from the client (the same read as their grades, cached); any other game
+  from `GET /v1/matches/{platform}/{matchId}` (the backend's match cache: 45 participant fields
+  compacted, under 11 KB a game, 12,000 kept); failures aren't cached.
+- **UI, the rows**: a match row is a button (`aria-haspopup="dialog"`, `aria-expanded` while its
+  game is open) with the grade chip (`GradeChip`, the tier list's grade colours) over the place or
+  MVP/ACE. Hovering a grade, or focusing its row from the keyboard, shows its why: the app's
+  tooltip ("Tooltips" below) anchored to the chip, gone on leave, Escape or a click. Grades never
+  show in Draft or on the Live cards.
+- **UI, an opened game** (`GameSheet.tsx`, decisions.md "An opened game is a sheet of glass"):
+  click, Enter or Space opens the game in a native modal `<dialog>` over the page (`showModal`:
+  the page behind is inert; labelled by its title, "Victory · Ranked Solo"). The dialog is the
+  whole window — its own box around the sheet is "outside": a press and release there closes it —
+  over `::backdrop`'s `--bg-scrim`; the sheet sits beside the rail, as tall as the window allows,
+  in the app's liquid glass (`liquid(el, "panel")` on a layer inside it, tinted `--bg-float`: the
+  page shows bent along its rim, frosted and tinted in its middle; its shadow on a layer of its
+  own). Its head
+  (champion, result, queue, duration, when, close button) comes from the row at once; its body
+  scrolls (`overscroll-behavior: none`) and holds the teams (`MatchTable`: each named player's
+  Riot ID a link to `playerPath`, which closes the sheet and navigates; hidden players and bots
+  plain text; each grade focusable, its why a tooltip on hover or focus; the runes, spells and
+  items say what they do, the level, damage and a cut name are hover hints) and the stats (`MatchStats.tsx`:
+  groups of rows, the ten players as columns with champion heads on their team's colour, the page
+  owner's column marked, each row's top value marked, a row no player has left out — Howling
+  Abyss drops vision like the teams' column —, a sticky label column and sideways scrolling on
+  narrow sheets). Meanwhile a skeleton of the teams' exact height (540 px); errors in place with a
+  retry when it helps. **Closing**: Escape (a tooltip showing first: design/tip closes it alone), a
+  click outside, the close button, a player's link, and **scroll to close** (`pull.ts`, pure and unit-tested): past the
+  body's end or top, wheel deltas pull the sheet along (`rubber`: follows with resistance, into
+  `translate`), a hint "Keep scrolling to close" shows with a bar filling up to the close; at
+  `WHEEL_CLOSE` (360 px, four notches) it closes, flying out the way it was pulled; after
+  `RELEASE_MS` without a wheel event it springs back. Only deliberate scrolls pull: a wheel gesture
+  (events < `GESTURE_GAP_MS` apart) that scrolled the content stops at the edge, and events
+  shrinking twice in a row (momentum) add nothing, while merged notches (200 then 100) count. A
+  finger dragging past the edge pulls too (`touchPull`, `touchmove` not passive only to hold the
+  page while it pulls) and closes on release past `TOUCH_CLOSE` (140 px). Reduced motion: the sheet
+  stays put, the hint and thresholds work. Focus goes to the body (the keyboard scrolls it), Tab
+  wraps inside, and back to the row on close. The sheet rises in and leaves by `transform`, its
+  glass, content and shadow fade by `opacity` (never the sheet: its glass would lose the page), and
+  nothing runs once it is still (the perf suite measures it open and closed). The code rides in the
+  player page's chunk (`provideDetails` in App.tsx: a chunk of its own weighed 1.5 KB more, its
+  own copies of shared modules), loaded on first use with the views' words. Mock:
+  `data/mock/match-fixtures.ts` (a seeded whole game per row, graded by a TS port of the formula,
+  end-of-game stats from a stream of their own: your games without the teammate rows, as the
+  client's match history, others' with every row), scenarios `match-details-slow`,
+  `match-details-error`, `match-details-gone`, `match-details-unavailable`, `howling-abyss` and
+  `extreme`; `mock-lcu` serves whole games (`mock_lcu::history`, one player in streamer mode, the
+  end-of-game stats in the client's shape).
 
 ## After a game and over time (`companion::post_game`, `companion::lp`, `ui/src/views/home`)
 Home sums up the game that just ended, shows the LP each ranked game was worth, pages further back

@@ -102,6 +102,21 @@
   }
 }
 
+/* As wide as an opened game's sheet: a longer damage bar, and air between vision and items. */
+@container game (width > 999px) {
+  .head,
+  .player {
+    grid-template-columns: 68px minmax(0, 1fr) 96px 130px 52px 40px 46px 160px 56px;
+  }
+  .noVision .head,
+  .noVision .player {
+    grid-template-columns: 68px minmax(0, 1fr) 96px 130px 52px 40px 160px 56px;
+  }
+  .items {
+    padding-left: var(--space-4);
+  }
+}
+
 @container game (max-width: 739px) {
   .head,
   .player {

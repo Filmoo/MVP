@@ -170,6 +170,18 @@ detection, composite player scores, live win probability, sending data to third-
   stay `null`), and the details stay. LCU endpoint (read, declare at product registration):
   `GET /lol-match-history/v1/games/{gameId}` (your listed games only, each read once), next to
   the match list already declared.
+- **Opened games: end-of-game stats and links to players (2026-09-29, built; not gray, noted for
+  the reasoning).** An opened game shows the raw end-of-game numbers of all ten players, those
+  of the League client's own post-game Stats tab (damage by type, healing, wards, gold spent…):
+  what every player of that finished game saw on its end screen, from the same reads as the
+  scoreboard (your listed games from the client, anyone's from Match-V5 on our server); nothing
+  during a game, no rating built on them beyond the grade above. Each **named** player's Riot ID
+  opens their page, like typing it in the search (the game shows the name; the page is looked up
+  on our server when it opens); streamer-mode players and bots are never links, never looked up.
+  *Planned* (next version): the game over time (gold, XP, CS, damage, the teams' gold difference,
+  a kill/death heatmap and positions) from Match-V5's timeline and, for your own games, the
+  client's `GET /lol-match-history/v1/game-timelines/{gameId}` (declare it then): still a
+  finished game only, hidden players drawn anonymously.
 - **LP per game and the post-game summary (2026-09-29, built; not gray, noted for the reasoning
   and the endpoint list).** The League client never says what a game was worth: MVP reads the
   player's own standing before a ranked game and after the client has counted it, and shows the

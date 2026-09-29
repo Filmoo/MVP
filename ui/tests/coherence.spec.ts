@@ -231,16 +231,36 @@ test("/settings searched only uses design tokens", async ({ page }) => {
   }
 });
 
-// An opened match row (its game, or why it can't show) with a grade's why over it.
-for (const scenario of ["default", "extreme", "match-details-error"] as const) {
-  test(`home/${scenario}: an opened game and a grade's why only use design tokens`, async ({ page }) => {
-    await openApp(page, { scenario });
+// An opened game (its sheet, or why it can't show) with a grade's why over it, a player's link
+// hovered, then scrolled to its end-of-game stats, a row hovered (the scroll hint is always
+// drawn, see-through until a pull: audited with the rest).
+for (const { scenario, view } of [
+  { scenario: "default", view: "/" },
+  { scenario: "extreme", view: "/" },
+  { scenario: "howling-abyss", view: "/" },
+  { scenario: "match-details-error", view: "/" },
+  { scenario: "match-details-slow", view: "/" },
+  { scenario: "default", view: "/player/euw1/Blade%20Dancer/IRE" },
+] as const) {
+  test(`${view}/${scenario}: an opened game and a grade's why only use design tokens`, async ({ page }) => {
+    await openApp(page, { scenario, view });
     await page.locator("[data-testid=match-row] > button").first().click();
-    await expect(page.getByTestId("game").locator("[data-testid=game-player], [role=alert]").first()).toBeVisible();
-    await page.locator("[data-grade]").nth(1).hover();
+    const sheet = page.getByTestId("game-sheet");
+    await expect(sheet.locator("[data-testid=game-player], [role=alert], [data-state=loading]").first()).toBeVisible();
+    await animationsDone(page);
+    expect(await page.evaluate(auditTokens), "opened").toEqual([]);
+    if ((await sheet.getByTestId("game-player").count()) === 0) return;
+    await sheet.locator("[data-grade]").nth(1).hover();
     await expect(page.getByTestId("grade-why")).toBeVisible();
     await animationsDone(page);
-    expect(await page.evaluate(auditTokens)).toEqual([]);
+    expect(await page.evaluate(auditTokens), "a grade's why").toEqual([]);
+    await sheet.getByTestId("game").getByRole("link").first().hover();
+    await sheet.getByTestId("game-body").evaluate((el) => {
+      el.scrollTop = el.scrollHeight;
+    });
+    await sheet.getByTestId("game-stats").locator("tbody tr").nth(2).hover();
+    await animationsDone(page);
+    expect(await page.evaluate(auditTokens), "its stats").toEqual([]);
   });
 }
 

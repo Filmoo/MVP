@@ -242,6 +242,43 @@ summoner hovered + description". Design calls:
   by build savings on the same code (shorter CSS module class names, preload lists without the
   startup files, constant classes set once): 128.6 KB of 131 in all, 43.7 of 46 at startup.
 
+## 2026-09-29 — An opened game is a sheet of glass (owner asked, Claude designed)
+Owner: "On DPM, in history, you click on a game and it opens. I'd prefer having an in window match
+preview, with the glass effect. I want to have a scroll to close … after a big enough scroll.
+Should be very intuitive. Can be closed with escape and a click elsewhere. Summoners id should be
+clickable. I also want a detail of the game with raw table that shows stats given at the end of
+the game in client. Only nice information, but complete enough. Keep it sober." Calls:
+- **A modal sheet over the page, not a row that unfolds**: the native `<dialog>` (the page behind
+  inert, focus kept inside and given back to the row), beside the rail, as tall as the window
+  allows (edge to edge over the page's column up to 1359 px), in the "panel" liquid glass (the
+  page bent at the rim, frosted and tinted in the middle: a card's lighter tint let the page's
+  numbers show between the tables' columns). Its head (result, queue, champion, duration, when)
+  shows at once from the row, the game when it lands. Its hovers are the app's tooltips.
+- **Scroll to close, deliberate only**: past the end (or the top) the sheet follows the extra
+  scroll with a rubber band's resistance under "Keep scrolling to close", whose bar fills up;
+  four wheel notches (360 px) close it, flying out the way it was pulled; less springs back half
+  a second after the wheel stops. A gesture that scrolled the game to its edge never pulls (a
+  fast spin, a flick) and momentum never adds up (events shrinking twice in a row), so reading to
+  the end never closes by accident. A finger dragged 140 px past the edge closes on release.
+  Reduced motion: no rubber band, the hint and the thresholds stay.
+- **Riot IDs are links** to the player's page, the search's route (the sheet closes first);
+  hidden players and bots stay plain text, never looked up.
+- **The raw stats, like the client's Stats tab, sober**: 26 rows in six groups (combat, damage
+  dealt with the damage by type under "To champions", damage taken and healing, vision, income,
+  objectives), the ten players as columns with their champions as heads on their team's colour
+  (blue won, rose lost, like the teams above), your column (or the page owner's) tinted, each
+  row's top value the only one in full white and bold. A row nobody has is left out (Howling
+  Abyss: no vision, no monsters; the League client's match history has no healing or shielding
+  on teammates), never a row of zeros. Left out as noise: total damage dealt (minions), largest
+  critical strike, the time spent living.
+- **Budget**: the sheet (with its gestures), the links, the table and their words cost 4.4 KB of
+  JS (still in the player page's chunk: a chunk of its own weighed 1.5 KB more): 130.5 KB of the
+  131 KB total once the first screen became one chunk (126.1 before the sheet), within the
+  budget with 0.5 KB left; startup unchanged.
+- **Planned, not built**: the game over time (graphs of gold, XP, CS and damage, the teams' gold
+  difference, a kill/death heatmap and positions, animated): HANDOFF "Planned for the next
+  version".
+
 ## 2026-09-29 — A private roadmap at dev.mvpgg.com (owner asked, Claude built)
 Owner: a todo list on our server, only for the repo's admins (the owner and Claude), each feature with
 a way to accept, create and remove, Claude proposing as it works, split by versions; "a cool

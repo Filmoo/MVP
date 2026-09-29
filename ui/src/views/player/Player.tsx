@@ -65,9 +65,9 @@ export default function Player(): JSX.Element {
   );
 }
 
-// An opened match row's code rides in this chunk: Home's match history loads it from here too,
-// so does Home's summary of the last game, and every page its tooltips (design/tip, which an
-// opened game uses; see App.tsx).
+// An opened game's code rides in this chunk: Home's match history loads it from here too, so
+// does Home's summary of the last game, and every page its tooltips (design/tip, which an opened
+// game uses; see App.tsx).
 export { hint as tipHint } from "../../design/tip/Tip";
-export { hint, MatchDetails } from "../home/MatchDetails";
+export { GameSheet, hint } from "../home/GameSheet";
 export { PostGameCard } from "../home/PostGame";

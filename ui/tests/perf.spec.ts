@@ -109,6 +109,39 @@ for (const view of ["/tier-list", "/champions?id=103", "/champions"]) {
   });
 }
 
+// An opened game (its sheet of glass, the whole game, the stats table): once it has risen in,
+// as quiet as the page under it; closed, too.
+test("idle with a game open: no scripts, layouts or style work", async ({ page }) => {
+  await openApp(page, { freezeClock: false });
+  await page.locator("[data-testid=match-row] > button").first().click();
+  await expect(page.getByTestId("game-stats")).toBeVisible();
+  await settle(page);
+  await page.waitForTimeout(800);
+  const measure = async () => {
+    const cdp = await cdpFor(page);
+    const before = await metrics(cdp);
+    await page.waitForTimeout(3_000);
+    const after = await metrics(cdp);
+    await cdp.detach();
+    return {
+      scriptMs: ((after.ScriptDuration ?? 0) - (before.ScriptDuration ?? 0)) * 1_000,
+      layouts: (after.LayoutCount ?? 0) - (before.LayoutCount ?? 0),
+      styleRecalcs: (after.RecalcStyleCount ?? 0) - (before.RecalcStyleCount ?? 0),
+    };
+  };
+  const open = await measure();
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("game-sheet")).toHaveCount(0);
+  await page.waitForTimeout(800);
+  const closed = await measure();
+  results.idleGame = { open, closed };
+  for (const [state, idle] of Object.entries({ open, closed })) {
+    expect(idle.scriptMs, `${state}: script ms`).toBeLessThanOrEqual(budgets.idle.scriptMs);
+    expect(idle.layouts, `${state}: layouts`).toBeLessThanOrEqual(budgets.idle.layouts);
+    expect(idle.styleRecalcs, `${state}: style recalcs`).toBeLessThanOrEqual(budgets.idle.styleRecalcs);
+  }
+});
+
 test("switching views is instant and memory stays small", async ({ page }) => {
   await openApp(page, { freezeClock: false });
   const switches: Record<string, number> = {};

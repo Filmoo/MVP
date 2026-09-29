@@ -203,7 +203,7 @@ fn full_game() -> Value {
             } else {
                 format!("Player {i}")
             };
-            json!({
+            let mut player = json!({
                 "puuid": format!("full-{i}"), "riotIdGameName": name, "riotIdTagline": "EUW",
                 "teamId": if blue { 100 } else { 200 }, "win": blue,
                 "teamPosition": positions[lane], "championId": 100 + i, "champLevel": 15,
@@ -218,7 +218,23 @@ fn full_game() -> Value {
                     { "style": 8000, "selections": [{ "perk": 8008 }, { "perk": 9111 }] },
                     { "style": 8100, "selections": [{ "perk": 8143 }] }
                 ] }
-            })
+            });
+            // The end-of-game stats (one `json!` would be too deep for the macro).
+            let end_of_game = json!({
+                "largestKillingSpree": if i == 2 { 7 } else { 2 }, "largestMultiKill": 1 + i % 3,
+                "firstBloodKill": i == 2, "physicalDamageDealtToChampions": 5_000,
+                "magicDamageDealtToChampions": 9_000 + 1_000 * i,
+                "trueDamageDealtToChampions": 1_000, "damageDealtToTurrets": 2_000 + 100 * i,
+                "totalHeal": 3_000, "totalHealsOnTeammates": if lane == 4 { 5_500 } else { 0 },
+                "totalDamageShieldedOnTeammates": if lane == 4 { 7_200 } else { 0 },
+                "wardsPlaced": 8 + i, "wardsKilled": 2, "visionWardsBoughtInGame": 3,
+                "goldSpent": 10_000 + 100 * i, "timeCCingOthers": 10 + i,
+                "turretKills": u32::from(blue), "inhibitorKills": u32::from(i == 3)
+            });
+            if let (Some(player), Value::Object(more)) = (player.as_object_mut(), end_of_game) {
+                player.extend(more);
+            }
+            player
         })
         .collect();
     json!({
@@ -794,6 +810,26 @@ async fn match_details_come_from_the_match_cache() {
         (Some(8008), Some(8100))
     );
     assert!(mid.get("puuid").is_none(), "no PUUIDs go out");
+    // The end-of-game stats, through the compacted match cache.
+    assert_eq!(
+        mid["stats"],
+        json!({ "largestKillingSpree": 7, "largestMultiKill": 3, "firstBlood": true,
+                "physicalDamageToChampions": 5_000, "magicDamageToChampions": 11_000,
+                "trueDamageToChampions": 1_000, "damageToTurrets": 2_200,
+                "damageToObjectives": 4_000, "damageTaken": 20_000, "damageSelfMitigated": 7_000,
+                "healing": 3_000, "healingOnTeammates": 0, "shieldingOnTeammates": 0,
+                "wardsPlaced": 10, "wardsDestroyed": 2, "controlWards": 3, "goldSpent": 10_200,
+                "minions": 172, "monsters": 8, "crowdControlSeconds": 12,
+                "turretsDestroyed": 1, "inhibitorsDestroyed": 0 })
+    );
+    let support = &teams[0]["players"][4]["stats"];
+    assert_eq!(
+        (
+            &support["healingOnTeammates"],
+            &support["shieldingOnTeammates"]
+        ),
+        (&json!(5_500), &json!(7_200))
+    );
     // Riot withheld the name: it stays hidden.
     let jungler = &teams[1]["players"][1];
     assert_eq!(jungler["riotId"], Value::Null);
