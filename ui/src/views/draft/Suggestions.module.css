@@ -257,3 +257,31 @@
     display: block;
   }
 }
+
+/* ARAM: Mayhem: the champion's most picked augments under its name. */
+.augments {
+  grid-area: augs;
+  display: flex;
+  min-width: 0;
+}
+
+.augmented {
+  grid-template-areas:
+    "icon name pct"
+    "icon chips pct"
+    "icon augs pct";
+}
+
+@container suggestions (min-width: 720px) {
+  .augmented {
+    grid-template-areas:
+      "icon name chips delta pct"
+      "icon augs chips delta pct";
+  }
+  .augmented .nameLine {
+    align-self: end;
+  }
+  .augmented .augments {
+    align-self: start;
+  }
+}

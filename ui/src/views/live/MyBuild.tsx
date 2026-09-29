@@ -9,7 +9,9 @@ import { createQuery } from "../../lib/query";
 import { roleLabel } from "../../lib/roles";
 import { asStatsQueue, bracketLabel, scopeLabel } from "../../lib/stats";
 import { filters } from "../../lib/stats-filters";
+import { Widget } from "../../widgets/Widget";
 import { ChampionBuilds } from "../champions/Champions";
+import { ChampionAugments, isMayhem } from "../mayhem/parts";
 import { StatsProblem, useStatsIndex } from "../stats/common";
 import styles from "./Live.module.css";
 
@@ -37,10 +39,17 @@ export function MyBuild(props: { game: LiveGame }): JSX.Element {
     return id ? (gameData()?.champions.get(id)?.name ?? t().common.championN(id)) : t().common.yourChampion;
   };
   const role = () => (queue() === 450 ? undefined : (me()?.role ?? undefined));
+  // ARAM: Mayhem: the augments first (known before the game: nothing reacts to its offers), then
+  // ARAM's build, said to be ARAM's.
+  const mayhem = () => isMayhem(props.game.queueId);
 
   const scope = () => {
     const q = queue();
     return q ? t().imports.mostPlayedIn(q, bracketLabel(filters().bracket)) : "";
+  };
+  const link = (id: number) => {
+    const extra = mayhem() ? "&mode=mayhem" : role() ? `&role=${role()}` : "";
+    return `#/champions?id=${id}${extra}`;
   };
 
   return (
@@ -54,9 +63,21 @@ export function MyBuild(props: { game: LiveGame }): JSX.Element {
               {role() ? ` · ${roleLabel(role() ?? "top")}` : ""}
             </span>
             <span class={styles.buildScope}>
-              {scope()} · <a href={`#/champions?id=${id()}${role() ? `&role=${role()}` : ""}`}>{t().live.build.page}</a>
+              {scope()} · <a href={link(id())}>{t().live.build.page}</a>
             </span>
           </p>
+        )}
+      </Show>
+      <Show when={mayhem() && me()?.championId}>
+        {(id) => (
+          <>
+            <Card title={t().mayhem.of(name())}>
+              <Widget name="mayhem-champion">
+                <ChampionAugments championId={id()} name={name()} full />
+              </Widget>
+            </Card>
+            <p class={styles.buildScope}>{t().mayhem.aramNote}</p>
+          </>
         )}
       </Show>
       <Switch>

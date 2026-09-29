@@ -34,6 +34,7 @@ const Player = lazy(playerPage);
 provideDetails(playerPage);
 const Champions = lazy(withWords(() => import("../views/champions/Champions")));
 const TierList = lazy(withWords(() => import("../views/tierlist/TierList")));
+const Mayhem = lazy(withWords(() => import("../views/mayhem/Mayhem")));
 // Test-only page of mock builds (the desktop build leaves it out with the mock).
 const Harness = __MVP_MOCK__ ? lazy(withWords(() => import("../widgets/Harness"))) : () => null;
 const Banners = lazy(withWords(() => import("./Banners")));
@@ -147,6 +148,9 @@ export function App(): JSX.Element {
             </Match>
             <Match when={path() === "/tier-list"}>
               <TierList />
+            </Match>
+            <Match when={path() === "/mayhem"}>
+              <Mayhem />
             </Match>
             <Match when={path() === "/settings"}>
               <Settings />

@@ -397,6 +397,54 @@ export const enViews = {
     buildRecord: (n: number) => `win rate · ${games(n)} ${plural(n, "game", "games")}`,
   },
 
+  /** ARAM: Mayhem's augments: MVP's tiers and pick rates from shared games, never win rates. */
+  mayhem: {
+    augments: "Augments",
+    rarity: "Rarity",
+    rarities: { silver: "Silver", gold: "Gold", prismatic: "Prismatic" },
+    all: "All",
+    /** A tier's heading: `S tier`. */
+    tier: (tier: string) => `${tier} tier`,
+    /** Why an augment stands where it does: `S tier · #2`. */
+    ranked: (tier: string, rank: number) => `${tier} tier · #${rank}`,
+    untiered: "Not tiered yet",
+    /** Over every champion: `picked in 12.4% of games`. */
+    picked: (pct: string) => `picked in ${pct} of games`,
+    /** One champion's: `picked in 34% of Kog'Maw games`. */
+    pickedBy: (pct: string, champion: string) => `picked in ${pct} of ${champion} games`,
+    /** An item's share of the champion's games: `in 62% of games`. */
+    held: (pct: string) => `in ${pct} of games`,
+    tiersOf: (patch: string) => `MVP's tiers · patch ${patch}`,
+    tiersBy: "MVP's tiers",
+    shared: (n: number) => `${games(n)} shared ${plural(n, "game", "games")}`,
+    order: {
+      byRate: (champion: string, n: number) =>
+        `By MVP's tiers, then by how often ${champion} players pick them (${games(n)} shared games).`,
+      byTier: (champion: string, n: number, min: number) =>
+        `By MVP's tiers: ${champion} has ${games(n)} of the ${min} shared games needed to add its pick rates.`,
+      byPicks: (champion: string, n: number) => `No tiers yet: by how often ${champion} players pick them (${games(n)} shared games).`,
+    },
+    none: "Nothing to rank yet: no tiers, and not enough shared games.",
+    mostPicked: "Most picked",
+    items: "Common items",
+    of: (champion: string) => `${champion}'s augments`,
+    champion: "Champion",
+    search: "Filter by champion",
+    clear: "All champions",
+    page: "Mayhem page",
+    aramBuilds: "ARAM builds",
+    aramNote: "From ARAM games: Riot keeps Mayhem games private, so none are counted.",
+    noTiers: { title: "No tiers yet", text: "MVP's tiers for Mayhem's augments are on their way. Meanwhile, every augment is listed." },
+    noShared: {
+      title: "No shared Mayhem games yet",
+      text: "Turn on “Help build Mayhem stats” in Settings: your Mayhem games then count in the pick rates.",
+      link: "Open Settings",
+    },
+    unbuilt: { title: "Augments aren't available yet", text: "MVP's server is reading this patch's augments. Try again in a few minutes." },
+    failed: "Couldn't load Mayhem's augments",
+    note: "Tiers are MVP's own picks, made by hand: inside a tier, the first is the best. Pick rates count the games players share with “Help build Mayhem stats”. No win rates: Riot doesn't allow them for augments. Nothing here reacts to what your game offers.",
+  },
+
   /** Stat shards (Data Dragon doesn't describe them). */
   shards: {
     rows: { offense: "Offense", flex: "Flex", defense: "Defense" },
@@ -440,6 +488,11 @@ export const enViews = {
       title: "Stats",
       bracket: "Rank",
       bracketText: "Games from this rank up count for Draft, imported builds, and the stats pages at first.",
+      shareMayhem: {
+        title: "Help build Mayhem stats",
+        text: "After each ARAM: Mayhem game (and once for your recent ones when you turn this on), MVP sends every player's champion, augments and final items to its server, with a one-way code for the game. No names, no player ids, no wins.",
+      },
+      sharePaused: "Sharing is paused for everyone for now. Your choice is kept.",
     },
     imports: {
       title: "Imports",
@@ -523,6 +576,7 @@ export const enViews = {
         spells: "ignite, teleport",
         flashKey: "D, F, hotkey, keybind",
         bracket: "elo, ranked, tier",
+        shareMayhem: "augments, ARAM Mayhem, share, statistics",
         language: "English, French, Français",
         closeToTray: "minimize, background, systray, exit",
         launchAtStartup: "boot, autostart",

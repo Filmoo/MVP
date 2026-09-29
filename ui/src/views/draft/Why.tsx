@@ -10,11 +10,12 @@ import { Segmented } from "../../design/Segmented";
 import { t } from "../../i18n";
 import { decimal, percent, percentOf100, signedPoints } from "../../lib/format";
 import { Widget } from "../../widgets/Widget";
+import { ChampionAugments } from "../mayhem/parts";
 import { CompChange, Comps } from "./Comps";
 import styles from "./Why.module.css";
 
-/** What the panel explains: the selected pick, or both teams' compositions. */
-export type WhyTab = "pick" | "teams";
+/** What the panel explains: the selected pick, both teams' compositions, or (Mayhem) its augments. */
+export type WhyTab = "pick" | "teams" | "augments";
 
 /** Bars span ±5 pp. */
 const SCALE = 5;
@@ -114,19 +115,29 @@ export function Why(props: {
   aram?: boolean;
   /** The champion you hover or have: your team's composition already holds it. */
   mine?: number | null | undefined;
+  /** ARAM: Mayhem: the champion whose augments the third tab shows (`undefined`: not Mayhem). */
+  augments?: number | null | undefined;
   tab?: WhyTab;
   onTab?: (tab: WhyTab) => void;
 }): JSX.Element {
   const { gameData } = useData();
   const name = (id: number) => gameData()?.champions.get(id)?.name ?? t().common.championN(id);
   const teams = () => props.tab === "teams";
+  const augments = () => props.tab === "augments";
+  const pick = () => !teams() && !augments();
   const tabs = () => [
     { value: "pick" as const, label: t().why.tabs.pick },
     { value: "teams" as const, label: t().why.tabs.teams },
+    ...(props.augments === undefined ? [] : [{ value: "augments" as const, label: t().mayhem.augments }]),
   ];
+  const title = () => {
+    if (teams()) return t().why.teamsTitle;
+    if (augments()) return props.augments ? t().mayhem.of(name(props.augments)) : t().mayhem.augments;
+    return t().why.title(props.suggestion ? name(props.suggestion.championId) : undefined);
+  };
   return (
     <Card
-      title={teams() ? t().why.teamsTitle : t().why.title(props.suggestion ? name(props.suggestion.championId) : undefined)}
+      title={title()}
       actions={
         <Show when={props.onTab}>
           {(onTab) => (
@@ -144,19 +155,26 @@ export function Why(props: {
       }
       class={styles.card}
       scroll
-      backdrop={
-        <Show when={!teams() && props.suggestion}>{(s) => <ChampionArt championId={s().championId} class={styles.art} light />}</Show>
-      }
+      backdrop={<Show when={pick() && props.suggestion}>{(s) => <ChampionArt championId={s().championId} class={styles.art} light />}</Show>}
     >
       <Show when={teams()}>
         <Widget name="draft-comps">
           <Comps comps={props.comps ?? null} data={props.data ?? null} aram={props.aram ?? false} />
         </Widget>
       </Show>
+      <Show when={augments()}>
+        <Show when={props.augments} fallback={<p class={styles.meta}>{t().why.empty}</p>}>
+          {(id) => (
+            <Widget name="mayhem-champion">
+              <ChampionAugments championId={id()} name={name(id())} />
+            </Widget>
+          )}
+        </Show>
+      </Show>
       <Show
-        when={!teams() && props.suggestion}
+        when={pick() && props.suggestion}
         fallback={
-          <Show when={!teams()}>
+          <Show when={pick()}>
             <p class={styles.meta}>{t().why.empty}</p>
           </Show>
         }
