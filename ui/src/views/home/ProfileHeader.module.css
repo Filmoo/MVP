@@ -206,6 +206,40 @@
   background: var(--win);
 }
 
+/* LP over the ranked games MVP followed: the line and its sum, up blue, down rose. */
+.trend {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.trend[data-lp="1"] {
+  color: var(--win);
+}
+.trend[data-lp="-1"] {
+  color: var(--loss);
+}
+
+.trend svg {
+  flex: none;
+  overflow: visible;
+}
+
+.trend polyline {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.trend circle {
+  fill: currentColor;
+}
+
 /* Recent form: one pip per game, newest first (under its label when the column is narrow). */
 .form {
   display: flex;

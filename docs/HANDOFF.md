@@ -54,17 +54,34 @@ check the latest run before building on it.
    composition readings and ARAM length buckets (job 9), the draft model (job 4).
 7. Crawl again for `compositions.json` (older games lack the numbers); check real published files
    against the pages (sizes, thin Master+ data, `n = 0` sections).
-8. Bundle: at 45.1 / 46 KB and 123.1 / 125 KB. Look for savings before the next feature: lazy
-   views re-list ~6 startup files in their preload lists; shared startup code splits into a new
-   chunk whenever a lazy chunk imports part of it.
+8. Bundle: startup JS 43.7 / 46 KB, startup CSS 10.8 / 12 KB, total JS 128.6 / 131 KB with the
+   tooltips (they cost ~2.7 KB of JS in all, words in both languages included; the app before
+   them and the savings below measured 45.5 / 11.4 / 130.4 at 9472c3c). Three build savings paid
+   for them, the same code made smaller: CSS modules' class names are the local name and one hash
+   of the file (`tip_k3Zq9`, `scopedName` in `ui/vite.config.ts`; the default added each class's
+   line number, ~2.1 KB of JS and 0.6 KB of startup CSS); the lazy views' preload lists no longer
+   re-list the startup files, JS or CSS (`startupChunks`, ~0.4 KB); and constant classes
+   (`class={styles.x}`, or a template of such names and plain words) are set once: `onceClasses`
+   writes Solid's `/*@once*/` on them at build time, where Solid compiled each into an effect
+   (~2.7 KB of JS, 1.0 KB of it at startup). Known traps: shared startup code splits into a new
+   chunk whenever a lazy chunk imports part of it (the tooltips ride in the player page's chunk
+   for that reason: a chunk of their own split `solid-js/web` out of the startup chunk, +0.3 KB);
+   Solid drops `@once` on JSX inside an expression (`{open() && <p class=…>}`, `{list.map(…)}`),
+   whose classes stay effects.
+   *(2026-09-29, the post-game branch)* The first screen is one chunk now (`vite.config.ts`, a
+   `codeSplitting` group of every module the entry reaches: 17 startup files → 1, 44.9 → 38.2 KB
+   startup and 123.6 → 115.9 KB in all when it landed, before the post-game, LP, history and
+   mastery work), so startup code no longer splits when a lazy chunk imports part of it. Lazy
+   chunks import from the entry chunk: `main.tsx` must not await at its top level (a module paused
+   there makes them wait forever: a blank page).
 9. Production Riot key: register the product (policy.md lists the endpoints to declare); a dev
    key crawls ~2k games a day.
 
 **To implement next** (none started)
-- Match history: filters (queue, champion), "load more", LP won/lost per game and a post-game
-  summary card.
-- Tier list trends (this patch against the last: win/pick rate arrows) and champion mastery on
-  the profile.
+- Tier list trends (this patch against the last: win/pick rate arrows).
+- *(built 2026-09-29, against mock-lcu only: see "After a game" in the checklist below)* the
+  post-game summary on Home, LP won/lost per ranked game (rows and the ranked pane's graph),
+  history filters and "load more", champion mastery on your profile.
 - The updater's `requireSignedVersion` once signatures carry the version (job 6).
 - Later, by the owner's earlier calls: an in-game overlay (the architecture is ready for it, not
   wanted yet); no ban suggestions, no AI picks.
@@ -83,7 +100,10 @@ Everything below is merged on `claude/upbeat-hamilton-0bms1t` and green on
   Champions pages (builds, runes, items, matchups), Live's "My build" tab, Settings (auto-accept
   opt-in, imports, stats rank, window follows the game, close to tray, launch at startup, visual
   effects, language). English and French. Liquid glass that refracts the page behind it, ambient
-  light sampled from champion art, Riot's ranked emblems (downloaded at run time).
+  light sampled from champion art, Riot's ranked emblems (downloaded at run time). Tooltips on
+  every rune, stat shard, summoner spell and item (hover and keyboard focus): a card with the
+  thing's icon and art and its full text (architecture.md "Tooltips"; built against mock-lcu and
+  the dev cache only).
 - **Backend** `apps/backend` (`mvp-backend`): player profiles, batch scouting, `/v1/stats/*` file
   serving, caches. **Crawler** `apps/crawler` (`mvp-crawler crawl|publish|status`) + `crates/aggregate`:
   Emerald+ ranked/ARAM aggregates → per-patch JSON (tier list, builds, matchups, priors).
@@ -318,6 +338,42 @@ Match insights (Home after a few games; a player page with the backend running):
   page owner's) is marked; Escape closes and the row keeps the focus.
 - **Grades look right:** the MVP is the best of the winners, an obviously bad game gets a C, a
   support with high vision isn't punished for low CS, and the why's facts match the end screen.
+
+After a game (Home; the logs say "LP of the game", "game not in the history yet", "the client
+didn't count the game in time"):
+- **Post-game summary:** a ranked game ends → the window comes Home (autopilot) and the card tops
+  it within seconds of the end screen: result, grade and its facts, your numbers against your
+  lane opponent (check the roles: the opponent must be your role on the other team), then the LP
+  when the client counts it (check `/lol-ranked/v1/current-ranked-stats` fires its event after a
+  game; else the LP comes from the retries within two minutes). Close it: it doesn't come back;
+  the next champion select hides it too. ARAM: the closest share of damage, no LP.
+- **LP:** compare MVP's `+19 LP` with the client's end screen over a few games, a promotion and a
+  demotion included (MVP counts 100 LP per division: a demotion to 75 LP shows the ladder
+  difference, not the client's "−20"); `lp-history.json` in `%APPDATA%\gg.mvp.companion`; a
+  restart during a game still gets its LP. Remakes: no LP, no grade.
+- **Load more:** how far back `begIndex`/`endIndex` goes on a real client (20 per page; the end
+  shows "No older games"), and that older games grade and open like the first 20.
+- **Mastery:** the champions card's five portraits match the client's mastery (levels past 7 read
+  as numbers).
+
+Tooltips (a champion page, an opened game, Live's cards; the app in English, then in French):
+- **Texts:** a rune's full text (the client's rune page), an item's stats and passives, a spell's
+  text and cooldown read like the League client's, in the UI's language (`fr_FR` files); an item of
+  another mode (Arena, ARAM's) still has one; no `@value@` ever shows (those fall back to the
+  short text, or to the name alone).
+- **Stat shards:** the first shard tooltip downloads the client's `perks.json` from
+  CommunityDragon (`…/raw.communitydragon.org/<patch>/…`, else `latest`) and keeps
+  `shards.json` beside the patch's Data Dragon files (`%LOCALAPPDATA%\gg.mvp.companion\ddragon\
+  <version>\<locale>\`); its values match the client's (e.g. +2.5 % move speed); offline on a first
+  start the UI's own words show, and the log says "stat shard texts unavailable".
+- **The card:** its icon and the blurred picture behind are the hovered thing's (a shard: its
+  glyph and colour); it stays inside the window near every edge at 100 % and 150 % scaling; Tab
+  reaches the icons of a champion page and of an opened game (not inside a match row), Escape
+  closes only the tooltip; nothing runs once it's gone (Task Manager: the webview at rest).
+- **Compact cards:** the title bar's client status explains itself on hover, and **dragging the
+  window from it still moves the window** (it became a drag region of its own to be hoverable);
+  the window buttons, the rail, tier badges (a click on one in the tier list still opens the
+  champion), build numbers, matchups, a disabled import button: each says what it means.
 
 Platform services (a `config.json` in the backend's data dir drives the config; config and
 crash reports work with a local backend and `pnpm app`, updates need a release build with the

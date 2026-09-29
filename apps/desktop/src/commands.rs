@@ -3,16 +3,17 @@
 use companion::settings::SettingsStore;
 use companion::stats::StatsClient;
 use domain::{
-    AppInfo, BackendError, Bracket, ChampionPage, ClientError, ClientStatus, DraftView, GameData,
-    GradedMatch, ImportRequest, ImportResult, ImportWarning, Language, LiveGame, MatchDetails,
-    PlayerProfile, RankEmblems, RemoteConfig, RiotId, Settings, StatsIndex, TierList, UpdateStatus,
+    AppInfo, BackendError, Bracket, ChampionMastery, ChampionPage, ClientError, ClientStatus,
+    Description, DescriptionKind, DraftView, GameData, GradedMatch, ImportRequest, ImportResult,
+    ImportWarning, Language, LiveGame, LpGame, MatchDetails, MatchSummary, PlayerProfile, PostGame,
+    RankEmblems, RemoteConfig, RiotId, Settings, StatsIndex, TierList, UpdateStatus,
 };
 use tauri::{Emitter as _, Manager as _};
 use tauri_plugin_autostart::ManagerExt as _;
 
 use crate::core::{
-    Backend, Core, Crashes, EmblemState, GameDataState, InstallId, LogFile, Remote, Stats,
-    UiLanguage,
+    Backend, Core, Crashes, EmblemState, GameDataState, InstallId, LogFile, Remote, ShardTexts,
+    Stats, UiLanguage, ddragon_cache,
 };
 use crate::updater::Updates;
 use crate::{diagnostics, logging};
@@ -205,6 +206,83 @@ pub async fn match_details(
         .await
 }
 
+/// Your games further back than `current_profile`'s: `beg_index` and the 19 after it (fewer, or
+/// none, at the end of the history), graded and opened like the first page's.
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub async fn older_matches(
+    app: tauri::AppHandle,
+    beg_index: u32,
+) -> Result<Vec<MatchSummary>, ClientError> {
+    let core = app.try_state::<Core>().ok_or_else(|| ClientError::Failed {
+        message: "MVP is still starting, try again in a moment".to_owned(),
+    })?;
+    let client = core.client.borrow().clone();
+    let client = client.ok_or(ClientError::NotAnswering)?;
+    core.matches
+        .older(&client, beg_index)
+        .await
+        .map_err(|error| companion::profile::client_error(&error))
+}
+
+/// The summary of the game that just ended, `None` once dismissed or when the next game starts
+/// (`post-game` events follow).
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub fn post_game(app: tauri::AppHandle) -> Option<PostGame> {
+    app.try_state::<Core>()
+        .and_then(|core| core.post_game.current())
+}
+
+/// The player closed the summary of `match_id`: it doesn't come back.
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub fn dismiss_post_game(app: tauri::AppHandle, match_id: String) {
+    if let Some(core) = app.try_state::<Core>() {
+        core.post_game.dismiss(&match_id);
+    }
+}
+
+/// The LP of each ranked game MVP followed (solo/duo and flex), newest first.
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub fn lp_history(app: tauri::AppHandle) -> Vec<LpGame> {
+    app.try_state::<Core>()
+        .map(|core| core.post_game.lp_history())
+        .unwrap_or_default()
+}
+
+/// Your champions by mastery points (the League client's), most first; empty while the client
+/// isn't running.
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub async fn champion_mastery(app: tauri::AppHandle) -> Result<Vec<ChampionMastery>, String> {
+    let client = app
+        .try_state::<Core>()
+        .and_then(|core| core.client.borrow().clone());
+    let Some(client) = client else {
+        return Ok(Vec::new());
+    };
+    companion::profile::mastery(&client)
+        .await
+        .map_err(|error| error.to_string())
+}
+
 /// Current champion select, `None` outside of it (`draft` events follow changes).
 #[tauri::command]
 #[allow(
@@ -233,6 +311,40 @@ pub fn game_data(app: tauri::AppHandle, language: Option<Language>) -> Option<Ga
     let locale = language.unwrap_or_default().data_dragon_locale();
     state.want(locale);
     state.get(locale)
+}
+
+/// What a rune, stat shard, summoner spell or item does, in the loaded game data's patch and
+/// language (so it reads like the names next to it); `None` without game data or without a
+/// text for it. Read when a tooltip first shows it: from Data Dragon's cached files, and for
+/// stat shards from `CommunityDragon` (downloaded once per patch and language, then cached).
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub async fn game_description(
+    app: tauri::AppHandle,
+    kind: DescriptionKind,
+    id: u32,
+) -> Option<Description> {
+    let (version, locale) = app.try_state::<GameDataState>()?.loaded()?;
+    let source = static_data::DataDragon::new(static_data::DDRAGON, ddragon_cache(&app)?, locale)
+        .inspect_err(|error| tracing::warn!(%error, "no Data Dragon client"))
+        .ok()?;
+    if kind == DescriptionKind::Shard {
+        let shards = app.try_state::<ShardTexts>()?;
+        return shards
+            .get(&source, &version, locale)
+            .await
+            .get(&id)
+            .cloned();
+    }
+    source
+        .describe(&version, kind, id)
+        .await
+        .inspect_err(|error| tracing::debug!(%error, ?kind, id, "no description"))
+        .ok()
+        .flatten()
 }
 
 /// Riot's ranked emblems, `None` until downloaded or read from the cache (`rank-emblems` follows).

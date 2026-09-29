@@ -1,6 +1,7 @@
-import { type Accessor, createResource, createSignal, For, type JSX, lazy, Show, Suspense } from "solid-js";
+import { type Accessor, createEffect, createSignal, For, type JSX, lazy, Show, Suspense } from "solid-js";
 import { useData } from "../../data/context";
 import type { GradedMatch } from "../../data/generated/GradedMatch";
+import type { LpGame } from "../../data/generated/LpGame";
 import type { MatchGrade } from "../../data/generated/MatchGrade";
 import type { MatchSummary } from "../../data/generated/MatchSummary";
 import type { RiotId } from "../../data/generated/RiotId";
@@ -9,14 +10,17 @@ import { ChampionIcon, ItemIcon } from "../../design/GameIcon";
 import { EmptyState, Skeleton } from "../../design/States";
 import { t } from "../../i18n";
 import { groupByDay } from "../../lib/days";
-import { duration, kda, kdaRatio, perMinute, queueName, REMAKE_MAX_SECONDS, timeAgo } from "../../lib/format";
+import { duration, kda, kdaRatio, perMinute, queueName, REMAKE_MAX_SECONDS, signedPoints, timeAgo } from "../../lib/format";
 import { GradeChip } from "./GradeChip";
 import styles from "./RecentMatches.module.css";
 
 const ITEM_SLOTS = 6;
 
-/** What an opened row and a grade's why need (`MatchDetails.tsx`), loaded on first use. */
-type Details = Pick<typeof import("./MatchDetails"), "MatchDetails" | "hint">;
+/**
+ * What an opened row, a grade's why and the last game's summary need (`MatchDetails.tsx`,
+ * `PostGame.tsx`), loaded on first use.
+ */
+type Details = Pick<typeof import("./MatchDetails") & typeof import("./PostGame"), "MatchDetails" | "hint" | "PostGameCard">;
 let load: () => Promise<Details>;
 let loading: Promise<Details> | undefined;
 
@@ -28,7 +32,7 @@ let loading: Promise<Details> | undefined;
 export function provideDetails(from: () => Promise<Details>): void {
   load = from;
 }
-const chunk = () => (loading ??= load());
+export const chunk = () => (loading ??= load());
 const Details = lazy(() => chunk().then((m) => ({ default: m.MatchDetails })));
 
 /** DPM-style KDA coloring: perfect, great ≥ 5, good ≥ 3, poor < 1.5. */
@@ -43,6 +47,8 @@ function kdaBand(value: number | null): string {
 function MatchRow(props: {
   match: MatchSummary;
   grade: MatchGrade | null;
+  /** The LP it was worth (your ranked games MVP followed). */
+  lp?: LpGame | undefined;
   open: boolean;
   focus: RiotId | undefined;
   onToggle: (row: HTMLElement) => void;
@@ -68,7 +74,16 @@ function MatchRow(props: {
       >
         <ChampionIcon championId={m().championId} size={40} />
         <span class={styles.outcome}>
-          <span class={styles.result}>{t().matches.outcome[outcome()]}</span>
+          <span class={styles.result}>
+            {t().matches.outcome[outcome()]}
+            <Show when={props.lp}>
+              {(lp) => (
+                <span class={`${styles.lp} num`} data-lp={Math.sign(lp().delta)}>
+                  {t().matches.lp(signedPoints(lp().delta, 0))}
+                </span>
+              )}
+            </Show>
+          </span>
           <span class={styles.sub}>
             {champion()} · {queueName(m().queueId)}
           </span>
@@ -125,24 +140,25 @@ export type LateGrades = Accessor<ReadonlyMap<string, GradedMatch> | undefined>;
  * Your own games come without their grades (a grade needs the whole game): the core reads them
  * from the client after the list, once, and answers each game's grade with the role you played
  * there (the list only guesses it). Other players' games come graded: nothing to ask.
+ *
+ * Each game of `matches` is asked for once (a new list from the core asks again for its games
+ * without a grade), and the answers add up: games coming and going (filters, older pages) never
+ * blank the chips already there.
  */
 export function createLateGrades(matches: Accessor<readonly MatchSummary[]>): LateGrades {
   const { transport } = useData();
-  const [late] = createResource(
-    () => {
-      const ids = matches()
-        .filter((m) => !m.grade && m.durationSeconds > REMAKE_MAX_SECONDS)
-        .map((m) => m.matchId);
-      return ids.length > 0 && ids;
-    },
-    (matchIds) =>
-      transport.call("match_grades", { matchIds }).then(
-        (list) => new Map(list.map((g) => [g.matchId, g])),
-        () => new Map<string, GradedMatch>(),
-      ),
-  );
-  // Read only once ready: a pending resource would suspend the page.
-  return () => (late.state === "ready" ? late() : undefined);
+  const [late, setLate] = createSignal<ReadonlyMap<string, GradedMatch>>();
+  const asked = new WeakSet<MatchSummary>();
+  createEffect(() => {
+    const wanted = matches().filter((m) => !m.grade && m.durationSeconds > REMAKE_MAX_SECONDS && !asked.has(m));
+    if (wanted.length === 0) return;
+    for (const m of wanted) asked.add(m);
+    void transport.call("match_grades", { matchIds: wanted.map((m) => m.matchId) }).then(
+      (list) => setLate((before) => new Map([...(before ?? []), ...list.map((g) => [g.matchId, g] as const)])),
+      () => setLate((before) => before ?? new Map()),
+    );
+  });
+  return late;
 }
 
 function DayRecord(props: { matches: readonly MatchSummary[] }): JSX.Element {
@@ -164,6 +180,14 @@ export function RecentMatches(props: {
   focus?: RiotId | undefined;
   /** Your own games' grades, read after the list (`createLateGrades`): their chips wait empty meanwhile. */
   late?: LateGrades | undefined;
+  /** The LP each game was worth, when known (your ranked games). */
+  lp?: ((matchId: string) => LpGame | undefined) | undefined;
+  /** Above the list: the history's filters. */
+  filters?: JSX.Element;
+  /** Instead of the empty state: when filters leave no game. */
+  empty?: JSX.Element;
+  /** Under the list: loading older games. */
+  footer?: JSX.Element;
 }): JSX.Element {
   const hasMatches = () => props.matches.length > 0;
   // One game open at a time; a second click, or Escape, closes it.
@@ -186,8 +210,12 @@ export function RecentMatches(props: {
   const hint = (e: Event) => void chunk().then((m) => m.hint(e, find));
 
   return (
-    <Card title={t().matches.title} flush={hasMatches()}>
-      <Show when={hasMatches()} fallback={<EmptyState icon="history" title={t().matches.empty.title} text={t().matches.empty.text} />}>
+    <Card title={t().matches.title} flush={hasMatches() || !!props.filters}>
+      {props.filters}
+      <Show
+        when={hasMatches()}
+        fallback={props.empty ?? <EmptyState icon="history" title={t().matches.empty.title} text={t().matches.empty.text} />}
+      >
         <ol class={styles.list} onPointerOver={hint} onPointerOut={hint} onFocusIn={hint} onFocusOut={hint}>
           <For each={groupByDay(props.matches, (m) => m.endedAt)}>
             {(day) => (
@@ -202,6 +230,7 @@ export function RecentMatches(props: {
                       <MatchRow
                         match={match}
                         grade={gradeOf(match)}
+                        lp={props.lp?.(match.matchId)}
                         open={open() === match.matchId}
                         focus={props.focus}
                         onToggle={(row) => toggle(match.matchId, row)}
@@ -215,6 +244,7 @@ export function RecentMatches(props: {
           </For>
         </ol>
       </Show>
+      {props.footer}
     </Card>
   );
 }

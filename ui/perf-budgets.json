@@ -17,6 +17,10 @@
       "renderMs": 4,
       "domNodes": 140
     },
+    "post-game": {
+      "renderMs": 4,
+      "domNodes": 110
+    },
     "draft-teams": {
       "renderMs": 6,
       "domNodes": 180
@@ -112,6 +116,10 @@
     "build-summary": {
       "renderMs": 2,
       "domNodes": 48
+    },
+    "game-tips": {
+      "renderMs": 2,
+      "domNodes": 80
     },
     "champion-import": {
       "renderMs": 2,

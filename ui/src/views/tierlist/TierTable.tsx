@@ -32,11 +32,13 @@ function SortHeader(props: {
 }): JSX.Element {
   const active = () => props.sort.key === props.key;
   return (
+    // What the column counts, on hover or when its sort button has the focus (design/tip).
     <th
       scope="col"
       class={props.class}
       aria-sort={active() ? (props.sort.dir === "asc" ? "ascending" : "descending") : undefined}
-      title={props.title}
+      data-hint-title={props.label}
+      data-hint={props.title}
     >
       <button type="button" class={`${styles.sort} ${active() ? styles.sorted : ""}`} onClick={() => props.onSort(props.key)}>
         <span>{props.label}</span>
@@ -93,7 +95,7 @@ export function TierTable(props: { list: TierList; roleFilter: RoleFilter }): JS
               <tr>
                 {header(columns().rank, "rank", styles.rank, titles().rank)}
                 {header(columns().champion, "name", styles.champion)}
-                <th scope="col" class={styles.tier} title={titles().tier}>
+                <th scope="col" class={styles.tier} data-hint-title={columns().tier} data-hint={titles().tier} tabIndex={0}>
                   {columns().tier}
                 </th>
                 {header(columns().winRate, "winRate", styles.wr, titles().winRate)}
@@ -102,7 +104,9 @@ export function TierTable(props: { list: TierList; roleFilter: RoleFilter }): JS
                 {header(columns().score, "score", styles.score, titles().score)}
               </tr>
             </thead>
-            <tbody>
+            {/* A click on a tier's badge (over the row's link, for its tooltip) opens the row's champion too. */}
+            {/* biome-ignore lint/a11y/useKeyWithClickEvents: pointer only: the keyboard opens a row with its own link */}
+            <tbody onClick={(e) => (e.target as Element).closest(`.${styles.tier}`)?.closest("tr")?.querySelector("a")?.click()}>
               <For each={shown()}>
                 {(e, i) => (
                   <>

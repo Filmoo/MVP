@@ -615,6 +615,113 @@ for (const lang of ["en", "fr"] as const) {
   });
 }
 
+// Tooltips of the game's things (design/tip), hovered (or focused from the keyboard), in English
+// and French: tip-<thing>-<size>.png, fr-tip-….
+async function tipShot(
+  page: Page,
+  name: string,
+  opts: { view?: string; scenario?: ScenarioName; width: number; height: number; target: string; last?: boolean; pane?: string },
+) {
+  await openApp(page, {
+    view: opts.view ?? "/champions?id=103",
+    scenario: opts.scenario ?? "default",
+    width: opts.width,
+    height: opts.height,
+  });
+  const things = page.locator(opts.target);
+  const thing = opts.last ? things.last() : things.first();
+  await thing.evaluate((el) => el.scrollIntoView({ block: "center" }));
+  await thing.hover();
+  await page.locator(`#${opts.pane ?? "game-tip"}`).waitFor();
+  // A game thing's text can land just after its card (the mock reads Data Dragon's big files on
+  // its first call): capture the card whole.
+  if (!opts.pane) {
+    await page
+      .locator("#game-tip [class*=text_] p")
+      .first()
+      .waitFor({ timeout: 5_000 })
+      .catch(() => undefined);
+  }
+  await settle(page);
+  await page.screenshot({ path: `${OUT}/${name}-${opts.width}x${opts.height}.png` });
+}
+
+for (const lang of ["en", "fr"] as const) {
+  test.describe(lang === "fr" ? "tooltips in French" : "tooltips", () => {
+    if (lang === "fr") test.use({ locale: "fr-FR" });
+    const prefix = lang === "fr" ? "fr-tip" : "tip";
+    const THINGS = [
+      { thing: "keystone", target: "[data-testid=rune-page-view] [data-tip='rune:8112']" },
+      { thing: "shard", target: "[data-tip='shard:5008:offense']" },
+      { thing: "spell", target: "[data-widget=champion-spells] [data-tip='spell:4']" },
+      { thing: "item", target: "[data-widget=champion-items] [data-tip='item:6653']" },
+    ] as const;
+    for (const { thing, target } of THINGS) {
+      test(`${prefix} ${thing} 1280x800`, async ({ page }) => {
+        await tipShot(page, `${prefix}-${thing}`, { width: 1280, height: 800, target });
+      });
+    }
+    for (const [width, height] of [
+      [420, 800],
+      [2560, 1440],
+    ] as const) {
+      test(`${prefix} item ${width}x${height}`, async ({ page }) => {
+        await tipShot(page, `${prefix}-item`, { width, height, target: "[data-widget=champion-items] [data-tip^='item:']", last: true });
+      });
+      test(`${prefix} shard ${width}x${height}`, async ({ page }) => {
+        await tipShot(page, `${prefix}-shard`, { width, height, target: "[data-tip='shard:5010:flex']" });
+      });
+    }
+    test(`${prefix} match row item 1280x800`, async ({ page }) => {
+      await tipShot(page, `${prefix}-match-row-item`, {
+        view: "/",
+        width: 1280,
+        height: 800,
+        target: "[data-testid=match-row] [data-tip='item:6655']",
+      });
+    });
+    test(`${prefix} live spell 420x800`, async ({ page }) => {
+      await tipShot(page, `${prefix}-live-spell`, {
+        view: "/live",
+        scenario: "live",
+        width: 420,
+        height: 800,
+        target: "[data-testid=live-card] [data-tip^='spell:']",
+      });
+    });
+    // Compact cards: what the app's own things mean (hint-…, fr-hint-…).
+    const hintPrefix = lang === "fr" ? "fr-hint" : "hint";
+    const HINTS = [
+      { name: "status", view: "/", target: "[data-testid=client-status]", width: 1280 },
+      { name: "rail", view: "/", target: "nav a[href='#/champions']", width: 1280 },
+      { name: "tier", view: "/champions?id=103", target: "[data-testid=champion-tier]", width: 1280 },
+      { name: "option", view: "/champions?id=103", target: "[data-widget=champion-items] [data-hint]", width: 1280 },
+      { name: "import-disabled", view: "/champions?id=103", target: "[data-testid=import-spells]", width: 1280 },
+      { name: "matchup", view: "/champions?id=103", target: "[data-testid=matchups-best] li", width: 1280 },
+      { name: "column", view: "/tier-list", target: "th[data-hint]", width: 1280 },
+      { name: "tier", view: "/champions?id=103", target: "[data-testid=champion-tier]", width: 420 },
+      { name: "rail", view: "/", target: "nav a[href='#/draft']", width: 420 },
+    ] as const;
+    for (const { name, view, target, width } of HINTS) {
+      test(`${hintPrefix} ${name} ${width}x800`, async ({ page }) => {
+        await tipShot(page, `${hintPrefix}-${name}`, { view, width, height: 800, target, pane: "hint" });
+      });
+    }
+    test(`${prefix} opened game keystone from the keyboard 1280x800`, async ({ page }) => {
+      await openApp(page, { width: 1280, height: 800 });
+      const row = page.locator("[data-testid=match-row] > button").first();
+      await row.focus();
+      await page.keyboard.press("Enter");
+      await page.getByTestId("game-player").first().waitFor();
+      // The row, the grade column's explanation, the first player's two spells, their keystone.
+      for (let i = 0; i < 4; i++) await page.keyboard.press("Tab");
+      await page.locator("#game-tip").waitFor();
+      await settle(page);
+      await page.screenshot({ path: `${OUT}/${prefix}-game-keystone-keyboard-1280x800.png` });
+    });
+  });
+}
+
 // The main screens in French (the app follows the webview's language): fr-<screen>-<size>.png.
 test.describe("in French", () => {
   test.use({ locale: "fr-FR" });
@@ -726,3 +833,92 @@ test.describe("in French", () => {
     await capture(page, `${OUT}/fr-champion-thresh-2560x1440.png`, false);
   });
 });
+
+// Home after a game and its history: the last game's summary (a win with its LP, a demotion, an
+// unknown LP, the LP on its way, ARAM), the filters (a champion, none left), older games
+// (loading, failed, the end), in English and French (`fr-…`).
+async function historyShot(page: Page, name: string, width: number, height: number, act: (page: Page) => Promise<void>) {
+  await act(page);
+  await page.mouse.move(0, 0);
+  await animationsDone(page);
+  await settle(page);
+  await page.screenshot({ path: `${OUT}/${name}-${width}x${height}.png` });
+}
+
+/** The list's end, where older games load. */
+async function toListEnd(page: Page): Promise<void> {
+  await page.getByTestId("load-more-row").evaluate((el) => el.scrollIntoView({ block: "end" }));
+}
+
+/** The history card's top, filters in view. */
+async function toFilters(page: Page): Promise<void> {
+  await page.getByTestId("queue-filter").evaluate((el) => el.scrollIntoView({ block: "start" }));
+  await page.locator("main").evaluate((main) => main.scrollBy(0, -96));
+}
+
+for (const lang of ["en", "fr"] as const) {
+  test.describe(lang === "fr" ? "after a game in French" : "after a game", () => {
+    if (lang === "fr") test.use({ locale: "fr-FR" });
+    const prefix = lang === "fr" ? "fr-" : "";
+    for (const [width, height] of [
+      [1280, 800],
+      [420, 800],
+    ] as const) {
+      for (const scenario of [
+        "post-game",
+        "post-game-demotion",
+        "post-game-lp-unknown",
+        "post-game-lp-pending",
+        "post-game-aram",
+      ] as const) {
+        test(`${prefix}home ${scenario} ${width}x${height}`, async ({ page }) => {
+          await openApp(page, { scenario, width, height });
+          await capture(page, `${OUT}/${prefix}home-${scenario}-${width}x${height}.png`, width < 900);
+        });
+      }
+      test(`${prefix}home history filtered empty ${width}x${height}`, async ({ page }) => {
+        await historyShot(page, `${prefix}home-history-filtered-empty`, width, height, async (p) => {
+          await openApp(p, { view: "/?queue=flex", width, height });
+          await toFilters(p);
+        });
+      });
+      test(`${prefix}home history champion ${width}x${height}`, async ({ page }) => {
+        await historyShot(page, `${prefix}home-history-champion`, width, height, async (p) => {
+          await openApp(p, { scenario: "history-long", width, height });
+          await p.getByTestId("champion-filter").selectOption("103");
+          await toFilters(p);
+        });
+      });
+      test(`${prefix}home history loading more ${width}x${height}`, async ({ page }) => {
+        await historyShot(page, `${prefix}home-history-loading-more`, width, height, async (p) => {
+          await openApp(p, { scenario: "history-more-slow", width, height });
+          await toListEnd(p);
+          await p.getByTestId("load-more").click();
+        });
+      });
+      test(`${prefix}home history load failed ${width}x${height}`, async ({ page }) => {
+        await historyShot(page, `${prefix}home-history-load-failed`, width, height, async (p) => {
+          await openApp(p, { scenario: "history-more-error", width, height });
+          await toListEnd(p);
+          await p.getByTestId("load-more").click();
+          await p.getByRole("alert").waitFor();
+          await toListEnd(p);
+        });
+      });
+      test(`${prefix}home history end ${width}x${height}`, async ({ page }) => {
+        await historyShot(page, `${prefix}home-history-end`, width, height, async (p) => {
+          await openApp(p, { scenario: "history-long", width, height });
+          for (const count of [40, 47]) {
+            await toListEnd(p);
+            await p.getByTestId("load-more").click();
+            await p
+              .locator("[data-testid=match-row]")
+              .nth(count - 1)
+              .waitFor();
+          }
+          await toListEnd(p);
+        });
+      });
+    }
+  });
+}

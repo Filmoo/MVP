@@ -44,7 +44,6 @@ export const fr = {
     runeN: (id: number) => `Rune ${id}`,
     runeTreeN: (id: number) => `Voie de runes ${id}`,
     profileIcon: "Icône de profil",
-    colon: (label: string, text: string) => `${label}\u00A0: ${text}`,
     games: (n: number) => count(n, "partie", "parties"),
     lp: (lp: number) => `${lp}\u00A0PL`,
     record: (wins: number, losses: number) => `${wins}V ${losses}D`,
@@ -200,6 +199,7 @@ export const fr = {
       averageGame: "Durée moyenne",
     },
     roleShare: (games: number, of: number) => `${games} sur ${of}`,
+    lpTrend: (games: number, total: string) => `${total} sur vos ${games} dernières parties classées suivies par MVP`,
   },
 
   matches: {
@@ -208,6 +208,30 @@ export const fr = {
     perfectKda: "KDA parfait",
     perMinute: (value: string) => `${value} / min`,
     empty: { title: "Aucune partie récente", text: "Terminez une partie et elle s’affiche ici, avec vos stats et votre build." },
+    lp: (signed: string) => `${signed} PL`,
+    filters: {
+      queue: "File d’attente",
+      queues: { all: "Toutes", solo: "Solo", flex: "Flex", aram: "ARAM", other: "Autres" },
+      champion: "Champion",
+      allChampions: "Tous les champions",
+      championGames: (name: string, games: number) => `${name} · ${games}`,
+      clear: "Effacer les filtres",
+      none: {
+        title: "Aucune partie pour ces filtres",
+        text: (games: number, more: boolean) =>
+          more
+            ? `Aucune des ${games} parties chargées. Chargez-en plus pour remonter plus loin.`
+            : games < 2
+              ? "Pas votre dernière partie."
+              : `Aucune de vos ${games} dernières parties.`,
+      },
+    },
+    more: {
+      load: "Charger plus de parties",
+      loading: "Chargement des parties plus anciennes…",
+      failed: "Impossible de charger les parties plus anciennes",
+      end: "Aucune partie plus ancienne",
+    },
   },
 
   grade: {
@@ -223,5 +247,7 @@ export const fr = {
     empty: { title: "Pas encore de stats", text: "Jouez quelques parties pour voir votre forme." },
     roles: "Rôles",
     remakes: (n: number) => (n < 2 ? `${n} remake non compté` : `${n} remakes non comptés`),
+    mastery: "Maîtrise",
+    masteryTitle: (champion: string, level: number, points: string) => `${champion} · maîtrise niveau ${level} · ${points} points`,
   },
 } satisfies CoreMessages;

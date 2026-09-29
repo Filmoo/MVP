@@ -7,25 +7,43 @@ import styles from "./GameIcon.module.css";
 
 type Size = 16 | 20 | 24 | 28 | 32 | 36 | 40 | 44 | 48 | 56 | 64 | 72 | 80;
 
-function ImageWithFallback(props: {
-  src: string | undefined;
-  alt: string;
-  size: Size;
-  round?: boolean;
-  fallback: string;
-  class?: string | undefined;
-  /** Shows the name on hover (icons shown without their name next to them). */
-  tooltip?: boolean | undefined;
-}): JSX.Element {
+/**
+ * What a tooltip (design/tip) says about an icon: `data-tip`, and the keyboard focus to show it
+ * without a pointer (not for icons inside another control, such as a match row).
+ */
+interface Tipped {
+  /** `item:3031`, `spell:4`… */
+  tip?: string | undefined;
+  focusable?: boolean | undefined;
+}
+
+function ImageWithFallback(
+  props: {
+    src: string | undefined;
+    alt: string;
+    size: Size;
+    round?: boolean;
+    fallback: string;
+    class?: string | undefined;
+  } & Tipped,
+): JSX.Element {
   const [failed, setFailed] = createSignal(false);
   const cls = () => `${styles.icon} ${props.round ? styles.round : ""} ${props.class ?? ""}`;
   const style = () => ({ width: `${props.size}px`, height: `${props.size}px` });
-  const title = () => (props.tooltip ? props.alt : undefined);
+  const tabIndex = () => (props.focusable ? 0 : undefined);
   return (
     <Show
       when={props.src && !failed()}
       fallback={
-        <div class={`${cls()} ${styles.fallback}`} style={style()} role="img" aria-label={props.alt} title={title()} data-free-style>
+        <div
+          class={`${cls()} ${styles.fallback}`}
+          style={style()}
+          role="img"
+          aria-label={props.alt}
+          data-tip={props.tip}
+          tabIndex={tabIndex()}
+          data-free-style
+        >
           {props.size >= 28 ? props.fallback : ""}
         </div>
       }
@@ -33,7 +51,8 @@ function ImageWithFallback(props: {
       <img
         class={cls()}
         src={props.src}
-        title={title()}
+        data-tip={props.tip}
+        tabIndex={tabIndex()}
         alt={props.alt}
         width={props.size}
         height={props.size}
@@ -60,7 +79,8 @@ export function ChampionIcon(props: { championId: number; size: Size; round?: bo
   );
 }
 
-export function ItemIcon(props: { itemId: number | undefined; size: Size; tooltip?: boolean }): JSX.Element {
+/** An item, what it does on hover or focus (`focusable`: not inside another control). */
+export function ItemIcon(props: { itemId: number | undefined; size: Size; focusable?: boolean }): JSX.Element {
   const { gameData } = useData();
   return (
     <Show
@@ -80,14 +100,16 @@ export function ItemIcon(props: { itemId: number | undefined; size: Size; toolti
           fallback=""
           size={props.size}
           class={styles.item}
-          tooltip={props.tooltip}
+          tip={`item:${id()}`}
+          focusable={props.focusable}
         />
       )}
     </Show>
   );
 }
 
-export function SpellIcon(props: { spellId: number; size: Size; tooltip?: boolean }): JSX.Element {
+/** A summoner spell, what it does on hover or focus (`focusable`: not inside another control). */
+export function SpellIcon(props: { spellId: number; size: Size; focusable?: boolean }): JSX.Element {
   const { gameData } = useData();
   const spell = () => gameData()?.spells.get(props.spellId);
   return (
@@ -97,7 +119,8 @@ export function SpellIcon(props: { spellId: number; size: Size; tooltip?: boolea
       fallback=""
       size={props.size}
       class={styles.spell}
-      tooltip={props.tooltip}
+      tip={`spell:${props.spellId}`}
+      focusable={props.focusable}
     />
   );
 }

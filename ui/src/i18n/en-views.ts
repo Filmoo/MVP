@@ -67,6 +67,30 @@ export const enViews = {
     },
   },
 
+  /** The game that just ended, at the top of Home until closed or the next game. */
+  postGame: {
+    title: "Your last game",
+    close: "Close this summary",
+    /** After the score: `7.4 / 10`. */
+    outOf: "/ 10",
+    why: "What moved your grade",
+    remake: "A remake: no grade, and the game doesn't count.",
+    you: "You",
+    laneOpponent: "Lane opponent",
+    /** In a mode without roles (ARAM): the enemy whose share of damage was closest to yours. */
+    closestDamage: "Closest damage share",
+    noOpponent: "No lane opponent to compare with in this game.",
+    rows: { kda: "KDA", cs: "CS", damage: "Damage", gold: "Gold", vision: "Vision" },
+    lp: {
+      promoted: "Promoted",
+      demoted: "Demoted",
+      /** Ranked: the client hasn't counted the game yet. */
+      pending: "Counting the LP of this game…",
+      /** Ranked, but MVP didn't see the standing before or after it. */
+      unknown: "LP not tracked for this game",
+    },
+  },
+
   draft: {
     readFailed: "Couldn't read champion select",
     idle: {
@@ -405,7 +429,8 @@ export const enViews = {
     worstWith: "Worst with",
     worstAgainst: "Worst against",
     noEffect: "No clear effect yet.",
-    effectTitle: "Win-rate effect beyond both champions' strength, in points, shrunk when games are few",
+    /** A matchup's effect in its tooltip: `+2.5 pts on the win rate, …`. */
+    effectOf: (points: string) => `${points} pts on the win rate, beyond both champions' own strength (shrunk when games are few).`,
     effectNote: "The colored number is the effect on win rate in points, beyond both champions' strength, shrunk when games are few.",
     aram: {
       title: "No matchups in ARAM.",
@@ -418,7 +443,10 @@ export const enViews = {
     buildRecord: (n: number) => `win rate · ${games(n)} ${plural(n, "game", "games")}`,
   },
 
-  /** Stat shards (Data Dragon doesn't describe them). */
+  /**
+   * Stat shards (Data Dragon doesn't describe them): their tooltips use the League client's own
+   * words when the core has them, these meanwhile (offline before the first download).
+   */
   shards: {
     rows: { offense: "Offense", flex: "Flex", defense: "Defense" },
     names: {
@@ -428,12 +456,49 @@ export const enViews = {
       5005: { name: "Attack Speed", stat: "+10% Attack Speed" },
       5007: { name: "Ability Haste", stat: "+8 Ability Haste" },
       5008: { name: "Adaptive Force", stat: "+9 Adaptive Force" },
-      5010: { name: "Move Speed", stat: "+2% Move Speed" },
+      5010: { name: "Move Speed", stat: "+2.5% Move Speed" },
       5011: { name: "Health", stat: "+65 Health" },
-      5013: { name: "Tenacity and Slow Resist", stat: "+10% Tenacity and Slow Resist" },
+      5013: { name: "Tenacity and Slow Resist", stat: "+15% Tenacity and Slow Resist" },
     },
+    /** Also what a shard is, in its tooltip. */
     unknown: "Stat shard",
     unknownN: (id: number) => `Stat shard ${id}`,
+  },
+
+  /** Tooltips of the game's things (design/tip): what a rune, shard, spell or item is. */
+  tip: {
+    /** An item's cost, beside its name: `3,000 gold`. */
+    gold: (cost: string) => `${cost} gold`,
+    spell: "Summoner spell",
+    /** After "Summoner spell ·". */
+    cooldown: (seconds: number) => `${seconds} s cooldown`,
+    /** A minor rune, before its tree: `Rune · Precision` (a keystone says Keystone). */
+    rune: "Rune",
+    tree: "Rune path",
+    /** What each tier of the tier list means (the score: see `tierList.note`). */
+    tiers: {
+      S: "Among the strongest picks this patch: its win rate is 2 points or more over 50 %, small samples evened out.",
+      A: "A strong pick: 0.75 to 2 points over 50 %.",
+      B: "About even: within 0.75 points of 50 %.",
+      C: "A weaker pick: 0.75 to 2 points under 50 %.",
+      D: "Among the weakest picks this patch: 2 points or more under 50 %.",
+    },
+    /** What each page of the rail holds. */
+    nav: {
+      home: "Your profile, rank and recent games, each with its grade.",
+      draft: "Champion select: the picks the stats favour for your role, and why.",
+      live: "The game you're in: every player's rank and form, and your build.",
+      champions: "Every champion's builds, runes, items and matchups.",
+      tierList: "Champions ranked by how they win in each role this patch.",
+      settings: "Automations, build imports, language, visual effects and updates.",
+    },
+    /** What the League client's status in the title bar means for MVP. */
+    status: {
+      connected: "MVP follows your games, champion select and live game from it.",
+      connecting: "The League client is starting: MVP connects by itself.",
+      notRunning: "Start League of Legends: MVP connects by itself, nothing to set up.",
+      notAnswering: "It's running but doesn't answer, maybe busy: MVP keeps trying by itself.",
+    },
   },
 
   settings: {

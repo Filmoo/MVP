@@ -423,6 +423,9 @@ fn route(shared: &Shared, method: &Method, uri: &Uri, body: Option<&Value>) -> R
     }
     let docs = lock(&shared.docs);
     match (method, docs.get(uri.path())) {
+        (&Method::GET, Some(list)) if uri.path() == history::LIST => {
+            (StatusCode::OK, axum::Json(history::page(list, uri.query()))).into_response()
+        }
         (&Method::GET, Some(value)) => (StatusCode::OK, axum::Json(value.clone())).into_response(),
         (&Method::GET, None) => lcu_error(StatusCode::NOT_FOUND, "Not found"),
         _ => StatusCode::NO_CONTENT.into_response(),

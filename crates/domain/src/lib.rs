@@ -14,6 +14,7 @@ mod imports;
 mod live;
 mod matches;
 mod player;
+mod progress;
 mod remote;
 mod scout;
 mod settings;
@@ -27,7 +28,8 @@ pub use draft::{
     Estimate, Mastery, PersonalRecord, Reason, ReasonKind, RoleOdds, Suggestion, TeamComp,
 };
 pub use game_data::{
-    ChampionInfo, GameData, ItemInfo, RankEmblem, RankEmblems, RuneInfo, RuneStyle, SpellInfo,
+    ChampionInfo, Description, DescriptionKind, GameData, ItemInfo, RankEmblem, RankEmblems,
+    RuneInfo, RuneStyle, SpellInfo, TextSpan, TextTone,
 };
 pub use imports::{
     FailReason, FlashKey, FlashNote, ImportOutcome, ImportPart, ImportRequest, ImportResult,
@@ -39,6 +41,7 @@ pub use matches::{
     MatchPlayer, MatchTeam,
 };
 pub use player::{Division, MatchSummary, PlayerProfile, RankedEntry, RiotId, Role, Tier};
+pub use progress::{ChampionMastery, LpGame, PostGame, RankedQueue};
 pub use remote::{
     Banner, BannerSeverity, CrashReport, FeatureFlags, KillSwitches, LocalizedText, MinVersion,
     RemoteConfig, ReportKind,

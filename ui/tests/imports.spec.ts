@@ -113,7 +113,7 @@ test("draft: the automatic import shows a toast and marks the buttons", async ({
   await expect(bar(page)).toContainText(who("Malphite", t.roles.top, t.imports.lockedIn));
   await expect(page.getByTestId("import-runes")).toHaveAttribute("data-tone", "done");
   await expect(page.getByTestId("import-spells")).toHaveAttribute("data-tone", "warn");
-  await expect(page.getByTestId("import-runes")).toHaveAttribute("title", t.imports.auto);
+  await expect(page.getByTestId("import-runes")).toHaveAttribute("data-hint", t.imports.auto);
   expect(await requests(page), "the core imported by itself").toEqual([]);
   expect(errors).toEqual([]);
 });
@@ -161,7 +161,7 @@ test("draft: without stats the buttons wait and say why", async ({ page, t }) =>
     await expect(page.getByRole("button", { name: t.imports.importPart(part) })).toBeDisabled();
   }
   await expect(status(page)).toHaveText(t.imports.notYetStatus);
-  await expect(page.getByTestId("import-runes")).toHaveAttribute("title", t.imports.notYet);
+  await expect(page.getByTestId("import-runes")).toHaveAttribute("data-hint", t.imports.notYet);
 });
 
 test("draft: no champion yet, nothing to import", async ({ page, t }) => {
@@ -181,14 +181,14 @@ test("draft: every button is there whatever the switches; the automatic ones say
   for (const part of ["runes", "itemSet", "spells"] as const) {
     const button = page.getByRole("button", { name: t.imports.importPart(part) });
     await expect(button).toBeEnabled();
-    await expect(button).not.toHaveAttribute("title", /./);
+    await expect(button).not.toHaveAttribute("data-hint", /./);
   }
   // Runes and spells switched on: still the same three buttons, those two marked.
   const some: Settings = { ...defaultSettings, autoImportRunes: true, autoImportSpells: true };
   await page.evaluate((next) => window.__SCOUT_MOCK__?.emit("settings", next), some);
-  await expect(page.getByTestId("import-runes")).toHaveAttribute("title", t.imports.auto);
-  await expect(page.getByTestId("import-spells")).toHaveAttribute("title", t.imports.auto);
-  await expect(page.getByTestId("import-itemSet")).not.toHaveAttribute("title", /./);
+  await expect(page.getByTestId("import-runes")).toHaveAttribute("data-hint", t.imports.auto);
+  await expect(page.getByTestId("import-spells")).toHaveAttribute("data-hint", t.imports.auto);
+  await expect(page.getByTestId("import-itemSet")).not.toHaveAttribute("data-hint", /./);
   await expect(bar(page).getByRole("button")).toHaveCount(3);
 });
 
@@ -348,7 +348,7 @@ test("champion page: imports the build shown, spells wait for champion select", 
   await expect(champion).toContainText(who("Lux", t.roles.middle, t.imports.mostPlayedIn(420, t.brackets.emeraldPlus)));
   const spells = champion.getByRole("button", { name: t.imports.importPart("spells") });
   await expect(spells, "outside champion select").toBeDisabled();
-  await expect(spells).toHaveAttribute("title", t.imports.spellsInChampSelect);
+  await expect(spells).toHaveAttribute("data-hint", t.imports.spellsInChampSelect);
   // Another bracket on the page: that's the build imported.
   await page.getByTestId("bracket-switch").getByRole("radio", { name: t.brackets.diamondPlus }).click();
   await expect(champion).toContainText(t.imports.mostPlayedIn(420, t.brackets.diamondPlus));
@@ -379,7 +379,7 @@ test("champion page: without the League client, every button says why and nothin
   for (const part of ["runes", "itemSet", "spells"] as const) {
     const button = champion.getByRole("button", { name: t.imports.importPart(part) });
     await expect(button).toBeDisabled();
-    await expect(button).toHaveAttribute("title", t.imports.needsClient);
+    await expect(button).toHaveAttribute("data-hint", t.imports.needsClient);
   }
   // The same reason for every button: said once without a hover.
   await expect(status(page)).toHaveText(`${t.imports.needsClient}.`);

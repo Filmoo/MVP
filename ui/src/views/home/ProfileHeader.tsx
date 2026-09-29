@@ -1,12 +1,13 @@
 import { createMemo, For, type JSX, Show } from "solid-js";
 import { useData } from "../../data/context";
+import type { LpGame } from "../../data/generated/LpGame";
 import type { PlayerProfile } from "../../data/generated/PlayerProfile";
 import { ChampionArt, ProfileIcon } from "../../design/GameIcon";
 import { liquid } from "../../design/liquid/liquid";
 import { RankEmblem } from "../../design/RankEmblem";
 import { TierBadge } from "../../design/TierBadge";
 import { t } from "../../i18n";
-import { decimal, duration, kdaRatio, percent, REMAKE_MAX_SECONDS, winRate } from "../../lib/format";
+import { decimal, duration, kdaRatio, percent, REMAKE_MAX_SECONDS, signedPoints, winRate } from "../../lib/format";
 import { roleLabel } from "../../lib/roles";
 import styles from "./ProfileHeader.module.css";
 import { summarize } from "./summary";
@@ -25,8 +26,56 @@ function Stat(props: { value: string; label: string; detail?: string | undefined
   );
 }
 
+/** Most games the LP graph draws. */
+const TREND_GAMES = 20;
+const [W, H] = [96, 24];
+
+/**
+ * Your solo/duo LP over the ranked games MVP followed, oldest first: a line through the standing
+ * after each game (from the one before the first), on one ladder across divisions. Nothing to
+ * draw under two games.
+ */
+function LpTrend(props: { games: readonly LpGame[] }): JSX.Element {
+  const trend = createMemo(() => {
+    const solo = props.games
+      .filter((g) => g.queue === "solo")
+      .slice(0, TREND_GAMES)
+      .reverse();
+    const first = solo[0];
+    if (!first || solo.length < 2) return undefined;
+    const values = [first.ladder - first.delta, ...solo.map((g) => g.ladder)];
+    const [min, max] = [Math.min(...values), Math.max(...values)];
+    const at = (v: number, i: number) => [(i / (values.length - 1)) * (W - 4) + 2, H - 2 - ((v - min) / (max - min || 1)) * (H - 4)];
+    const points = values.map(at);
+    const total = (values.at(-1) ?? 0) - (values[0] ?? 0);
+    return { games: solo.length, total, points, end: points.at(-1) ?? [0, 0] };
+  });
+  return (
+    <Show when={trend()}>
+      {(tr) => {
+        const text = () => t().matches.lp(signedPoints(tr().total, 0));
+        return (
+          <div
+            class={styles.trend}
+            data-lp={Math.sign(tr().total)}
+            role="img"
+            aria-label={t().profile.lpTrend(tr().games, text())}
+            data-hint={t().profile.lpTrend(tr().games, text())}
+          >
+            <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} aria-hidden="true">
+              <polyline points={tr().points.join(" ")} />
+              <circle cx={tr().end[0]} cy={tr().end[1]} r="2.5" />
+            </svg>
+            <span class="num">{text()}</span>
+          </div>
+        );
+      }}
+    </Show>
+  );
+}
+
 /** Player hero: identity, solo/duo rank and the recent-games stat strip, over their main's art. */
-export function ProfileHeader(props: { profile: PlayerProfile }): JSX.Element {
+export function ProfileHeader(props: { profile: PlayerProfile; lp?: readonly LpGame[] | undefined }): JSX.Element {
   const s = createMemo(() => summarize(props.profile.recentMatches));
   const main = () => s().champions[0]?.championId;
   const { gameData } = useData();
@@ -52,7 +101,7 @@ export function ProfileHeader(props: { profile: PlayerProfile }): JSX.Element {
           </div>
           <div class={styles.identity}>
             <h1 class={styles.name}>
-              <span class={styles.gameName} title={props.profile.riotId.gameName}>
+              <span class={styles.gameName} data-hint={props.profile.riotId.gameName}>
                 {props.profile.riotId.gameName}
               </span>
               <span class={styles.tag}>#{props.profile.riotId.tagLine}</span>
@@ -104,6 +153,7 @@ export function ProfileHeader(props: { profile: PlayerProfile }): JSX.Element {
                           <div class={styles.barWins} style={{ width: `${(wr() * 100).toFixed(1)}%` }} />
                         </div>
                       </div>
+                      <LpTrend games={props.lp ?? []} />
                     </div>
                   </>
                 );
