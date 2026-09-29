@@ -228,6 +228,51 @@ Every finished game in a match history gets a grade, and a match row opens on th
   `match-details-error`, `match-details-gone` and `extreme`; `mock-lcu` serves whole games
   (`mock_lcu::history`, one player in streamer mode).
 
+## After a game and over time (`companion::post_game`, `companion::lp`, `ui/src/views/home`)
+Home sums up the game that just ended, shows the LP each ranked game was worth, pages further back
+through the history with filters, and shows your mastery. Your own data only, from your client.
+- **Following a game** (`post_game::PostGames`, fed by the core's loop): when a game loads
+  (Loading/InGame) the core reads the gameflow session once for the game id and queue and, in
+  ranked solo/duo (420) and flex (440), the standing before it
+  (`/lol-ranked/v1/current-ranked-stats`, kept as `pending` on disk so a restart mid-game still
+  counts it). When the phase leaves the game, a task reads the whole game
+  (`/lol-match-history/v1/games/{id}`, the read that grades it, kept by `MatchInsights`: the list
+  then shows its grade and it opens at once) and the standing again until the client has counted
+  the game (its wins + losses one more): at once, when the client's ranked-stats event arrives
+  (the connector subscribes to it), else after 2, 3, 5, 8, 13, 20, 30 and 45 s; then nothing until
+  the next game. A remake has no LP to wait for; a standing counted twice, or unranked on one side,
+  leaves the LP unknown (never guessed).
+- **`PostGame`** (`post_game` command, `post-game` event): result, your line (grade with its
+  facts), your lane opponent (your role on the other team; without roles, as in ARAM, the enemy
+  whose share of their team's damage is closest to yours; none when not exactly one), the LP once
+  counted (`lpPending` meanwhile). Hidden when the player closes it (`dismiss_post_game`: never
+  shown again) or at the next champion select or game.
+- **LP** (`lp::LpStore`, `lp_history`): `LpGame { gameId, queue, at, before, after, delta,
+  ladder }` newest first, at most 100 per queue, in `lp-history.json` in the app's data folder
+  (atomic writes; an unreadable file is set aside). `delta` is the difference of the two
+  standings on one ladder: 100 LP per division, a tier 400, the apex tiers (Master up) plain LP
+  from 2800 (Master 0 LP = Diamond I 100 LP), so promotions and demotions count across divisions;
+  `ladder` is the standing after, for graphs. Two standings the player saw: no MMR, no estimate.
+- **Older games** (`older_matches { begIndex }`): the client's list from `begIndex` to
+  `begIndex + 19` (both ends inclusive: 0–19 is 20 games), graded and opened like the first page
+  (`MatchInsights::older` adds them to the listed games). A shorter page is the history's end.
+- **Mastery** (`champion_mastery`): `/lol-champion-mastery/v1/local-player/champion-mastery` (read
+  for the draft helper already), most points first, ten at most. The backend doesn't expose
+  mastery: player pages show none.
+- **UI**: the post-game card tops Home (`PostGame.tsx`, lazy: it rides in the player page's chunk
+  with an opened game's code, loaded only when there is a game to sum up; `<Widget name="post-game">`);
+  the autopilot already brings the window Home after a game, and never away from a page the
+  player opened. The opponent's name links to their page unless hidden. Match rows carry `+19 LP`
+  / `−17 LP` (`RecentMatches` `lp`). `MatchHistory.tsx` filters by queue (All / Solo / Flex /
+  ARAM with Clash and Mayhem / Other) and champion among the games loaded (links can set them:
+  `#/?queue=flex&champion=103`), and loads older games (Home only); rows shown ask for their
+  grades, each once per list the core sent (no flash while filtering). The ranked pane draws the
+  solo/duo LP over the tracked games (`LpTrend`, one ladder), the champions card your top five
+  masteries. Mock: `data/mock/progress-fixtures.ts`, scenarios `post-game`, `post-game-demotion`,
+  `post-game-lp-unknown`, `post-game-lp-pending`, `post-game-aram`, `history-long`,
+  `history-more-slow`, `history-more-error`; `mock-lcu` pages its list and ends each cycle's game
+  in the history, the standing counting it a moment later.
+
 ## Search (title bar)
 Champions match locally and instantly (fuzzy: prefix, word, initials, subsequence); a Riot ID
 (`Name#TAG`) adds a player row that is looked up in the background (debounced 300 ms) and fills in

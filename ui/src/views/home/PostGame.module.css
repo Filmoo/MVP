@@ -20,9 +20,11 @@
   height: 100%;
   object-fit: cover;
   object-position: 50% 15%;
-  opacity: 0.35;
+  opacity: 0.26;
   pointer-events: none;
-  mask-image: linear-gradient(90deg, transparent, black 45%, black 70%, transparent);
+  /* A light behind the result, fading out on all sides: the profile's hero below has the full art. */
+  mask-image: linear-gradient(90deg, transparent, black 45%, black 70%, transparent), linear-gradient(180deg, black 30%, transparent 85%);
+  mask-composite: intersect;
 }
 
 /* The result's colour down the left edge, as on the match rows. */
@@ -58,9 +60,17 @@
 }
 
 /* Who, the grade and the LP side by side; under each other on narrow cards. */
+/* Two columns shared with the body below: who | the scores, over what moved it | the numbers. */
 .top {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
+  align-items: center;
+  gap: var(--space-6) var(--space-9);
+}
+
+.scores {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   align-items: center;
   gap: var(--space-6) var(--space-8);
 }
@@ -157,6 +167,7 @@
 }
 
 .moved {
+  font-size: var(--text-sm);
   color: var(--accent);
   font-weight: var(--weight-semibold);
 }
@@ -198,19 +209,24 @@
   color: var(--text-1);
 }
 
-.vsHead {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2) var(--space-5);
+/* A row of the comparison's grid: "You" over your numbers, the opponent over theirs. */
+.row.vsHead {
+  align-items: end;
+}
+
+.you {
+  grid-column: 2;
+  text-align: right;
 }
 
 .them {
+  grid-column: 3 / -1;
+  justify-self: end;
   display: flex;
   align-items: center;
   gap: var(--space-3);
   min-width: 0;
+  max-width: 100%;
   font-size: var(--text-sm);
 }
 
@@ -325,12 +341,7 @@
 }
 
 @container postgame (max-width: 759px) {
-  .top {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  }
-  .who {
-    grid-column: 1 / -1;
-  }
+  .top,
   .body {
     grid-template-columns: minmax(0, 1fr);
   }

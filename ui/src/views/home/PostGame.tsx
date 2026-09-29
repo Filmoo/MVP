@@ -93,38 +93,40 @@ export function PostGameCard(props: { game: PostGame; onClose: () => void }): JS
             </p>
           </div>
         </div>
-        <Show when={g().me.grade}>
-          {(grade) => (
-            <div class={styles.grade} data-testid="post-game-grade">
-              <p class={styles.score}>
-                <GradeChip grade={grade()} />
-                <span class={`${styles.big} num`}>{decimal(grade().score, 1)}</span>
-                <span class={styles.outOf}>{words().outOf}</span>
-              </p>
-              <p class={`${styles.stackNote} ${grade().badge ? styles.badge : ""}`}>
-                {((badge) => (badge ? t().gradeWhy[badge] : t().gradeWhy.place(t().grade.place(grade().place))))(grade().badge)}
-              </p>
+        <div class={styles.scores}>
+          <Show when={g().me.grade}>
+            {(grade) => (
+              <div class={styles.grade} data-testid="post-game-grade">
+                <p class={styles.score}>
+                  <GradeChip grade={grade()} />
+                  <span class={`${styles.big} num`}>{decimal(grade().score, 1)}</span>
+                  <span class={styles.outOf}>{words().outOf}</span>
+                </p>
+                <p class={`${styles.stackNote} ${grade().badge ? styles.badge : ""}`}>
+                  {((badge) => (badge ? t().gradeWhy[badge] : t().gradeWhy.place(t().grade.place(grade().place))))(grade().badge)}
+                </p>
+              </div>
+            )}
+          </Show>
+          <Show when={ranked()}>
+            <div class={styles.lp} data-testid="post-game-lp">
+              <Show when={g().lp} fallback={<p class={styles.stackNote}>{g().lpPending ? words().lp.pending : words().lp.unknown}</p>}>
+                {(lp) => (
+                  <>
+                    <p class={`${styles.big} num`} data-lp={Math.sign(lp().delta)}>
+                      {t().matches.lp(signedPoints(lp().delta, 0))}
+                    </p>
+                    <Show when={moved()}>{(m) => <p class={styles.moved}>{m()}</p>}</Show>
+                    <p class={`${styles.stackNote} num`}>
+                      <TierBadge tier={lp().after.tier} division={lp().after.division} plain />
+                      <span>{t().common.lp(lp().after.leaguePoints)}</span>
+                    </p>
+                  </>
+                )}
+              </Show>
             </div>
-          )}
-        </Show>
-        <Show when={ranked()}>
-          <div class={styles.lp} data-testid="post-game-lp">
-            <Show when={g().lp} fallback={<p class={styles.stackNote}>{g().lpPending ? words().lp.pending : words().lp.unknown}</p>}>
-              {(lp) => (
-                <>
-                  <p class={`${styles.big} num`} data-lp={Math.sign(lp().delta)}>
-                    {t().matches.lp(signedPoints(lp().delta, 0))}
-                  </p>
-                  <p class={`${styles.stackNote} num`}>
-                    <Show when={moved()}>{(m) => <span class={styles.moved}>{m()}</span>}</Show>
-                    <TierBadge tier={lp().after.tier} division={lp().after.division} plain />
-                    <span>{t().common.lp(lp().after.leaguePoints)}</span>
-                  </p>
-                </>
-              )}
-            </Show>
-          </div>
-        </Show>
+          </Show>
+        </div>
       </div>
       <div class={styles.body}>
         <Show
@@ -145,9 +147,10 @@ export function PostGameCard(props: { game: PostGame; onClose: () => void }): JS
           </section>
         </Show>
         <section class={styles.vs}>
-          <div class={styles.vsHead}>
-            <h3 class={styles.heading}>{words().you}</h3>
-            <Show when={g().opponent} fallback={<p class={styles.stackNote}>{words().noOpponent}</p>}>
+          {/* The same columns as the rows: "You" over your numbers, the opponent over theirs. */}
+          <div class={`${styles.row} ${styles.vsHead}`}>
+            <h3 class={`${styles.heading} ${styles.you}`}>{words().you}</h3>
+            <Show when={g().opponent}>
               {(o) => (
                 <p class={styles.them}>
                   <span class={styles.caption}>{g().me.role ? words().laneOpponent : words().closestDamage}</span>
@@ -195,6 +198,9 @@ export function PostGameCard(props: { game: PostGame; onClose: () => void }): JS
               }}
             </For>
           </ul>
+          <Show when={!g().opponent}>
+            <p class={styles.stackNote}>{words().noOpponent}</p>
+          </Show>
         </section>
       </div>
     </Card>

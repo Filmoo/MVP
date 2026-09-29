@@ -83,7 +83,7 @@ export const frViews = {
     title: "Votre dernière partie",
     close: "Fermer ce résumé",
     outOf: "sur 10",
-    why: "Ce qui a fait votre note",
+    why: "Ce qui a pesé sur votre note",
     remake: "Un remake : pas de note, et la partie ne compte pas.",
     you: "Vous",
     laneOpponent: "Adversaire de voie",
