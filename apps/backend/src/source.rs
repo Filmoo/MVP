@@ -343,7 +343,11 @@ mod tests {
             .map(|d| d.teams[0].players[0].stats.clone())
             .unwrap_or_default();
         assert_eq!(
-            (stats.crowd_control_seconds, stats.turrets_destroyed, stats.healing_on_teammates),
+            (
+                stats.crowd_control_seconds,
+                stats.turrets_destroyed,
+                stats.healing_on_teammates
+            ),
             (Some(17), Some(2), Some(0))
         );
         assert!(small.pointer("/info/participants/0/challenges").is_none());

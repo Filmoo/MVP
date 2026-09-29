@@ -40,6 +40,48 @@ const pull = (page: Page) =>
     return { moved: Math.round(moved), pulling: document.querySelector("dialog")?.dataset.pulling ?? null };
   });
 
+interface Pulls {
+  /** The farthest the sheet was sent (px, + down). */
+  most: number;
+  /** How it was pulled, if it was. */
+  how: string | null;
+  /** The hint showed (it names the edge it points to). */
+  edge: string | null;
+}
+
+/**
+ * Records the sheet's pulls from now on, as they happen: on a busy machine a pull can spring back
+ * before a test looks.
+ */
+async function recordPulls(page: Page): Promise<() => Promise<Pulls>> {
+  await page.evaluate(() => {
+    const dialog = document.querySelector("dialog");
+    const panel = document.querySelector<HTMLElement>("[data-testid=game]");
+    const cue = document.querySelector<HTMLElement>("[data-testid=scroll-cue]");
+    const seen: Pulls = { most: 0, how: null, edge: null };
+    (window as unknown as { __pulls: Pulls }).__pulls = seen;
+    const look = () => {
+      const y = Number.parseFloat(panel?.style.translate.split(" ")[1] ?? "0") || 0;
+      if (Math.abs(y) > Math.abs(seen.most)) seen.most = Math.round(y);
+      seen.how ??= dialog?.dataset.pulling ?? null;
+      seen.edge ??= dialog?.dataset.pulling ? (cue?.dataset.edge ?? null) : null;
+    };
+    for (const el of [dialog, panel]) if (el) new MutationObserver(look).observe(el, { attributes: true });
+  });
+  return () => page.evaluate(() => (window as unknown as { __pulls: Pulls }).__pulls);
+}
+
+/** Wheel notches over the sheet, sent back to back (each awaited, a busy machine spaced them out). */
+async function notches(page: Page, count: number, dy: number): Promise<void> {
+  const box = await page.getByTestId("game").boundingBox();
+  const at = { x: (box?.x ?? 0) + (box?.width ?? 0) / 2, y: (box?.y ?? 0) + (box?.height ?? 0) / 2 };
+  const cdp = await page.context().newCDPSession(page);
+  await Promise.all(
+    Array.from({ length: count }, () => cdp.send("Input.dispatchMouseEvent", { type: "mouseWheel", ...at, deltaX: 0, deltaY: dy })),
+  );
+  await cdp.detach();
+}
+
 test("matches: your grades follow the list, asked once", async ({ page, t }) => {
   const errors = trackErrors(page);
   await openApp(page);
@@ -112,6 +154,8 @@ test("matches: Escape closes the game and gives the focus back; the focus stays 
     await page.keyboard.press(i % 3 === 2 ? "Shift+Tab" : "Tab");
     expect(await page.evaluate(() => !!document.activeElement?.closest("dialog")), `tab ${i}`).toBe(true);
   }
+  // On a player's link (not a grade: its why would take the first Escape).
+  await sheet(page).getByTestId("game").getByRole("link").first().focus();
   await page.keyboard.press("Escape");
   await expect(sheet(page)).toHaveCount(0);
   await expect(row).toBeFocused();
@@ -129,7 +173,10 @@ test("matches: a click outside the sheet closes it, a click inside doesn't", asy
   await openApp(page);
   await openGame(page, 2);
   await sheet(page).locator("#game-title").click();
-  await sheet(page).getByTestId("game-player").first().click({ position: { x: 4, y: 4 } });
+  await sheet(page)
+    .getByTestId("game-player")
+    .first()
+    .click({ position: { x: 4, y: 4 } });
   await expect(sheet(page)).toBeVisible();
   // Beside it, over the dimmed page (the rail).
   await page.mouse.click(20, 400);
@@ -144,13 +191,12 @@ test("matches: scrolling on past the end pulls the game, springs back, and a big
   await openGame(page);
   await toEdge(page, "end");
   const cue = page.getByTestId("scroll-cue");
-  // Two notches: the sheet follows (up), the hint says what more would do…
-  await page.mouse.wheel(0, 100);
-  await page.mouse.wheel(0, 100);
-  await expect.poll(async () => (await pull(page)).pulling).toBe("wheel");
   await expect(cue).toContainText(t.matchDetails.keepScrolling);
-  await expect(cue).toHaveCSS("opacity", "1");
-  await expect.poll(async () => (await pull(page)).moved).toBeLessThan(-40);
+  // Two notches: the sheet follows (up), under the hint of what more would do…
+  const pulls = await recordPulls(page);
+  await notches(page, 2, 100);
+  await expect.poll(pulls).toMatchObject({ how: "wheel", edge: "end" });
+  expect((await pulls()).most).toBeLessThan(-40);
   // …and let go, it springs back.
   await page.waitForTimeout(RELEASE_MS);
   await expect.poll(async () => pull(page)).toEqual({ moved: 0, pulling: null });
@@ -158,7 +204,7 @@ test("matches: scrolling on past the end pulls the game, springs back, and a big
   await expect(sheet(page)).toBeVisible();
   // A big enough scroll closes it; the focus goes back to its row.
   await page.waitForTimeout(GESTURE_GAP_MS);
-  for (let i = 0; i < 4; i++) await page.mouse.wheel(0, 100);
+  await notches(page, 4, 100);
   await expect(sheet(page)).toHaveCount(0);
   await expect(rows(page).first()).toBeFocused();
   expect(errors).toEqual([]);
@@ -168,9 +214,13 @@ test("matches: scrolling on past the top closes it too", async ({ page }) => {
   await openApp(page);
   await openGame(page, 1);
   await toEdge(page, "top");
-  await page.mouse.wheel(0, -100);
-  await expect.poll(async () => (await pull(page)).moved).toBeGreaterThan(20);
-  for (let i = 0; i < 3; i++) await page.mouse.wheel(0, -100);
+  const pulls = await recordPulls(page);
+  await notches(page, 1, -100);
+  await expect.poll(pulls).toMatchObject({ how: "wheel", edge: "top" });
+  expect((await pulls()).most).toBeGreaterThan(20);
+  await expect.poll(async () => (await pull(page)).pulling).toBe(null);
+  await page.waitForTimeout(GESTURE_GAP_MS);
+  await notches(page, 4, -100);
   await expect(sheet(page)).toHaveCount(0);
 });
 
@@ -212,11 +262,13 @@ test("matches: with reduced motion the sheet stays put, the hint and the close s
   await openApp(page);
   await openGame(page);
   await toEdge(page, "end");
-  await page.mouse.wheel(0, 100);
-  await expect.poll(async () => (await pull(page)).pulling).toBe("wheel");
-  expect((await pull(page)).moved).toBe(0);
-  await expect(page.getByTestId("scroll-cue")).toHaveCSS("opacity", "1");
-  for (let i = 0; i < 3; i++) await page.mouse.wheel(0, 100);
+  const pulls = await recordPulls(page);
+  await notches(page, 1, 100);
+  await expect.poll(pulls).toEqual({ most: 0, how: "wheel", edge: "end" });
+  // Let go, then a big enough scroll: it closes.
+  await expect.poll(async () => (await pull(page)).pulling).toBe(null);
+  await page.waitForTimeout(GESTURE_GAP_MS);
+  await notches(page, 4, 100);
   await expect(sheet(page)).toHaveCount(0);
 });
 

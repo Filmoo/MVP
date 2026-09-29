@@ -575,14 +575,19 @@ async function gameShot(
     await sheet.locator("[data-widget=match-stats]").evaluate((el) => el.scrollIntoView({ block: "start" }));
   }
   if (opts.part === "pull") {
-    // Scrolled to its end, then two notches on: the sheet follows, the hint shows.
-    await sheet.locator("[data-widget=match-stats]").evaluate((el) => el.scrollIntoView({ block: "end" }));
+    // Scrolled to its end, then two notches on (at once: a busy machine spaces awaited ones out):
+    // the sheet follows, the hint shows; captured before it springs back.
+    await sheet.getByTestId("game-body").evaluate((el) => {
+      el.scrollTop = el.scrollHeight;
+    });
     const box = await page.getByTestId("game").boundingBox();
-    await page.mouse.move((box?.x ?? 0) + (box?.width ?? 0) / 2, (box?.y ?? 0) + (box?.height ?? 0) / 2);
+    const at = { x: (box?.x ?? 0) + (box?.width ?? 0) / 2, y: (box?.y ?? 0) + (box?.height ?? 0) / 2 };
+    await page.mouse.move(at.x, at.y);
     await page.waitForTimeout(300);
-    await page.mouse.wheel(0, 100);
-    await page.mouse.wheel(0, 100);
-    await page.waitForTimeout(200);
+    const cdp = await page.context().newCDPSession(page);
+    await Promise.all([0, 1].map(() => cdp.send("Input.dispatchMouseEvent", { type: "mouseWheel", ...at, deltaX: 0, deltaY: 100 })));
+    await sheet.and(page.locator("[data-pulling]")).waitFor();
+    await page.waitForTimeout(150);
   } else {
     await page.mouse.move(0, 0);
   }
@@ -629,7 +634,12 @@ for (const lang of ["en", "fr"] as const) {
       await gameShot(page, `${prefix}home-game-howling-abyss`, { scenario: "howling-abyss", width: 1920, height: 1080 });
     });
     test(`${prefix}home game howling abyss stats 1920x1080`, async ({ page }) => {
-      await gameShot(page, `${prefix}home-game-howling-abyss-stats`, { scenario: "howling-abyss", width: 1920, height: 1080, part: "stats" });
+      await gameShot(page, `${prefix}home-game-howling-abyss-stats`, {
+        scenario: "howling-abyss",
+        width: 1920,
+        height: 1080,
+        part: "stats",
+      });
     });
     for (const scenario of ["match-details-error", "match-details-gone", "match-details-unavailable", "match-details-slow"] as const) {
       test(`${prefix}home ${scenario} 1280x800`, async ({ page }) => {

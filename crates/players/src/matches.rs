@@ -302,10 +302,19 @@ pub(crate) mod tests {
             ),
             (Some(4_000), Some(28_000), Some(2_000))
         );
-        assert_eq!((stats.damage_taken, stats.damage_self_mitigated), (Some(20_000), Some(8_000)));
+        assert_eq!(
+            (stats.damage_taken, stats.damage_self_mitigated),
+            (Some(20_000), Some(8_000))
+        );
         assert_eq!((stats.minions, stats.monsters), (Some(180), Some(10)));
-        assert_eq!((stats.gold_spent, stats.crowd_control_seconds), (Some(14_100), Some(21)));
-        assert_eq!((stats.turrets_destroyed, stats.inhibitors_destroyed), (Some(1), Some(0)));
+        assert_eq!(
+            (stats.gold_spent, stats.crowd_control_seconds),
+            (Some(14_100), Some(21))
+        );
+        assert_eq!(
+            (stats.turrets_destroyed, stats.inhibitors_destroyed),
+            (Some(1), Some(0))
+        );
         let support = &blue.players[4].stats;
         assert_eq!(
             (support.healing_on_teammates, support.shielding_on_teammates),

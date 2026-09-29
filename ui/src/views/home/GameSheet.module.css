@@ -13,17 +13,23 @@
   max-width: none;
   max-height: none;
   margin: 0;
-  padding: calc(var(--titlebar-h) + var(--space-5)) var(--space-8) var(--space-6) calc(var(--sidebar-w) + var(--space-8));
+  padding: var(--space-5) var(--space-8) var(--space-6);
   border: 0;
   background: transparent;
   color: var(--text-1);
   overflow: hidden;
 }
 
-/* One cell, exactly the room left: the sheet never grows with its tables (they scroll). */
+/*
+ * The sheet's cell is the room beside the rail and under the title bar (their tracks stay empty),
+ * exactly: the sheet never grows with its tables (they scroll).
+ */
 .sheet[open] {
   display: grid;
-  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+  grid-template:
+    ". ." var(--titlebar-h)
+    ". sheet" minmax(0, 1fr)
+    / var(--sidebar-w) minmax(0, 1fr);
   justify-items: center;
 }
 
@@ -38,6 +44,7 @@
 }
 
 .panel {
+  grid-area: sheet;
   position: relative;
   isolation: isolate;
   display: flex;
@@ -106,7 +113,9 @@
   border-radius: var(--radius-3);
 }
 
+/* It takes the width: the close button ends the head. */
 .heading {
+  flex: 1;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -147,7 +156,6 @@
   flex: none;
   width: 32px;
   height: 32px;
-  margin-left: auto;
   padding: 0;
   border: 0;
   border-radius: var(--radius-3);
@@ -207,13 +215,16 @@
 
 /*
  * Scroll to close: while the sheet is pulled, a hint says what the pull does, its bar filling up
- * to the close (`--progress`, 0–1, from GameSheet.tsx).
+ * to the close (`--progress`, 0–1, from GameSheet.tsx). It shares the sheet's cell, at the edge
+ * being pulled: the sheet moving away opens the room it sits in.
  */
 .cue {
+  /* Placed in the sheet's grid cell (the dialog, fixed, is its containing block). */
+  grid-area: sheet;
   position: absolute;
-  bottom: var(--space-6);
+  bottom: var(--space-4);
   left: 50%;
-  z-index: 2;
+  z-index: 1;
   display: flex;
   align-items: center;
   gap: var(--space-3);
@@ -245,12 +256,12 @@
   transition: transform var(--dur-1) var(--ease);
 }
 
-.sheet[data-pulling] .cue {
+.sheet[data-pulling]:not([data-closing]) .cue {
   opacity: 1;
 }
 
 .cue[data-edge="top"] {
-  top: var(--space-5);
+  top: var(--space-4);
   bottom: auto;
 }
 
@@ -303,10 +314,16 @@
   }
 }
 
-/* Narrow windows: the sheet takes the window under the title bar. */
+/* Narrow windows: the sheet takes the window under the title bar (the rail is a tab bar there). */
 @media (max-width: 559px) {
   .sheet {
-    padding: calc(var(--titlebar-h) + var(--space-2)) var(--space-3) var(--space-3);
+    padding: var(--space-2) var(--space-3) var(--space-3);
+  }
+  .sheet[open] {
+    grid-template:
+      "." var(--titlebar-h)
+      "sheet" minmax(0, 1fr)
+      / minmax(0, 1fr);
   }
   .panel {
     border-radius: var(--radius-4);

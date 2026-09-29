@@ -5,8 +5,9 @@
  *
  * A pull is always deliberate. A wheel gesture that scrolled the content up to the edge (a fast
  * spin of the wheel, a touchpad flick and its inertia) stops there: the next one, begun at the
- * edge, pulls. And inertia never adds to a pull: momentum shrinks from one event to the next, a
- * hand scrolling doesn't (a mouse wheel's notches are all alike).
+ * edge, pulls. And inertia doesn't add to a pull: momentum shrinks event after event, steadily;
+ * a hand scrolling doesn't (a wheel's notches are alike, or come merged two or three in one when
+ * the page is busy, a touchpad's deltas go up and down).
  */
 
 /** Wheel pixels past the edge that close the sheet: four notches of a mouse wheel. */
@@ -15,8 +16,8 @@ export const WHEEL_CLOSE = 360;
 export const TOUCH_CLOSE = 140;
 /** A pause this long between two wheel events starts a new gesture. */
 export const GESTURE_GAP_MS = 200;
-/** No wheel event for this long: the pull springs back. */
-export const RELEASE_MS = 350;
+/** No wheel event for this long: the pull springs back (notch after notch still adds up). */
+export const RELEASE_MS = 500;
 
 /** How far the sheet follows `distance` pixels of pull: less and less, like a rubber band. */
 export function rubber(distance: number): number {
@@ -34,6 +35,8 @@ export interface Edges {
 export function wheelPull(): { wheel(time: number, dy: number, edges: Edges): number; release(): void } {
   let last = Number.NEGATIVE_INFINITY;
   let previous = 0;
+  /** Events in a row that were smaller than the one before. */
+  let shrinking = 0;
   let moved = false;
   let distance = 0;
   return {
@@ -42,15 +45,17 @@ export function wheelPull(): { wheel(time: number, dy: number, edges: Edges): nu
       if (time - last > GESTURE_GAP_MS) {
         moved = false;
         previous = 0;
+        shrinking = 0;
       }
       last = time;
       const size = Math.abs(dy);
+      shrinking = size < previous ? shrinking + 1 : 0;
       const over = dy > 0 ? atEnd : atTop;
       if (!over || distance * dy < 0) {
         // The content scrolls (this gesture can't pull anymore), or the pull turns back.
         moved = true;
         distance = 0;
-      } else if (!moved && size >= previous) {
+      } else if (!moved && shrinking < 2) {
         distance += dy;
       }
       previous = size;

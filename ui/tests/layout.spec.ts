@@ -113,6 +113,8 @@ for (const { view, scenario } of SCENARIO_VIEWS) {
 
 /** An opened game's sheet: the whole window stays inside the window, at its top and at its end. */
 async function auditSheet(page: Page, size: { name: string; width: number; height: number }): Promise<void> {
+  // Once it has risen in (its own animations only: a loading skeleton pulses for good).
+  await page.getByTestId("game").evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
   const box = await page.getByTestId("game").boundingBox();
   const inside = box && box.x >= 0 && box.y >= 0 && box.x + box.width <= size.width && box.y + box.height <= size.height;
   expect(inside, `${size.name}: the sheet inside the window: ${JSON.stringify(box)}`).toBe(true);

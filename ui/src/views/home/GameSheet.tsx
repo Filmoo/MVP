@@ -246,11 +246,12 @@ export function GameSheet(props: { match: MatchSummary; focus: RiotId | undefine
               )}
             </Show>
           </div>
-          <div ref={cue} class={styles.cue} aria-hidden="true" data-testid="scroll-cue">
-            <Icon name="arrowDown" size={16} />
-            {t().matchDetails.keepScrolling}
-          </div>
         </div>
+      </div>
+      {/* Over the sheet's edge, in the room its pull opens (and over it when it can't move). */}
+      <div ref={cue} class={styles.cue} aria-hidden="true" data-testid="scroll-cue">
+        <Icon name="arrowDown" size={16} />
+        {t().matchDetails.keepScrolling}
       </div>
     </dialog>
   );

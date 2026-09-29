@@ -824,7 +824,10 @@ async fn match_details_come_from_the_match_cache() {
     );
     let support = &teams[0]["players"][4]["stats"];
     assert_eq!(
-        (&support["healingOnTeammates"], &support["shieldingOnTeammates"]),
+        (
+            &support["healingOnTeammates"],
+            &support["shieldingOnTeammates"]
+        ),
         (&json!(5_500), &json!(7_200))
     );
     // Riot withheld the name: it stays hidden.

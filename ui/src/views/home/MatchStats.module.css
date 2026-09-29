@@ -68,9 +68,15 @@
   vertical-align: middle;
 }
 
+/* Right-aligned over its numbers. */
+.table thead th {
+  text-align: right;
+}
+
 .table thead th img,
 .table thead th [role="img"] {
-  margin-left: auto;
+  display: inline-block;
+  vertical-align: middle;
   border-radius: var(--radius-2);
 }
 

@@ -23,6 +23,13 @@ describe("scroll to close: the wheel", () => {
     expect(pull.wheel(270, 100, END)).toBeGreaterThanOrEqual(WHEEL_CLOSE);
   });
 
+  it("notches the busy page merged (200, then 100) are no inertia", () => {
+    const pull = wheelPull();
+    expect(feed(pull, 0, [100, 200, 100])).toBeGreaterThanOrEqual(WHEEL_CLOSE);
+    const again = wheelPull();
+    expect(feed(again, 0, [300, 100])).toBeGreaterThanOrEqual(WHEEL_CLOSE);
+  });
+
   it("slow notches still add up: each one is a gesture of its own, begun at the edge", () => {
     const pull = wheelPull();
     for (let i = 0; i < 3; i++) pull.wheel(i * (GESTURE_GAP_MS + 60), 100, END);
@@ -42,16 +49,21 @@ describe("scroll to close: the wheel", () => {
     expect(pull.wheel(48 + 5 * 16 + GESTURE_GAP_MS + 1, 100, END)).toBe(100);
   });
 
-  it("inertia never pulls: momentum carried to the edge, or following a small deliberate push", () => {
+  it("inertia never closes: momentum carried to the edge, alone, or after a small deliberate push", () => {
     const momentum = [60, 55, 50, 46, 42, 38, 35, 32, 29, 26, 24, 22, 20, 18, 16, 14, 12, 10, 8, 6, 4, 2];
     // A flick that scrolled the content: its momentum hits the end and stops there.
     const flick = wheelPull();
     feed(flick, 0, [20, 40, 60], MIDDLE);
     expect(feed(flick, 48, momentum)).toBe(0);
-    // A small push begun at the end: its growing deltas count, the momentum after it doesn't.
+    // Momentum alone at the end: once it has shrunk twice in a row, it adds nothing.
+    const alone = wheelPull();
+    expect(feed(alone, 0, momentum)).toBe(60 + 55);
+    // A small push begun at the end: its growing deltas count, the momentum after it only
+    // until it shows as momentum.
     const push = wheelPull();
     expect(feed(push, 0, [10, 30, 60])).toBe(100);
-    expect(feed(push, 48, momentum.slice(1))).toBe(100);
+    expect(feed(push, 48, momentum.slice(1))).toBe(100 + 55);
+    expect(100 + 55).toBeLessThan(WHEEL_CLOSE);
   });
 
   it("a touchpad's continued scroll at the edge counts, even when it slows down a little", () => {
