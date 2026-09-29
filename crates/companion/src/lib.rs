@@ -12,8 +12,10 @@ pub mod crash;
 pub mod draft;
 pub mod imports;
 pub mod live;
+pub mod lp;
 pub mod matches;
 pub mod mayhem;
+pub mod post_game;
 pub mod profile;
 pub mod remote;
 pub mod settings;
@@ -84,6 +86,9 @@ pub struct Companion {
     pub import_warning: watch::Receiver<Option<ImportWarning>>,
     /// Your profile, and every game's grades and details, read once and kept.
     pub matches: matches::MatchInsights,
+    /// The summary of the game that just ended (until dismissed or the next game) and the LP of
+    /// your tracked ranked games.
+    pub post_game: post_game::PostGameHandle,
     pub task: JoinHandle<()>,
 }
 
@@ -109,9 +114,9 @@ pub struct Services {
     pub live: LiveConfig,
     /// Champion and spell ids of the names the game uses (its player list).
     pub game_ids: Arc<dyn GameIds>,
-    /// ARAM: Mayhem data; with a backend, the player's Mayhem games are shared when they opted
-    /// in (`None`: no sharing).
-    pub mayhem: Option<mayhem::MayhemClient>,
+    /// Where the LP of your ranked games is kept (`lp::FILE_NAME` in the app's data folder;
+    /// `None`: in memory only).
+    pub lp_file: Option<std::path::PathBuf>,
 }
 
 impl Default for Services {
@@ -125,7 +130,7 @@ impl Default for Services {
             language: watch::channel(Language::En).1,
             live: LiveConfig::default(),
             game_ids: Arc::new(NoGameIds),
-            mayhem: None,
+            lp_file: None,
         }
     }
 }
@@ -350,16 +355,15 @@ pub fn start_with_services(
     let (live_tx, live) = watch::channel(None);
     let mut game = LiveFollower::new(live_tx, &services, &config.tls);
     let Services {
-        backend,
         mut remote,
         stats,
         builds,
         names,
         language,
-        mayhem,
+        lp_file,
         ..
     } = services;
-    follow_champ_select(&mut config);
+    follow_paths(&mut config, &[champ_select::SESSION, post_game::RANKED]);
     let mut connector = lcu::spawn(config);
     let client = connector.client.clone();
     let (tx, status) = watch::channel(ClientStatus::not_running());
@@ -386,7 +390,9 @@ pub fn start_with_services(
     .reporting(reports_tx);
     let (warning_tx, import_warning) = watch::channel(None);
     let mut lock_in = LockIn::new(importer.clone(), events_tx.clone(), warning_tx);
-    let sharing = spawn_sharing(backend, mayhem, &client, &status, &settings, &remote);
+    // The last game's summary and the LP of your ranked games.
+    let mut post_games = post_game::PostGames::new(client.clone(), insights.clone(), lp_file);
+    let post_game = post_games.handle();
     let task = tokio::spawn(async move {
         let mut autopilot = Autopilot::default();
         let mut accept = AutoAccept::new(&lcu_client, &settings, &remote, &events_tx);
@@ -396,6 +402,7 @@ pub fn start_with_services(
                     let Some(update) = update else { break };
                     let before = tx.borrow().phase;
                     tx.send_if_modified(|status| apply(status, &update));
+                    post_games.on_update(&update);
                     if let Some(session) = follow_draft(&update, &tx, &helper.sessions, &lcu_client).await {
                         lock_in.on_session(&session);
                     }
@@ -406,6 +413,7 @@ pub fn start_with_services(
                     if phase != GameflowPhase::ChampSelect {
                         lock_in.reset();
                     }
+                    post_games.on_phase(phase);
                     game.on_phase(phase, &lcu_client);
                     accept.on_phase(phase);
                     let current = settings.borrow().clone();
@@ -428,8 +436,8 @@ pub fn start_with_services(
             }
         }
         accept.stop();
-        for running in [game.task, sharing].into_iter().flatten() {
-            running.abort();
+        if let Some(scouting) = game.task {
+            scouting.abort();
         }
         helper.task.abort();
     });
@@ -444,37 +452,18 @@ pub fn start_with_services(
         imports: importer,
         import_warning,
         matches: insights,
+        post_game,
         task,
     }
 }
 
-/// The core reads champion select sessions as they change.
-fn follow_champ_select(config: &mut ConnectorConfig) {
-    if !config.paths.iter().any(|p| p == champ_select::SESSION) {
-        config.paths.push(champ_select::SESSION.to_owned());
+/// Subscribes the connector to `paths` too (the gameflow phase is always followed).
+fn follow_paths(config: &mut ConnectorConfig, paths: &[&str]) {
+    for &path in paths {
+        if !config.paths.iter().any(|p| p == path) {
+            config.paths.push(path.to_owned());
+        }
     }
-}
-
-/// Opt-in: the player's Mayhem games, shared as they end (nothing while the switch is off).
-/// Needs our backend and the Mayhem data client.
-fn spawn_sharing(
-    backend: Option<BackendClient>,
-    data: Option<mayhem::MayhemClient>,
-    client: &watch::Receiver<Option<LcuClient>>,
-    status: &watch::Receiver<ClientStatus>,
-    settings: &watch::Receiver<Settings>,
-    remote: &watch::Receiver<RemoteConfig>,
-) -> Option<JoinHandle<()>> {
-    let (backend, data) = backend.zip(data)?;
-    Some(tokio::spawn(mayhem::share(mayhem::Sharing {
-        client: client.clone(),
-        status: status.clone(),
-        settings: settings.clone(),
-        remote: remote.clone(),
-        backend,
-        mayhem: data,
-        after_game: mayhem::AFTER_GAME,
-    })))
 }
 
 /// Never blocks the core on a slow consumer: intents only matter right away.

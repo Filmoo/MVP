@@ -68,14 +68,20 @@ check the latest run before building on it.
    for that reason: a chunk of their own split `solid-js/web` out of the startup chunk, +0.3 KB);
    Solid drops `@once` on JSX inside an expression (`{open() && <p class=…>}`, `{list.map(…)}`),
    whose classes stay effects.
+   *(2026-09-29, the post-game branch)* The first screen is one chunk now (`vite.config.ts`, a
+   `codeSplitting` group of every module the entry reaches: 17 startup files → 1, 44.9 → 38.2 KB
+   startup and 123.6 → 115.9 KB in all when it landed, before the post-game, LP, history and
+   mastery work), so startup code no longer splits when a lazy chunk imports part of it. Lazy
+   chunks import from the entry chunk: `main.tsx` must not await at its top level (a module paused
+   there makes them wait forever: a blank page).
 9. Production Riot key: register the product (policy.md lists the endpoints to declare); a dev
    key crawls ~2k games a day.
 
 **To implement next** (none started)
-- Match history: filters (queue, champion), "load more", LP won/lost per game and a post-game
-  summary card.
-- Tier list trends (this patch against the last: win/pick rate arrows) and champion mastery on
-  the profile.
+- Tier list trends (this patch against the last: win/pick rate arrows).
+- *(built 2026-09-29, against mock-lcu only: see "After a game" in the checklist below)* the
+  post-game summary on Home, LP won/lost per ranked game (rows and the ranked pane's graph),
+  history filters and "load more", champion mastery on your profile.
 - The updater's `requireSignedVersion` once signatures carry the version (job 6).
 - Later, by the owner's earlier calls: an in-game overlay (the architecture is ready for it, not
   wanted yet); no ban suggestions, no AI picks.
@@ -360,6 +366,23 @@ Match insights (Home after a few games; a player page with the backend running):
   page owner's) is marked; Escape closes and the row keeps the focus.
 - **Grades look right:** the MVP is the best of the winners, an obviously bad game gets a C, a
   support with high vision isn't punished for low CS, and the why's facts match the end screen.
+
+After a game (Home; the logs say "LP of the game", "game not in the history yet", "the client
+didn't count the game in time"):
+- **Post-game summary:** a ranked game ends → the window comes Home (autopilot) and the card tops
+  it within seconds of the end screen: result, grade and its facts, your numbers against your
+  lane opponent (check the roles: the opponent must be your role on the other team), then the LP
+  when the client counts it (check `/lol-ranked/v1/current-ranked-stats` fires its event after a
+  game; else the LP comes from the retries within two minutes). Close it: it doesn't come back;
+  the next champion select hides it too. ARAM: the closest share of damage, no LP.
+- **LP:** compare MVP's `+19 LP` with the client's end screen over a few games, a promotion and a
+  demotion included (MVP counts 100 LP per division: a demotion to 75 LP shows the ladder
+  difference, not the client's "−20"); `lp-history.json` in `%APPDATA%\gg.mvp.companion`; a
+  restart during a game still gets its LP. Remakes: no LP, no grade.
+- **Load more:** how far back `begIndex`/`endIndex` goes on a real client (20 per page; the end
+  shows "No older games"), and that older games grade and open like the first 20.
+- **Mastery:** the champions card's five portraits match the client's mastery (levels past 7 read
+  as numbers).
 
 Tooltips (a champion page, an opened game, Live's cards; the app in English, then in French):
 - **Texts:** a rune's full text (the client's rune page), an item's stats and passives, a spell's

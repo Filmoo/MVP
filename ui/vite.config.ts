@@ -174,6 +174,15 @@ export default defineConfig(({ mode }) => ({
       resolveDependencies: (_file, deps, { hostType }) => (hostType === "js" ? deps.filter((dep) => !startup.loaded.has(dep)) : deps),
     },
     reportCompressedSize: false,
+    rolldownOptions: {
+      output: {
+        // Everything the first screen needs in one chunk (and one stylesheet). Left alone, every
+        // part of it that a lazy view also imports became a chunk of its own: 17 files at start,
+        // each compressed apart and naming the others, 7 KB more to load in all. Lazy chunks
+        // import from this one, so the entry must not pause at its top level (main.tsx).
+        codeSplitting: { groups: [{ name: "app", tags: ["$initial"] }] },
+      },
+    },
   },
   test: {
     // src: pure logic (browser code); tests/unit: checks that read the source tree (Node).

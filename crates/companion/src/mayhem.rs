@@ -653,6 +653,27 @@ pub struct Sharing {
     pub after_game: Duration,
 }
 
+/// Starts sharing the player's Mayhem games ([`share`]) beside the core: its League client and
+/// status, the player's settings and the remote config. Runs until the settings' sender is
+/// gone; nothing at all while the switch is off. Must run inside a Tokio runtime.
+pub fn spawn_sharing(
+    backend: BackendClient,
+    data: MayhemClient,
+    core: &crate::Companion,
+    settings: watch::Receiver<Settings>,
+    remote: watch::Receiver<RemoteConfig>,
+) {
+    tokio::spawn(share(Sharing {
+        client: core.client.clone(),
+        status: core.status.clone(),
+        settings,
+        remote,
+        backend,
+        mayhem: data,
+        after_game: AFTER_GAME,
+    }));
+}
+
 fn allowed(settings: &Settings, remote: &RemoteConfig) -> bool {
     settings.share_mayhem_games && remote.features.mayhem_sharing
 }

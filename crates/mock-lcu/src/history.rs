@@ -269,6 +269,37 @@ impl Game {
     }
 }
 
+/// The list as asked for: games `begIndex` to `endIndex`, both included (the real client's
+/// paging; without them, the whole list).
+pub(crate) fn page(list: &Value, query: Option<&str>) -> Value {
+    let param = |name: &str| {
+        query?
+            .split('&')
+            .find_map(|pair| pair.strip_prefix(name)?.strip_prefix('='))
+            .and_then(|n| n.parse::<usize>().ok())
+    };
+    let (Some(beg), Some(end)) = (param("begIndex"), param("endIndex")) else {
+        return list.clone();
+    };
+    let games: Vec<Value> = list
+        .pointer("/games/games")
+        .and_then(Value::as_array)
+        .map(|games| {
+            games
+                .iter()
+                .skip(beg)
+                .take(end.saturating_sub(beg) + 1)
+                .cloned()
+                .collect()
+        })
+        .unwrap_or_default();
+    let mut page = list.clone();
+    page["games"]["gameIndexBegin"] = json!(beg);
+    page["games"]["gameIndexEnd"] = json!(end);
+    page["games"]["games"] = Value::Array(games);
+    page
+}
+
 /// Serves `games` (newest first) as the client does: the list and every whole game.
 pub fn serve(mock: &MockLcu, me: &Local, games: &[Game]) {
     mock.set(

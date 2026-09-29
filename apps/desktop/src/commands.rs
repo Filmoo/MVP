@@ -4,10 +4,11 @@ use companion::mayhem::MayhemClient;
 use companion::settings::SettingsStore;
 use companion::stats::StatsClient;
 use domain::{
-    AppInfo, BackendError, Bracket, ChampionPage, ClientError, ClientStatus, Description,
-    DescriptionKind, DraftView, GameData, GradedMatch, ImportRequest, ImportResult, ImportWarning,
-    Language, LiveGame, MatchDetails, MayhemAugments, MayhemChampion, MayhemOverview,
-    PlayerProfile, RankEmblems, RemoteConfig, RiotId, Settings, StatsIndex, TierList, UpdateStatus,
+    AppInfo, BackendError, Bracket, ChampionMastery, ChampionPage, ClientError, ClientStatus,
+    Description, DescriptionKind, DraftView, GameData, GradedMatch, ImportRequest, ImportResult,
+    ImportWarning, Language, LiveGame, LpGame, MatchDetails, MatchSummary, MayhemAugments,
+    MayhemChampion, MayhemOverview, PlayerProfile, PostGame, RankEmblems, RemoteConfig, RiotId,
+    Settings, StatsIndex, TierList, UpdateStatus,
 };
 use tauri::{Emitter as _, Manager as _};
 use tauri_plugin_autostart::ManagerExt as _;
@@ -205,6 +206,83 @@ pub async fn match_details(
     core.matches
         .details(client.as_ref(), backend.as_ref(), match_id.trim())
         .await
+}
+
+/// Your games further back than `current_profile`'s: `beg_index` and the 19 after it (fewer, or
+/// none, at the end of the history), graded and opened like the first page's.
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub async fn older_matches(
+    app: tauri::AppHandle,
+    beg_index: u32,
+) -> Result<Vec<MatchSummary>, ClientError> {
+    let core = app.try_state::<Core>().ok_or_else(|| ClientError::Failed {
+        message: "MVP is still starting, try again in a moment".to_owned(),
+    })?;
+    let client = core.client.borrow().clone();
+    let client = client.ok_or(ClientError::NotAnswering)?;
+    core.matches
+        .older(&client, beg_index)
+        .await
+        .map_err(|error| companion::profile::client_error(&error))
+}
+
+/// The summary of the game that just ended, `None` once dismissed or when the next game starts
+/// (`post-game` events follow).
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub fn post_game(app: tauri::AppHandle) -> Option<PostGame> {
+    app.try_state::<Core>()
+        .and_then(|core| core.post_game.current())
+}
+
+/// The player closed the summary of `match_id`: it doesn't come back.
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub fn dismiss_post_game(app: tauri::AppHandle, match_id: String) {
+    if let Some(core) = app.try_state::<Core>() {
+        core.post_game.dismiss(&match_id);
+    }
+}
+
+/// The LP of each ranked game MVP followed (solo/duo and flex), newest first.
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub fn lp_history(app: tauri::AppHandle) -> Vec<LpGame> {
+    app.try_state::<Core>()
+        .map(|core| core.post_game.lp_history())
+        .unwrap_or_default()
+}
+
+/// Your champions by mastery points (the League client's), most first; empty while the client
+/// isn't running.
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub async fn champion_mastery(app: tauri::AppHandle) -> Result<Vec<ChampionMastery>, String> {
+    let client = app
+        .try_state::<Core>()
+        .and_then(|core| core.client.borrow().clone());
+    let Some(client) = client else {
+        return Ok(Vec::new());
+    };
+    companion::profile::mastery(&client)
+        .await
+        .map_err(|error| error.to_string())
 }
 
 /// Current champion select, `None` outside of it (`draft` events follow changes).

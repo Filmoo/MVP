@@ -16,7 +16,7 @@ use companion::stats::StatsClient;
 use companion::{ScoutingHandle, Services, ViewReporter};
 use domain::{
     ClientStatus, Description, DraftView, GameData, ImportWarning, Language, LiveGame, RankEmblem,
-    RankEmblems, StatsIndex,
+    RankEmblems, Settings, StatsIndex,
 };
 use tauri::{AppHandle, Emitter as _, Manager as _, Runtime};
 use tokio::sync::watch;
@@ -33,6 +33,8 @@ pub struct Core {
     pub imports: Importer,
     pub import_warning: watch::Receiver<Option<ImportWarning>>,
     pub matches: companion::matches::MatchInsights,
+    /// The last game's summary and the LP of your ranked games.
+    pub post_game: companion::post_game::PostGameHandle,
 }
 
 /// Game data of the current patch in the UI's language (Data Dragon locale), once loaded.
@@ -219,17 +221,28 @@ pub struct Stats(pub Option<StatsClient>);
 #[derive(Debug)]
 pub struct Mayhem(pub Option<MayhemClient>);
 
-/// The Mayhem data client: our backend, cached under `{app cache}/mayhem`.
-fn mayhem_client<R: Runtime>(
+/// ARAM: Mayhem: the data client (our backend, cached under `{app cache}/mayhem`), managed for
+/// the commands, and the opt-in sharing of the player's games, started beside the core once it
+/// runs (with our backend and a cache directory only).
+fn mayhem<R: Runtime>(
     app: &AppHandle<R>,
     backend: Option<&BackendClient>,
-) -> Option<MayhemClient> {
-    let backend = backend?.clone();
-    match app.path().app_cache_dir() {
-        Ok(dir) => Some(MayhemClient::new(backend, dir.join("mayhem"))),
+    settings: &watch::Receiver<Settings>,
+    remote: &RemoteConfigStore,
+) -> impl FnOnce(&companion::Companion) + use<R> {
+    let data = backend.and_then(|backend| match app.path().app_cache_dir() {
+        Ok(dir) => Some(MayhemClient::new(backend.clone(), dir.join("mayhem"))),
         Err(error) => {
             tracing::error!(%error, "no cache directory for Mayhem data");
             None
+        }
+    });
+    app.manage(Mayhem(data.clone()));
+    let ready = backend.cloned().zip(data);
+    let (settings, remote) = (settings.clone(), remote.subscribe());
+    move |core| {
+        if let Some((backend, data)) = ready {
+            companion::mayhem::spawn_sharing(backend, data, core, settings, remote);
         }
     }
 }
@@ -359,8 +372,6 @@ pub fn start<R: Runtime>(app: &AppHandle<R>, settings: &SettingsStore) {
     if let Some(stats) = &published {
         follow_stats(app, stats);
     }
-    let mayhem = mayhem_client(app, backend.as_ref());
-    app.manage(Mayhem(mayhem.clone()));
     let remote = platform_services(app, &dir, &install_id, backend.as_ref(), settings);
     // The client status, for the updater: never during a game.
     let (phase_tx, phase) = watch::channel(ClientStatus::not_running());
@@ -380,7 +391,16 @@ pub fn start<R: Runtime>(app: &AppHandle<R>, settings: &SettingsStore) {
         }
     };
     let settings = settings.subscribe();
+    let share_mayhem = mayhem(app, backend.as_ref(), &settings, &remote);
     let names = champion_names(app);
+    // The LP of your ranked games, kept with MVP's data.
+    let lp_file = match app.path().app_data_dir() {
+        Ok(dir) => Some(dir.join(companion::lp::FILE_NAME)),
+        Err(error) => {
+            tracing::error!(%error, "no data directory: LP kept for this run only");
+            None
+        }
+    };
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         // The published stats feed both the draft helper and the build imports.
@@ -397,9 +417,10 @@ pub fn start<R: Runtime>(app: &AppHandle<R>, settings: &SettingsStore) {
             language,
             live: LiveConfig::for_the_game(),
             game_ids: Arc::new(LoadedGameIds(app.clone())),
-            mayhem,
+            lp_file,
         };
         let companion = companion::start_with_services(config, settings, services);
+        share_mayhem(&companion);
         app.manage(Core {
             status: companion.status.clone(),
             draft: companion.draft.clone(),
@@ -410,9 +431,11 @@ pub fn start<R: Runtime>(app: &AppHandle<R>, settings: &SettingsStore) {
             imports: companion.imports.clone(),
             import_warning: companion.import_warning.clone(),
             matches: companion.matches.clone(),
+            post_game: companion.post_game.clone(),
         });
         forward(&app, companion.draft.clone(), "draft");
         forward(&app, companion.live.clone(), "live");
+        forward(&app, companion.post_game.subscribe(), "post-game");
         forward(&app, companion.import_warning.clone(), "import-warning");
         let events_app = app.clone();
         let mut events = companion.events;

@@ -1,0 +1,92 @@
+/* Filters above the list, lined up with the card's title and the day headers; they wrap on
+   narrow cards. */
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4) var(--space-5);
+  padding: var(--space-2) var(--space-7) var(--space-5);
+}
+
+/*
+ * The champion filter: a pill like the queue's track, the native select laid over it
+ * (invisible) so the whole pill opens the list and keyboards and screen readers get a select.
+ */
+.champion {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: 30px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0 var(--space-4) 0 var(--space-3);
+  border-radius: var(--radius-full);
+  background: var(--bg-1);
+  border: 1px solid var(--line-glass);
+  box-shadow: inset 0 1px 2px var(--line-shade);
+  color: var(--text-3);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.champion:hover,
+.picked {
+  color: var(--text-1);
+}
+
+.champion:has(select:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Invisible, but in the design's colours all the same: its list opens in them. */
+.champion select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--bg-3);
+  color: var(--text-1);
+  opacity: 0;
+  cursor: pointer;
+  font: inherit;
+  appearance: none;
+  color-scheme: dark;
+}
+
+.champion option {
+  padding: 0;
+  background: var(--bg-3);
+  color: var(--text-1);
+}
+
+/* Older games: under the list, centred. */
+.more {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-7) var(--space-3);
+}
+
+.failed {
+  font-size: var(--text-sm);
+  color: var(--loss);
+  text-align: center;
+}
+
+.note {
+  font-size: var(--text-sm);
+  color: var(--text-3);
+}
