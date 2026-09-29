@@ -4,6 +4,7 @@
  * each champion's augments ranked per rarity the way the core ranks them
  * (`crates/companion/src/mayhem.rs` `champion`).
  */
+import type { AugmentCatalog } from "../generated/AugmentCatalog";
 import type { AugmentInfo } from "../generated/AugmentInfo";
 import type { AugmentPriorities } from "../generated/AugmentPriorities";
 import type { AugmentPriority } from "../generated/AugmentPriority";
@@ -94,6 +95,35 @@ export const mayhemAugments: MayhemAugments = {
   ),
 };
 
+/** Where the game's augment art is (the core builds the same URLs). */
+const ICON_BASE = "https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default";
+
+/**
+ * `?augments=dev` (dev server and screenshots, never the tests): the game's real augments
+ * (`.cache/mayhem/augments.json`, built from the game's files by `mvp-backend mayhem augments`)
+ * stand in for the made-up ones, rarity by rarity in id order, so the made-up tiers and pick
+ * counts still line up. Their art loads from the game's files. Made-up ones without the file.
+ */
+export async function loadMayhemAugments(): Promise<MayhemAugments> {
+  if (new URLSearchParams(window.location.search).get("augments") !== "dev") return mayhemAugments;
+  try {
+    const res = await fetch("/dev-mayhem/augments.json");
+    if (!res.ok) return mayhemAugments;
+    const catalog = (await res.json()) as AugmentCatalog;
+    const real = (rarity: AugmentRarity) => catalog.augments.filter((a) => a.rarity === rarity);
+    const byRarity = { silver: real("silver"), gold: real("gold"), prismatic: real("prismatic") };
+    return {
+      patch: catalog.patch,
+      augments: mayhemAugments.augments.map((a) => {
+        const game = byRarity[a.rarity][a.id - RARITY_BASE[a.rarity]];
+        return game ? { ...a, name: game.name.en, description: game.description.en, icon: `${ICON_BASE}/${game.icon}` } : a;
+      }),
+    };
+  } catch {
+    return mayhemAugments;
+  }
+}
+
 /** One of the longest real names, and a long description: rows must hold them. */
 export const longAugment: AugmentInfo = {
   id: 9_999,
@@ -159,9 +189,9 @@ export function championGames(championId: number): number {
 export function mayhemChampion(championId: number, overview: MayhemOverview = mayhemOverview): MayhemChampion {
   const games = overview.popularity ? championGames(championId) : 0;
   const byRate = games >= MIN_GAMES;
-  const counts = new Map<number, number>(
-    games > 0 ? mayhemAugments.augments.map((a) => [a.id, Math.min(games, picks(a.id, championId) % Math.max(games, 1))]) : [],
-  );
+  // Up to about half of its games each, a few augments not at all.
+  const share = (id: number) => Math.max(0, ((id * 37 + championId * 11) % 64) - 12) / 100;
+  const counts = new Map<number, number>(games > 0 ? mayhemAugments.augments.map((a) => [a.id, Math.round(games * share(a.id))]) : []);
   const own: PickCount[] = [...counts]
     .map(([id, n]) => ({ id, n }))
     .filter((p) => p.n > 0)

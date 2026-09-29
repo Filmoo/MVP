@@ -14,6 +14,8 @@ const argsOf = (page: Page, command: "tier_list" | "champion_stats") =>
   page.evaluate((c) => window.__SCOUT_MOCK__?.log.filter((l) => l.command === c).map((l) => l.args) ?? [], command);
 
 const segment = (page: Page, group: string, name: string | RegExp) => page.getByTestId(group).getByRole("radio", { name });
+/** A queue tab by its whole name: "ARAM" alone, not "ARAM: Mayhem" (its own tab). */
+const queue = (page: Page, name: string) => page.getByTestId("queue-switch").getByRole("radio", { name, exact: true });
 /** A sort of the champion list: its radio group is named by its visible label ("Sort by"). */
 const sortBy = (page: Page, t: Messages, name: string) =>
   page.getByRole("radiogroup", { name: t.champions.sort }).getByRole("radio", { name });
@@ -28,7 +30,7 @@ test.describe("tier list", () => {
     await expect(rows(page).first()).toBeVisible();
     expect((await argsOf(page, "tier_list")).at(-1)).toEqual({ queue: 420, bracket: "emeraldPlus" });
 
-    await segment(page, "queue-switch", t.queues[450]).click();
+    await queue(page, t.queues[450]).click();
     await expect.poll(async () => (await argsOf(page, "tier_list")).at(-1)).toEqual({ queue: 450, bracket: "emeraldPlus" });
     await expect(page.getByTestId("role-filter"), "ARAM has no roles").toHaveCount(0);
     await expect(page.getByTestId("data-badge")).toContainText(t.queues[450]);
@@ -37,7 +39,7 @@ test.describe("tier list", () => {
 
     await page.reload();
     await settle(page);
-    await expect(segment(page, "queue-switch", t.queues[450])).toHaveAttribute("aria-checked", "true");
+    await expect(queue(page, t.queues[450])).toHaveAttribute("aria-checked", "true");
     await expect(segment(page, "bracket-switch", t.brackets.masterPlus)).toHaveAttribute("aria-checked", "true");
     expect((await argsOf(page, "tier_list")).at(-1)).toEqual({ queue: 450, bracket: "masterPlus" });
     expect(errors).toEqual([]);
@@ -126,24 +128,28 @@ test.describe("tier list", () => {
 });
 
 test("segmented controls: one tab stop, arrow keys move the choice", async ({ page, t }) => {
+  // The rank switch (the queue switch's last tab, ARAM: Mayhem, opens its own page).
   await openApp(page, { view: "/tier-list" });
-  const ranked = segment(page, "queue-switch", t.queues[420]);
-  const aram = segment(page, "queue-switch", t.queues[450]);
-  await expect(ranked).toHaveAttribute("tabindex", "0");
-  await expect(aram).toHaveAttribute("tabindex", "-1");
-  await ranked.focus();
+  const first = segment(page, "bracket-switch", t.brackets.emeraldPlus);
+  const second = segment(page, "bracket-switch", t.brackets.diamondPlus);
+  const last = segment(page, "bracket-switch", t.brackets.masterPlus);
+  await expect(first).toHaveAttribute("tabindex", "0");
+  await expect(second).toHaveAttribute("tabindex", "-1");
+  await first.focus();
   await page.keyboard.press("ArrowRight");
-  await expect(aram).toBeFocused();
-  await expect(aram).toHaveAttribute("aria-checked", "true");
-  await expect(aram).toHaveAttribute("tabindex", "0");
-  await expect(ranked).toHaveAttribute("tabindex", "-1");
+  await expect(second).toBeFocused();
+  await expect(second).toHaveAttribute("aria-checked", "true");
+  await expect(second).toHaveAttribute("tabindex", "0");
+  await expect(first).toHaveAttribute("tabindex", "-1");
   await page.keyboard.press("ArrowRight");
-  await expect(ranked, "wraps around").toBeFocused();
-  await expect(ranked).toHaveAttribute("aria-checked", "true");
+  await page.keyboard.press("ArrowRight");
+  await expect(first, "wraps around").toBeFocused();
+  await expect(first).toHaveAttribute("aria-checked", "true");
   await page.keyboard.press("End");
-  await expect(aram).toHaveAttribute("aria-checked", "true");
+  await expect(last).toHaveAttribute("aria-checked", "true");
   await page.keyboard.press("Home");
-  await expect(ranked).toHaveAttribute("aria-checked", "true");
+  await expect(first).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByRole("radiogroup", { name: t.stats.rank })).toBeVisible();
   await expect(page.getByRole("radiogroup", { name: t.stats.queue })).toBeVisible();
 });
 
@@ -176,7 +182,7 @@ test.describe("champion page", () => {
   test("ARAM: builds without roles, and no matchups", async ({ page, t }) => {
     const errors = trackErrors(page);
     await openApp(page, { view: "/champions?id=103" });
-    await segment(page, "queue-switch", t.queues[450]).click();
+    await queue(page, t.queues[450]).click();
     await expect
       .poll(async () => (await argsOf(page, "champion_stats")).at(-1))
       .toEqual({

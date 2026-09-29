@@ -9,9 +9,10 @@
 //! (a few hundred KB), never the sources. Nothing is committed: every file is fetched at run
 //! time and kept on disk only for the version being built.
 //!
-//! Descriptions are the game's summaries, as plain text: values the game knows only in play
-//! (calculations) are left out, the champion's own ability reads `[Ability]`, and a summary
-//! that can't be read leaves the description empty rather than failing the catalog.
+//! Descriptions are the game's summaries, as plain text: values come from the augment's
+//! definitions (a level range reads `20–80`; what grows with a stat shows its base), a value
+//! only the game knows in play reads `…`, the champion's own ability reads `[Ability]`, and a
+//! summary that can't be read leaves the description empty rather than failing the catalog.
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt;
@@ -152,6 +153,10 @@ struct BinEntry {
 struct BinSpell {
     #[serde(rename = "DataValues", alias = "mDataValues", default)]
     values: Vec<BinValue>,
+    /// Values the game computes (`Calc_…`): formulas of numbers, named values, level ranges
+    /// and stat scalings.
+    #[serde(rename = "mSpellCalculations", default, deserialize_with = "lenient")]
+    calculations: Option<HashMap<String, serde_json::Value>>,
 }
 
 #[derive(Deserialize)]
@@ -162,18 +167,83 @@ struct BinValue {
     values: Vec<f64>,
 }
 
+/// A value a description shows: one number, or a range over the champion's level (`low–high`).
+/// What also grows with a stat (ability power…) shows its base: the description can't know the
+/// stat.
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Shown {
+    low: f64,
+    high: f64,
+    /// Shown as a percentage (the game's `mDisplayAsPercent`).
+    percent: bool,
+}
+
+impl Shown {
+    const fn plain(x: f64) -> Self {
+        Self {
+            low: x,
+            high: x,
+            percent: false,
+        }
+    }
+}
+
 /// What a description needs from the definitions: its string key and its spells' values.
 #[derive(Debug, Default, Clone, PartialEq)]
 struct Definition {
     /// Key of the summary in the string tables.
     description: Option<String>,
-    /// The spells' named values, the root spell's first (lower-case names).
-    values: Vec<(String, f64)>,
+    /// The spells' named values and calculations, the root spell's first (lower-case names).
+    values: Vec<(String, Shown)>,
 }
 
 /// The value a tooltip shows for level 1 (index 0 is level 0; most augments hold one value).
 fn level_one(values: &[f64]) -> Option<f64> {
     values.get(1).or_else(|| values.first()).copied()
+}
+
+/// A calculation's value, when its parts are ones a description can show: numbers, named
+/// values, level ranges (stat scalings are left out: the base shows). `None` for anything else.
+fn calculation(calc: &serde_json::Value, values: &[(String, Shown)]) -> Option<Shown> {
+    let text = |part: &serde_json::Value, key: &str| {
+        part.get(key)
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_owned)
+    };
+    let number =
+        |part: &serde_json::Value, key: &str| part.get(key).and_then(serde_json::Value::as_f64);
+    if text(calc, "__type").as_deref() != Some("GameCalculation") {
+        return None;
+    }
+    let mut total = Shown::plain(0.0);
+    let mut counted = false;
+    for part in calc.get("mFormulaParts")?.as_array()? {
+        match text(part, "__type")?.as_str() {
+            "NumberCalculationPart" => {
+                let n = number(part, "mNumber")?;
+                (total.low, total.high) = (total.low + n, total.high + n);
+                counted = true;
+            }
+            "NamedDataValueCalculationPart" => {
+                let name = text(part, "mDataValue")?.to_ascii_lowercase();
+                let value = values.iter().find(|(n, _)| *n == name)?.1;
+                (total.low, total.high) = (total.low + value.low, total.high + value.high);
+                counted = true;
+            }
+            "ByCharLevelInterpolationCalculationPart" => {
+                total.low += number(part, "mStartValue").unwrap_or(0.0);
+                total.high += number(part, "mEndValue").unwrap_or(0.0);
+                counted = true;
+            }
+            "StatByNamedDataValueCalculationPart" | "StatByCoefficientCalculationPart" => {}
+            _ => return None,
+        }
+    }
+    total.percent = calc
+        .get("mDisplayAsPercent")
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false);
+    counted.then_some(total)
 }
 
 /// The definitions of `paths` (augments of the pool) from `kiwi.bin.json`.
@@ -195,11 +265,30 @@ fn definitions(
             .collect();
         // The root spell first, then the others in a stable order.
         spells.sort_by_key(|(key, _)| (Some(*key) != entry.root_spell.as_ref(), *key));
-        let values = spells
+        let mut values: Vec<(String, Shown)> = spells
             .iter()
             .flat_map(|(_, spell)| &spell.values)
-            .filter_map(|v| Some((v.name.to_ascii_lowercase(), level_one(&v.values)?)))
+            .filter_map(|v| {
+                Some((
+                    v.name.to_ascii_lowercase(),
+                    Shown::plain(level_one(&v.values)?),
+                ))
+            })
             .collect();
+        // Calculations read the named values: after them, in the same order.
+        let computed: Vec<(String, Shown)> = spells
+            .iter()
+            .filter_map(|(_, spell)| spell.calculations.as_ref())
+            .flat_map(|calcs| {
+                let mut calcs: Vec<_> = calcs.iter().collect();
+                calcs.sort_by_key(|(name, _)| *name);
+                calcs
+            })
+            .filter_map(|(name, calc)| {
+                Some((name.to_ascii_lowercase(), calculation(calc, &values)?))
+            })
+            .collect();
+        values.extend(computed);
         out.insert(
             path.clone(),
             Definition {
@@ -351,8 +440,9 @@ fn number(x: f64, lang: Lang) -> String {
     }
 }
 
-/// `Name`, `Name*100` or `Name/2` → its value, when the definitions have it.
-fn placeholder(inner: &str, values: &[(String, f64)], lang: Lang) -> Option<String> {
+/// `Name`, `Name*100` or `Name/2` → its value, when the definitions have it: a number or a level
+/// range (`20–80`), and whether the game shows it as a percentage (its sign not written yet).
+fn placeholder(inner: &str, values: &[(String, Shown)], lang: Lang) -> Option<(String, bool)> {
     let at = inner.find(['*', '/']);
     let (name, op) = match at {
         Some(i) => (&inner[..i], Some((&inner[i..=i], inner[i + 1..].trim()))),
@@ -360,18 +450,31 @@ fn placeholder(inner: &str, values: &[(String, f64)], lang: Lang) -> Option<Stri
     };
     let name = name.trim().to_ascii_lowercase();
     let value = values.iter().find(|(n, _)| *n == name)?.1;
-    let value = match op {
-        None => value,
-        Some(("*", factor)) => value * factor.parse::<f64>().ok()?,
+    let factor = match op {
+        None => 1.0,
+        Some(("*", factor)) => factor.parse::<f64>().ok()?,
         Some((_, divisor)) => {
             let divisor = divisor
                 .parse::<f64>()
                 .ok()
                 .filter(|d| d.abs() > f64::EPSILON)?;
-            value / divisor
+            1.0 / divisor
         }
     };
-    value.is_finite().then(|| number(value, lang))
+    let scale = if value.percent {
+        factor * 100.0
+    } else {
+        factor
+    };
+    let (low, high) = (value.low * scale, value.high * scale);
+    if !low.is_finite() || !high.is_finite() {
+        return None;
+    }
+    let mut shown = number(low, lang);
+    if (high - low).abs() > 1e-6 {
+        shown = format!("{shown}–{}", number(high, lang));
+    }
+    Some((shown, value.percent))
 }
 
 /// `{{ key }}`: another string of the table, or the champion's ability.
@@ -395,8 +498,15 @@ fn expand_references(text: &str, nested: &Strings, lang: Lang) -> String {
     out
 }
 
-/// `@Value@`, `@Value*100@` from the definitions; an unknown one goes, with the `%` after it.
-fn fill_values(text: &str, values: &[(String, f64)], lang: Lang) -> String {
+/// The text after a value writes its own `%` (`@X*100@%`, French `@X@ %`).
+fn percent_follows(rest: &str) -> bool {
+    rest.trim_start_matches([' ', '\u{a0}', '\u{202f}'])
+        .starts_with('%')
+}
+
+/// `@Value@`, `@Value*100@` from the definitions. A value only the game knows in play (it
+/// depends on the champion's stats) reads `…`, so the sentence still holds.
+fn fill_values(text: &str, values: &[(String, Shown)], lang: Lang) -> String {
     let mut out = String::with_capacity(text.len());
     let mut rest = text;
     while let Some(open) = rest.find('@') {
@@ -413,8 +523,16 @@ fn fill_values(text: &str, values: &[(String, f64)], lang: Lang) -> String {
         out.push_str(&rest[..open]);
         rest = &rest[open + len + 2..];
         match placeholder(inner, values, lang) {
-            Some(value) => out.push_str(&value),
-            None => rest = rest.strip_prefix('%').unwrap_or(rest),
+            Some((value, percent)) => {
+                out.push_str(&value);
+                if percent && !percent_follows(rest) {
+                    out.push_str(match lang {
+                        Lang::En => "%",
+                        Lang::Fr => "\u{a0}%",
+                    });
+                }
+            }
+            None => out.push('…'),
         }
     }
     out.push_str(rest);
@@ -459,13 +577,13 @@ fn strip_markup(text: &str) -> String {
     }
 }
 
-/// One space between words, none before a full stop or comma, one line break between
-/// paragraphs.
+/// One space between words (no-break spaces kept: French puts one before `%`), none before a
+/// full stop or comma, one line break between paragraphs.
 fn tidy(text: &str) -> String {
     let lines: Vec<String> = text
         .lines()
         .map(|line| {
-            let words = line.split_whitespace().collect::<Vec<_>>().join(" ");
+            let words = line.split_ascii_whitespace().collect::<Vec<_>>().join(" ");
             words.replace(" .", ".").replace(" ,", ",")
         })
         .filter(|line| !line.is_empty())
@@ -475,7 +593,7 @@ fn tidy(text: &str) -> String {
 
 /// Plain text of a game string: references resolved (`{{ key }}` from `nested`, `@Value@` from
 /// `values`), what can't be resolved left out, markup dropped, `<br>` kept as a line break.
-fn describe(text: &str, values: &[(String, f64)], nested: &Strings, lang: Lang) -> String {
+fn describe(text: &str, values: &[(String, Shown)], nested: &Strings, lang: Lang) -> String {
     let expanded = expand_references(text, nested, lang);
     tidy(&strip_markup(&fill_values(&expanded, values, lang)))
 }
@@ -818,11 +936,71 @@ mod tests {
 
     use super::*;
 
-    fn values(pairs: &[(&str, f64)]) -> Vec<(String, f64)> {
+    fn values(pairs: &[(&str, f64)]) -> Vec<(String, Shown)> {
         pairs
             .iter()
-            .map(|(n, v)| (n.to_ascii_lowercase(), *v))
+            .map(|(n, v)| (n.to_ascii_lowercase(), Shown::plain(*v)))
             .collect()
+    }
+
+    #[test]
+    fn calculations_show_numbers_ranges_and_percentages() {
+        let named = values(&[("BaseCrit", 0.25)]);
+        let calc = |json: &str| calculation(&serde_json::from_str(json).unwrap(), &named);
+        let crit = calc(
+            r#"{"__type":"GameCalculation","mDisplayAsPercent":true,"mFormulaParts":[
+                {"__type":"NamedDataValueCalculationPart","mDataValue":"BaseCrit"},
+                {"__type":"StatByNamedDataValueCalculationPart","mDataValue":"Ratio"}]}"#,
+        )
+        .unwrap();
+        let ap = calc(
+            r#"{"__type":"GameCalculation","mFormulaParts":[
+                {"__type":"ByCharLevelInterpolationCalculationPart","mStartValue":20.0,"mEndValue":80.0}]}"#,
+        )
+        .unwrap();
+        let flat = calc(r#"{"__type":"GameCalculation","mFormulaParts":[{"__type":"NumberCalculationPart","mNumber":0.45}]}"#).unwrap();
+        let v = vec![
+            ("crit".to_owned(), crit),
+            ("ap".to_owned(), ap),
+            ("flat".to_owned(), flat),
+        ];
+        let none = HashMap::new();
+        assert_eq!(
+            describe(
+                "Gain @Crit@ Crit Chance and @AP@ Ability Power, @Flat*100@% more.",
+                &v,
+                &none,
+                Lang::En
+            ),
+            "Gain 25% Crit Chance and 20–80 Ability Power, 45% more.",
+            "a stat scaling leaves its base"
+        );
+        assert_eq!(
+            describe("Gagne @Crit@ de chances.", &v, &none, Lang::Fr),
+            "Gagne 25\u{a0}% de chances."
+        );
+        assert_eq!(
+            describe("Vous gagnez @Crit@\u{a0}% de chances.", &v, &none, Lang::Fr),
+            "Vous gagnez 25\u{a0}% de chances.",
+            "a text that writes its own % keeps one"
+        );
+        assert_eq!(
+            calc(
+                r#"{"__type":"{e9a3c91d}","mFormulaParts":[{"__type":"NumberCalculationPart","mNumber":75.0}]}"#
+            ),
+            None,
+            "a calculation of another kind (melee and ranged values) isn't guessed"
+        );
+        assert_eq!(
+            describe(
+                "Throw a boomerang every @Cooldown@s. Hits @Unknown@% harder.",
+                &v,
+                &none,
+                Lang::En
+            ),
+            "Throw a boomerang every …s. Hits …% harder.",
+            "a value only the game knows in play reads …"
+        );
     }
 
     #[test]
@@ -863,7 +1041,7 @@ mod tests {
                 &nested,
                 Lang::En
             ),
-            "Gain 4 s of 30% shred.\nOnce per seconds.",
+            "Gain 4 s of 30% shred.\nOnce per … seconds.",
         );
         assert_eq!(
             describe(
@@ -899,8 +1077,8 @@ mod tests {
                 &nested,
                 Lang::En
             ),
-            "Unknown shield and more.",
-            "values the game computes in play are left out, with their %"
+            "Unknown …% shield and … more.",
+            "values the game computes in play read …"
         );
         assert_eq!(
             describe("Email me@host or 2 @ 3", &v, &nested, Lang::En),
@@ -922,14 +1100,9 @@ mod tests {
     #[test]
     fn values_divide_and_multiply() {
         let v = values(&[("Ratio", 0.125)]);
-        assert_eq!(
-            placeholder("Ratio*100", &v, Lang::En).as_deref(),
-            Some("12.5")
-        );
-        assert_eq!(
-            placeholder("ratio/0.5", &v, Lang::En).as_deref(),
-            Some("0.25")
-        );
+        let shown = |inner: &str| placeholder(inner, &v, Lang::En).map(|(text, _)| text);
+        assert_eq!(shown("Ratio*100").as_deref(), Some("12.5"));
+        assert_eq!(shown("ratio/0.5").as_deref(), Some("0.25"));
         assert_eq!(placeholder("Ratio/0", &v, Lang::En), None);
         assert_eq!(placeholder("Missing", &v, Lang::En), None);
         assert_eq!(number(3.0, Lang::Fr), "3");

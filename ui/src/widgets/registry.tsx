@@ -141,7 +141,11 @@ export const widgetRegistry: Record<string, () => JSX.Element> = {
   "champion-matchups": () => <MatchupsCard page={lux} forRole="support" />,
   "build-summary": () => <BuildSummary championId={99} build={luxBuild} />,
   "mayhem-augments": () => <AugmentTiers augments={augments} overview={mayhemOverview} rarity="all" />,
-  "mayhem-champion": () => <ChampionAugmentsView champion={mayhemChampion(103)} augments={augments} name="Ahri" full />,
+  "mayhem-champion": () => (
+    <div>
+      <ChampionAugmentsView champion={mayhemChampion(103)} augments={augments} name="Ahri" full />
+    </div>
+  ),
   // A champion page's bar, outside of champion select: spells wait for it.
   "champion-import": () => (
     <ImportPanel

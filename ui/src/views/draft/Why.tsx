@@ -132,7 +132,8 @@ export function Why(props: {
   ];
   const title = () => {
     if (teams()) return t().why.teamsTitle;
-    if (augments()) return props.augments ? t().mayhem.of(name(props.augments)) : t().mayhem.augments;
+    // The tab says "Augments": the title names whose (narrow panel, long tab row).
+    if (augments()) return props.augments ? name(props.augments) : t().mayhem.augments;
     return t().why.title(props.suggestion ? name(props.suggestion.championId) : undefined);
   };
   return (

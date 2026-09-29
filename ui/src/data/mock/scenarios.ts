@@ -34,7 +34,14 @@ import {
   searchPlayer,
 } from "./live-fixtures";
 import { detailsFrom, gradesFrom, withGrades } from "./match-fixtures";
-import { emptyOverview, longAugment, mayhemAugments, mayhemChampion, mayhemOverview } from "./mayhem-fixtures";
+import {
+  emptyOverview,
+  loadMayhemAugments,
+  longAugment,
+  mayhemAugments,
+  mayhemChampion,
+  mayhemOverview,
+} from "./mayhem-fixtures";
 import {
   autoAcceptKilledConfig,
   bannersConfig,
@@ -157,7 +164,7 @@ const base: Scenario["responses"] = {
   // Champion pages import too (each takes a moment, like the real client).
   import_build: { handle: importAnswer(), delayMs: 400 },
   // ARAM: Mayhem (made-up augments, see mayhem-fixtures.ts), from the core's cache.
-  mayhem_augments: { data: mayhemAugments },
+  mayhem_augments: { load: loadMayhemAugments },
   mayhem_overview: { data: mayhemOverview },
   mayhem_champion: { handle: (args) => mayhemChampion(args.championId) },
 };

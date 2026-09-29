@@ -9,6 +9,9 @@ import solid from "vite-plugin-solid";
 const DEV_ASSETS = resolve(import.meta.dirname, "../.cache/ddragon");
 // Profiles captured with `cargo run -p players --bin capture-profile` (never committed).
 const DEV_FIXTURES = resolve(import.meta.dirname, "../.cache/fixtures");
+// ARAM: Mayhem's augment catalog built from the game's files (`mvp-backend mayhem augments`,
+// copied to .cache/mayhem/augments.json; never committed), for `?augments=dev`.
+const DEV_MAYHEM = resolve(import.meta.dirname, "../.cache/mayhem");
 
 function devAssets(): Plugin {
   return {
@@ -16,10 +19,12 @@ function devAssets(): Plugin {
     configureServer(server) {
       server.middlewares.use("/dd", serveFrom(DEV_ASSETS));
       server.middlewares.use("/fixtures", serveFrom(DEV_FIXTURES));
+      server.middlewares.use("/dev-mayhem", serveFrom(DEV_MAYHEM));
     },
     configurePreviewServer(server) {
       server.middlewares.use("/dd", serveFrom(DEV_ASSETS));
       server.middlewares.use("/fixtures", serveFrom(DEV_FIXTURES));
+      server.middlewares.use("/dev-mayhem", serveFrom(DEV_MAYHEM));
     },
   };
 }
