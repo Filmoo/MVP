@@ -77,13 +77,17 @@
       "renderMs": 3,
       "domNodes": 16
     },
-    "tier-list": {
+    "tier-table": {
       "renderMs": 8,
       "domNodes": 900
     },
-    "champion-grid": {
-      "renderMs": 6,
-      "domNodes": 200
+    "tier-shelves": {
+      "renderMs": 12,
+      "domNodes": 1000
+    },
+    "tier-no-stats": {
+      "renderMs": 4,
+      "domNodes": 240
     },
     "champion-hero": {
       "renderMs": 3,
