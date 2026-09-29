@@ -16,6 +16,7 @@ import { ChampionIcon } from "../../design/GameIcon";
 import { Icon } from "../../design/Icon";
 import { Segmented } from "../../design/Segmented";
 import { EmptyState, ErrorState, Skeleton } from "../../design/States";
+import { GradeBadge } from "../../design/TierBadge";
 import { t } from "../../i18n";
 import { percent, timeAgo } from "../../lib/format";
 import { backendError } from "../../lib/players";
@@ -25,7 +26,7 @@ import { Widget } from "../../widgets/Widget";
 import page from "../page.module.css";
 import { ScopeSwitches } from "../stats/common";
 import styles from "./Mayhem.module.css";
-import { AugmentIcon, ChampionAugments, sentence, useAugments } from "./parts";
+import { AugmentIcon, ChampionAugments, RankPill, sentence, useAugments } from "./parts";
 
 const TIERS: AugmentTier[] = ["S", "A", "B", "C"];
 /** Augments without a tier shown before "Show all" (keeps the page light). */
@@ -51,10 +52,8 @@ function AugmentCard(props: { augment: AugmentInfo; tier?: AugmentTier; rank?: n
       <div class={styles.body}>
         <div class={styles.top}>
           <span class={styles.name}>{props.augment.name}</span>
-          <Show when={props.tier && props.rank}>
-            <span class={`${styles.rank} ${styles[`tier${props.tier}`]} num`} title={t().mayhem.ranked(props.tier ?? "", props.rank ?? 0)}>
-              {props.tier} · {props.rank}
-            </span>
+          <Show when={props.tier && props.rank ? { tier: props.tier, rank: props.rank } : undefined}>
+            {(placed) => <RankPill tier={placed().tier} rank={placed().rank} />}
           </Show>
         </div>
         <span class={`${styles.meta} num`}>{meta()}</span>
@@ -100,7 +99,15 @@ export function AugmentTiers(props: {
     <div class={styles.sections}>
       <For each={tiers()}>
         {(group) => (
-          <Card title={t().mayhem.tier(group.tier)} actions={<span class={`${styles.count} num`}>{group.entries.length}</span>}>
+          <Card
+            title={
+              <span class={styles.tierTitle}>
+                <GradeBadge grade={group.tier} size="md" />
+                {t().mayhem.tier(group.tier)}
+              </span>
+            }
+            actions={<span class={`${styles.count} num`}>{group.entries.length}</span>}
+          >
             <ol class={styles.grid}>
               <For each={group.entries}>
                 {(e) => <AugmentCard augment={e.augment} tier={group.tier} rank={e.rank} pickRate={pickRate(e.augment.id)} />}
@@ -255,7 +262,14 @@ export default function Mayhem(): JSX.Element {
       <div class={styles.filters}>
         <ScopeSwitches rank={false} mayhem={{ selected: true, onSelect: () => {}, onLeave: () => navigate("/tier-list") }} />
         <Show when={!championId()}>
-          <Segmented label={t().mayhem.rarity} options={rarityOptions()} value={rarity()} onChange={setRarity} testId="rarity-filter" />
+          <Segmented
+            label={t().mayhem.rarity}
+            size="sm"
+            options={rarityOptions()}
+            value={rarity()}
+            onChange={setRarity}
+            testId="rarity-filter"
+          />
         </Show>
         <ChampionFilter championId={championId()} />
       </div>

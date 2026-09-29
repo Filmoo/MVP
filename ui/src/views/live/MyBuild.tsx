@@ -11,7 +11,8 @@ import { asStatsQueue, bracketLabel, scopeLabel } from "../../lib/stats";
 import { filters } from "../../lib/stats-filters";
 import { Widget } from "../../widgets/Widget";
 import { ChampionBuilds } from "../champions/Champions";
-import { ChampionAugments, isMayhem } from "../mayhem/parts";
+import champ from "../champions/Champions.module.css";
+import { ChampionAugments, isMayhem, sentence } from "../mayhem/parts";
 import { StatsProblem, useStatsIndex } from "../stats/common";
 import styles from "./Live.module.css";
 
@@ -63,7 +64,9 @@ export function MyBuild(props: { game: LiveGame }): JSX.Element {
               {role() ? ` · ${roleLabel(role() ?? "top")}` : ""}
             </span>
             <span class={styles.buildScope}>
-              {scope()} · <a href={link(id())}>{t().live.build.page}</a>
+              {/* Mayhem: where the build comes from is said above it, under "ARAM builds". */}
+              {mayhem() ? "" : `${scope()} · `}
+              <a href={link(id())}>{t().live.build.page}</a>
             </span>
           </p>
         )}
@@ -76,7 +79,12 @@ export function MyBuild(props: { game: LiveGame }): JSX.Element {
                 <ChampionAugments championId={id()} name={name()} full />
               </Widget>
             </Card>
-            <p class={styles.buildScope}>{t().mayhem.aramNote}</p>
+            <div class={champ.aramHead}>
+              <h2 class={champ.aramTitle}>{t().mayhem.aramBuilds}</h2>
+              <p class={champ.aramNote}>
+                {sentence(scope())} · {t().mayhem.aramNote}
+              </p>
+            </div>
           </>
         )}
       </Show>

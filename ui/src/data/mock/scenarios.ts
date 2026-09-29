@@ -90,7 +90,7 @@ export type MockResponse<T, A = undefined> =
   | { data: T; delayMs?: number }
   /** Fails; `detail` is the structured error the core would send (e.g. a `BackendError`). */
   | { error: string; detail?: unknown; delayMs?: number }
-  | { load: () => Promise<T>; delayMs?: number }
+  | { load: (args: A) => Promise<T>; delayMs?: number }
   /** Answers from the command's arguments (e.g. echoes saved settings). */
   | { handle: (args: A) => T; delayMs?: number };
 

@@ -244,11 +244,13 @@ nothing to crawl. Offered editorial tiers or opt-in sharing, the owner took both
   (its own lazy chunk: every augment by tier and rarity, a champion filter with that
   champion's priorities, most picked augments and common items); the champion page's Mayhem
   tab (the same, plus ARAM's build labelled as ARAM data); Draft in a Mayhem champion select
-  (the side panel opens on an "Augments" tab for the selected champion; each bench champion's
-  most picked augments under its line); Live's "My build" in a Mayhem game. Before the game or
+  (the side panel opens on an "Augments" tab for the selected champion, one rarity at a time;
+  each bench champion's most picked augments under its line once it has 30 shared games); Live's
+  "My build" in a Mayhem game. The champion page's hero shows no ARAM tier or win rate on that
+  tab (the ARAM numbers sit under "ARAM builds"). Before the game or
   as static reference only: nothing reacts to the game's augment offers (policy.md). French:
   "ARAM du chaos".
-- **Budget**: the whole feature costs +9.0 KB of JS gzip in total (130.4 → 139.4 KB against a
-  131 KB budget; startup 45.5 → 45.7 of 46 KB): the Mayhem page 3.5 KB, the shared augment parts
-  2.8 KB, words in both languages 1.6 KB, the four integrations 0.9 KB, chunking 0.3 KB. Not
+- **Budget**: the whole feature costs +9.4 KB of JS gzip in total (130.4 → 139.8 KB against a
+  131 KB budget; startup 45.5 → 45.6 of 46 KB): the Mayhem page 3.5 KB, the shared augment parts
+  3.3 KB, words in both languages 1.6 KB, the four integrations 0.9 KB, chunking 0.2 KB. Not
   raised here: the owner decides.

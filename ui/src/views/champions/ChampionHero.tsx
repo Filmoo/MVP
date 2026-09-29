@@ -42,10 +42,13 @@ export function ChampionHero(props: {
   forRole: Role | undefined;
   onRole: (role: Role) => void;
   index: StatsIndex | null | undefined;
+  /** Art and identity only, no tier or numbers (ARAM: Mayhem's tab: ARAM's are shown lower, said to be ARAM's). */
+  identityOnly?: boolean;
 }): JSX.Element {
   const { gameData } = useData();
   const champion = () => gameData()?.champions.get(props.championId);
-  const tier = () => (props.page ? tierFor(props.page, props.forRole) : undefined);
+  const numbers = () => !props.identityOnly;
+  const tier = () => (numbers() && props.page ? tierFor(props.page, props.forRole) : undefined);
   const record = () => props.page?.stats?.roles.find((r) => r.role === props.forRole);
   const roleTabs = () => props.tabs.filter((t): t is RoleTab & { role: Role } => t.role !== undefined);
   const aram = () => parseQueue(props.page?.info.queue) === 450;
@@ -93,7 +96,7 @@ export function ChampionHero(props: {
             </Match>
           </Switch>
         </div>
-        <Show when={props.loading && !props.page}>
+        <Show when={numbers() && props.loading && !props.page}>
           <div class={`${styles.grade} glass-rim`}>
             <div class={styles.gradeGlass} aria-hidden="true" />
             <Skeleton width="40px" height="40px" />
@@ -119,7 +122,7 @@ export function ChampionHero(props: {
           )}
         </Show>
       </div>
-      <Show when={props.loading && !props.page}>
+      <Show when={numbers() && props.loading && !props.page}>
         <div class={styles.strip} aria-busy="true">
           <For each={[0, 1, 2, 3]}>
             {() => (
@@ -131,7 +134,7 @@ export function ChampionHero(props: {
           </For>
         </div>
       </Show>
-      <Show when={props.page?.stats ? props.page : undefined}>
+      <Show when={numbers() && props.page?.stats ? props.page : undefined}>
         {(p) => (
           <section class={`${styles.strip} num`} aria-label={t().champions.record}>
             <Show

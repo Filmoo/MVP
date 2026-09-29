@@ -7,9 +7,12 @@ import { createSignal, For, type JSX, Match, Show, Switch } from "solid-js";
 import { useData } from "../../data/context";
 import type { AugmentInfo } from "../../data/generated/AugmentInfo";
 import type { AugmentPriority } from "../../data/generated/AugmentPriority";
+import type { AugmentRarity } from "../../data/generated/AugmentRarity";
+import type { AugmentTier } from "../../data/generated/AugmentTier";
 import type { MayhemChampion } from "../../data/generated/MayhemChampion";
 import type { Transport } from "../../data/transport";
 import { ItemIcon } from "../../design/GameIcon";
+import { Segmented } from "../../design/Segmented";
 import { Skeleton } from "../../design/States";
 import { type Lang, lang, t } from "../../i18n";
 import { percent } from "../../lib/format";
@@ -82,16 +85,35 @@ export function AugmentIcon(props: { augment: AugmentInfo | undefined; size: 24 
   );
 }
 
-/** Why an entry stands where it does: `S tier · #2 · picked in 34% of Jinx games`. */
-export function reasons(entry: AugmentPriority, champion: string): string {
-  const parts: string[] = [];
-  if (entry.tier && entry.rank) parts.push(t().mayhem.ranked(entry.tier, entry.rank));
-  if (entry.pickRate !== null && entry.picks > 0) parts.push(t().mayhem.pickedBy(percent(entry.pickRate), champion));
-  return sentence(parts.join(" · "));
+/** An augment's tier and its rank in it (`S · 2`: first is best), in the tier's colour. */
+export function RankPill(props: { tier: AugmentTier; rank: number }): JSX.Element {
+  const words = () => t().mayhem.ranked(props.tier, props.rank);
+  return (
+    <span class={`${styles.rank} ${styles[`tier${props.tier}`]} num`} role="img" aria-label={words()} title={words()}>
+      {props.tier} · {props.rank}
+    </span>
+  );
 }
 
-/** An augment in a list: tile, name, and a line under it (its reason, or its description). */
-export function AugmentRow(props: { augment: AugmentInfo | undefined; line: string; size?: 24 | 32 }): JSX.Element {
+/** The champion's pick rate once it counts (enough games): `Picked in 34% of Jinx games`. */
+export function pickLine(entry: AugmentPriority, champion: string): string {
+  return entry.pickRate !== null && entry.picks > 0 ? sentence(t().mayhem.pickedBy(percent(entry.pickRate), champion)) : "";
+}
+
+/**
+ * An augment in a list: tile, name, a line under it (a pick rate), and at the end its tier and
+ * rank, or a number (`value`, its words in `valueTitle`).
+ */
+export function AugmentRow(props: {
+  augment: AugmentInfo | undefined;
+  line?: string;
+  tier?: AugmentTier | null;
+  rank?: number | null;
+  value?: string;
+  valueTitle?: string;
+  size?: 24 | 32;
+}): JSX.Element {
+  const placed = () => (props.tier && props.rank ? { tier: props.tier, rank: props.rank } : undefined);
   return (
     <li class={styles.row} title={props.augment?.description || undefined}>
       <AugmentIcon augment={props.augment} size={props.size ?? 32} />
@@ -101,11 +123,20 @@ export function AugmentRow(props: { augment: AugmentInfo | undefined; line: stri
           <span class={`${styles.line} num`}>{props.line}</span>
         </Show>
       </span>
+      <Show when={placed()}>{(p) => <RankPill tier={p().tier} rank={p().rank} />}</Show>
+      <Show when={props.value}>
+        <span class={`${styles.value} num`} title={props.valueTitle}>
+          {props.value}
+        </span>
+      </Show>
     </li>
   );
 }
 
-/** The champion's three most picked augments, as small tiles (Draft's rows). */
+/**
+ * The champion's three most picked augments as small tiles, the first one named (Draft's rows).
+ * Only once its shared games count (`minGames`), as for its pick rates everywhere.
+ */
 export function TopAugments(props: { championId: number; name: string }): JSX.Element {
   const { transport } = useData();
   const augments = useAugments();
@@ -113,7 +144,10 @@ export function TopAugments(props: { championId: number; name: string }): JSX.El
     () => props.championId,
     (id) => championIn(transport, id),
   );
-  const top = () => (champion.data()?.augments ?? []).slice(0, 3);
+  const top = () => {
+    const c = champion.data();
+    return c && c.games >= c.minGames ? c.augments.slice(0, 3) : [];
+  };
   return (
     <Show when={top().length > 0 && augments.data()}>
       {(known) => (
@@ -123,12 +157,16 @@ export function TopAugments(props: { championId: number; name: string }): JSX.El
               const augment = () => known().get(pick.id);
               const games = champion.data()?.games ?? 0;
               return (
-                <span title={`${augment()?.name ?? ""} · ${t().mayhem.pickedBy(percent(pick.n / Math.max(games, 1)), props.name)}`}>
+                <span
+                  class={styles.topTile}
+                  title={`${augment()?.name ?? ""} · ${t().mayhem.pickedBy(percent(pick.n / Math.max(games, 1)), props.name)}`}
+                >
                   <AugmentIcon augment={augment()} size={24} />
                 </span>
               );
             }}
           </For>
+          <span class={styles.topName}>{known().get(top()[0]?.id ?? 0)?.name}</span>
         </span>
       )}
     </Show>
@@ -192,7 +230,15 @@ export function ChampionAugments(props: { championId: number; name: string; full
   );
 }
 
-/** What `ChampionAugments` shows once it has the champion and the augments. */
+const RARITIES: readonly AugmentRarity[] = ["silver", "gold", "prismatic"];
+/** Draft's narrow panel shows one rarity at a time; the choice stays from one champion to the next. */
+const [panelRarity, setPanelRarity] = createSignal<AugmentRarity>("silver");
+
+/**
+ * What `ChampionAugments` shows once it has the champion and the augments: every rarity side by
+ * side (`full`), or one at a time with a switch (Draft's panel). Pick rates, its most picked
+ * augments and common items only once its shared games count (`minGames`).
+ */
 export function ChampionAugmentsView(props: {
   champion: MayhemChampion;
   augments: ReadonlyMap<number, AugmentInfo> | undefined;
@@ -201,19 +247,40 @@ export function ChampionAugmentsView(props: {
 }): JSX.Element {
   const c = () => props.champion;
   const games = () => Math.max(c().games, 1);
+  const lists = () => (props.full ? c().priorities : c().priorities.filter((list) => list.rarity === panelRarity()));
+  const rate = (n: number) => percent(n / games());
   return (
     <>
       <p class={styles.note}>{orderLine(c(), props.name)}</p>
+      <Show when={!props.full}>
+        <Segmented
+          label={t().mayhem.rarity}
+          size="sm"
+          class={styles.switch}
+          options={RARITIES.map((value) => ({ value, label: t().mayhem.rarities[value] }))}
+          value={panelRarity()}
+          onChange={setPanelRarity}
+          testId="augment-rarity"
+        />
+      </Show>
       <div class={styles.columns}>
-        <For each={c().priorities}>
+        <For each={lists()}>
           {(list) => (
             <section class={styles.column} data-rarity={list.rarity}>
-              <h3 class={`${styles.rarity} ${styles[list.rarity]}`}>{t().mayhem.rarities[list.rarity]}</h3>
+              <Show when={props.full}>
+                <h3 class={`${styles.rarity} ${styles[list.rarity]}`}>{t().mayhem.rarities[list.rarity]}</h3>
+              </Show>
               <Show when={list.entries.length > 0} fallback={<p class={styles.empty}>—</p>}>
                 <ol class={styles.list}>
                   <For each={list.entries}>
                     {(entry) => (
-                      <AugmentRow augment={props.augments?.get(entry.id)} line={reasons(entry, props.name)} size={props.full ? 32 : 24} />
+                      <AugmentRow
+                        augment={props.augments?.get(entry.id)}
+                        line={pickLine(entry, props.name)}
+                        tier={entry.tier}
+                        rank={entry.rank}
+                        size={props.full ? 32 : 24}
+                      />
                     )}
                   </For>
                 </ol>
@@ -222,7 +289,8 @@ export function ChampionAugmentsView(props: {
           )}
         </For>
       </div>
-      <Show when={props.full && c().games > 0}>
+      <Show when={props.full && c().games > 0 && c().games >= c().minGames}>
+        {/* Three tracks like the rarities above: Most picked under Silver, items under Gold. */}
         <div class={styles.extras}>
           <section class={styles.column}>
             <h3 class={styles.heading}>{t().mayhem.mostPicked}</h3>
@@ -231,7 +299,8 @@ export function ChampionAugmentsView(props: {
                 {(pick) => (
                   <AugmentRow
                     augment={props.augments?.get(pick.id)}
-                    line={sentence(t().mayhem.pickedBy(percent(pick.n / games()), props.name))}
+                    value={rate(pick.n)}
+                    valueTitle={sentence(t().mayhem.pickedBy(rate(pick.n), props.name))}
                   />
                 )}
               </For>
@@ -244,7 +313,7 @@ export function ChampionAugmentsView(props: {
                 {(item) => (
                   <li class={styles.item}>
                     <ItemIcon itemId={item.id} size={32} tooltip />
-                    <span class={`${styles.line} num`}>{percent(item.n / games())}</span>
+                    <span class={`${styles.line} num`}>{rate(item.n)}</span>
                   </li>
                 )}
               </For>

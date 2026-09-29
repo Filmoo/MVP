@@ -103,12 +103,59 @@
   color: var(--text-3);
 }
 
+/* The tier and rank: `S · 1`, in the tier's colour. */
+.rank {
+  flex: none;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  line-height: 20px;
+  color: var(--text-on-accent);
+  white-space: nowrap;
+}
+
+.tierS {
+  background: var(--tier-s);
+}
+
+.tierA {
+  background: var(--tier-a);
+}
+
+.tierB {
+  background: var(--tier-b);
+}
+
+.tierC {
+  background: var(--tier-c);
+}
+
+.value {
+  flex: none;
+  font-size: var(--text-sm);
+  color: var(--text-2);
+}
+
+/* At the end of a row: its tier and rank, or a number. */
+.row > .rank,
+.row > .value {
+  margin-left: auto;
+}
+
 /* ---- One champion's augments ------------------------------------------------------------------- */
 
 .champion {
+  container: mayhem-champion / inline-size;
   display: flex;
   flex-direction: column;
   min-width: 0;
+}
+
+/* Draft's panel: one rarity at a time. */
+.switch {
+  align-self: flex-start;
+  margin-bottom: var(--space-5);
 }
 
 .note {
@@ -129,11 +176,20 @@
   cursor: pointer;
 }
 
-/* One column per rarity where there is room, stacked in a narrow panel. */
-.columns {
+/* One column per rarity where there is room, stacked in a narrow panel; the extras below keep
+   the same three tracks. */
+.columns,
+.extras {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-6);
+}
+
+@container mayhem-champion (min-width: 632px) {
+  .columns,
+  .extras {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 .column {
@@ -182,9 +238,6 @@
 }
 
 .extras {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: var(--space-6);
   margin-top: var(--space-7);
   padding-top: var(--space-6);
   border-top: 1px solid var(--line-1);
@@ -206,8 +259,25 @@
   gap: var(--space-1);
 }
 
-/* Draft's rows: the champion's most picked augments, small. */
+/* Draft's rows: the champion's most picked augments, small, the first one named. */
 .top {
-  display: inline-flex;
+  display: flex;
+  align-items: center;
   gap: var(--space-2);
+  min-width: 0;
+}
+
+.topTile {
+  display: inline-flex;
+  flex: none;
+}
+
+.topName {
+  min-width: 0;
+  margin-left: var(--space-2);
+  overflow: hidden;
+  font-size: var(--text-xs);
+  color: var(--text-3);
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }

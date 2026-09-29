@@ -159,6 +159,7 @@ function ChampionView(props: { championId: number }): JSX.Element {
           forRole={role()}
           onRole={setWanted}
           index={index()}
+          identityOnly={mayhem()}
         />
       </Widget>
       <Show when={mayhem()}>

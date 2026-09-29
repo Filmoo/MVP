@@ -10,6 +10,7 @@ import type { AugmentPriorities } from "../generated/AugmentPriorities";
 import type { AugmentPriority } from "../generated/AugmentPriority";
 import type { AugmentRarity } from "../generated/AugmentRarity";
 import type { AugmentTier } from "../generated/AugmentTier";
+import type { Language } from "../generated/Language";
 import type { MayhemAugments } from "../generated/MayhemAugments";
 import type { MayhemChampion } from "../generated/MayhemChampion";
 import type { MayhemOverview } from "../generated/MayhemOverview";
@@ -102,9 +103,11 @@ const ICON_BASE = "https://raw.communitydragon.org/latest/plugins/rcp-be-lol-gam
  * `?augments=dev` (dev server and screenshots, never the tests): the game's real augments
  * (`.cache/mayhem/augments.json`, built from the game's files by `mvp-backend mayhem augments`)
  * stand in for the made-up ones, rarity by rarity in id order, so the made-up tiers and pick
- * counts still line up. Their art loads from the game's files. Made-up ones without the file.
+ * counts still line up. Their art loads from the game's files; their words are in the UI's
+ * language, English where French is missing (as the core gives them). Made-up ones without the
+ * file.
  */
-export async function loadMayhemAugments(): Promise<MayhemAugments> {
+export async function loadMayhemAugments(args?: { language: Language }): Promise<MayhemAugments> {
   if (new URLSearchParams(window.location.search).get("augments") !== "dev") return mayhemAugments;
   try {
     const res = await fetch("/dev-mayhem/augments.json");
@@ -112,11 +115,12 @@ export async function loadMayhemAugments(): Promise<MayhemAugments> {
     const catalog = (await res.json()) as AugmentCatalog;
     const real = (rarity: AugmentRarity) => catalog.augments.filter((a) => a.rarity === rarity);
     const byRarity = { silver: real("silver"), gold: real("gold"), prismatic: real("prismatic") };
+    const pick = (text: { en: string; fr: string }) => (args?.language === "fr" && text.fr.trim() ? text.fr : text.en);
     return {
       patch: catalog.patch,
       augments: mayhemAugments.augments.map((a) => {
         const game = byRarity[a.rarity][a.id - RARITY_BASE[a.rarity]];
-        return game ? { ...a, name: game.name.en, description: game.description.en, icon: `${ICON_BASE}/${game.icon}` } : a;
+        return game ? { ...a, name: pick(game.name), description: pick(game.description), icon: `${ICON_BASE}/${game.icon}` } : a;
       }),
     };
   } catch {

@@ -846,7 +846,9 @@ rate** (policy.md, "ARAM: Mayhem augments"; decisions.md).
   server refuses isn't sent again, one a network failure kept goes at the next scan.
 - **Draft**: the gameflow session's queue or mode makes `DraftView.mode` `"mayhem"`; the bench is
   ranked as in ARAM, the side panel opens on *Augments* (the selected pick's priorities, else
-  yours) and each row shows that champion's most picked augments under its line.
+  yours, one rarity at a time) and each row shows that champion's three most picked augments,
+  the first named, once it has 30 shared games. Pick rates, most picked augments and common
+  items show nowhere below that sample.
 - **UI** (`ui/src/views/mayhem`): `/mayhem` (its own lazy chunk, opened from the Tier list's
   queue tabs, "ARAM: Mayhem"): every augment by tier and rarity with "S · 1" badges and pick
   rates, and a champion filter (`?champion=`) with that champion's priorities, most picked
