@@ -1,0 +1,13 @@
+{
+  "name": "@scout/site",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "preview": "node serve.mjs",
+    "test": "playwright test --project=smoke",
+    "shots": "playwright test --project=shots"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1"
+  }
+}
