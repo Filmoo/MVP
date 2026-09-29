@@ -79,6 +79,25 @@ export const frViews = {
     },
   },
 
+  postGame: {
+    title: "Votre dernière partie",
+    close: "Fermer ce résumé",
+    outOf: "sur 10",
+    why: "Ce qui a pesé sur votre note",
+    remake: "Un remake : pas de note, et la partie ne compte pas.",
+    you: "Vous",
+    laneOpponent: "Adversaire de voie",
+    closestDamage: "Part de dégâts la plus proche",
+    noOpponent: "Pas d’adversaire de voie à qui vous comparer dans cette partie.",
+    rows: { kda: "KDA", cs: "CS", damage: "Dégâts", gold: "Or", vision: "Vision" },
+    lp: {
+      promoted: "Promu",
+      demoted: "Rétrogradé",
+      pending: "Calcul des PL de cette partie…",
+      unknown: "PL non suivis pour cette partie",
+    },
+  },
+
   draft: {
     readFailed: "Impossible de lire la sélection des champions",
     idle: {

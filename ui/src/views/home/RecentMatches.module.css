@@ -134,9 +134,26 @@
 }
 
 .result {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-4);
+  min-width: 0;
   font-size: var(--text-base);
   font-weight: var(--weight-semibold);
   line-height: 1.3;
+  white-space: nowrap;
+}
+
+/* The LP the game was worth, after its result: won blue, lost rose (the row's own colours). */
+.lp {
+  font-size: var(--text-sm);
+  color: var(--text-2);
+}
+.lp[data-lp="1"] {
+  color: var(--win);
+}
+.lp[data-lp="-1"] {
+  color: var(--loss);
 }
 .win .result {
   color: var(--win);
