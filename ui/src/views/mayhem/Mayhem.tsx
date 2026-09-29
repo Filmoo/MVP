@@ -18,9 +18,9 @@ import { Segmented } from "../../design/Segmented";
 import { EmptyState, ErrorState, Skeleton } from "../../design/States";
 import { t } from "../../i18n";
 import { percent, timeAgo } from "../../lib/format";
-import { statsErrorWords } from "../../lib/stats";
 import { backendError } from "../../lib/players";
 import { createQuery } from "../../lib/query";
+import { statsErrorWords } from "../../lib/stats";
 import { Widget } from "../../widgets/Widget";
 import page from "../page.module.css";
 import { ScopeSwitches } from "../stats/common";
@@ -69,7 +69,11 @@ function AugmentCard(props: { augment: AugmentInfo; tier?: AugmentTier; rank?: n
 }
 
 /** Every augment by MVP's tiers, then the ones without a tier (most picked first). */
-export function AugmentTiers(props: { augments: ReadonlyMap<number, AugmentInfo>; overview: MayhemOverview | undefined; rarity: RarityFilter }): JSX.Element {
+export function AugmentTiers(props: {
+  augments: ReadonlyMap<number, AugmentInfo>;
+  overview: MayhemOverview | undefined;
+  rarity: RarityFilter;
+}): JSX.Element {
   const [all, setAll] = createSignal(false);
   const popularity = () => props.overview?.popularity ?? null;
   const picks = createMemo(() => new Map(popularity()?.augments.map((p) => [p.id, p.n]) ?? []));
@@ -174,7 +178,13 @@ function ChampionFilter(props: { championId: number | undefined }): JSX.Element 
           <span class={styles.chosen} data-testid="mayhem-champion-chip">
             <ChampionIcon championId={id()} size={24} round />
             <span class={styles.chosenName}>{gameData()?.champions.get(id())?.name ?? t().common.championN(id())}</span>
-            <button type="button" class={styles.clear} aria-label={t().mayhem.clear} title={t().mayhem.clear} onClick={() => navigate("/mayhem")}>
+            <button
+              type="button"
+              class={styles.clear}
+              aria-label={t().mayhem.clear}
+              title={t().mayhem.clear}
+              onClick={() => navigate("/mayhem")}
+            >
               <Icon name="close" size={14} />
             </button>
           </span>

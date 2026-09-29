@@ -96,7 +96,10 @@ export function settingsIndex(w: Messages, flash: string): SearchCard[] {
     {
       id: "stats",
       title: s.title,
-      groups: [[row("bracket", { title: s.bracket, text: s.bracketText }, ...Object.values(w.brackets))], [row("shareMayhem", s.shareMayhem)]],
+      groups: [
+        [row("bracket", { title: s.bracket, text: s.bracketText }, ...Object.values(w.brackets))],
+        [row("shareMayhem", s.shareMayhem)],
+      ],
     },
     {
       id: "app",

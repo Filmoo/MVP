@@ -158,9 +158,7 @@ export const mayhemOverview: MayhemOverview = {
     games: 1_284,
     players: 12_840,
     updatedAt: FIXTURE_NOW - 2 * 3_600_000,
-    augments: mayhemAugments.augments
-      .map((a) => ({ id: a.id, n: picks(a.id, 3) * 9 }))
-      .sort((a, b) => b.n - a.n || a.id - b.id),
+    augments: mayhemAugments.augments.map((a) => ({ id: a.id, n: picks(a.id, 3) * 9 })).sort((a, b) => b.n - a.n || a.id - b.id),
   },
 };
 

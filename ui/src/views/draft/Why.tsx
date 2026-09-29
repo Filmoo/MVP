@@ -156,7 +156,9 @@ export function Why(props: {
       }
       class={styles.card}
       scroll
-      backdrop={<Show when={pick() && props.suggestion}>{(s) => <ChampionArt championId={s().championId} class={styles.art} light />}</Show>}
+      backdrop={
+        <Show when={pick() && props.suggestion}>{(s) => <ChampionArt championId={s().championId} class={styles.art} light />}</Show>
+      }
     >
       <Show when={teams()}>
         <Widget name="draft-comps">

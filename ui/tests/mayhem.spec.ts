@@ -116,7 +116,9 @@ test.describe("ARAM: Mayhem elsewhere", () => {
     await expect(page.locator("main")).toContainText(t.mayhem.aramNote);
     // ARAM's builds and stats come with it.
     const lastQueue = () =>
-      page.evaluate(() => (window.__SCOUT_MOCK__?.log.filter((l) => l.command === "champion_stats").at(-1)?.args as { queue?: number })?.queue);
+      page.evaluate(
+        () => (window.__SCOUT_MOCK__?.log.filter((l) => l.command === "champion_stats").at(-1)?.args as { queue?: number })?.queue,
+      );
     await expect.poll(lastQueue).toBe(450);
     await queueTab(page, t.queues[420]).click();
     await expect(page.getByTestId("mayhem-champion")).toHaveCount(0);
@@ -157,14 +159,19 @@ test.describe("ARAM: Mayhem elsewhere", () => {
     expect(errors).toEqual([]);
   });
 
-  test("settings: Help build Mayhem stats is off by default, saved when turned on, found by the search", async ({ page, t }) => {
+  test("settings: Help build Mayhem stats is off by default, saved when turned on, found by the search", async ({ page }) => {
     await openApp(page, { view: "/settings" });
     const toggle = page.getByTestId("setting-share-mayhem");
     await expect(toggle).toHaveAttribute("aria-checked", "false");
     await toggle.click();
     await expect(toggle).toHaveAttribute("aria-checked", "true");
     const saved = await page.evaluate(
-      () => (window.__SCOUT_MOCK__?.log.filter((l) => l.command === "update_settings").at(-1)?.args as { settings: { shareMayhemGames: boolean } })?.settings,
+      () =>
+        (
+          window.__SCOUT_MOCK__?.log.filter((l) => l.command === "update_settings").at(-1)?.args as {
+            settings: { shareMayhemGames: boolean };
+          }
+        )?.settings,
     );
     expect(saved?.shareMayhemGames).toBe(true);
     // What players call it finds it (its keywords list "augments" in both languages).

@@ -19,9 +19,9 @@ import { bracketLabel, buildFor, pickRole, roleFilterOptions, roleTabs, scopeLab
 import { ARAM, filters, setFilter } from "../../lib/stats-filters";
 import { Widget } from "../../widgets/Widget";
 import { ImportBar } from "../draft/ImportBar";
+import { ChampionAugments } from "../mayhem/parts";
 import page from "../page.module.css";
 import { ScopeSwitches, StatsProblem, useLinkFilters, useStatsIndex } from "../stats/common";
-import { ChampionAugments } from "../mayhem/parts";
 import { ItemsCard, SkillsCard, SpellsCard } from "./Builds";
 import { ChampionGrid } from "./ChampionGrid";
 import { ChampionHero } from "./ChampionHero";

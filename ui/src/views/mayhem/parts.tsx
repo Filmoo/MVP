@@ -28,9 +28,7 @@ const catalogs = new Map<Lang, Promise<Map<number, AugmentInfo> | null>>();
 function augmentsIn(transport: Transport, language: Lang): Promise<Map<number, AugmentInfo> | null> {
   let answer = catalogs.get(language);
   if (!answer) {
-    answer = transport
-      .call("mayhem_augments", { language })
-      .then((list) => (list ? new Map(list.augments.map((a) => [a.id, a])) : null));
+    answer = transport.call("mayhem_augments", { language }).then((list) => (list ? new Map(list.augments.map((a) => [a.id, a])) : null));
     catalogs.set(language, answer);
     // Asked again next time when there is nothing yet, or it failed.
     const drop = () => catalogs.get(language) === answer && catalogs.delete(language);
@@ -70,7 +68,15 @@ export function AugmentIcon(props: { augment: AugmentInfo | undefined; size: 24 
   return (
     <span class={`${styles.tile} ${styles[props.augment?.rarity ?? "silver"]} ${styles[`s${props.size}`]}`} aria-hidden="true">
       <Show when={props.augment?.icon && !failed()} fallback={<span class={styles.initials}>{initials(props.augment?.name ?? "?")}</span>}>
-        <img src={props.augment?.icon} alt="" width={props.size} height={props.size} loading="lazy" draggable={false} onError={() => setFailed(true)} />
+        <img
+          src={props.augment?.icon}
+          alt=""
+          width={props.size}
+          height={props.size}
+          loading="lazy"
+          draggable={false}
+          onError={() => setFailed(true)}
+        />
       </Show>
     </span>
   );
@@ -206,7 +212,9 @@ export function ChampionAugmentsView(props: {
               <Show when={list.entries.length > 0} fallback={<p class={styles.empty}>—</p>}>
                 <ol class={styles.list}>
                   <For each={list.entries}>
-                    {(entry) => <AugmentRow augment={props.augments?.get(entry.id)} line={reasons(entry, props.name)} size={props.full ? 32 : 24} />}
+                    {(entry) => (
+                      <AugmentRow augment={props.augments?.get(entry.id)} line={reasons(entry, props.name)} size={props.full ? 32 : 24} />
+                    )}
                   </For>
                 </ol>
               </Show>
@@ -221,7 +229,10 @@ export function ChampionAugmentsView(props: {
             <ol class={styles.list}>
               <For each={c().augments.slice(0, 5)}>
                 {(pick) => (
-                  <AugmentRow augment={props.augments?.get(pick.id)} line={sentence(t().mayhem.pickedBy(percent(pick.n / games()), props.name))} />
+                  <AugmentRow
+                    augment={props.augments?.get(pick.id)}
+                    line={sentence(t().mayhem.pickedBy(percent(pick.n / games()), props.name))}
+                  />
                 )}
               </For>
             </ol>

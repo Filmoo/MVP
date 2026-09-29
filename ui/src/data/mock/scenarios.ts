@@ -34,14 +34,7 @@ import {
   searchPlayer,
 } from "./live-fixtures";
 import { detailsFrom, gradesFrom, withGrades } from "./match-fixtures";
-import {
-  emptyOverview,
-  loadMayhemAugments,
-  longAugment,
-  mayhemAugments,
-  mayhemChampion,
-  mayhemOverview,
-} from "./mayhem-fixtures";
+import { emptyOverview, loadMayhemAugments, longAugment, mayhemAugments, mayhemChampion, mayhemOverview } from "./mayhem-fixtures";
 import {
   autoAcceptKilledConfig,
   bannersConfig,
