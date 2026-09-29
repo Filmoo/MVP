@@ -167,6 +167,27 @@
   max-width: 100%;
 }
 
+/* Imports: each part's switch says what it does, "Auto import". */
+.auto {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.autoLabel {
+  font-size: var(--text-md);
+  color: var(--text-2);
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+
+/* The hairline spans the card; the words keep the descriptions' measure. */
+.footnoteText {
+  display: block;
+  max-width: 60ch;
+}
+
 .footnote {
   margin-top: var(--space-7);
   padding-top: var(--space-5);

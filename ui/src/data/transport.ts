@@ -10,6 +10,7 @@ import type { GameData } from "./generated/GameData";
 import type { GradedMatch } from "./generated/GradedMatch";
 import type { ImportRequest } from "./generated/ImportRequest";
 import type { ImportResult } from "./generated/ImportResult";
+import type { ImportWarning } from "./generated/ImportWarning";
 import type { Language } from "./generated/Language";
 import type { LiveGame } from "./generated/LiveGame";
 import type { MatchDetails } from "./generated/MatchDetails";
@@ -100,10 +101,16 @@ export interface Commands {
   /**
    * Imports parts of a build into the League client: MVP's own rune page (made current), its
    * item set for the champion, the summoner spells (champion select only, Flash on the player's
-   * key, never in the timer's last seconds). Answers what happened to each part; parts turned
-   * off in Settings are skipped.
+   * key, never in the timer's last seconds). Answers what happened to each part. A request for
+   * the champion select (`champSelect`: Draft) that comes as it ends tries nothing
+   * (`champSelectEnded`).
    */
   import_build: { args: { request: ImportRequest }; result: ImportResult };
+  /**
+   * Draft's warning after the automatic import: the player's champion or role changed since
+   * (a trade, an ARAM reroll or swap, a role swap); `null` without one (`import-warning` events follow).
+   */
+  import_warning: { args: undefined; result: ImportWarning | null };
   /**
    * The server's remote config as the core last received it (banners, feature flags, kill
    * switches, `updateRequired`); defaults when it never answered. `remote-config` events follow.
@@ -144,8 +151,10 @@ export interface Events {
   live: LiveGame | null;
   /** The core fetched a newer stats index (new patch or republication): stats views refetch. */
   "stats-index": StatsIndex;
-  /** An automatic import on lock-in finished (`automatic: true`). */
+  /** The automatic import at the first lock-in finished (`automatic: true`). */
   import: ImportResult;
+  /** Draft's warning after the automatic import changed; `null` once imported for the new lock, or when champion select ends. */
+  "import-warning": ImportWarning | null;
   /** A new remote config arrived: banners, flags and `updateRequired` apply at once. */
   "remote-config": RemoteConfig;
   "app-update": UpdateStatus;

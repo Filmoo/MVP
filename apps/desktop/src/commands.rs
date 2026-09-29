@@ -4,9 +4,9 @@ use companion::settings::SettingsStore;
 use companion::stats::StatsClient;
 use domain::{
     AppInfo, BackendError, Bracket, ChampionPage, ClientError, ClientStatus, Description,
-    DescriptionKind, DraftView, GameData, GradedMatch, ImportRequest, ImportResult, Language,
-    LiveGame, MatchDetails, PlayerProfile, RankEmblems, RemoteConfig, RiotId, Settings, StatsIndex,
-    TierList, UpdateStatus,
+    DescriptionKind, DraftView, GameData, GradedMatch, ImportRequest, ImportResult, ImportWarning,
+    Language, LiveGame, MatchDetails, PlayerProfile, RankEmblems, RemoteConfig, RiotId, Settings,
+    StatsIndex, TierList, UpdateStatus,
 };
 use tauri::{Emitter as _, Manager as _};
 use tauri_plugin_autostart::ManagerExt as _;
@@ -449,8 +449,9 @@ pub async fn champion_stats(
 }
 
 /// Imports (parts of) a build into the League client: MVP's rune page, its item set, the
-/// summoner spells (champion select only). Answers what happened to each part; parts turned off
-/// in Settings are skipped. Rejects only while the app is still starting.
+/// summoner spells (champion select only). Answers what happened to each part; an import for
+/// the champion select that comes as it ends tries nothing. Rejects only while the app is still
+/// starting.
 #[tauri::command]
 #[allow(
     clippy::needless_pass_by_value,
@@ -465,6 +466,18 @@ pub async fn import_build(
         .map(|core| core.imports.clone())
         .ok_or_else(|| "MVP is still starting, try again in a moment".to_owned())?;
     Ok(importer.import(&request, false).await)
+}
+
+/// Draft's warning after the automatic import (the player's champion or role changed since),
+/// `None` without one (`import-warning` events follow).
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub fn import_warning(app: tauri::AppHandle) -> Option<ImportWarning> {
+    app.try_state::<Core>()
+        .and_then(|core| core.import_warning.borrow().clone())
 }
 
 /// A plain-text report for bug reports (Settings → About → "Copy diagnostics"): versions, the
