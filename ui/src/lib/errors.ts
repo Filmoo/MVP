@@ -5,8 +5,13 @@ export interface AppIssue {
   id: number;
   message: string;
   at: number;
-  /** `error`: something failed (stays until dismissed); `success`: a confirmation (fades on its own). */
-  tone: "error" | "success";
+  /**
+   * `error`: something failed (stays until dismissed); `success`: a confirmation (fades on its
+   * own); `warn`: something the player may want to act on (stays, with its action).
+   */
+  tone: "error" | "success" | "warn";
+  /** A button in the toast; using it closes the toast. */
+  action?: { label: string; run: () => void } | undefined;
 }
 
 const [issues, setIssues] = createSignal<AppIssue[]>([]);
@@ -18,10 +23,15 @@ const SUCCESS_MS = 4_000;
 /** Last unexpected errors and confirmations, surfaced in non-blocking toasts. */
 export { issues };
 
-function push(message: string, tone: AppIssue["tone"]): number {
+function push(message: string, tone: AppIssue["tone"], action?: AppIssue["action"]): number {
   const id = nextId++;
-  setIssues((list) => [...list.slice(-2), { id, message, at: Date.now(), tone }]);
+  setIssues((list) => [...list.slice(-2), { id, message, at: Date.now(), tone, action }]);
   return id;
+}
+
+/** Something to act on ("Import for Lux"): stays until used or dismissed. Returns its id. */
+export function warn(message: string, action: NonNullable<AppIssue["action"]>): number {
+  return push(message, "warn", action);
 }
 
 /** Set while the player opted in to crash reports (see `forwardCrashes`). */

@@ -1,5 +1,6 @@
 //! Build imports: MVP's rune page, item set and summoner spells written into the League client,
-//! on a click (`import_build`) or once per lock-in when the player opted in (Settings).
+//! on a click (`import_build`), or by itself once, at the first lock-in of a champion select, for
+//! the parts whose "Auto import" switch is on (Settings; see [`lock_in`]).
 //!
 //! Policy (docs/policy.md, "Build imports"): these are client writes, so they are user-triggered
 //! or opted-in only, and the player's own things are never touched:
@@ -16,7 +17,7 @@
 //! Builds come from a [`BuildSource`]: the published stats in the app, a fake in tests.
 
 mod item_sets;
-mod lock_in;
+pub mod lock_in;
 mod runes;
 mod spells;
 
@@ -26,17 +27,17 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use domain::{
-    Bracket, BuildStats, BuildsFile, ClientStatus, FailReason, GameflowPhase, ImportMode,
-    ImportOutcome, ImportPart, ImportRequest, ImportResult, Language, PartResult, RemoteConfig,
-    Role, Settings, SkipReason,
+    Bracket, BuildStats, BuildsFile, ClientStatus, FailReason, GameflowPhase, ImportOutcome,
+    ImportPart, ImportRequest, ImportResult, Language, PartResult, RemoteConfig, Role, Settings,
+    SkipReason,
 };
 use lcu::{LcuClient, LcuError};
 use serde_json::Value;
-use tokio::sync::watch;
+use tokio::sync::{mpsc, watch};
 
 pub use item_sets::{ItemBlock, item_blocks, item_set, merge_item_set, sets_path};
 pub(crate) use lock_in::LockIn;
-pub use lock_in::{Lock, LockTracker, locked};
+pub use lock_in::{LockTracker, locked};
 pub use runes::{CURRENT_PAGE, INVENTORY, PAGES, RunePage};
 pub use spells::{
     FLASH, KeyChoice, LAST_SECONDS, MY_SELECTION, Selection, arrange, flash_habit, selection,
@@ -203,13 +204,8 @@ const fn failed(reason: FailReason) -> ImportOutcome {
     ImportOutcome::Failed { reason }
 }
 
-/// The player's choice for `part`.
-pub const fn mode(settings: &Settings, part: ImportPart) -> ImportMode {
-    match part {
-        ImportPart::Runes => settings.import_runes,
-        ImportPart::ItemSet => settings.import_item_set,
-        ImportPart::Spells => settings.import_spells,
-    }
+const fn skipped(reason: SkipReason) -> ImportOutcome {
+    ImportOutcome::Skipped { reason }
 }
 
 /// Unix epoch milliseconds (the champion select timer's clock).
@@ -221,7 +217,7 @@ pub(crate) fn now_ms() -> i64 {
         .unwrap_or(0)
 }
 
-/// Imports builds into the League client, for `import_build` clicks and the lock-in automation.
+/// Imports builds into the League client, for `import_build` clicks and the automatic import.
 #[derive(Clone)]
 pub struct Importer {
     client: watch::Receiver<Option<LcuClient>>,
@@ -231,6 +227,9 @@ pub struct Importer {
     builds: Arc<dyn BuildSource>,
     names: ChampionNames,
     language: watch::Receiver<Language>,
+    /// Every finished import, for Draft's warning after the automatic import ([`LockIn`]):
+    /// set by the core.
+    done: Option<mpsc::UnboundedSender<ImportResult>>,
 }
 
 impl fmt::Debug for Importer {
@@ -258,11 +257,37 @@ impl Importer {
             builds,
             names,
             language,
+            done: None,
         }
+    }
+
+    /// Tells `done` about every import once it has run, whoever asked.
+    #[must_use]
+    pub(crate) fn reporting(mut self, done: mpsc::UnboundedSender<ImportResult>) -> Self {
+        self.done = Some(done);
+        self
     }
 
     pub(crate) fn settings(&self) -> Settings {
         self.settings.borrow().clone()
+    }
+
+    fn in_champ_select(&self) -> bool {
+        self.status.borrow().phase == GameflowPhase::ChampSelect
+    }
+
+    /// Whether the champion select an import was for is over: the core left it, the client has
+    /// no session any more, or the game is starting (nothing can change then).
+    async fn champ_select_over(&self, lcu: &LcuClient) -> bool {
+        if !self.in_champ_select() {
+            return true;
+        }
+        match lcu.get::<Value>(crate::champ_select::SESSION).await {
+            Ok(session) => {
+                session.pointer("/timer/phase").and_then(Value::as_str) == Some("GAME_STARTING")
+            }
+            Err(error) => error.is_not_found(),
+        }
     }
 
     /// Whether the server lets `part` run right now.
@@ -319,9 +344,18 @@ impl Importer {
         Err(FailReason::NoBuild)
     }
 
-    /// Imports the requested parts, in order, and says what happened to each. Parts turned off
-    /// in Settings are skipped, whoever asks.
+    /// Imports the requested parts, in order, and says what happened to each. An import for the
+    /// champion select ([`ImportRequest::champ_select`]) that comes as it ends tries nothing.
     pub async fn import(&self, request: &ImportRequest, automatic: bool) -> ImportResult {
+        let result = self.run(request, automatic).await;
+        if let Some(done) = &self.done {
+            // Nobody listening any more (the core stopped): nothing to warn about either.
+            let _ = done.send(result.clone());
+        }
+        result
+    }
+
+    async fn run(&self, request: &ImportRequest, automatic: bool) -> ImportResult {
         let settings = self.settings();
         let mut parts: Vec<ImportPart> = Vec::new();
         for part in &request.parts {
@@ -336,26 +370,21 @@ impl Importer {
             automatic,
             parts: Vec::new(),
         };
-        let in_champ_select = self.status.borrow().phase == GameflowPhase::ChampSelect;
         let lcu = self.client.borrow().clone();
-        // What each part can't do before anything is read.
+        // What each part can't do before anything is read (asked again before each part).
         let early = |part: ImportPart| -> Option<ImportOutcome> {
-            if mode(&settings, part) == ImportMode::Off {
-                return Some(ImportOutcome::Skipped {
-                    reason: SkipReason::Off,
-                });
-            }
             if !self.allowed(part) {
-                return Some(ImportOutcome::Skipped {
-                    reason: SkipReason::Paused,
-                });
+                return Some(skipped(SkipReason::Paused));
             }
             if lcu.is_none() {
                 return Some(failed(FailReason::NoClient));
             }
-            (part == ImportPart::Spells && !in_champ_select).then_some(ImportOutcome::Skipped {
-                reason: SkipReason::NotInChampSelect,
-            })
+            let in_champ_select = self.in_champ_select();
+            if request.champ_select && !in_champ_select {
+                return Some(skipped(SkipReason::ChampSelectEnded));
+            }
+            (part == ImportPart::Spells && !in_champ_select)
+                .then_some(skipped(SkipReason::NotInChampSelect))
         };
         let pending: Vec<ImportPart> = parts
             .iter()
@@ -374,6 +403,9 @@ impl Importer {
         };
 
         let build = self.build_for(lcu, request, &mut result).await;
+        // Finding the build takes a moment: the champion select may have ended meanwhile, and
+        // then a missing build (the game is starting) isn't the news, and nothing can apply.
+        let over = request.champ_select && self.champ_select_over(lcu).await;
         let name = build_name(
             (self.names)(request.champion_id).as_deref(),
             result.role,
@@ -382,6 +414,7 @@ impl Importer {
         for part in parts {
             let outcome = match (early(part), &build) {
                 (Some(outcome), _) => outcome,
+                _ if over => skipped(SkipReason::ChampSelectEnded),
                 (None, Err(reason)) => failed(reason.clone()),
                 (None, Ok(build)) => match part {
                     ImportPart::Runes => runes::import(lcu, build, &name).await,

@@ -30,8 +30,8 @@ pub use game_data::{
     ChampionInfo, GameData, ItemInfo, RankEmblem, RankEmblems, RuneInfo, RuneStyle, SpellInfo,
 };
 pub use imports::{
-    FailReason, FlashKey, FlashNote, ImportMode, ImportOutcome, ImportPart, ImportRequest,
-    ImportResult, PartResult, SkipReason, SpellKey,
+    FailReason, FlashKey, FlashNote, ImportOutcome, ImportPart, ImportRequest, ImportResult,
+    ImportWarning, Lock, PartResult, SkipReason, SpellKey,
 };
 pub use live::{ActiveGame, ActiveParticipant, LiveGame, LiveNames, LivePlayer, Scouting};
 pub use matches::{

@@ -149,6 +149,58 @@ mod tests {
         assert_eq!(reloaded.get(), saved);
     }
 
+    /// A file written by 0.2 (per-part import modes) loads as it is: nothing reset, nothing
+    /// set aside; "on lock-in" parts import by themselves, the others keep their buttons only.
+    #[test]
+    fn a_file_of_0_2_migrates_in_place() {
+        let dir = temp_dir();
+        let path = dir.path().join(FILE_NAME);
+        std::fs::write(
+            &path,
+            br#"{
+  "autoAccept": true,
+  "autoAcceptDelaySeconds": 3,
+  "bringToFrontOnChampSelect": true,
+  "autoSwitchView": false,
+  "launchAtStartup": false,
+  "closeToTray": true,
+  "effects": "off",
+  "language": "en",
+  "importRunes": "oneClick",
+  "importItemSet": "onLockIn",
+  "importSpells": "onLockIn",
+  "flashKey": "d",
+  "statsBracket": "masterPlus",
+  "crashReports": false
+}
+"#,
+        )
+        .unwrap();
+        let store = SettingsStore::load(path.clone());
+        let settings = store.get();
+        assert!(!path.with_extension("json.bad").exists(), "not set aside");
+        assert_eq!(
+            (
+                settings.auto_import_runes,
+                settings.auto_import_item_set,
+                settings.auto_import_spells
+            ),
+            (false, true, true)
+        );
+        assert!(settings.auto_accept);
+        assert_eq!(settings.auto_accept_delay_seconds, 3);
+        assert!(!settings.auto_switch_view);
+        assert_eq!(settings.effects, domain::Effects::Off);
+        assert_eq!(settings.flash_key, domain::FlashKey::D);
+        assert_eq!(settings.stats_bracket, domain::Bracket::MasterPlus);
+        // The next save writes this version's words.
+        store.update(settings.clone()).unwrap();
+        let saved = std::fs::read_to_string(&path).unwrap();
+        assert!(saved.contains(r#""autoImportItemSet": true"#), "{saved}");
+        assert!(!saved.contains("\"importItemSet\""), "{saved}");
+        assert_eq!(SettingsStore::load(path).get(), settings);
+    }
+
     #[test]
     fn corrupt_file_is_set_aside() {
         let dir = temp_dir();

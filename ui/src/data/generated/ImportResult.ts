@@ -4,7 +4,7 @@ import type { Role } from "./Role";
 
 /**
  * What an import did, part by part: the answer to `import_build`, and the `import` event of
- * the lock-in automation.
+ * the automatic import.
  */
 export type ImportResult = { championId: number, role: Role | null, 
 /**
@@ -12,7 +12,7 @@ export type ImportResult = { championId: number, role: Role | null,
  */
 queue: number, 
 /**
- * Made by the lock-in automation rather than a click.
+ * Made by the automatic import (first lock-in) rather than a click.
  */
 automatic: boolean, 
 /**
