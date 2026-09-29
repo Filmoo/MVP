@@ -20,10 +20,11 @@
   white-space: nowrap;
 }
 
+/* Cells' sides line the labels up with the teams above (and fit big numbers without scrolling). */
 .table th,
 .table td {
   height: 28px;
-  padding: 0 var(--space-5);
+  padding: 0 var(--space-4);
   font-weight: var(--weight-regular);
 }
 
@@ -39,9 +40,9 @@
   text-align: left;
 }
 
-/* The damage by type, under the damage to champions. */
+/* The damage by type, under the damage to champions: quieter, labels and numbers. */
 .table th.sub {
-  padding-left: var(--space-9);
+  padding-left: var(--space-8);
   color: var(--text-3);
 }
 
@@ -49,6 +50,11 @@
   min-width: 64px;
   text-align: right;
   color: var(--text-2);
+}
+
+.table tr:has(> th.sub) td,
+.table td[data-zero] {
+  color: var(--text-3);
 }
 
 /* A row's highest value: the only one in full colour. */
@@ -94,16 +100,25 @@
   border-left: 1px solid var(--line-2);
 }
 
-/* The page owner's column (you on Home). */
+/* The page owner's column (you on Home): its head marked, its numbers on a breath of the accent. */
 .marked {
+  background: var(--bg-lens);
+}
+
+.table thead .marked {
   background: var(--accent-soft);
 }
 
-/* A group's name, over its rows, in the labels' column. */
+/* A group's name, over its rows, in the labels' column (the first one close under the heads). */
 .table .group > * {
   height: 32px;
   padding-top: var(--space-4);
   vertical-align: bottom;
+}
+
+.table thead + tbody .group > * {
+  height: 24px;
+  padding-top: 0;
 }
 
 .table .group th {
@@ -114,7 +129,7 @@
   letter-spacing: 0.06em;
 }
 
-tbody:last-child tr:last-child > * {
+.table tbody:last-child tr:last-child > * {
   padding-bottom: var(--space-2);
 }
 
@@ -123,8 +138,12 @@ tbody:last-child tr:last-child > * {
   background: var(--bg-3);
 }
 
-/* Narrow sheets: the labels wrap (two lines at most), so more players fit beside them. */
+/* Narrow sheets: the labels wrap (two lines at most) and cells tighten, so more players fit. */
 @container stats (max-width: 599px) {
+  .table th,
+  .table td {
+    padding: 0 var(--space-3);
+  }
   .table th[scope="row"] {
     width: 120px;
     padding-block: var(--space-2);
@@ -132,7 +151,7 @@ tbody:last-child tr:last-child > * {
     line-height: 1.25;
   }
   .table th.sub {
-    padding-left: var(--space-7);
+    padding-left: var(--space-6);
   }
   .table td {
     min-width: 56px;

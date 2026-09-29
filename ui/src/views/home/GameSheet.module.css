@@ -58,6 +58,13 @@
   animation: rise var(--dur-spring) var(--ease-spring);
 }
 
+/* Up to a laptop's width it covers the page's column edge to edge: no sliver of card beside it. */
+@media (max-width: 1359px) {
+  .panel {
+    width: 100%;
+  }
+}
+
 /* A wheel's notches glide; a finger is followed as it moves. */
 .sheet[data-pulling="wheel"] .panel {
   transition-duration: var(--dur-1);
@@ -80,12 +87,12 @@
 }
 
 /*
- * Liquid glass over the page (design/liquid, "panel"): bent at the rim, frosted in the middle.
- * The lens tints it like a card, so the frosted page shows through; without the lens (Light,
- * Off) it keeps the denser floating fill, opaque when effects are off.
+ * Liquid glass over the page (design/liquid, "panel", like the search's results): the page bent
+ * at the rim, frosted and tinted in the middle, where the tables need a calm ground (a lighter
+ * tint let the page's numbers show between the columns). Opaque when effects are off.
  */
 .glass {
-  --lg-tint: var(--bg-card);
+  --lg-tint: var(--bg-float);
   position: absolute;
   inset: 0;
   z-index: -1;
@@ -194,11 +201,18 @@
   outline: none;
 }
 
+/* A game that can't show: its message in the middle of the sheet, not under its head. */
+.body:has([data-state="error"]) {
+  display: grid;
+  align-content: center;
+}
+
+/* A section of its own, further from the teams than they are from each other. */
 .stats {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  margin-top: var(--space-2);
+  margin-top: var(--space-7);
 }
 
 .statsTitle {
@@ -222,6 +236,7 @@
   bottom: var(--space-4);
   left: 50%;
   z-index: 1;
+  isolation: isolate;
   display: flex;
   align-items: center;
   gap: var(--space-3);
@@ -232,7 +247,7 @@
     var(--shadow-float),
     inset 0 0 0 1px var(--line-2);
   color: var(--text-1);
-  font-size: var(--text-sm);
+  font-size: var(--text-base);
   font-weight: var(--weight-medium);
   white-space: nowrap;
   overflow: hidden;
@@ -242,12 +257,13 @@
   transition: opacity var(--dur-1) var(--ease);
 }
 
+/* The pill fills up with the accent, left to right, as the pull nears the close. */
 .cue::after {
   content: "";
   position: absolute;
-  inset: auto 0 0;
-  height: 2px;
-  background: var(--accent);
+  inset: 0;
+  z-index: -1;
+  background: var(--bg-lens-accent);
   transform: scaleX(var(--progress, 0));
   transform-origin: left;
   transition: transform var(--dur-1) var(--ease);

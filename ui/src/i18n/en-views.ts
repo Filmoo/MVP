@@ -63,7 +63,7 @@ export const enViews = {
         objectives: "Objectives",
       },
       rows: {
-        kda: "Kills / deaths / assists",
+        kda: "KDA",
         largestKillingSpree: "Largest killing spree",
         largestMultiKill: "Largest multikill",
         firstBlood: "First blood",

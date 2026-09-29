@@ -75,7 +75,7 @@ export const frViews = {
         objectives: "Objectifs",
       },
       rows: {
-        kda: "Éliminations / morts / assistances",
+        kda: "KDA",
         largestKillingSpree: "Plus longue série d’éliminations",
         largestMultiKill: "Plus grand multikill",
         firstBlood: "Premier sang",

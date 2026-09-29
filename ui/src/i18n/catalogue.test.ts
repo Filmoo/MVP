@@ -268,6 +268,7 @@ const SAME = new Set([
   "matchDetails.columns.vision",
   "matchDetails.stats.groups.combat",
   "matchDetails.stats.groups.vision",
+  "matchDetails.stats.rows.kda",
   "summary.championsTitle",
   "draft.tier",
   "why.kinds.jungle",

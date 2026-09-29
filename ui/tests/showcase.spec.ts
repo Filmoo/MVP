@@ -566,32 +566,44 @@ async function gameShot(
     .nth(opts.row ?? 0)
     .click();
   const sheet = page.getByTestId("game-sheet");
-  if (opts.scenario !== "match-details-slow") {
-    await sheet.locator("[data-testid=game-player], [role=alert]").first().waitFor();
-    await settle(page);
+  const path = `${OUT}/${name}-${opts.width}x${opts.height}.png`;
+  if (opts.scenario === "match-details-slow") {
+    // Still loading: its head and the skeleton, once it has risen in (the skeleton pulses for good).
+    await sheet.locator("[data-state=loading]").first().waitFor();
+    await page.getByTestId("game").evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
+    await page.mouse.move(0, 0);
+    await page.screenshot({ path });
+    return;
   }
+  await sheet.locator("[data-testid=game-player], [role=alert]").first().waitFor();
+  await settle(page);
   await animationsDone(page);
   if (opts.part === "stats") {
     await sheet.locator("[data-widget=match-stats]").evaluate((el) => el.scrollIntoView({ block: "start" }));
   }
-  if (opts.part === "pull") {
-    // Scrolled to its end, then two notches on (at once: a busy machine spaces awaited ones out):
-    // the sheet follows, the hint shows; captured before it springs back.
-    await sheet.getByTestId("game-body").evaluate((el) => {
-      el.scrollTop = el.scrollHeight;
-    });
-    const box = await page.getByTestId("game").boundingBox();
-    const at = { x: (box?.x ?? 0) + (box?.width ?? 0) / 2, y: (box?.y ?? 0) + (box?.height ?? 0) / 2 };
-    await page.mouse.move(at.x, at.y);
+  if (opts.part !== "pull") {
+    await page.mouse.move(0, 0);
+    await page.screenshot({ path });
+    return;
+  }
+  // Scrolled to its end, then two notches on (at once: a busy machine spaces awaited ones out):
+  // the sheet follows, the hint shows. Captured before it springs back, else again.
+  await sheet.getByTestId("game-body").evaluate((el) => {
+    el.scrollTop = el.scrollHeight;
+  });
+  const box = await page.getByTestId("game").boundingBox();
+  const at = { x: (box?.x ?? 0) + (box?.width ?? 0) / 2, y: (box?.y ?? 0) + (box?.height ?? 0) / 2 };
+  await page.mouse.move(at.x, at.y);
+  const cdp = await page.context().newCDPSession(page);
+  for (let attempt = 0; attempt < 4; attempt++) {
+    await sheet.and(page.locator(":not([data-pulling])")).waitFor();
     await page.waitForTimeout(300);
-    const cdp = await page.context().newCDPSession(page);
     await Promise.all([0, 1].map(() => cdp.send("Input.dispatchMouseEvent", { type: "mouseWheel", ...at, deltaX: 0, deltaY: 100 })));
     await sheet.and(page.locator("[data-pulling]")).waitFor();
     await page.waitForTimeout(150);
-  } else {
-    await page.mouse.move(0, 0);
+    await page.screenshot({ path });
+    if (await sheet.and(page.locator("[data-pulling]")).count()) return;
   }
-  await page.screenshot({ path: `${OUT}/${name}-${opts.width}x${opts.height}.png` });
 }
 
 async function whyShot(page: Page, name: string, width: number, height: number, row: number) {
