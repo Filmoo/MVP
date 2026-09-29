@@ -11,9 +11,9 @@ export const defaultSettings: Settings = {
   closeToTray: true,
   effects: "auto",
   language: "auto",
-  importRunes: "oneClick",
-  importItemSet: "oneClick",
-  importSpells: "oneClick",
+  autoImportRunes: false,
+  autoImportItemSet: false,
+  autoImportSpells: false,
   flashKey: "auto",
   statsBracket: "emeraldPlus",
   crashReports: false,
@@ -29,28 +29,20 @@ export const customSettings: Settings = {
   closeToTray: false,
   effects: "auto",
   language: "auto",
-  importRunes: "onLockIn",
-  importItemSet: "onLockIn",
-  importSpells: "off",
+  autoImportRunes: true,
+  autoImportItemSet: true,
+  autoImportSpells: false,
   flashKey: "f",
   statsBracket: "diamondPlus",
   crashReports: false,
 };
 
-/** Every part imported by itself on lock-in. */
-export const lockInSettings: Settings = {
+/** Every part imported by itself at the first lock-in. */
+export const autoImportSettings: Settings = {
   ...defaultSettings,
-  importRunes: "onLockIn",
-  importItemSet: "onLockIn",
-  importSpells: "onLockIn",
-};
-
-/** Every import turned off: no import bar in Draft. */
-export const importsOffSettings: Settings = {
-  ...defaultSettings,
-  importRunes: "off",
-  importItemSet: "off",
-  importSpells: "off",
+  autoImportRunes: true,
+  autoImportItemSet: true,
+  autoImportSpells: true,
 };
 
 /** What the core does with an update: clamps the delay, then answers what it saved. */

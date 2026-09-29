@@ -40,6 +40,8 @@ for (const scenario of scenarioNames) {
 const SCENARIO_VIEWS = [
   { view: "/draft", scenario: "champ-select" },
   { view: "/draft", scenario: "import-lock-in" },
+  // After a trade: the warning's line under the buttons.
+  { view: "/draft", scenario: "import-warning" },
   { view: "/draft", scenario: "draft-no-stats" },
   { view: "/draft", scenario: "aram-champ-select" },
   { view: "/settings", scenario: "settings-custom" },
@@ -63,7 +65,6 @@ const SCENARIO_VIEWS = [
 
 // Their other states at the extreme sizes.
 const STATE_VIEWS = [
-  { view: "/draft", scenario: "imports-off" },
   { view: "/draft", scenario: "draft-planning" },
   { view: "/draft", scenario: "draft-no-comps" },
   { view: "/live", scenario: "live-error" },

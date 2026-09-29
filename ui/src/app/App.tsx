@@ -1,4 +1,4 @@
-import { createEffect, For, type JSX, lazy, Match, on, onCleanup, onMount, Suspense, Switch } from "solid-js";
+import { createEffect, For, type JSX, lazy, Match, on, onCleanup, onMount, Show, Suspense, Switch } from "solid-js";
 import { useData } from "../data/context";
 import { createFollowed } from "../data/follow";
 import type { Settings as SettingsData } from "../data/generated/Settings";
@@ -46,7 +46,24 @@ function Toasts(): JSX.Element {
           <div class={`${styles.toast} ${styles[issue.tone]} glass-rim`} role="status" data-testid="toast" data-tone={issue.tone}>
             <div class={styles.toastGlass} aria-hidden="true" ref={(el) => liquid(el, "panel")} />
             <Icon name={issue.tone === "success" ? "check" : "alert"} size={16} class={styles.toastIcon} />
-            <span>{issue.message}</span>
+            <div class={styles.toastText}>
+              <span>{issue.message}</span>
+              <Show when={issue.action}>
+                {(action) => (
+                  <button
+                    type="button"
+                    class={styles.toastAction}
+                    data-testid="toast-action"
+                    onClick={() => {
+                      dismissIssue(issue.id);
+                      action().run();
+                    }}
+                  >
+                    {action().label}
+                  </button>
+                )}
+              </Show>
+            </div>
             <button type="button" aria-label={t().common.dismiss} onClick={() => dismissIssue(issue.id)}>
               <Icon name="close" size={14} />
             </button>
@@ -105,10 +122,14 @@ export function App(): JSX.Element {
     }),
   );
   onCleanup(
-    listenForLockInImports(transport, () => ({
-      champion: (id) => gameData()?.champions.get(id)?.name,
-      spell: (id) => gameData()?.spells.get(id)?.name,
-    })),
+    listenForLockInImports(
+      transport,
+      () => ({
+        champion: (id) => gameData()?.champions.get(id)?.name,
+        spell: (id) => gameData()?.spells.get(id)?.name,
+      }),
+      () => path() === "/draft",
+    ),
   );
 
   return (

@@ -84,7 +84,8 @@ export function settingsIndex(w: Messages, flash: string): SearchCard[] {
     {
       id: "imports",
       title: i.title,
-      also: Object.values(i.modes).join(", "),
+      // Every part's switch: "Auto import".
+      also: i.auto,
       groups: [
         [row("runes", i.runes)],
         [row("itemSet", i.itemSet)],
