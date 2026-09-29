@@ -831,6 +831,39 @@ test.describe("in French", () => {
   });
 });
 
+// ARAM: Mayhem in English and French (`fr-…`), at 1280 and 420 px: the page, a champion's
+// augments, the champion page's tab, Draft and Live, and the fresh-server state. With
+// `augments=dev` the game's real augments (names, words, art: .cache/mayhem/augments.json) stand
+// in for the made-up ones when the file is there; the tiers and pick rates stay made up.
+const MAYHEM_SHOTS = [
+  { name: "mayhem", view: "/mayhem", scenario: "default" },
+  { name: "mayhem-champion", view: "/mayhem?champion=103", scenario: "default" },
+  { name: "mayhem-empty", view: "/mayhem", scenario: "mayhem-empty" },
+  { name: "champion-mayhem", view: "/champions?id=103&mode=mayhem", scenario: "default" },
+  { name: "draft-mayhem", view: "/draft", scenario: "mayhem-champ-select" },
+  { name: "live-mayhem", view: "/live?tab=build", scenario: "mayhem-live" },
+] as const;
+for (const lang of ["en", "fr"] as const) {
+  test.describe(lang === "fr" ? "ARAM: Mayhem in French" : "ARAM: Mayhem", () => {
+    if (lang === "fr") test.use({ locale: "fr-FR" });
+    const prefix = lang === "fr" ? "fr-" : "";
+    for (const { name, view, scenario } of MAYHEM_SHOTS) {
+      for (const [width, height] of [
+        [1280, 800],
+        [420, 800],
+      ] as const) {
+        test(`${prefix}${name} ${width}x${height}`, async ({ page }) => {
+          await page.setViewportSize({ width, height });
+          await page.clock.setFixedTime(new Date(FIXTURE_NOW));
+          await page.goto(`/?scenario=${scenario}&augments=dev#${view}`);
+          await settle(page);
+          await capture(page, `${OUT}/${prefix}${name}-${width}x${height}.png`, name !== "draft-mayhem");
+        });
+      }
+    }
+  });
+}
+
 // Home after a game and its history: the last game's summary (a win with its LP, a demotion, an
 // unknown LP, the LP on its way, ARAM), the filters (a champion, none left), older games
 // (loading, failed, the end), in English and French (`fr-…`).

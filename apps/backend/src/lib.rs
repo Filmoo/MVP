@@ -18,6 +18,9 @@
 //! Platform services (`service()`, see `ops.rs`): `GET /v1/updates/…` (Tauri updater),
 //! `GET /v1/config` (`RemoteConfig`), `POST /v1/reports` (`CrashReport`), `/metrics`, and the
 //! hardening layers (rate limit, body limits, timeout, request ids).
+//!
+//! ARAM: Mayhem (`mayhem.rs`): the owner's augment tiers, the augment catalog, the opt-in
+//! shared games and their pick counts (never a win rate).
 
 mod cache;
 mod error;
@@ -29,6 +32,7 @@ mod stats_files;
 pub mod admin;
 mod config;
 mod limits;
+pub mod mayhem;
 mod ops;
 mod reports;
 mod store;

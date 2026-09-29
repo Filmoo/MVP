@@ -30,6 +30,7 @@ export type SearchId =
   | "flashKey"
   | "stats"
   | "bracket"
+  | "shareMayhem"
   | "app"
   | "language"
   | "closeToTray"
@@ -92,7 +93,14 @@ export function settingsIndex(w: Messages, flash: string): SearchCard[] {
         [row("spells", i.spells), row("flashKey", { title: i.flashKey.title(flash), text: i.flashKey.text(flash) })],
       ],
     },
-    { id: "stats", title: s.title, groups: [[row("bracket", { title: s.bracket, text: s.bracketText }, ...Object.values(w.brackets))]] },
+    {
+      id: "stats",
+      title: s.title,
+      groups: [
+        [row("bracket", { title: s.bracket, text: s.bracketText }, ...Object.values(w.brackets))],
+        [row("shareMayhem", s.shareMayhem)],
+      ],
+    },
     {
       id: "app",
       title: p.title,

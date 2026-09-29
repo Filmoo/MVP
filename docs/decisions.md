@@ -244,6 +244,64 @@ summoner hovered + description". Design calls:
   by build savings on the same code (shorter CSS module class names, preload lists without the
   startup files, constant classes set once): 128.6 KB of 131 in all, 43.7 of 46 at startup.
 
+## 2026-09-29 — A private roadmap at dev.mvpgg.com (owner asked, Claude built)
+Owner: a todo list on our server, only for the repo's admins (the owner and Claude), each feature with
+a way to accept, create and remove, Claude proposing as it works, split by versions; "a cool
+visualizer but also a nice tool to work with". Calls:
+- **Its own small service** (`apps/roadmap`, axum + SQLite, like the rest), next to the backend on
+  the VPS behind Caddy and Cloudflare. The code is public; the roadmap stays in the server's file.
+- **GitHub decides who is an admin**: sign-in with an OAuth App (no scope), then GitHub's
+  permission for `Filmoo/MVP` must be `admin`, asked again every ten minutes. Claude gets a
+  machine token instead, made on the server and stored hashed.
+- **Claude proposes, the owner decides**: Claude's features start as proposals in an inbox; only
+  the owner accepts, rejects, edits, orders or removes. Claude moves accepted work along and links
+  its commits.
+- **Everything is logged** (who, when, what), in the same transaction as the change.
+- **The seed is the docs**: `apps/roadmap/seed/roadmap.json` (versions 0.2 released, 0.3 in
+  progress, 0.4, Later) goes into an empty database only; after that the roadmap lives on the
+  server.
+- **It looks like MVP** (the app's tokens and glass) and is idle-silent: no polling, it reads the
+  roadmap again when the tab comes back.
+
+## 2026-09-29 — Mayhem augments: editorial tiers + opt-in popularity (owner decided, Claude built)
+Owner: "I really want this… at least give Mayhem builds, and some way to show tier for augments."
+Riot keeps ARAM: Mayhem games off Match-V5 (403) and forbids augment win rates, so there is
+nothing to crawl. Offered editorial tiers or opt-in sharing, the owner took both:
+- **Editorial tiers** in one file on our server (`mayhem-tiers.json`: `patch`, `updatedAt`,
+  `tiers` S/A/B/C as augment ids, `notes` in English and French), validated at load and
+  reloaded on change like the remote config, checked with `mvp-backend mayhem check`, listed
+  with names by `mvp-backend mayhem list`. It ships empty: the owner writes the tiers, never
+  copied from another site. Owner, later: "mayhem does show tiers but also seems to have an
+  order inter rank… we might want a way to help player choosing them": **the order inside a
+  tier is the rank** (first = best), no augment twice, shown "S · 1".
+- **Opt-in popularity**: Settings → Stats → "Help build Mayhem stats" (off by default). After
+  each Mayhem game, and once for the recent ones when turned on, the core sends each game's
+  champions, augments and final items with a one-way hash of its id; no names, ids or results
+  (policy.md). The server counts each game once per patch and serves pick rates: overall, per
+  champion, and each champion's common final items.
+- **Augment priorities** per champion and rarity (each offer round is one rarity): tier and the
+  owner's rank first, the champion's pick rate second once it has 30 shared games (fewer: the
+  tiers alone, said so), each entry with its reasons ("S tier · #2", "picked in 34% of Kog'Maw
+  games"). Claude's reading of "tier and rank first": popularity never reorders a tier (the
+  owner's rank is the answer to "which one inside a tier"); it orders the untiered augments
+  after the tiered ones and shows next to every entry. One comparator
+  (`companion::mayhem::champion`) if the owner wants the pick rate to reorder inside a tier.
+- **Where**: the Tier list's queue tabs end with "ARAM: Mayhem", which opens the Mayhem page
+  (its own lazy chunk: every augment by tier and rarity, a champion filter with that
+  champion's priorities, most picked augments and common items); the champion page's Mayhem
+  tab (the same, plus ARAM's build labelled as ARAM data); Draft in a Mayhem champion select
+  (the side panel opens on an "Augments" tab for the selected champion, one rarity at a time;
+  each bench champion's most picked augments under its line once it has 30 shared games); Live's
+  "My build" in a Mayhem game. The champion page's hero shows no ARAM tier or win rate on that
+  tab (the ARAM numbers sit under "ARAM builds"). Before the game or
+  as static reference only: nothing reacts to the game's augment offers (policy.md). French:
+  "ARAM du chaos".
+- **Budget**: the whole feature costs +9.1 KB of JS gzip in total (main's 126.1 → 135.2 KB
+  against a 131 KB budget; startup 40.6 → 40.8 of 46 KB): the Mayhem page 3.2 KB, the shared
+  augment parts 3.1 KB, words in both languages 1.6 KB, the four integrations 0.8 KB, the route
+  0.1 KB, chunking 0.3 KB. The total budget went 131 → 136 KB in its own commit when it merged
+  (startup unchanged at 40.8 of 46 KB).
+
 ## 2026-09-29 — Tiers and builds, one hub (owner decided, Claude designed)
 Owner, on three tier list directions: "I love the shelves view and the top 3. A mix would be
 nice", with the meta map "small inside shelves view, which is the main view" and full screen;

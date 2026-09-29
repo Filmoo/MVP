@@ -10,6 +10,7 @@ export const DEFAULT_REMOTE_CONFIG: RemoteConfig = {
     runeImport: true,
     itemSets: true,
     summonerSpells: true,
+    mayhemSharing: true,
   },
   killSwitches: { autoAccept: false, runeImport: false, itemSets: false, summonerSpells: false },
   minVersion: null,

@@ -316,7 +316,7 @@ test("only ARAM published: ranked says so, ARAM shows its tier list", async ({ p
   const errors = trackErrors(page);
   await openApp(page, { view: "/tier-list", scenario: "stats-aram-only" });
   await expect(page.locator("main")).toContainText(t.stats.errors.notFound.title);
-  await page.getByTestId("queue-switch").getByRole("radio", { name: t.queues[450] }).click();
+  await page.getByTestId("queue-switch").getByRole("radio", { name: t.queues[450], exact: true }).click();
   await expect(page.getByTestId("tier-row").first()).toBeVisible();
   await expect(page.locator("main")).not.toContainText(t.stats.errors.notFound.title);
   expect(errors).toEqual([]);

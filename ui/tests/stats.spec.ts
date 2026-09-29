@@ -12,6 +12,8 @@ const argsOf = (page: Page, command: "tier_list" | "previous_tier_list" | "champ
   page.evaluate((c) => window.__SCOUT_MOCK__?.log.filter((l) => l.command === c).map((l) => l.args) ?? [], command);
 
 const segment = (page: Page, group: string, name: string | RegExp) => page.getByTestId(group).getByRole("radio", { name });
+/** A queue tab by its whole name: "ARAM" alone, not "ARAM: Mayhem" (its own tab). */
+const queue = (page: Page, name: string) => page.getByTestId("queue-switch").getByRole("radio", { name, exact: true });
 const rows = (page: Page) => page.getByTestId("tier-row");
 const rankButton = (page: Page) => page.getByTestId("rank-button");
 /** Picks a rank in the rank menu (it opens from its button, and closes on a choice). */
@@ -39,7 +41,7 @@ test.describe("tier list", () => {
       bracket: "emeraldPlus",
     });
 
-    await segment(page, "queue-switch", t.queues[450]).click();
+    await queue(page, t.queues[450]).click();
     await expect.poll(async () => (await argsOf(page, "tier_list")).at(-1)).toEqual({ queue: 450, bracket: "emeraldPlus" });
     await expect(page.getByTestId("role-filter"), "ARAM has no lanes").toHaveCount(0);
     await pickRank(page, t.brackets.masterPlus);
@@ -49,7 +51,7 @@ test.describe("tier list", () => {
 
     await page.reload();
     await settle(page);
-    await expect(segment(page, "queue-switch", t.queues[450])).toHaveAttribute("aria-checked", "true");
+    await expect(queue(page, t.queues[450])).toHaveAttribute("aria-checked", "true");
     await expect(rankButton(page)).toContainText(t.brackets.masterPlus);
     expect((await argsOf(page, "tier_list")).at(-1)).toEqual({ queue: 450, bracket: "masterPlus" });
     expect(errors).toEqual([]);
@@ -259,10 +261,10 @@ test.describe("one hub for tiers and builds", () => {
   });
 });
 
-test("queue tabs: one tab stop, arrow keys move the choice", async ({ page, t }) => {
+test("queue tabs: one tab stop, arrow keys move the choice; the last one is ARAM: Mayhem's page", async ({ page, t }) => {
   await openApp(page, { view: "/tier-list" });
-  const ranked = segment(page, "queue-switch", t.queues[420]);
-  const aram = segment(page, "queue-switch", t.queues[450]);
+  const ranked = queue(page, t.queues[420]);
+  const aram = queue(page, t.queues[450]);
   await expect(ranked).toHaveAttribute("tabindex", "0");
   await expect(aram).toHaveAttribute("tabindex", "-1");
   await ranked.focus();
@@ -271,14 +273,33 @@ test("queue tabs: one tab stop, arrow keys move the choice", async ({ page, t })
   await expect(aram).toHaveAttribute("aria-checked", "true");
   await expect(aram).toHaveAttribute("tabindex", "0");
   await expect(ranked).toHaveAttribute("tabindex", "-1");
-  await page.keyboard.press("ArrowRight");
-  await expect(ranked, "wraps around").toBeFocused();
-  await expect(ranked).toHaveAttribute("aria-checked", "true");
-  await page.keyboard.press("End");
-  await expect(aram).toHaveAttribute("aria-checked", "true");
   await page.keyboard.press("Home");
+  await expect(ranked).toBeFocused();
   await expect(ranked).toHaveAttribute("aria-checked", "true");
   await expect(page.getByRole("radiogroup", { name: t.stats.queue })).toBeVisible();
+  // The last tab, ARAM: Mayhem, opens its page (the same tabs, Mayhem chosen).
+  await page.keyboard.press("End");
+  await expect(page).toHaveURL(/#\/mayhem$/);
+  await expect(queue(page, t.queues[2400])).toHaveAttribute("aria-checked", "true");
+});
+
+test("the rank menu from the keyboard: it opens on the rank shown, arrows choose, Enter closes it", async ({ page, t }) => {
+  await openApp(page, { view: "/tier-list" });
+  await expect(rows(page).first()).toBeVisible();
+  await rankButton(page).focus();
+  await page.keyboard.press("Enter");
+  const emerald = segment(page, "bracket-switch", t.brackets.emeraldPlus);
+  const diamond = segment(page, "bracket-switch", t.brackets.diamondPlus);
+  await expect(emerald, "the rank shown has the focus").toBeFocused();
+  await page.keyboard.press("ArrowRight");
+  await expect(diamond).toBeFocused();
+  await expect(diamond).toHaveAttribute("aria-checked", "true");
+  await expect.poll(async () => (await argsOf(page, "tier_list")).at(-1)).toEqual({ queue: 420, bracket: "diamondPlus" });
+  await expect(diamond, "an arrow chooses, the menu stays").toBeVisible();
+  await page.keyboard.press("Enter");
+  await expect(diamond).toBeHidden();
+  await expect(rankButton(page), "back to the button").toBeFocused();
+  await expect(rankButton(page)).toContainText(t.brackets.diamondPlus);
 });
 
 test.describe("champion page", () => {
@@ -310,7 +331,7 @@ test.describe("champion page", () => {
   test("ARAM: builds without roles, and no matchups", async ({ page, t }) => {
     const errors = trackErrors(page);
     await openApp(page, { view: "/champions?id=103" });
-    await segment(page, "queue-switch", t.queues[450]).click();
+    await queue(page, t.queues[450]).click();
     await expect
       .poll(async () => (await argsOf(page, "champion_stats")).at(-1))
       .toEqual({

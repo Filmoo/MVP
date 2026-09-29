@@ -470,6 +470,56 @@ export const frViews = {
     buildRecord: (n: number) => `de victoires · ${count(n, "partie", "parties")}`,
   },
 
+  mayhem: {
+    augments: "Augments",
+    rarity: "Rareté",
+    rarities: { silver: "Argent", gold: "Or", prismatic: "Prismatique" },
+    all: "Tous",
+    tier: (tier: string) => `Tier ${tier}`,
+    ranked: (tier: string, rank: number) => `Tier ${tier} · n° ${rank}`,
+    untiered: "Pas encore classés",
+    tierHint: "Les tiers de MVP, faits à la main de S (le meilleur) à C : dans un tier, le premier est le meilleur.",
+    picked: (pct: string) => `choisi dans ${pct} des parties`,
+    pickedBy: (pct: string, champion: string) => `choisi dans ${pct} des parties ${de(champion)}`,
+    held: (pct: string) => `dans ${pct} des parties`,
+    tiersOf: (patch: string) => `Tiers de MVP · patch ${patch}`,
+    tiersBy: "Tiers de MVP",
+    shared: (n: number) => count(n, "partie partagée", "parties partagées"),
+    order: {
+      byRate: (champion: string, n: number) =>
+        `Selon les tiers de MVP, le meilleur d’abord ; puis les augments sans tier que les joueurs ${de(champion)} choisissent. Taux de sélection sur ${count(n, "partie partagée", "parties partagées")}.`,
+      byTier: (champion: string, n: number, min: number) =>
+        `Selon les tiers de MVP : ${champion} compte ${count(n, "partie partagée", "parties partagées")} sur les ${min} nécessaires pour ajouter ses taux de sélection.`,
+      byPicks: (champion: string, n: number) =>
+        `Pas encore de tiers : selon la fréquence à laquelle les joueurs ${de(champion)} les choisissent (${count(n, "partie partagée", "parties partagées")}).`,
+    },
+    none: "Rien à classer pour l’instant : pas de tiers, et pas assez de parties partagées.",
+    mostPicked: "Les plus choisis",
+    items: "Objets fréquents",
+    of: (champion: string) => `Augments ${de(champion)}`,
+    champion: "Champion",
+    search: "Filtrer par champion",
+    clear: "Tous les champions",
+    page: "Page ARAM du chaos",
+    aramBuilds: "Builds ARAM",
+    aramNote: "Tirés des parties d’ARAM : Riot garde les parties du chaos privées, aucune n’est comptée.",
+    noTiers: {
+      title: "Pas encore de tiers",
+      text: "Les tiers de MVP pour les augments du chaos arrivent bientôt. En attendant, tous les augments sont listés.",
+    },
+    noShared: {
+      title: "Aucune partie du chaos partagée pour l’instant",
+      text: "Activez « Aider aux stats du chaos » dans les paramètres : vos parties d’ARAM du chaos compteront alors dans les taux de sélection.",
+      link: "Ouvrir les paramètres",
+    },
+    unbuilt: {
+      title: "Les augments ne sont pas encore disponibles",
+      text: "Le serveur de MVP lit les augments de ce patch. Réessayez dans quelques minutes.",
+    },
+    failed: "Impossible de charger les augments du chaos",
+    note: "Les tiers sont les choix de MVP, faits à la main : dans un tier, le premier est le meilleur. Les taux de sélection comptent les parties que les joueurs partagent avec « Aider aux stats du chaos ». Aucun taux de victoire : Riot ne les autorise pas pour les augments. Rien ici ne réagit à ce que votre partie propose.",
+  },
+
   shards: {
     rows: { offense: "Attaque", flex: "Flexible", defense: "Défense" },
     names: {
@@ -540,6 +590,11 @@ export const frViews = {
       title: "Statistiques",
       bracket: "Rang",
       bracketText: "Les parties à partir de ce rang comptent pour le draft, les builds importés et, au départ, les pages de stats.",
+      shareMayhem: {
+        title: "Aider aux stats du chaos",
+        text: "Après chaque partie d’ARAM du chaos (et une fois pour les récentes quand vous l’activez), MVP envoie à son serveur le champion, les augments et les objets finaux de chaque joueur, avec un code à sens unique pour la partie. Aucun nom, aucun identifiant de joueur, aucune victoire.",
+      },
+      sharePaused: "Le partage est en pause pour tout le monde pour l’instant. Votre choix est conservé.",
     },
     imports: {
       title: "Importations",
@@ -626,6 +681,7 @@ export const frViews = {
         spells: "summoners",
         flashKey: "flash, D, F, raccourci",
         bracket: "elo, ranked, classé",
+        shareMayhem: "augments, ARAM du chaos, Mayhem, partager, statistiques",
         language: "Français, anglais, English",
         closeToTray: "tray, systray, arrière-plan",
         launchAtStartup: "boot, autostart, startup",

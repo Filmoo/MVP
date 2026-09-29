@@ -1,19 +1,21 @@
 //! Commands the UI can invoke. Names and payloads mirror `ui/src/data/transport.ts`.
 
+use companion::mayhem::MayhemClient;
 use companion::settings::SettingsStore;
 use companion::stats::StatsClient;
 use domain::{
     AppInfo, BackendError, Bracket, ChampionMastery, ChampionPage, ClientError, ClientStatus,
     Description, DescriptionKind, DraftView, GameData, GradedMatch, ImportRequest, ImportResult,
-    ImportWarning, Language, LiveGame, LpGame, MatchDetails, MatchSummary, PlayerProfile, PostGame,
-    RankEmblems, RemoteConfig, RiotId, Settings, StatsIndex, TierList, UpdateStatus,
+    ImportWarning, Language, LiveGame, LpGame, MatchDetails, MatchSummary, MayhemAugments,
+    MayhemChampion, MayhemOverview, PlayerProfile, PostGame, RankEmblems, RemoteConfig, RiotId,
+    Settings, StatsIndex, TierList, UpdateStatus,
 };
 use tauri::{Emitter as _, Manager as _};
 use tauri_plugin_autostart::ManagerExt as _;
 
 use crate::core::{
-    Backend, Core, Crashes, EmblemState, GameDataState, InstallId, LogFile, Remote, ShardTexts,
-    Stats, UiLanguage, ddragon_cache,
+    Backend, Core, Crashes, EmblemState, GameDataState, InstallId, LogFile, Mayhem, Remote,
+    ShardTexts, Stats, UiLanguage, ddragon_cache,
 };
 use crate::updater::Updates;
 use crate::{diagnostics, logging};
@@ -537,6 +539,53 @@ pub async fn champion_stats(
     stats(&app)?
         .champion_page(champion_id, queue, bracket)
         .await
+}
+
+fn mayhem(app: &tauri::AppHandle) -> Result<MayhemClient, BackendError> {
+    app.try_state::<Mayhem>()
+        .and_then(|mayhem| mayhem.0.clone())
+        .ok_or_else(|| BackendError::Unavailable {
+            message: "no backend configured".to_owned(),
+        })
+}
+
+/// ARAM: Mayhem's augments in the UI's `language` (names, rarities, icons, descriptions);
+/// `None` before our server has built them. Answers from the disk cache offline.
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub async fn mayhem_augments(
+    app: tauri::AppHandle,
+    language: Option<Language>,
+) -> Result<Option<MayhemAugments>, BackendError> {
+    mayhem(&app)?.augments(language.unwrap_or_default()).await
+}
+
+/// The owner's augment tiers and every augment's pick count in shared games (pick counts only,
+/// never win rates); a part that can't be had is `None`.
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub async fn mayhem_overview(app: tauri::AppHandle) -> Result<MayhemOverview, BackendError> {
+    Ok(mayhem(&app)?.overview().await)
+}
+
+/// One champion in Mayhem: its augments ranked per rarity with their reasons, its most picked
+/// augments and most common items. Fails when the augments themselves can't be had.
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub async fn mayhem_champion(
+    app: tauri::AppHandle,
+    champion_id: u32,
+) -> Result<MayhemChampion, BackendError> {
+    mayhem(&app)?.champion(champion_id).await
 }
 
 /// Imports (parts of) a build into the League client: MVP's rune page, its item set, the

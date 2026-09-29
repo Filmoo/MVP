@@ -11,6 +11,8 @@ export function Radios<T extends string | number>(props: {
   value: T;
   values: readonly T[];
   onChange: (value: T) => void;
+  /** An option clicked, or pressed with Enter or Space, chosen already or not (arrows only choose). */
+  onPick?: (value: T) => void;
   class: string | undefined;
   optionClass: (value: T) => string | undefined;
   optionLabel?: (value: T) => string;
@@ -56,7 +58,10 @@ export function Radios<T extends string | number>(props: {
               aria-label={props.optionLabel?.(value)}
               data-hint={props.optionHint?.(value)}
               tabIndex={checked() ? 0 : -1}
-              onClick={() => !checked() && props.onChange(value)}
+              onClick={() => {
+                if (!checked()) props.onChange(value);
+                props.onPick?.(value);
+              }}
             >
               {props.children(value, checked())}
             </button>

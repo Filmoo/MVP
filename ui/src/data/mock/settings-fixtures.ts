@@ -17,6 +17,7 @@ export const defaultSettings: Settings = {
   flashKey: "auto",
   statsBracket: "emeraldPlus",
   crashReports: false,
+  shareMayhemGames: false,
 };
 
 /** A player who turned automations on and changed the app's defaults. */
@@ -35,6 +36,7 @@ export const customSettings: Settings = {
   flashKey: "f",
   statsBracket: "diamondPlus",
   crashReports: false,
+  shareMayhemGames: false,
 };
 
 /** Every part imported by itself at the first lock-in. */

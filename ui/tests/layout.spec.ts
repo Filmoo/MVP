@@ -61,6 +61,11 @@ const SCENARIO_VIEWS = [
   { view: "/tier-list?view=shelves&role=support", scenario: "default" },
   { view: "/tier-list?view=table&role=all", scenario: "default" },
   { view: "/tier-list?view=table&queue=450", scenario: "default" },
+  // ARAM: Mayhem: augments by tier, a champion's per rarity, the champion page's tab, Draft.
+  { view: "/mayhem", scenario: "default" },
+  { view: "/mayhem?champion=103", scenario: "default" },
+  { view: "/champions?id=103&mode=mayhem", scenario: "default" },
+  { view: "/draft", scenario: "mayhem-champ-select" },
 ] as const;
 
 // Their other states at the extreme sizes.
@@ -90,6 +95,14 @@ const STATE_VIEWS = [
   { view: "/champions?id=103", scenario: "stats-offline" },
   { view: "/champions?id=904", scenario: "default" },
   { view: "/tier-list?view=table", scenario: "stats-first-patch" },
+  // ARAM: Mayhem's other states: nothing published yet, not built, offline, the longest names,
+  // a champion without shared games (Teemo), a Mayhem game's build.
+  { view: "/mayhem", scenario: "mayhem-empty" },
+  { view: "/mayhem", scenario: "mayhem-unbuilt" },
+  { view: "/mayhem", scenario: "mayhem-offline" },
+  { view: "/mayhem", scenario: "mayhem-extreme" },
+  { view: "/mayhem?champion=17", scenario: "default" },
+  { view: "/live?tab=build", scenario: "mayhem-live" },
 ] as const;
 for (const { view, scenario } of STATE_VIEWS) {
   for (const size of [SIZES[0], SIZES[3], SIZES[6]]) {

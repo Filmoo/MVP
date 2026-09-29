@@ -17,8 +17,9 @@ export const mainRoutes: readonly Route[] = [
   { path: "/", nav: "home", icon: "home" },
   { path: "/draft", nav: "draft", icon: "draft" },
   { path: "/live", nav: "live", icon: "live" },
-  // Champions are found in the tier list; their pages (`/champions?id=…`) belong to it.
-  { path: "/tier-list", nav: "tierList", icon: "tiers", also: ["/champions"] },
+  // Champions are found in the tier list: their pages (`/champions?id=…`) belong to it, and so
+  // does ARAM: Mayhem's page (its last queue tab).
+  { path: "/tier-list", nav: "tierList", icon: "tiers", also: ["/champions", "/mayhem"] },
 ];
 
 export const settingsRoute: Route = { path: "/settings", nav: "settings", icon: "settings" };

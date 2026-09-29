@@ -115,7 +115,12 @@ function SettingsContent(props: { initial: SettingsData; query: string; onClear:
             <ImportSettings settings={settings()} onChange={save("imports")} error={errors().imports} />
           </Widget>
           <Widget name="settings-stats" class={hidden("stats")} hideable>
-            <StatsSettings settings={settings()} onChange={save("stats")} error={errors().stats} />
+            <StatsSettings
+              settings={settings()}
+              onChange={save("stats")}
+              error={errors().stats}
+              mayhemPaused={!remote().features.mayhemSharing}
+            />
           </Widget>
           <Widget name="settings-app" class={hidden("app")} hideable>
             <AppSettings settings={settings()} onChange={save("app")} error={errors().app} installId={info()?.installId} />

@@ -13,6 +13,9 @@
 //! mvp-backend config check
 //! mvp-backend reports prune [--days 30]
 //! mvp-backend reports forget --install-id <id>
+//! mvp-backend mayhem check                      # mayhem-tiers.json: valid? what it holds, by name
+//! mvp-backend mayhem list [--rarity gold]       # every Mayhem augment: id, rarity, tier, name
+//! mvp-backend mayhem augments [--force]         # builds the augment catalog now (network)
 //! ```
 
 use std::collections::{BTreeMap, HashMap};
@@ -26,6 +29,7 @@ use time::format_description::well_known::Rfc3339;
 
 use crate::config::{CONFIG_FILE, ConfigFile};
 use crate::limits::valid_install_id;
+use crate::mayhem;
 use crate::reports::{self, REPORTS_DIR, RETENTION_DAYS};
 use crate::updates::{Artifact, Channel, Notes, RELEASES_FILE, Release, Releases};
 use crate::watched::{read, write_atomic};
@@ -43,14 +47,30 @@ usage:
   mvp-backend release list
   mvp-backend config check
   mvp-backend reports prune [--days N]
-  mvp-backend reports forget --install-id ID";
+  mvp-backend reports forget --install-id ID
+  mvp-backend mayhem check
+  mvp-backend mayhem list [--rarity silver|gold|prismatic]
+  mvp-backend mayhem augments [--force]";
 
 /// Whether `args` (without the program name) is an admin command.
 pub fn is_admin(args: &[String]) -> bool {
     matches!(
         args.first().map(String::as_str),
-        Some("release" | "config" | "reports" | "help" | "--help")
+        Some("release" | "config" | "reports" | "mayhem" | "help" | "--help")
     )
+}
+
+/// `mayhem augments [--force]`: the one admin command that needs the network (and a runtime).
+pub fn builds_augments(args: &[String]) -> Option<bool> {
+    match args {
+        [group, action] if group == "mayhem" && action == "augments" => Some(false),
+        [group, action, force]
+            if group == "mayhem" && action == "augments" && force == "--force" =>
+        {
+            Some(true)
+        }
+        _ => None,
+    }
 }
 
 /// Runs an admin command; human-readable results go to `out`.
@@ -149,6 +169,27 @@ pub fn run(args: &[String], data_dir: &Path, out: &mut dyn Write) -> Result<(), 
             }
             let n = reports::forget(&data_dir.join(REPORTS_DIR), id).map_err(|e| e.to_string())?;
             say(out, format!("erased {n} report(s) of {id}"))
+        }
+        ("mayhem", action) => mayhem_command(action, rest, data_dir, out),
+        _ => Err(USAGE.to_owned()),
+    }
+}
+
+/// `mayhem check` and `mayhem list` (`mayhem augments` needs a runtime: see `builds_augments`).
+fn mayhem_command(
+    action: &str,
+    rest: &[String],
+    data_dir: &Path,
+    out: &mut dyn Write,
+) -> Result<(), String> {
+    match action {
+        "check" => {
+            options(rest, &[])?;
+            mayhem::check(data_dir, out)
+        }
+        "list" => {
+            let o = options(rest, &["rarity"])?;
+            mayhem::list(data_dir, o.get("rarity").copied(), out)
         }
         _ => Err(USAGE.to_owned()),
     }
@@ -419,6 +460,36 @@ mod tests {
         assert!(cli(dir.path(), "reports forget --install-id 0f8e2a7c-1b2d")?.contains("erased 0"));
         assert!(cli(dir.path(), "reports forget --install-id ../../x").is_err());
         assert!(cli(dir.path(), "reports prune")?.contains("deleted 0"));
+        Ok(())
+    }
+
+    #[test]
+    fn mayhem_commands() -> Result<(), String> {
+        let dir = tempfile::tempdir().map_err(|e| e.to_string())?;
+        assert!(cli(dir.path(), "mayhem check")?.contains("missing"));
+        std::fs::write(
+            dir.path().join(mayhem::TIERS_FILE),
+            r#"{"tiers":{"S":[2137],"A":[2137]}}"#,
+        )
+        .map_err(|e| e.to_string())?;
+        let err = cli(dir.path(), "mayhem check").expect_err("listed twice");
+        assert!(err.contains("listed twice"), "{err}");
+        assert!(cli(dir.path(), "mayhem check --force").is_err());
+        assert!(
+            cli(dir.path(), "mayhem list")
+                .expect_err("no catalog")
+                .contains("mayhem augments")
+        );
+        assert!(is_admin(&["mayhem".into(), "list".into()]));
+        assert_eq!(
+            builds_augments(&["mayhem".into(), "augments".into()]),
+            Some(false)
+        );
+        assert_eq!(
+            builds_augments(&["mayhem".into(), "augments".into(), "--force".into()]),
+            Some(true)
+        );
+        assert_eq!(builds_augments(&["mayhem".into(), "check".into()]), None);
         Ok(())
     }
 }

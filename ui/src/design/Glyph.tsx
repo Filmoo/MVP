@@ -24,6 +24,8 @@ const glyphs = {
   ranked: "M3 20v-5h6V9h6v4h6v7zM9 15v5M15 13v7",
   /** ARAM: the Howling Abyss' snow. */
   aram: "M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9M9.8 4.8 12 7l2.2-2.2M9.8 19.2 12 17l2.2 2.2M6.7 6.4l.8 3-3 .8M17.3 17.6l-.8-3 3-.8M6.7 17.6l.8-3-3-.8M17.3 6.4l-.8 3 3 .8",
+  /** ARAM: Mayhem: an augment's spark, and a smaller one. */
+  mayhem: "M10 3l1.9 5.1L17 10l-5.1 1.9L10 17l-1.9-5.1L3 10l5.1-1.9zM18 14.5l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z",
   /** The logo's crown: the best of a list. */
   crown: "M4 18V8l4 3.5L12 5l4 6.5L20 8v10z",
   /** The meta map: strength against popularity, champions as dots. */

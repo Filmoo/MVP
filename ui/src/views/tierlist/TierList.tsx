@@ -106,7 +106,8 @@ export default function TierListView(): JSX.Element {
         <Show when={data.list.data()}>{(l) => <DataLine info={l().info} index={data.index()} />}</Show>
       </header>
       <div class={styles.tabsRow}>
-        <QueueTabs />
+        {/* ARAM: Mayhem's augments have a page of their own. */}
+        <QueueTabs mayhem={{ selected: false, onSelect: () => navigate("/mayhem") }} />
         <Show when={data.list.data()}>
           <ViewSwitch />
         </Show>

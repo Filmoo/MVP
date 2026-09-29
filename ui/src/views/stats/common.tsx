@@ -51,19 +51,35 @@ export function useLinkFilters(options: { role: boolean }): void {
   );
 }
 
-const QUEUE_GLYPH: Record<Queue, GlyphName> = { 420: "ranked", 450: "aram" };
+/** ARAM: Mayhem as the last queue tab: its own page from the tier list, a champion's Mayhem tab. */
+export interface MayhemTab {
+  selected: boolean;
+  onSelect: () => void;
+  /** Ranked or ARAM chosen while Mayhem is shown. */
+  onLeave?: () => void;
+}
+
+const MAYHEM = 2400;
+type QueueTab = Queue | typeof MAYHEM;
+const QUEUE_GLYPH: Record<QueueTab, GlyphName> = { 420: "ranked", 450: "aram", [MAYHEM]: "mayhem" };
 
 /**
- * The queue as the stats pages' own tabs: words, a line under the one shown (room for more tabs).
- * Remembered for every stats page, like the rank.
+ * The queue as the stats pages' own tabs: words, a line under the one shown. Remembered for every
+ * stats page, like the rank. With `mayhem`, ARAM: Mayhem ends the row (its augments have a page and
+ * a champion tab of their own: nothing is published for it).
  */
-export function QueueTabs(): JSX.Element {
+export function QueueTabs(props: { mayhem?: MayhemTab }): JSX.Element {
+  const values = (): QueueTab[] => (props.mayhem ? [RANKED, ARAM, MAYHEM] : [RANKED, ARAM]);
   return (
-    <Radios
+    <Radios<QueueTab>
       label={t().stats.queue}
-      value={filters().queue}
-      values={[RANKED, ARAM]}
-      onChange={(queue) => setFilter({ queue })}
+      value={props.mayhem?.selected ? MAYHEM : filters().queue}
+      values={values()}
+      onChange={(queue) => {
+        if (queue === MAYHEM) return props.mayhem?.onSelect();
+        setFilter({ queue });
+        props.mayhem?.onLeave?.();
+      }}
       class={styles.tabs}
       optionClass={() => styles.tab}
       testId="queue-switch"
@@ -71,7 +87,7 @@ export function QueueTabs(): JSX.Element {
       {(queue) => (
         <>
           <Glyph name={QUEUE_GLYPH[queue]} size={16} class={styles.tabIcon} />
-          <span>{queueLabel(queue)}</span>
+          <span>{queue === MAYHEM ? t().queues[MAYHEM] : queueLabel(queue)}</span>
         </>
       )}
     </Radios>
@@ -85,7 +101,8 @@ const BRACKETS: readonly Bracket[] = ["emeraldPlus", "diamondPlus", "masterPlus"
 /**
  * The rank as a button with its emblem; it opens a small glass grid of the brackets published for
  * this queue (the one shown included), each with Riot's emblem. The platform's popover: Escape or a
- * click outside closes it, choosing too.
+ * click outside closes it, and so does a click (or Enter) on a rank. It opens with the rank shown
+ * focused: arrows choose without closing it.
  */
 export function RankPicker(props: { index: StatsIndex | null | undefined }): JSX.Element {
   const id = `rank-${createUniqueId()}`;
@@ -112,16 +129,21 @@ export function RankPicker(props: { index: StatsIndex | null | undefined }): JSX
         <span class={styles.rankName}>{bracketLabel(bracket())}</span>
         <Icon name="chevronDown" size={14} class={styles.chevron} />
       </button>
-      <div id={id} popover class={`${styles.menu} glass-rim`} style={{ "position-anchor": `--${id}` }} ref={menu}>
+      <div
+        id={id}
+        popover
+        class={`${styles.menu} glass-rim`}
+        style={{ "position-anchor": `--${id}` }}
+        ref={menu}
+        onToggle={(e) => e.newState === "open" && menu?.querySelector<HTMLElement>("[aria-checked=true]")?.focus()}
+      >
         <p class={styles.menuTitle}>{t().stats.rank}</p>
         <Radios
           label={t().stats.rank}
           value={bracket()}
           values={published()}
-          onChange={(value) => {
-            setFilter({ bracket: value });
-            menu?.hidePopover();
-          }}
+          onChange={(value) => setFilter({ bracket: value })}
+          onPick={() => menu?.hidePopover()}
           class={styles.rankGrid}
           optionClass={() => styles.rankOption}
         >

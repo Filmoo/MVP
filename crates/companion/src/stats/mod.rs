@@ -22,7 +22,7 @@
 //! - **Memory**: the files served last, parsed (a small LRU).
 
 pub mod comp;
-mod disk;
+pub(crate) mod disk;
 pub mod model;
 
 use std::any::Any;
