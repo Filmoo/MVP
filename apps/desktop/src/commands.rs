@@ -7,8 +7,7 @@ use domain::{
     AppInfo, BackendError, Bracket, ChampionPage, ClientError, ClientStatus, Description,
     DescriptionKind, DraftView, GameData, GradedMatch, ImportRequest, ImportResult, ImportWarning,
     Language, LiveGame, MatchDetails, MayhemAugments, MayhemChampion, MayhemOverview,
-    PlayerProfile, RankEmblems, RemoteConfig, RiotId, Settings, StatsIndex, TierList,
-    UpdateStatus,
+    PlayerProfile, RankEmblems, RemoteConfig, RiotId, Settings, StatsIndex, TierList, UpdateStatus,
 };
 use tauri::{Emitter as _, Manager as _};
 use tauri_plugin_autostart::ManagerExt as _;
