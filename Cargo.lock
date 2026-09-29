@@ -2610,6 +2610,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "mvp-roadmap"
+version = "0.2.0"
+dependencies = [
+ "axum",
+ "base64 0.23.1",
+ "form_urlencoded",
+ "http-body-util",
+ "reqwest",
+ "ring",
+ "rusqlite",
+ "rustls",
+ "rustls-platform-verifier",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.21",
+ "time",
+ "tokio",
+ "tower",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "ndk"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

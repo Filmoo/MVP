@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["apps/backend", "apps/crawler", "apps/desktop", "crates/*"]
+members = ["apps/backend", "apps/crawler", "apps/desktop", "apps/roadmap", "crates/*"]
 
 [workspace.package]
 version = "0.2.0"
@@ -49,6 +49,11 @@ sha2 = "0.10"
 regex = { version = "1", default-features = false, features = ["std", "perf", "unicode"] }
 time = { version = "0.3", features = ["formatting", "parsing", "macros", "serde"] }
 tempfile = "3"
+# The roadmap service (apps/roadmap): crypto primitives, form bodies, in-process test requests.
+ring = "0.17"
+form_urlencoded = "1"
+tower = { version = "0.5", default-features = false, features = ["util"] }
+http-body-util = "0.1"
 
 [workspace.lints.rust]
 unsafe_code = "deny"

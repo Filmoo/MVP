@@ -1,0 +1,852 @@
+{
+  "$comment": "MVP's roadmap as the docs described it on 2026-09-29 (docs/HANDOFF.md, decisions.md, architecture.md, riot-application.md, policy.md, and the commits), written by Claude for mvp-roadmap. Imported only into an empty database (mvp-roadmap seed, or the server's first start); after that the roadmap lives in the server's database, never here.",
+  "areas": [
+    { "key": "draft", "name": "Draft", "color": "accent" },
+    { "key": "live", "name": "Live", "color": "win" },
+    { "key": "profile", "name": "Profile & history", "color": "good" },
+    { "key": "tier-list", "name": "Tier list & builds", "color": "role-top" },
+    { "key": "imports", "name": "Imports", "color": "role-support" },
+    { "key": "aram", "name": "ARAM & Mayhem", "color": "warn" },
+    { "key": "settings", "name": "Settings", "color": "rank-silver" },
+    { "key": "design", "name": "Design & glass", "color": "rank-master" },
+    { "key": "desktop", "name": "Desktop app", "color": "rank-platinum" },
+    { "key": "stats", "name": "Stats engine", "color": "rank-diamond" },
+    { "key": "platform", "name": "Platform & server", "color": "rank-bronze" },
+    { "key": "website", "name": "Website", "color": "loss" },
+    { "key": "riot", "name": "Riot & policy", "color": "rank-grandmaster" }
+  ],
+  "versions": [
+    {
+      "name": "0.2",
+      "goal": "The first whole companion: draft helper, loading-screen scouting, profiles with grades, stats pages, imports and liquid glass.",
+      "releasedOn": "2026-09-28"
+    },
+    {
+      "name": "0.3",
+      "goal": "What the first sessions on a real client asked for, the website, and the production-key application."
+    },
+    {
+      "name": "0.4",
+      "goal": "Proven on real machines and ready for players: a live stats server, a signed first release, calibrated numbers."
+    },
+    {
+      "name": "Later",
+      "goal": "Worth doing once the basics hold, or kept open by the owner's calls."
+    }
+  ],
+  "features": [
+    {
+      "key": "home-profile",
+      "title": "Home: your profile from the League client",
+      "description": "Rank, LP and recent games read from your own client, with no server in between.",
+      "version": "0.2",
+      "status": "done",
+      "area": "profile",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-27",
+      "doneOn": "2026-09-27",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/HANDOFF.md#state", "label": "HANDOFF · State" }]
+    },
+    {
+      "key": "draft-helper",
+      "title": "Draft: a pick helper made of statistics only",
+      "description": "Live champion select; picks for your role that start from your pool (mastery, your games), each with its reasons. No ban suggestions, no AI.",
+      "version": "0.2",
+      "status": "done",
+      "area": "draft",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-27",
+      "doneOn": "2026-09-27",
+      "links": [
+        { "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/decisions.md#2026-09-27--checkpoint-2-owner", "label": "decisions · Checkpoint 2" },
+        { "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/architecture.md", "label": "architecture · Stats in the app" }
+      ]
+    },
+    {
+      "key": "draft-insights",
+      "title": "Draft insights: both teams' compositions",
+      "description": "Damage mix, frontline, crowd control and game length for both teams as they pick; ARAM's bench ranked by your team's chances (job 9).",
+      "version": "0.2",
+      "status": "done",
+      "area": "draft",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-28",
+      "doneOn": "2026-09-28",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/HANDOFF.md#open-jobs-in-order", "label": "HANDOFF · Open jobs 9" }]
+    },
+    {
+      "key": "live-scouting",
+      "title": "Live: loading-screen cards for all ten players",
+      "description": "Rank, main roles and recent form of everyone in the game, looked up on our server; positive or neutral tags only, streamer mode respected.",
+      "version": "0.2",
+      "status": "done",
+      "area": "live",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-27",
+      "doneOn": "2026-09-27",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/architecture.md#loading-screen-scouting-companionlive", "label": "architecture · Loading-screen scouting" }]
+    },
+    {
+      "key": "scouting-riot-ids",
+      "title": "Scouting by Riot ID, never by the client's PUUIDs",
+      "description": "Client PUUIDs never leave the app; the server resolves Riot IDs with account-v1 and matches cards back to seats (job 3).",
+      "version": "0.2",
+      "status": "done",
+      "area": "live",
+      "proposedBy": "claude",
+      "createdOn": "2026-09-28",
+      "doneOn": "2026-09-28",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/decisions.md#2026-09-28--scouting-identity-app-side-of-updatesconfigreports-claude", "label": "decisions · Scouting identity" }]
+    },
+    {
+      "key": "player-search",
+      "title": "Player search and player pages",
+      "description": "A fast, stable Riot ID search in the title bar (Ctrl+K) and a page with the player's rank and recent games.",
+      "version": "0.2",
+      "status": "done",
+      "area": "profile",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-27",
+      "doneOn": "2026-09-27",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/decisions.md#2026-09-27--checkpoint-2-owner", "label": "decisions · Checkpoint 2" }]
+    },
+    {
+      "key": "stats-pages",
+      "title": "Tier list and Champions pages",
+      "description": "Per-patch tiers, builds, runes, spells, skill order, items and matchups, from our own Emerald+ aggregates.",
+      "version": "0.2",
+      "status": "done",
+      "area": "tier-list",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-27",
+      "doneOn": "2026-09-28",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/architecture.md", "label": "architecture · Stats pages" }]
+    },
+    {
+      "key": "my-build",
+      "title": "Live: the My build tab",
+      "description": "The build and skill order of your champion and role for the game's mode, next to the game (no overlay).",
+      "version": "0.2",
+      "status": "done",
+      "area": "live",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-27",
+      "doneOn": "2026-09-28",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/decisions.md#2026-09-27--checkpoint-2-owner", "label": "decisions · Checkpoint 2" }]
+    },
+    {
+      "key": "build-imports",
+      "title": "Build imports: rune page, item set, summoner spells",
+      "description": "MVP's own rune page and item set (yours are never touched), spells with Flash on your key, never in a turn's last 5 seconds.",
+      "version": "0.2",
+      "status": "done",
+      "area": "imports",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-27",
+      "doneOn": "2026-09-28",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/architecture.md", "label": "architecture · Build imports" }]
+    },
+    {
+      "key": "match-insights",
+      "title": "Match insights: a grade for every game",
+      "description": "S+ to C with the facts that moved it, and the whole game behind each match row (job 10).",
+      "version": "0.2",
+      "status": "done",
+      "area": "profile",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-28",
+      "doneOn": "2026-09-28",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/HANDOFF.md#open-jobs-in-order", "label": "HANDOFF · Open jobs 10" }]
+    },
+    {
+      "key": "settings-v1",
+      "title": "Settings and automations",
+      "description": "Auto-accept (opt-in, with a delay, never after a decline), imports, stats rank, the window follows the game, close to tray, launch at startup.",
+      "version": "0.2",
+      "status": "done",
+      "area": "settings",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-27",
+      "doneOn": "2026-09-28",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/architecture.md", "label": "architecture · Settings and automations" }]
+    },
+    {
+      "key": "languages",
+      "title": "English and French",
+      "description": "Every word in typed catalogues, Windows' language by default, French Data Dragon names (job 7).",
+      "version": "0.2",
+      "status": "done",
+      "area": "desktop",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-27",
+      "doneOn": "2026-09-28",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/HANDOFF.md#open-jobs-in-order", "label": "HANDOFF · Open jobs 7" }]
+    },
+    {
+      "key": "liquid-glass",
+      "title": "Liquid glass and ambient light",
+      "description": "Glass that refracts the page behind it, light sampled from champion art, and Full / Light / Off effects in Settings (job 2).",
+      "version": "0.2",
+      "status": "done",
+      "area": "design",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-28",
+      "doneOn": "2026-09-28",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/decisions.md#2026-09-28--liquid-glass-owner-asked-claude-designed", "label": "decisions · Liquid glass" }]
+    },
+    {
+      "key": "rank-emblems",
+      "title": "Riot's ranked emblems, MVP's crest meanwhile",
+      "description": "The client's emblems downloaded at run time and cropped to the crest; MVP's own crest when they aren't there yet (job 8).",
+      "version": "0.2",
+      "status": "done",
+      "area": "design",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-28",
+      "doneOn": "2026-09-28",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/decisions.md#2026-09-28--rank-emblems-owner-asked-claude-designed", "label": "decisions · Rank emblems" }]
+    },
+    {
+      "key": "platform-services",
+      "title": "Self-updates, remote config and crash reports",
+      "description": "Signed updates with staged rollouts, kill switches and banners from the server, opt-in crash reports scrubbed of personal data (jobs 1 and 6).",
+      "version": "0.2",
+      "status": "done",
+      "area": "platform",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-27",
+      "doneOn": "2026-09-28",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/decisions.md#2026-09-27--backend-platform-services-claude", "label": "decisions · Backend platform services" }]
+    },
+    {
+      "key": "backend-v1",
+      "title": "Backend: profiles, scouting, match details, stats files",
+      "description": "The only holder of the Riot key: cached profiles and matches, scouting batches, published stats, rate limits per install.",
+      "version": "0.2",
+      "status": "done",
+      "area": "platform",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-27",
+      "doneOn": "2026-09-28",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/architecture.md#backend-api-appsbackend", "label": "architecture · Backend API" }]
+    },
+    {
+      "key": "crawler",
+      "title": "Crawler and aggregates, Emerald+",
+      "description": "Ranked and ARAM games into per-patch tier lists, builds, matchups and priors; resumable and idempotent.",
+      "version": "0.2",
+      "status": "done",
+      "area": "stats",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-27",
+      "doneOn": "2026-09-28",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/architecture.md", "label": "architecture · Stats pipeline" }]
+    },
+    {
+      "key": "diagnostics",
+      "title": "Diagnostics and logs",
+      "description": "Settings → About copies a diagnostic with personal data removed and opens the log folder.",
+      "version": "0.2",
+      "status": "done",
+      "area": "desktop",
+      "proposedBy": "claude",
+      "createdOn": "2026-09-28",
+      "doneOn": "2026-09-28",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/HANDOFF.md#verify-with-the-real-client-windows", "label": "HANDOFF · Verify with the real client" }]
+    },
+    {
+      "key": "policy",
+      "title": "Riot's red lines, by construction",
+      "description": "Hidden players are never read, nothing during the game gives an edge, streamer mode is respected; `policy.md` answers for every feature.",
+      "version": "0.2",
+      "status": "done",
+      "area": "riot",
+      "proposedBy": "claude",
+      "createdOn": "2026-09-27",
+      "doneOn": "2026-09-27",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/policy.md", "label": "policy.md" }]
+    },
+    {
+      "key": "settings-search",
+      "title": "Settings search",
+      "description": "Finds a setting by what players call it, not only by its label.",
+      "version": "0.3",
+      "status": "done",
+      "area": "settings",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-28",
+      "doneOn": "2026-09-29",
+      "links": [
+        { "url": "https://github.com/Filmoo/MVP/commit/143afc9", "label": "143afc9" },
+        { "url": "https://github.com/Filmoo/MVP/commit/29a5016", "label": "merge 29a5016" }
+      ]
+    },
+    {
+      "key": "champion-list",
+      "title": "Champion list: sorted and grouped by tier",
+      "description": "Sort by tier, pick rate or name, groups that read like a tier list, a filter as you type; a flex pick shows in each of its roles.",
+      "version": "0.3",
+      "status": "done",
+      "area": "tier-list",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-28",
+      "doneOn": "2026-09-29",
+      "links": [
+        { "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/decisions.md#2026-09-28--champion-list-sorting-and-categories-owner-asked-claude-designed", "label": "decisions · Champion list" },
+        { "url": "https://github.com/Filmoo/MVP/commit/3b4ef8e", "label": "merge 3b4ef8e" }
+      ]
+    },
+    {
+      "key": "tier-list-hub",
+      "title": "Tier list hub: Shelves, Table and meta map",
+      "description": "The champion list folds into one hub for tiers and builds: shelves per tier, a sortable table and a map of the meta.",
+      "version": "0.3",
+      "status": "in_progress",
+      "area": "tier-list",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-29",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/architecture.md", "label": "architecture · Stats pages" }]
+    },
+    {
+      "key": "roles-reliability",
+      "title": "Tier list: roles and reliability",
+      "description": "A shared role rail, and how sure each tier is (the games behind it, its confidence) shown next to it.",
+      "version": "0.3",
+      "status": "in_progress",
+      "area": "tier-list",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-29",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/decisions.md#2026-09-28--champion-list-sorting-and-categories-owner-asked-claude-designed", "label": "decisions · Champion list (the shared role picker)" }]
+    },
+    {
+      "key": "live-names",
+      "title": "Live names from Spectator-V5",
+      "description": "Riot's live game names the players (streamer mode applied by Riot), the game's own list when Riot has none; names before cards.",
+      "version": "0.3",
+      "status": "done",
+      "area": "live",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-28",
+      "doneOn": "2026-09-29",
+      "links": [
+        { "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/decisions.md#2026-09-29--live-names-from-riots-live-game-then-the-game-owners-brief-claude-built", "label": "decisions · Live names" },
+        { "url": "https://github.com/Filmoo/MVP/commit/4bf9c22", "label": "merge 4bf9c22" }
+      ]
+    },
+    {
+      "key": "auto-import-once",
+      "title": "Auto import once, then warn",
+      "description": "One switch per part: imports once at the first lock-in; a later trade, reroll or role swap only warns, with a one-click import.",
+      "version": "0.3",
+      "status": "done",
+      "area": "imports",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-29",
+      "doneOn": "2026-09-29",
+      "links": [
+        { "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/decisions.md#2026-09-29--auto-import-once-owner-decided-claude-built", "label": "decisions · Auto import, once" },
+        { "url": "https://github.com/Filmoo/MVP/commit/cccddfb", "label": "merge cccddfb" }
+      ]
+    },
+    {
+      "key": "client-not-responding",
+      "title": "“League client not responding”",
+      "description": "A state of its own (amber) when another app holds the client's connections; Home waits and loads by itself once it answers.",
+      "version": "0.3",
+      "status": "done",
+      "area": "desktop",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-28",
+      "doneOn": "2026-09-29",
+      "links": [
+        { "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/architecture.md", "label": "architecture · League client status" },
+        { "url": "https://github.com/Filmoo/MVP/commit/9d55a66", "label": "merge 9d55a66" }
+      ]
+    },
+    {
+      "key": "your-roles",
+      "title": "Your games' roles, worked out per team",
+      "description": "The most likely role of each player, from role shares, Smite, lane minions and support items, not the client's guess.",
+      "version": "0.3",
+      "status": "done",
+      "area": "profile",
+      "proposedBy": "claude",
+      "createdOn": "2026-09-29",
+      "doneOn": "2026-09-29",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/commit/8b25c6c", "label": "8b25c6c" }]
+    },
+    {
+      "key": "window-zoom",
+      "title": "Window zoom: Ctrl +/−/0 and Ctrl+wheel",
+      "description": "Zoom the whole window like a browser, remembered with the settings.",
+      "version": "0.3",
+      "status": "done",
+      "area": "desktop",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-28",
+      "doneOn": "2026-09-28",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/commit/c0259b7", "label": "c0259b7" }]
+    },
+    {
+      "key": "skill-order",
+      "title": "Skill order: what to max, and the first levels",
+      "description": "The ability to max first and second, and the opening levels, on champion pages and in Live.",
+      "version": "0.3",
+      "status": "done",
+      "area": "tier-list",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-28",
+      "doneOn": "2026-09-28",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/commit/027a9c9", "label": "027a9c9" }]
+    },
+    {
+      "key": "glass-see-through",
+      "title": "Glass you see through",
+      "description": "Less frost and more bend, a soft gradient, smooth rims; Full follows Windows' transparency switch unless you pick it.",
+      "version": "0.3",
+      "status": "done",
+      "area": "design",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-28",
+      "doneOn": "2026-09-28",
+      "links": [
+        { "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/decisions.md#2026-09-28--glass-you-see-through-owner-asked-claude-tuned", "label": "decisions · Glass you see through" },
+        { "url": "https://github.com/Filmoo/MVP/commit/20a89c3", "label": "20a89c3" }
+      ]
+    },
+    {
+      "key": "updates-github",
+      "title": "Updates from GitHub releases",
+      "description": "Installers on GitHub Releases, and one command (`scripts/setup-updates.mjs`) to set up the update key.",
+      "version": "0.3",
+      "status": "done",
+      "area": "platform",
+      "proposedBy": "claude",
+      "createdOn": "2026-09-28",
+      "doneOn": "2026-09-28",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/commit/3dcee4b", "label": "3dcee4b" }]
+    },
+    {
+      "key": "hover-cards",
+      "title": "Designed hover cards for runes, items and spells",
+      "description": "What each rune, shard, summoner spell and item does, on hover or focus, in a card of its own instead of a browser tooltip.",
+      "version": "0.3",
+      "status": "done",
+      "area": "design",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-29",
+      "doneOn": "2026-09-29",
+      "links": [
+        { "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/architecture.md", "label": "architecture" },
+        { "url": "https://github.com/Filmoo/MVP/commit/4b8e381", "label": "merge 4b8e381" }
+      ]
+    },
+    {
+      "key": "game-sheet",
+      "title": "The opened game as a sheet of glass",
+      "description": "An in-window sheet of liquid glass with every player's end-of-game stats table; scroll down to close, player names open their pages.",
+      "version": "0.3",
+      "status": "in_progress",
+      "area": "profile",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-29",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/architecture.md", "label": "architecture · Match insights" }]
+    },
+    {
+      "key": "post-game",
+      "title": "Post-game summary, LP per game, history filters",
+      "description": "The last game's summary card, LP won or lost per ranked game, filters by queue and champion, older games on demand, mastery on the profile.",
+      "version": "0.3",
+      "status": "done",
+      "area": "profile",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-28",
+      "doneOn": "2026-09-29",
+      "links": [
+        { "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/HANDOFF.md#summary-for-the-next-agent-2026-09-28-end-of-the-third-session", "label": "HANDOFF · To implement next" },
+        { "url": "https://github.com/Filmoo/MVP/commit/31f566e", "label": "merge 31f566e" }
+      ]
+    },
+    {
+      "key": "mayhem",
+      "title": "ARAM: Mayhem augments",
+      "description": "Augment tiers written by hand, popularity from players who opt in (pick rate only, never win rates), a champion's augment priorities.",
+      "version": "0.3",
+      "status": "in_progress",
+      "area": "aram",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-29",
+      "links": [
+        { "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/riot-application.md#what-it-does-screen-by-screen", "label": "riot-application · screen 7" },
+        { "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/policy.md", "label": "policy.md" }
+      ]
+    },
+    {
+      "key": "website",
+      "title": "The website on mvpgg.com",
+      "description": "What MVP does, the download, every version, privacy and terms, in English and French (`site/`). Putting it online with the legal drafts read is on the Riot application's checklist.",
+      "version": "0.3",
+      "status": "done",
+      "area": "website",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-29",
+      "doneOn": "2026-09-29",
+      "links": [
+        { "url": "https://github.com/Filmoo/MVP/blob/HEAD/site/README.md", "label": "site/README.md" },
+        { "url": "https://github.com/Filmoo/MVP/commit/4714511", "label": "merge 4714511" }
+      ]
+    },
+    {
+      "key": "riot-application",
+      "title": "Production Riot key: the application",
+      "description": "The checklist: the site live with riot.txt, a public installer, a 2–3 minute video, Riot's current policy re-read, the product under a group.",
+      "version": "0.3",
+      "status": "in_progress",
+      "area": "riot",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-29",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/riot-application.md#before-applying-checklist", "label": "riot-application · checklist" }]
+    },
+    {
+      "key": "stats-server",
+      "title": "The stats server live at api.mvpgg.com",
+      "description": "The backend and the crawler timer on the VPS, then `MVP_BACKEND_URL` for CI and release builds, so builds stop showing empty stats.",
+      "version": "0.3",
+      "status": "in_progress",
+      "area": "platform",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-28",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/HANDOFF.md#summary-for-the-next-agent-2026-09-28-end-of-the-third-session", "label": "HANDOFF · To fix 1" }]
+    },
+    {
+      "key": "roadmap",
+      "title": "This roadmap, at dev.mvpgg.com",
+      "description": "Every feature by version for the repository's admins, Claude's proposals to accept or reject, and an audit log of every change.",
+      "version": "0.3",
+      "status": "in_progress",
+      "area": "platform",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-29",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/apps/roadmap/README.md", "label": "apps/roadmap/README.md" }]
+    },
+    {
+      "key": "single-instance-handover",
+      "title": "A newer MVP takes over from the one in the tray",
+      "description": "Starting a new build while an old one sits in the tray shows the new one; About and the diagnostics say which commit runs.",
+      "version": "0.4",
+      "status": "accepted",
+      "area": "desktop",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-28",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/HANDOFF.md#summary-for-the-next-agent-2026-09-28-end-of-the-third-session", "label": "HANDOFF · To fix 2" }]
+    },
+    {
+      "key": "first-release",
+      "title": "First signed release",
+      "description": "The update key made once on the owner's machine, then a version tag: release.yml publishes the signed installer and later versions install themselves.",
+      "version": "0.4",
+      "status": "accepted",
+      "area": "platform",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-28",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/HANDOFF.md#summary-for-the-next-agent-2026-09-28-end-of-the-third-session", "label": "HANDOFF · To fix 3" }]
+    },
+    {
+      "key": "real-client-pass",
+      "title": "The real-client checklist, on Windows",
+      "description": "Client fields, imports, live names, grades, the emblems' crop, updates and footprint, checked on a real League client.",
+      "version": "0.4",
+      "status": "accepted",
+      "area": "desktop",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-28",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/HANDOFF.md#verify-with-the-real-client-windows", "label": "HANDOFF · Verify with the real client" }]
+    },
+    {
+      "key": "glass-real-gpus",
+      "title": "Glass frame times on real GPUs",
+      "description": "Scrolling under the title bar and the rail's lens at 100 % and 150 % scaling, on an iGPU; Full stays off where the backdrop is slow.",
+      "version": "0.4",
+      "status": "accepted",
+      "area": "design",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-28",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/HANDOFF.md#open-jobs-in-order", "label": "HANDOFF · Open jobs 2" }]
+    },
+    {
+      "key": "match-design-review",
+      "title": "Design review of the match screens",
+      "description": "Screenshots and the ui-reviewer on match rows, the opened game at 420 → 2560 px, the grade's why and French; fix P0 and P1.",
+      "version": "0.4",
+      "status": "accepted",
+      "area": "profile",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-28",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/HANDOFF.md#summary-for-the-next-agent-2026-09-28-end-of-the-third-session", "label": "HANDOFF · To fix 5" }]
+    },
+    {
+      "key": "calibrate-grades",
+      "title": "Calibrate grades on crawled games",
+      "description": "Each role should average 5 and S+ stay rare: role shares, kill-participation offsets and scales in `grade.rs`.",
+      "version": "0.4",
+      "status": "accepted",
+      "area": "stats",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-28",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/HANDOFF.md#summary-for-the-next-agent-2026-09-28-end-of-the-third-session", "label": "HANDOFF · To fix 6" }]
+    },
+    {
+      "key": "calibrate-draft",
+      "title": "Calibrate the draft model and composition readings",
+      "description": "The model (research D §3.14), damage-type and frontline thresholds, and ARAM's length buckets, on real data (jobs 4 and 9).",
+      "version": "0.4",
+      "status": "accepted",
+      "area": "stats",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-28",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/HANDOFF.md#open-jobs-in-order", "label": "HANDOFF · Open jobs 4 and 9" }]
+    },
+    {
+      "key": "recrawl",
+      "title": "Crawl again, and check the published files against the pages",
+      "description": "Older games lack the composition numbers; check file sizes, thin Master+ data and sections with n = 0 on the real pages.",
+      "version": "0.4",
+      "status": "accepted",
+      "area": "stats",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-28",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/HANDOFF.md#summary-for-the-next-agent-2026-09-28-end-of-the-third-session", "label": "HANDOFF · To fix 7" }]
+    },
+    {
+      "key": "bundle-savings",
+      "title": "Bundle savings before the next feature",
+      "description": "Lazy views list startup files again in their preload lists, and shared startup code splits into new chunks: win back room under the budgets.",
+      "version": "0.4",
+      "status": "accepted",
+      "area": "desktop",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-28",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/HANDOFF.md#summary-for-the-next-agent-2026-09-28-end-of-the-third-session", "label": "HANDOFF · To fix 8" }]
+    },
+    {
+      "key": "tier-trends",
+      "title": "Tier list trends",
+      "description": "This patch against the last: arrows on win and pick rates.",
+      "version": "0.4",
+      "status": "accepted",
+      "area": "tier-list",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-28",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/HANDOFF.md#summary-for-the-next-agent-2026-09-28-end-of-the-third-session", "label": "HANDOFF · To implement next" }]
+    },
+    {
+      "key": "after-game-graphs",
+      "title": "After-game graphs and animations",
+      "description": "Gold, damage and experience over the game once it ends, drawn with motion that plays once and then rests.",
+      "version": "0.4",
+      "status": "accepted",
+      "area": "profile",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-29",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/HANDOFF.md#summary-for-the-next-agent-2026-09-28-end-of-the-third-session", "label": "HANDOFF · post-game, next" }]
+    },
+    {
+      "key": "require-signed-version",
+      "title": "Updater: require the signed version",
+      "description": "Once the CLI's signatures carry the version, refuse a manifest that pairs a new version with an older installer (job 6).",
+      "version": "0.4",
+      "status": "accepted",
+      "area": "platform",
+      "proposedBy": "claude",
+      "createdOn": "2026-09-28",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/HANDOFF.md#open-jobs-in-order", "label": "HANDOFF · Open jobs 6" }]
+    },
+    {
+      "key": "french-review",
+      "title": "The owner reads the French screens",
+      "description": "Wording that doesn't sound like the French client, and the unsure terms the i18n report lists (Swiftplay, roles, shard rows).",
+      "version": "0.4",
+      "status": "accepted",
+      "area": "settings",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-28",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/HANDOFF.md#open-jobs-in-order", "label": "HANDOFF · Open jobs 7" }]
+    },
+    {
+      "key": "streamer-mode-match-v5",
+      "title": "What Match-V5 sends for hidden players today",
+      "description": "We treat a participant without riotIdGameName as hidden; check it against Riot's current answers before the production key.",
+      "version": "0.4",
+      "status": "accepted",
+      "area": "riot",
+      "proposedBy": "claude",
+      "createdOn": "2026-09-28",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/HANDOFF.md#open-jobs-in-order", "label": "HANDOFF · Open jobs 10" }]
+    },
+    {
+      "key": "uptime-alerts",
+      "title": "Uptime alerts for api.mvpgg.com",
+      "description": "A check of `/health` every few minutes (Cloudflare's health checks or a timer elsewhere) that tells the owner when the API stops answering, before players do.",
+      "version": "0.4",
+      "status": "proposed",
+      "area": "platform",
+      "proposedBy": "claude",
+      "createdOn": "2026-09-29",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/apps/backend/README.md", "label": "apps/backend/README.md" }]
+    },
+    {
+      "key": "server-backups",
+      "title": "Nightly backups off the server",
+      "description": "The crawler's store, the backend's data dir and this roadmap's database, copied off the VPS every night (R2, or the owner's PC), with a restore tried once.",
+      "version": "0.4",
+      "status": "proposed",
+      "area": "platform",
+      "proposedBy": "claude",
+      "createdOn": "2026-09-29",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/apps/roadmap/README.md", "label": "apps/roadmap/README.md · Backups" }]
+    },
+    {
+      "key": "stats-freshness",
+      "title": "Say how fresh the stats are",
+      "description": "The patch, the games counted and the last crawl next to the numbers on stats pages and in Draft, so old or thin data is obvious at a glance.",
+      "version": "0.4",
+      "status": "proposed",
+      "area": "tier-list",
+      "proposedBy": "claude",
+      "createdOn": "2026-09-29",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/HANDOFF.md#summary-for-the-next-agent-2026-09-28-end-of-the-third-session", "label": "HANDOFF · To fix 1 and 7" }]
+    },
+    {
+      "key": "draft-explainer",
+      "title": "How the draft helper ranks picks, in one page",
+      "description": "Plain words on the model (additive log-odds, shrinkage, the games behind each number), linked from Draft's why and from the website.",
+      "version": "0.4",
+      "status": "proposed",
+      "area": "draft",
+      "proposedBy": "claude",
+      "createdOn": "2026-09-29",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/architecture.md#principles", "label": "architecture · Principles" }]
+    },
+    {
+      "key": "accessibility",
+      "title": "A keyboard and screen-reader pass",
+      "description": "Every view usable from the keyboard with a visible focus, labels on icon buttons, contrast checked, at 400 → 2560 px.",
+      "version": "0.4",
+      "status": "proposed",
+      "area": "design",
+      "proposedBy": "claude",
+      "createdOn": "2026-09-29",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/CLAUDE.md", "label": "CLAUDE.md · Rules" }]
+    },
+    {
+      "key": "heatmaps",
+      "title": "Heatmaps",
+      "description": "Where deaths, kills and wards happen on the map, from the Match-V5 timelines the crawler already reads.",
+      "version": "Later",
+      "status": "accepted",
+      "area": "profile",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-29",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/architecture.md", "label": "architecture · Stats pipeline" }]
+    },
+    {
+      "key": "overlay",
+      "title": "In-game overlay",
+      "description": "Not wanted yet (owner, checkpoint 2); the architecture stays ready for it.",
+      "version": "Later",
+      "status": "accepted",
+      "area": "live",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-27",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/decisions.md#2026-09-27--checkpoint-2-owner", "label": "decisions · Checkpoint 2" }]
+    },
+    {
+      "key": "regions",
+      "title": "Regions beyond EUW",
+      "description": "EUNE, NA, KR and the rest once the pipeline is proven on EUW (and the production key allows it).",
+      "version": "Later",
+      "status": "accepted",
+      "area": "stats",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-27",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/decisions.md#2026-09-27--checkpoint-1-owner", "label": "decisions · Checkpoint 1" }]
+    },
+    {
+      "key": "stats-r2",
+      "title": "Stats files on Cloudflare R2",
+      "description": "The published aggregates served from R2 next to the VPS (the crawler's optional upload already writes them).",
+      "version": "Later",
+      "status": "accepted",
+      "area": "platform",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-27",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/decisions.md#2026-09-27--checkpoint-2-owner", "label": "decisions · Checkpoint 2" }]
+    },
+    {
+      "key": "patch-digest",
+      "title": "What changed for your pool this patch",
+      "description": "When a patch lands, the win and pick rate moves of the champions you play, in one card on Home.",
+      "version": "Later",
+      "status": "proposed",
+      "area": "tier-list",
+      "proposedBy": "claude",
+      "createdOn": "2026-09-29",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/HANDOFF.md#summary-for-the-next-agent-2026-09-28-end-of-the-third-session", "label": "HANDOFF · Tier list trends" }]
+    },
+    {
+      "key": "matchup-notes",
+      "title": "Your own matchup notes",
+      "description": "A line you write per matchup, shown in Draft when that matchup comes up; kept on your PC only.",
+      "version": "Later",
+      "status": "proposed",
+      "area": "draft",
+      "proposedBy": "claude",
+      "createdOn": "2026-09-29",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/policy.md", "label": "policy.md" }]
+    },
+    {
+      "key": "roadmap-commit-links",
+      "title": "Commits that link themselves to the roadmap",
+      "description": "`roadmap#12` in a commit message adds the commit to feature 12 (a GitHub webhook, or `scripts/roadmap.mjs` after a push).",
+      "version": "Later",
+      "status": "proposed",
+      "area": "platform",
+      "proposedBy": "claude",
+      "createdOn": "2026-09-29",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/apps/roadmap/README.md", "label": "apps/roadmap/README.md" }]
+    },
+    {
+      "key": "web-profiles",
+      "title": "Player profiles on the website",
+      "description": "The profile and match pages in a browser, from the same backend (the app's transport already has room for HTTP).",
+      "version": "Later",
+      "status": "proposed",
+      "area": "website",
+      "proposedBy": "claude",
+      "createdOn": "2026-09-29",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/architecture.md#principles", "label": "architecture · Principles" }]
+    },
+    {
+      "key": "ban-suggestions",
+      "title": "Ban suggestions in Draft",
+      "description": "Rejected by the owner at checkpoint 2: the draft helper doesn't tell anyone what to ban.",
+      "version": "Later",
+      "status": "rejected",
+      "area": "draft",
+      "proposedBy": "claude",
+      "createdOn": "2026-09-27",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/decisions.md#2026-09-27--checkpoint-2-owner", "label": "decisions · Checkpoint 2" }]
+    },
+    {
+      "key": "ai-picks",
+      "title": "AI or machine-learned picks",
+      "description": "Rejected by the owner: the draft helper is statistics only, with a why for every number.",
+      "version": "Later",
+      "status": "rejected",
+      "area": "draft",
+      "proposedBy": "claude",
+      "createdOn": "2026-09-27",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/CLAUDE.md", "label": "CLAUDE.md · Decisions" }]
+    }
+  ]
+}

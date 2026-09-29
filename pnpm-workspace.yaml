@@ -1,6 +1,7 @@
 packages:
   - ui
   - site
+  - apps/roadmap/web
 
 onlyBuiltDependencies:
   - "@biomejs/biome"
