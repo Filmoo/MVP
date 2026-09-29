@@ -8,6 +8,7 @@ use companion::automation::CoreEvent;
 use companion::backend::{BackendClient, BackendConfig};
 use companion::crash::{self, CrashReporter};
 use companion::imports::{BuildSource, ChampionNames, Importer, NoBuilds};
+use companion::live::{GameIds, LiveConfig};
 use companion::remote::{self, RemoteConfigStore};
 use companion::settings::SettingsStore;
 use companion::stats::StatsClient;
@@ -84,6 +85,30 @@ impl GameDataState {
             .ok()?
             .as_ref()
             .map(|(_, data)| data.clone())
+    }
+
+    /// `f` on whatever is loaded, without copying it.
+    fn with<T>(&self, f: impl FnOnce(&GameData) -> Option<T>) -> Option<T> {
+        let loaded = self.loaded.read().ok()?;
+        loaded.as_ref().and_then(|(_, data)| f(data))
+    }
+}
+
+/// Champion and spell ids of the loaded game data, for the names the game itself lists its
+/// players with (loading-screen scouting, when Riot's live game has none).
+struct LoadedGameIds<R: Runtime>(AppHandle<R>);
+
+impl<R: Runtime> GameIds for LoadedGameIds<R> {
+    fn champion(&self, name: &str) -> Option<u32> {
+        self.0
+            .try_state::<GameDataState>()?
+            .with(|data| data.champion(name))
+    }
+
+    fn spell(&self, name: &str) -> Option<u32> {
+        self.0
+            .try_state::<GameDataState>()?
+            .with(|data| data.spell(name))
     }
 }
 
@@ -347,6 +372,8 @@ pub fn start<R: Runtime>(app: &AppHandle<R>, settings: &SettingsStore) {
             builds,
             names,
             language,
+            live: LiveConfig::for_the_game(),
+            game_ids: Arc::new(LoadedGameIds(app.clone())),
         };
         let companion = companion::start_with_services(config, settings, services);
         app.manage(Core {

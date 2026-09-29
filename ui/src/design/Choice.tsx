@@ -1,6 +1,5 @@
 import { createEffect, createUniqueId, For, type JSX, on, onCleanup, onMount } from "solid-js";
 import styles from "./Choice.module.css";
-import { glideEnds, glideStarts, liquid } from "./liquid/liquid";
 import { reducedMotion } from "./motion";
 
 export interface ChoiceOption<T extends string> {
@@ -74,15 +73,11 @@ export function Choice<T extends string>(props: {
       data-testid={props.testId}
     >
       <span
-        class={`${styles.thumb} glass-rim`}
+        class={`${styles.thumb} glass-drop`}
         aria-hidden="true"
         ref={(el) => {
           thumb = el;
-          liquid(el, "lens");
         }}
-        onTransitionRun={glideStarts}
-        onTransitionEnd={glideEnds}
-        onTransitionCancel={glideEnds}
       />
       <For each={props.options}>
         {(option) => (

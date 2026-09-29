@@ -5,7 +5,10 @@ use std::time::Duration;
 
 use companion::Companion;
 use companion::automation::{CoreEvent, WindowIntent};
-use domain::{AutoAcceptEvent, ClientConnection, ClientStatus, GameflowPhase, Settings, ViewRoute};
+use domain::{
+    AutoAcceptEvent, ClientConnection, ClientError, ClientStatus, GameflowPhase, Settings,
+    ViewRoute,
+};
 use lcu::ConnectorConfig;
 use lcu::tls::pinned_client_config;
 use mock_lcu::MockLcu;
@@ -95,6 +98,56 @@ async fn follows_champion_select() {
         .await
         .unwrap()
         .unwrap();
+}
+
+/// Another app holds every connection the League client accepts: the status says it doesn't
+/// answer while the game goes on (events still flow), the profile's failure reads as such, and
+/// the first answer brings "connected" back, by itself.
+#[tokio::test]
+async fn a_client_that_stops_answering_then_answers() {
+    let mock = MockLcu::start().await.unwrap();
+    mock.set(
+        companion::profile::CURRENT_SUMMONER,
+        json!({ "gameName": "Fillmo", "tagLine": "7272", "summonerLevel": 312 }),
+    );
+    let (companion, _settings) = connected(&mock, Settings::default()).await;
+    let mut status = companion.status.clone();
+    let at = |connection, phase| ClientStatus { connection, phase };
+    mock.set(lcu::GAMEFLOW_PHASE, json!("Lobby"));
+    wait_for(
+        &mut status,
+        at(ClientConnection::Connected, GameflowPhase::Lobby),
+    )
+    .await;
+
+    mock.stop_answering();
+    let client = companion.client.borrow().clone().unwrap();
+    let error = companion.matches.profile(&client).await.unwrap_err();
+    assert_eq!(
+        companion::profile::client_error(&error),
+        ClientError::NotAnswering,
+        "{error}"
+    );
+    wait_for(
+        &mut status,
+        at(ClientConnection::NotAnswering, GameflowPhase::Lobby),
+    )
+    .await;
+    mock.set(lcu::GAMEFLOW_PHASE, json!("Matchmaking"));
+    wait_for(
+        &mut status,
+        at(ClientConnection::NotAnswering, GameflowPhase::Matchmaking),
+    )
+    .await;
+
+    mock.answer_again();
+    wait_for(
+        &mut status,
+        at(ClientConnection::Connected, GameflowPhase::Matchmaking),
+    )
+    .await;
+    let profile = companion.matches.profile(&client).await.unwrap();
+    assert_eq!(profile.riot_id.game_name, "Fillmo");
 }
 
 #[tokio::test]

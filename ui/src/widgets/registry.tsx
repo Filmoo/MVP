@@ -31,7 +31,7 @@ import { PerformanceSummary } from "../views/home/PerformanceSummary";
 import { ProfileHeader } from "../views/home/ProfileHeader";
 import { RecentMatches } from "../views/home/RecentMatches";
 import { LiveTeam } from "../views/live/LiveTeam";
-import { About, AppSettings, AutomationSettings, ImportSettings, StatsSettings } from "../views/settings/sections";
+import { About, AppSettings, AutomationSettings, ImportSettings, NoMatch, StatsSettings } from "../views/settings/sections";
 import { TierTable } from "../views/tierlist/TierTable";
 
 // Stats widgets measured on a two-role champion (Lux: support, mid) and the full Emerald+ list.
@@ -163,6 +163,7 @@ export const widgetRegistry: Record<string, () => JSX.Element> = {
   "settings-app": () => <AppSettings settings={defaultSettings} onChange={() => {}} />,
   "live-team": () => <LiveTeam title={t().draft.yourTeam} players={liveGame.allies} enemy={false} scouting="done" />,
   "settings-about": () => <About info={{ name: "MVP", version: "0.1.0", platform: "windows", installId: null }} update={updateReady} />,
+  "settings-no-match": () => <NoMatch query="overlay" onClear={() => {}} />,
   banners: () => (
     <NoticeList
       banners={[patchBanner, outageBanner]}
@@ -183,7 +184,8 @@ export const widgetRegistry: Record<string, () => JSX.Element> = {
     />
   ),
   "tier-list": () => <TierTable list={tierList} roleFilter="all" />,
-  "champion-grid": () => <ChampionGrid list={tierList} roleFilter="all" query="" />,
+  // Sorted by name, its heaviest first slice: every tile has a badge (by tier, a heading has it).
+  "champion-grid": () => <ChampionGrid list={tierList} roleFilter="all" sort="name" query="" />,
   "champion-hero": () => (
     <ChampionHero
       championId={99}

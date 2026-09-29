@@ -6,6 +6,7 @@ use reqwest::{Method, StatusCode};
 use rustls::ClientConfig;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
+use tokio::sync::watch;
 
 use crate::Credentials;
 
@@ -35,13 +36,23 @@ impl LcuError {
     pub fn is_not_found(&self) -> bool {
         matches!(self, Self::Http { status, .. } if *status == StatusCode::NOT_FOUND)
     }
+
+    /// The client didn't answer at all: the request couldn't be sent, or no answer came in time
+    /// (an HTTP error is an answer).
+    pub fn is_unanswered(&self) -> bool {
+        matches!(self, Self::Transport(_))
+    }
 }
 
-/// REST access to a running League client.
+/// REST access to a running League client. Clones share one connection pool, and whether the
+/// client answers ([`Self::answering`]).
 #[derive(Debug, Clone)]
 pub struct LcuClient {
     http: reqwest::Client,
     base: String,
+    /// Whether the last request got an answer (any HTTP status): a transport failure turns it
+    /// off, the next answer back on.
+    answering: Arc<watch::Sender<bool>>,
 }
 
 impl LcuClient {
@@ -62,7 +73,27 @@ impl LcuClient {
         Ok(Self {
             http,
             base: credentials.base_url(),
+            answering: Arc::new(watch::Sender::new(true)),
         })
+    }
+
+    /// Whether the client answers requests: follows every request's outcome (a transport
+    /// failure turns it off, any answer back on).
+    pub fn answering(&self) -> watch::Receiver<bool> {
+        self.answering.subscribe()
+    }
+
+    /// Whether the last request got an answer.
+    pub fn is_answering(&self) -> bool {
+        *self.answering.borrow()
+    }
+
+    fn answered(&self, answered: bool) {
+        self.answering.send_if_modified(|current| {
+            let changed = *current != answered;
+            *current = answered;
+            changed
+        });
     }
 
     pub async fn get<T: DeserializeOwned>(&self, path: &str) -> Result<T, LcuError> {
@@ -91,9 +122,21 @@ impl LcuClient {
         if let Some(body) = body {
             req = req.json(body);
         }
-        let res = req.send().await.map_err(LcuError::Transport)?;
-        let status = res.status();
-        let bytes = res.bytes().await.map_err(LcuError::Transport)?;
+        let answer = async {
+            let res = req.send().await?;
+            let status = res.status();
+            Ok::<_, reqwest::Error>((status, res.bytes().await?))
+        };
+        let (status, bytes) = match answer.await {
+            Ok(answer) => {
+                self.answered(true);
+                answer
+            }
+            Err(error) => {
+                self.answered(false);
+                return Err(LcuError::Transport(error));
+            }
+        };
         if !status.is_success() {
             let message = serde_json::from_slice::<Value>(&bytes)
                 .ok()

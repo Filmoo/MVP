@@ -1,15 +1,18 @@
-import { createResource, createSignal, type JSX, Match, onCleanup, Switch } from "solid-js";
+import { createMemo, createResource, createSignal, type JSX, Match, onCleanup, Show, Switch } from "solid-js";
 import { useData } from "../../data/context";
 import type { Settings as SettingsData } from "../../data/generated/Settings";
 import { useRemoteConfig, useUpdates } from "../../data/platform";
 import { Card } from "../../design/Card";
+import { Icon } from "../../design/Icon";
+import type { RowMatch } from "../../design/SettingRow";
 import { ErrorState, Skeleton } from "../../design/States";
 import { t } from "../../i18n";
 import { reportError } from "../../lib/errors";
 import { Widget } from "../../widgets/Widget";
 import page from "../page.module.css";
 import styles from "./Settings.module.css";
-import { About, AppSettings, AutomationSettings, ImportSettings, StatsSettings } from "./sections";
+import { findSettings, type SearchId, settingsIndex } from "./search";
+import { About, AppSettings, AutomationSettings, flashName, ImportSettings, NoMatch, SearchMatch, StatsSettings } from "./sections";
 
 type Section = "automation" | "imports" | "stats" | "app";
 
@@ -43,9 +46,12 @@ function SettingsSkeleton(): JSX.Element {
 /**
  * Settings are owned by the core. A change shows at once, is saved by the core, and flips back
  * (with the reason, in its card) if saving failed.
+ *
+ * The search only hides what it doesn't find: every card stays mounted, so nothing it holds
+ * resets (a save error, a copy's status, the window following the visual effects setting).
  */
-function SettingsContent(props: { initial: SettingsData }): JSX.Element {
-  const { transport } = useData();
+function SettingsContent(props: { initial: SettingsData; query: string; onClear: () => void }): JSX.Element {
+  const { transport, gameData } = useData();
   const [settings, setSettings] = createSignal(props.initial);
   const [errors, setErrors] = createSignal<Partial<Record<Section, string>>>({});
   const [info] = createResource(() => transport.call("app_info").catch(() => undefined));
@@ -77,40 +83,105 @@ function SettingsContent(props: { initial: SettingsData }): JSX.Element {
     }
   };
 
+  const index = createMemo(() => settingsIndex(t(), flashName(gameData())));
+  const found = createMemo(() => findSettings(props.query, index()));
+  const match = (id: SearchId): RowMatch => {
+    const all = found();
+    return all ? (all.get(id) ?? null) : undefined;
+  };
+  const hidden = (id: SearchId) => (match(id) === null ? styles.hidden : "");
+  const nothing = () => found()?.size === 0;
+  // Only About is found: it takes the settings' place rather than leaving them empty beside it.
+  const aboutOnly = () => !!match("about") && (["automation", "imports", "stats", "app"] as const).every((id) => match(id) === null);
+
   return (
-    <div class={styles.grid}>
-      <div class={styles.main}>
-        <Widget name="settings-automation">
-          <AutomationSettings
-            settings={settings()}
-            onChange={save("automation")}
-            error={errors().automation}
-            autoAcceptPaused={remote().killSwitches.autoAccept || !remote().features.autoAccept}
-          />
-        </Widget>
-        <Widget name="settings-imports">
-          <ImportSettings settings={settings()} onChange={save("imports")} error={errors().imports} />
-        </Widget>
-        <Widget name="settings-stats">
-          <StatsSettings settings={settings()} onChange={save("stats")} error={errors().stats} />
-        </Widget>
-        <Widget name="settings-app">
-          <AppSettings settings={settings()} onChange={save("app")} error={errors().app} installId={info()?.installId} />
+    <SearchMatch.Provider value={match}>
+      <div class={`${styles.grid} ${aboutOnly() ? styles.aboutOnly : ""}`}>
+        <div class={styles.main}>
+          <Show when={nothing()}>
+            <Widget name="settings-no-match">
+              <NoMatch query={props.query} onClear={props.onClear} />
+            </Widget>
+          </Show>
+          <Widget name="settings-automation" class={hidden("automation")} hideable>
+            <AutomationSettings
+              settings={settings()}
+              onChange={save("automation")}
+              error={errors().automation}
+              autoAcceptPaused={remote().killSwitches.autoAccept || !remote().features.autoAccept}
+            />
+          </Widget>
+          <Widget name="settings-imports" class={hidden("imports")} hideable>
+            <ImportSettings settings={settings()} onChange={save("imports")} error={errors().imports} />
+          </Widget>
+          <Widget name="settings-stats" class={hidden("stats")} hideable>
+            <StatsSettings settings={settings()} onChange={save("stats")} error={errors().stats} />
+          </Widget>
+          <Widget name="settings-app" class={hidden("app")} hideable>
+            <AppSettings settings={settings()} onChange={save("app")} error={errors().app} installId={info()?.installId} />
+          </Widget>
+        </div>
+        <Widget name="settings-about" class={`${styles.aside} ${hidden("about")}`} hideable>
+          <About info={info()} update={updates.status()} onCheckUpdates={() => void updates.check()} onRestart={restart} />
         </Widget>
       </div>
-      <Widget name="settings-about" class={styles.aside}>
-        <About info={info()} update={updates.status()} onCheckUpdates={() => void updates.check()} onRestart={restart} />
-      </Widget>
-    </div>
+    </SearchMatch.Provider>
   );
 }
 
 export default function Settings(): JSX.Element {
   const { transport } = useData();
   const [initial, { refetch }] = createResource(() => transport.call("get_settings"));
+  // The search lives with the page: leaving Settings forgets it.
+  const [query, setQuery] = createSignal("");
+  let field: HTMLInputElement | undefined;
+  const clear = () => {
+    setQuery("");
+    field?.focus();
+  };
+  // Ctrl+F looks in the page, as a browser's find does (Ctrl+K stays the title bar's search).
+  const onKey = (e: KeyboardEvent) => {
+    if (field?.isConnected && (e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "f") {
+      e.preventDefault();
+      field.focus();
+      field.select();
+    }
+  };
+  document.addEventListener("keydown", onKey);
+  onCleanup(() => document.removeEventListener("keydown", onKey));
   return (
-    <div class={page.page}>
-      <h1 class={page.title}>{t().settings.title}</h1>
+    <div class={`${page.page} ${styles.page}`}>
+      <div class={styles.head}>
+        <h1 class={page.title}>{t().settings.title}</h1>
+        <Show when={initial.state !== "errored"}>
+          {/* Escape empties it, then leaves it; the browser's own button clears it too. */}
+          <search class={styles.search}>
+            <Icon name="search" size={16} class={styles.searchIcon} />
+            <input
+              ref={field}
+              type="search"
+              class={styles.searchInput}
+              placeholder={t().settings.search.label}
+              aria-label={t().settings.search.label}
+              aria-keyshortcuts="Control+F"
+              spellcheck={false}
+              autocomplete="off"
+              value={query()}
+              onInput={(e) => setQuery(e.currentTarget.value)}
+              onKeyDown={(e) => {
+                if (e.key !== "Escape") return;
+                e.preventDefault();
+                if (query()) setQuery("");
+                else e.currentTarget.blur();
+              }}
+              data-testid="settings-search"
+            />
+            <span class={styles.kbd} aria-hidden="true">
+              {t().settings.search.shortcut}
+            </span>
+          </search>
+        </Show>
+      </div>
       <Switch>
         <Match when={initial.state === "errored"}>
           <div class={page.centered}>
@@ -126,7 +197,7 @@ export default function Settings(): JSX.Element {
         <Match when={initial.state === "pending" || initial.state === "unresolved"}>
           <SettingsSkeleton />
         </Match>
-        <Match when={initial()}>{(loaded) => <SettingsContent initial={loaded()} />}</Match>
+        <Match when={initial()}>{(loaded) => <SettingsContent initial={loaded()} query={query()} onClear={clear} />}</Match>
       </Switch>
     </div>
   );

@@ -209,13 +209,23 @@ fn importer_with(
     settings: Settings,
     builds: FakeBuilds,
 ) -> Setup {
+    importer_on(lcu_client(mock), phase, settings, builds)
+}
+
+/// An importer talking to `client`.
+fn importer_on(
+    client: LcuClient,
+    phase: GameflowPhase,
+    settings: Settings,
+    builds: FakeBuilds,
+) -> Setup {
     let builds = Arc::new(builds);
     let (settings_tx, settings_rx) = watch::channel(settings);
     let (status_tx, status_rx) = watch::channel(ClientStatus {
         connection: ClientConnection::Connected,
         phase,
     });
-    let (_client_tx, client_rx) = watch::channel(Some(lcu_client(mock)));
+    let (_client_tx, client_rx) = watch::channel(Some(client));
     let (remote_tx, remote_rx) = watch::channel(RemoteConfig::default());
     Setup {
         importer: Importer::new(
@@ -313,6 +323,45 @@ fn assert_player_pages_untouched(mock: &MockLcu) {
 }
 
 // ── Rune pages ────────────────────────────────────────────────────────────────────────────
+
+/// A client that doesn't answer (seen on a real PC: another app held every connection the
+/// League client accepts): the import says so, instead of quoting a transport error as the
+/// client's refusal.
+#[tokio::test]
+async fn a_client_that_does_not_answer_is_not_a_refusal() {
+    let mock = client_with_player_data(3).await;
+    // A port nothing listens on: every request fails before any answer.
+    let port = std::net::TcpListener::bind("127.0.0.1:0")
+        .unwrap()
+        .local_addr()
+        .unwrap()
+        .port();
+    let creds = lcu::Lockfile::parse(&format!("LeagueClient:1:{port}:secret:https"))
+        .unwrap()
+        .credentials();
+    let silent = LcuClient::new(
+        &creds,
+        pinned_client_config(mock.ca_pem().as_bytes()).unwrap(),
+    )
+    .unwrap();
+    let setup = importer_on(
+        silent,
+        GameflowPhase::ChampSelect,
+        Settings::default(),
+        FakeBuilds::default(),
+    );
+    let result = setup
+        .importer
+        .import(&request(&[ImportPart::Runes]), false)
+        .await;
+    assert_eq!(
+        outcome(&result, ImportPart::Runes),
+        ImportOutcome::Failed {
+            reason: FailReason::NotAnswering
+        }
+    );
+    assert_eq!(mock.count("POST", PAGES), 0);
+}
 
 #[tokio::test]
 async fn creates_mvp_page_when_there_is_room() {

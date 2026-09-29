@@ -28,7 +28,10 @@ const tabs = (): SegmentedOption<LiveTab>[] => [
 
 const parseTab = (value: string | null): LiveTab => (value === "build" ? "build" : "players");
 
-/** Where the cards are, in the page head: a fixed-height line, so the teams never move. */
+/**
+ * Where the names and cards are, in the page head: one line in a slot that is always there, so
+ * neither the line nor the teams ever move when it changes.
+ */
 function ScoutingStatus(props: { game: LiveGame }): JSX.Element {
   const { transport } = useData();
   const retry = () => {
@@ -37,36 +40,65 @@ function ScoutingStatus(props: { game: LiveGame }): JSX.Element {
     });
   };
   return (
-    <Switch>
-      <Match when={props.game.scouting.state === "loading"}>
-        <span class={styles.status} data-testid="scouting-status">
-          {t().live.lookingUp}
-        </span>
-      </Match>
-      <Match when={props.game.scouting.state === "failed" && props.game.scouting}>
-        {(failed) => (
-          <span class={`${styles.status} ${styles.failed}`} role="alert" data-testid="scouting-status">
-            <Icon name="alert" size={14} />
-            <span class={styles.statusText}>{scoutingFailure(failed().error)}</span>
-            <button type="button" class={styles.retry} onClick={retry}>
-              {t().common.tryAgain}
-            </button>
+    <div class={styles.statusSlot}>
+      <Switch>
+        {/* Riot's live game had no names: the game itself gives them once it has loaded. */}
+        <Match when={props.game.names.state === "waiting" && props.game.names}>
+          {(waiting) => {
+            const text = () => (waiting().filtered ? t().live.names.filtered(queueName(props.game.queueId)) : t().live.names.waiting);
+            return (
+              <span class={styles.status} data-testid="scouting-status" data-state="waiting" data-hint={text()}>
+                <Icon name="info" size={14} class={styles.statusIcon} />
+                <span class={styles.statusText}>{text()}</span>
+              </span>
+            );
+          }}
+        </Match>
+        <Match when={props.game.names.state === "asking" || props.game.scouting.state === "loading"}>
+          <span class={styles.status} data-testid="scouting-status">
+            <span class={styles.statusText}>{t().live.lookingUp}</span>
           </span>
-        )}
-      </Match>
-    </Switch>
+        </Match>
+        <Match when={props.game.scouting.state === "failed" && props.game.scouting}>
+          {(failed) => (
+            <span class={`${styles.status} ${styles.failed}`} role="alert" data-testid="scouting-status">
+              <Icon name="alert" size={14} class={styles.statusIcon} />
+              <span class={styles.statusText}>{scoutingFailure(failed().error)}</span>
+              <button type="button" class={styles.retry} onClick={retry}>
+                {t().common.tryAgain}
+              </button>
+            </span>
+          )}
+        </Match>
+      </Switch>
+    </div>
   );
 }
 
 export function LiveContent(props: { game: LiveGame }): JSX.Element {
   const scouting = () => props.game.scouting.state;
+  const names = () => props.game.names.state;
   return (
     <div class={styles.grid}>
       <Widget name="live-team" class={styles.side}>
-        <LiveTeam title={t().draft.yourTeam} players={props.game.allies} enemy={false} scouting={scouting()} />
+        <LiveTeam
+          title={t().draft.yourTeam}
+          players={props.game.allies}
+          enemy={false}
+          scouting={scouting()}
+          names={names()}
+          platform={props.game.platform}
+        />
       </Widget>
       <Widget name="live-team" class={styles.side}>
-        <LiveTeam title={t().draft.enemyTeam} players={props.game.enemies} enemy scouting={scouting()} />
+        <LiveTeam
+          title={t().draft.enemyTeam}
+          players={props.game.enemies}
+          enemy
+          scouting={scouting()}
+          names={names()}
+          platform={props.game.platform}
+        />
       </Widget>
     </div>
   );

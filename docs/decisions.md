@@ -106,6 +106,20 @@ faudrait un gradient plus doux". Design calls:
 - **Full means Full**: the default follows Windows' "Transparency effects" switch (off → Light,
   and Settings says why); a Full the player picks wins over it. On the owner's PC the switch was
   off, so the glass never showed.
+- **Smooth refraction** (owner: "you can see lines in refraction"): rims are parabolic, not
+  squircles. A squircle's bend jumped 20–28 px between two pixel rows at the rim, cutting what is
+  behind into bands; a parabola bends as clearly (12–21 px) but at most ~2.5 px per row.
+- **Drops are evenly tinted glass** (owner: the rail's animation "isn't great… how big the icon
+  gets and shrinks, pixelated", "the same everywhere", "double contouring", then "it seems like
+  it's 2 bubbles… the glass being fully colored, but slightly… all glass buttons… not smooth enough
+  borders, put effort into it"): the selection on the rail, segmented controls and choices, and a
+  held switch's knob are one CSS material (`.glass-drop`): an even light tint (the accent for a
+  choice), a soft sheen over the upper half, and a 1 px rim drawn with inset shadows (anti-aliased
+  on every curve), brighter along the top. They glide behind the labels, never lifted, never
+  scaled on the way (a held knob swells ≈1.2×). No SVG lens on them: the loupe enlarged icons
+  through a displacement filter that doesn't smooth, swelled and shrank them, drew the track's
+  border again inside the thumb; tinted by thickness it read as a ring around a coloured middle;
+  and its backdrop filter settled a pixel off after each glide.
 
 ## 2026-09-28 — Rank emblems (owner asked, Claude designed)
 Owner: rank icons "look old/fake". Design calls:
@@ -133,7 +147,54 @@ Owner: rank icons "look old/fake". Design calls:
 - **Notices load lazily**: the banners, update prompt and update-required card cost nothing at
   first paint; banner links open through the core by banner id, never from a URL the UI gives.
 
-## 2026-09-28 — What runes, shards, spells and items do, on hover (owner asked, Claude designed)
+## 2026-09-28 — Champion list: sorting and categories (owner asked, Claude designed)
+Owner: "Champs is a huge list, a bit hard to read, we need better sorting and categorizing. Keep
+it very simple and efficient"; then "avoid the general look everywhere, don't always use slider
+buttons, vary". Design calls:
+- **Categories are the roles the tier list has**: a champion is in every role it has a tier-list
+  row in (≥ 50 games and 0.5 % pick rate there), so a flex pick shows in both of its roles. The
+  role control stays the shared one (a shared vertical role picker will replace it).
+- **Three sorts, remembered**: tier (default: groups that read like a tier list, the letter and
+  its size beside the champions, the letter staying in view while its group scrolls by), pick
+  rate, A–Z. Each tile shows the number it's sorted by (win rate, or pick rate); a tier group's
+  tiles leave the badge to the heading. The sort is words with a gliding accent bar, not another
+  pill; it waits, dimmed, while the field filters (matches come best first).
+- **The field filters as you type**, best match first; Enter opens the first. "Type anywhere to
+  filter" was left out: the title bar search (`/`, Ctrl+K) already finds a champion by name.
+- **No stats is still a page**: one line says why sorting by stats is unavailable (a retry when it
+  can help), the champions are grouped by Data Dragon class.
+- **Budget**: the JS bundle had 1.3 KB left; the list fits in it (the loading skeleton is drawn by
+  CSS, constant classes are set once with `/*@once*/`).
+
+## 2026-09-29 — Live names from Riot's live game, then the game (owner's brief, Claude built)
+A real client (2026-09-28, EUW, ARAM: Mayhem and custom games) names nobody but the local player
+in its gameflow session, so every real game showed nine "Unknown player" cards. Calls:
+- **Riot's live game first** (Spectator-V5 on our server): answers from the loading screen on,
+  applies Streamer Mode itself (anonymous players have no PUUID; their name is dropped), and
+  brings the cards in the same round trip. The app sends only its own player's Riot ID and the
+  game's id; the server keeps each game for its duration under every visible player's PUUID,
+  so the other nine players of that game cost no Riot call.
+- **The game itself second** (Live Client Data API): only when Riot has nothing (no server,
+  not listed yet, "filtered" for Ranked Flex and Arena). It answers once the loading screen is
+  over, so it is asked every 2 s during a game until it does, then never again (idle means
+  idle); its streamer-mode stand-ins (no tag, a champion's name, a shared name) stay hidden.
+  Riot's filter has no stated intent: asking Riot in an App Note before the production key.
+- **Seats by side and champion**, not by name or order: both lists name the players of the
+  session's seats, the same champion twice on a side in order; bots the session missed get
+  seats. A seat marked hidden never gets a name.
+- **Names before cards**: when Riot's cards take longer than 5 s the names go out without them
+  and the batch picks the rest up, so a slow or rate-limited key never holds the names back.
+- **Say where the names are**: `LiveGame.names` (asking / waiting / known) drives a name
+  placeholder per seat (still during the minute or two the game takes to load: nothing pulses
+  that long) and one line in the page head, in a slot that never makes the head wrap; a filtered
+  queue is named plainly ("Riot doesn't share live Ranked Flex games"), neutral, with nothing
+  to retry. Your own card doesn't wait for the others' names.
+- **Bots read "AI bot"** with their champion under it ("Bot" alone is the bottom lane's name);
+  streamer-mode players keep their lane ("Streamer mode · Jungle").
+- **Riot IDs on Live cards open the player's page** (owner's ask, 2026-09-29): visible players
+  only; hidden players and bots have no name to open.
+
+## 2026-09-29 — What runes, shards, spells and items do, and every hover designed (owner asked, Claude designed)
 Owner: "runes/spell explanation on hover. Same for shards and summoner spell. Same for item", then
 "the full description, with a nice popup that shows icons, background is the spell/item/rune/
 summoner hovered + description". Design calls:

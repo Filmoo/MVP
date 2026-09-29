@@ -2,9 +2,14 @@
  * Settings on the left, the app's identity beside them, from the same left edge as every page.
  * Capped widths: a switch stays within reach of its label on wide windows.
  */
+.page {
+  --settings-main: 800px;
+  --settings-side: 400px;
+}
+
 .grid {
   display: grid;
-  grid-template-columns: minmax(0, 800px) minmax(var(--aside-w), 400px);
+  grid-template-columns: minmax(0, var(--settings-main)) minmax(var(--aside-w), var(--settings-side));
   justify-content: start;
   grid-template-areas: "main aside";
   gap: var(--space-6);
@@ -36,6 +41,124 @@
   }
   .aside {
     position: static;
+  }
+}
+
+/* What the search leaves out: still there (nothing resets), not shown. */
+.hidden {
+  display: none;
+}
+
+/* Only About is found: it takes the settings' place, at its own width. */
+.aboutOnly .main {
+  display: none;
+}
+
+.aboutOnly .aside {
+  grid-area: main;
+  max-width: var(--settings-side);
+}
+
+@container page (max-width: 959px) {
+  .aboutOnly .aside {
+    max-width: none;
+  }
+}
+
+/*
+ * The title, then the search, as wide as the settings column: the field ends above the switches
+ * it filters, not over About (which a search mostly hides). With two columns, About is always at
+ * its cap, so this is exactly the settings column.
+ */
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-4) var(--space-6);
+  max-width: min(var(--settings-main), 100% - var(--space-6) - var(--settings-side));
+  min-height: var(--space-9);
+}
+
+@container page (max-width: 959px) {
+  .head {
+    max-width: none;
+  }
+}
+
+/* Like the champion search, with its shortcut, then the clear button once something is typed. */
+.search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 0 1 320px;
+  min-width: 0;
+}
+
+.searchIcon {
+  position: absolute;
+  left: var(--space-5);
+  color: var(--text-3);
+  pointer-events: none;
+}
+
+.searchInput {
+  width: 100%;
+  height: 36px;
+  padding: 0 var(--space-4) 0 var(--space-10);
+  border: 1px solid var(--line-glass);
+  border-radius: var(--radius-3);
+  background: var(--bg-1);
+  color: var(--text-1);
+  font: inherit;
+  font-size: var(--text-md);
+  outline: none;
+  user-select: text;
+  transition: border-color var(--dur-1) var(--ease);
+}
+
+.searchInput::placeholder {
+  color: var(--text-3);
+}
+
+.searchInput:hover {
+  border-color: var(--line-2);
+}
+
+.searchInput:focus-visible {
+  border-color: var(--accent);
+}
+
+/* The shortcut, while the field is empty and elsewhere (the clear button, base.css, once typed in). */
+.kbd {
+  position: absolute;
+  right: var(--space-5);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-1);
+  font-size: var(--text-xs);
+  line-height: 16px;
+  color: var(--text-3);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.searchInput:not(:placeholder-shown) + .kbd,
+.search:focus-within .kbd {
+  display: none;
+}
+
+/* Narrow windows: no shortcut hints, as in the title bar. */
+@media (max-width: 899px) {
+  .kbd {
+    display: none;
+  }
+}
+
+/* Narrow: the search takes its own full line under the title. */
+@container page (max-width: 559px) {
+  .search {
+    flex-basis: 100%;
   }
 }
 
@@ -154,6 +277,11 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+}
+
+/* A section the search leaves out. */
+.note[hidden] {
+  display: none;
 }
 
 .noteTitle {

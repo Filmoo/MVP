@@ -237,7 +237,13 @@ test("liquid glass: the rail's lens sits on the current section and glides to th
     return l && i ? Math.hypot(l.x - i.x, l.y - i.y) : Number.POSITIVE_INFINITY;
   };
   expect(await over(t.nav.home.label)).toBeLessThan(1);
+  // A drop of evenly tinted glass that moves with the rail: no backdrop filter (an SVG one
+  // settled a pixel off after each glide, owner 2026-09-28) and nothing scaled on the way.
+  const drop = lens.locator("span");
+  expect(await drop.evaluate((el) => getComputedStyle(el).backdropFilter)).toBe("none");
+  expect(await drop.evaluate((el) => getComputedStyle(el).backgroundImage)).toContain("linear-gradient");
   await page.getByRole("link", { name: t.nav.settings.label }).click();
+  expect(await drop.evaluate((el) => el.getAnimations().length)).toBe(0);
   await animationsDone(page);
   expect(await over(t.nav.settings.label)).toBeLessThan(1);
   // At rest again: nothing animates.
@@ -269,8 +275,8 @@ const outerShadows = (lenses: Awaited<ReturnType<typeof lensShadows>>) =>
 test("liquid glass: nothing that lenses the page carries an outer shadow", async ({ page, t }) => {
   const errors = trackErrors(page);
   await openApp(page);
-  // Title bar, rail lens, rank pane over the art.
-  await expect.poll(async () => (await lensShadows(page)).length).toBeGreaterThanOrEqual(3);
+  // Title bar and the rank pane over the art (the rail selection is a CSS drop, no lens).
+  await expect.poll(async () => (await lensShadows(page)).length).toBeGreaterThanOrEqual(2);
   expect(outerShadows(await lensShadows(page))).toEqual([]);
   // The search panel over the page.
   await page.getByTestId("search-input").click();
@@ -292,7 +298,6 @@ test("liquid glass: nothing that lenses the page carries an outer shadow", async
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();
   await expect(toggle).toHaveAttribute("data-pressed", "");
-  await expect.poll(() => toggle.locator("span").evaluate((el) => getComputedStyle(el).backdropFilter)).toContain("url(");
   expect(outerShadows(await lensShadows(page))).toEqual([]);
   await page.mouse.up();
   // Stats pages: segmented thumbs.
@@ -302,11 +307,15 @@ test("liquid glass: nothing that lenses the page carries an outer shadow", async
   expect(errors).toEqual([]);
 });
 
-test("liquid glass: a held switch turns its knob into a lens, released it's solid again", async ({ page, t }) => {
+test("liquid glass: a held switch's knob swells a little into a drop of glass, released it's solid again", async ({ page, t }) => {
   await openApp(page, { view: "/settings" });
   const toggle = page.getByRole("switch", { name: t.settings.app.closeToTray.title });
-  const knobFilter = () => toggle.locator("span").evaluate((el) => getComputedStyle(el).backdropFilter);
-  expect(await knobFilter()).toBe("none");
+  const knob = () =>
+    toggle.locator("span").evaluate((el) => {
+      const style = getComputedStyle(el);
+      return { filter: style.backdropFilter, sheen: style.backgroundImage.includes("linear-gradient"), transform: style.transform };
+    });
+  expect(await knob()).toMatchObject({ filter: "none", sheen: false });
   // The pointer goes where the switch is on screen.
   await toggle.scrollIntoViewIfNeeded();
   const box = await toggle.boundingBox();
@@ -314,8 +323,14 @@ test("liquid glass: a held switch turns its knob into a lens, released it's soli
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();
   await expect(toggle).toHaveAttribute("data-pressed", "");
-  expect(await knobFilter()).toContain("url(");
+  await animationsDone(page);
+  const held = await knob();
+  // Glass, without a backdrop filter; a little bigger (≈1.2×), not the loupe's 1.5×.
+  expect(held).toMatchObject({ filter: "none", sheen: true });
+  const scaleX = Number(/matrix\(([^,]+)/.exec(held.transform)?.[1] ?? "1");
+  expect(scaleX).toBeGreaterThan(1.1);
+  expect(scaleX).toBeLessThan(1.3);
   await page.mouse.up();
   await expect(toggle).not.toHaveAttribute("data-pressed");
-  expect(await knobFilter()).toBe("none");
+  expect(await knob()).toMatchObject({ filter: "none", sheen: false });
 });

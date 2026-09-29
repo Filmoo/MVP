@@ -1,0 +1,7 @@
+/* What a search found: lit in the accent, like a highlighter, without moving the text. */
+.mark {
+  border-radius: var(--radius-1);
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 1px var(--accent-soft);
+  color: var(--accent-strong);
+}

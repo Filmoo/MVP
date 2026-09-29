@@ -109,6 +109,63 @@ impl<K: Eq + Hash + Clone, V: Clone> Cache<K, V> {
         );
     }
 
+    /// The value held for `key`, if fetched and unexpired (counts as a hit or a miss).
+    pub fn get(&self, key: &K) -> Option<V> {
+        let now = Instant::now();
+        let mut slots = self.lock();
+        slots.clock += 1;
+        let tick = slots.clock;
+        let value = slots
+            .map
+            .get_mut(key)
+            .filter(|slot| !self.expired(slot, now))
+            .and_then(|slot| {
+                slot.used = tick;
+                slot.cell.get().cloned()
+            });
+        let counter = if value.is_some() {
+            &self.hits
+        } else {
+            &self.misses
+        };
+        counter.fetch_add(1, Ordering::Relaxed);
+        value
+    }
+
+    /// Holds `value` for `key` from now on, replacing what was there.
+    pub fn insert(&self, key: K, value: V) {
+        let now = Instant::now();
+        let mut slots = self.lock();
+        slots.clock += 1;
+        let used = slots.clock;
+        self.make_room(&mut slots, &key, now);
+        slots.map.insert(
+            key,
+            Slot {
+                cell: Arc::new(OnceCell::new_with(Some(value))),
+                created: now,
+                used,
+            },
+        );
+    }
+
+    /// Before adding `key`: when full, drops expired entries, then the least recently used.
+    fn make_room(&self, slots: &mut Slots<K, V>, key: &K, now: Instant) {
+        if slots.map.len() < self.capacity || slots.map.contains_key(key) {
+            return;
+        }
+        slots.map.retain(|_, slot| !self.expired(slot, now));
+        if slots.map.len() >= self.capacity
+            && let Some(oldest) = slots
+                .map
+                .iter()
+                .min_by_key(|(_, slot)| slot.used)
+                .map(|(k, _)| k.clone())
+        {
+            slots.map.remove(&oldest);
+        }
+    }
+
     fn expired(&self, slot: &Slot<V>, now: Instant) -> bool {
         self.ttl
             .is_some_and(|ttl| now.duration_since(slot.created) >= ttl)
@@ -151,18 +208,7 @@ impl<K: Eq + Hash + Clone, V: Clone> Cache<K, V> {
             return Arc::clone(&slot.cell);
         }
         self.misses.fetch_add(1, Ordering::Relaxed);
-        if slots.map.len() >= self.capacity && !slots.map.contains_key(&key) {
-            slots.map.retain(|_, slot| !self.expired(slot, now));
-            if slots.map.len() >= self.capacity
-                && let Some(oldest) = slots
-                    .map
-                    .iter()
-                    .min_by_key(|(_, slot)| slot.used)
-                    .map(|(k, _)| k.clone())
-            {
-                slots.map.remove(&oldest);
-            }
-        }
+        self.make_room(&mut slots, &key, now);
         let cell = Arc::new(OnceCell::new());
         slots.map.insert(
             key,
@@ -243,6 +289,25 @@ mod tests {
             .get_or_try_insert("k", || async { Ok::<u32, &str>(7) })
             .await;
         assert_eq!(ok, Ok(7));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn peeks_and_overwrites() {
+        let cache: Cache<&str, u32> = Cache::new(Some(Duration::from_secs(100)), 2);
+        assert_eq!(cache.get(&"a"), None);
+        cache.insert("a", 1);
+        assert_eq!(cache.get(&"a"), Some(1));
+        cache.insert("a", 2);
+        assert_eq!(cache.get(&"a"), Some(2), "replaced");
+        let calls = AtomicU32::new(10);
+        assert_eq!(lookup(&cache, "a", &calls).await, 2, "lookups see it too");
+        // Full: the least recently used goes.
+        cache.insert("b", 3);
+        cache.get(&"a");
+        cache.insert("c", 4);
+        assert_eq!((cache.get(&"a"), cache.get(&"b")), (Some(2), None));
+        tokio::time::advance(Duration::from_secs(100)).await;
+        assert_eq!(cache.get(&"a"), None, "expired");
     }
 
     #[tokio::test(start_paused = true)]

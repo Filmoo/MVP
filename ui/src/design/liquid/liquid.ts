@@ -39,7 +39,7 @@ export const LIQUID = {
   // in) instead of a deep one; a 1 px pre-blur so the band at the rim that mirrors what is behind
   // it doesn't show text upside down, crisp enough to read as a bug.
   bar: {
-    glass: { profile: "squircle", bezel: 14, thickness: 16, elevation: 20 },
+    glass: { profile: "parabola", bezel: 14, thickness: 16, elevation: 20 },
     rims: "bottom",
     frost: 1,
     frostCore: 4,
@@ -49,7 +49,7 @@ export const LIQUID = {
   },
   /** The rail, and the floating tab bar on narrow windows: labels over scrolling content. */
   dock: {
-    glass: { profile: "squircle", bezel: 12, thickness: 13, elevation: 20 },
+    glass: { profile: "parabola", bezel: 12, thickness: 13, elevation: 20 },
     frost: 1,
     frostCore: 6,
     saturate: 1.2,
@@ -58,7 +58,7 @@ export const LIQUID = {
   },
   /** Floating panels holding text (search results, toasts): the page bends along a clear rim. */
   panel: {
-    glass: { profile: "squircle", bezel: 14, thickness: 13, elevation: 18 },
+    glass: { profile: "parabola", bezel: 14, thickness: 13, elevation: 18 },
     frost: 1,
     frostCore: 6,
     saturate: 1.5,
@@ -70,7 +70,7 @@ export const LIQUID = {
    * little in the middle for the text on it. Their CSS corners match the bezel (`--radius-5`).
    */
   clear: {
-    glass: { profile: "squircle", bezel: 20, thickness: 18, elevation: 14 },
+    glass: { profile: "parabola", bezel: 20, thickness: 18, elevation: 14 },
     frost: 0.5,
     frostCore: 2,
     saturate: 1.25,
@@ -78,20 +78,22 @@ export const LIQUID = {
     specular: 0.9,
   },
   /**
-   * Drops of glass on controls (rail selection, segment thumbs, a held switch): a loupe (a
-   * parabolic dome floating 0.6 of its radius up) that magnifies evenly, ≈ ×1.3. Behind labels at
-   * rest (text stays crisp), over them only while they glide.
+   * A drop of the glass lab (widgets/GlassLab.tsx). The app's controls (rail selection, thumbs,
+   * a held switch) use the CSS drop instead (design/glass.css `.glass-drop`): see there why.
+   * It was a flat pill whose
+   * edge bends what is under it a little (≈ 3 px, smoothly: less than the 4 px to a track's border,
+   * which a deeper bend drew again inside the thumb). Always behind the labels, moving or
+   * not. Owner, 2026-09-28: the loupe it replaced (a magnifying dome lifted over the labels while
+   * gliding) swelled and shrank the icon it passed, pixelated it (the displacement filter doesn't
+   * smooth what it enlarges), and drew the control's own border again inside the thumb.
    */
   lens: {
-    glass: { profile: "parabola", bezel: 0, thickness: 0 },
-    dome: 0.3,
-    lift: 0.6,
-    frost: 0,
+    glass: { profile: "parabola", bezel: 8, thickness: 6, elevation: 4 },
+    frost: 0.5,
     saturate: 1.2,
     brightness: 1.06,
-    // A glint on the rim, not a glossy half: a dome slopes everywhere.
-    specular: 0.55,
-    sharpness: 4,
+    // The CSS rim ring is its one edge: a second rim of light read as a double outline.
+    specular: 0,
   },
 } as const satisfies Record<string, LiquidSpec>;
 
@@ -188,23 +190,6 @@ function apply(entry: Entry): void {
   const value = `url(#${entry.filter.id})`;
   if (el.style.getPropertyValue("--lg-filter") !== value) el.style.setProperty("--lg-filter", value);
   if (entry.tint) el.style.setProperty("--lg-fill", "transparent");
-}
-
-/**
- * A drop of glass on a control lifts over the labels while its move runs (a CSS transition of
- * its `transform`), then settles behind them: wire these to the element's transition events.
- * The element's CSS decides what lifted means (`[data-moving]`).
- */
-export function glideStarts(event: TransitionEvent): void {
-  if (event.target === event.currentTarget && event.propertyName === "transform") {
-    (event.currentTarget as HTMLElement).dataset.moving = "";
-  }
-}
-
-export function glideEnds(event: TransitionEvent): void {
-  if (event.target === event.currentTarget && event.propertyName === "transform") {
-    delete (event.currentTarget as HTMLElement).dataset.moving;
-  }
 }
 
 /**

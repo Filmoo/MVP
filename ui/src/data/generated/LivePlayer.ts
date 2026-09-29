@@ -24,7 +24,11 @@ role: Role | null, isMe: boolean,
  */
 hidden: boolean, 
 /**
- * Riot ID from the client or the card; `None` when hidden or unknown.
+ * A bot (co-op vs AI, custom games): no name, never looked up, no card.
+ */
+bot: boolean, 
+/**
+ * Riot ID as Riot or the game shows it; `None` when hidden, a bot, or not known (yet).
  */
 riotId: RiotId | null, 
 /**

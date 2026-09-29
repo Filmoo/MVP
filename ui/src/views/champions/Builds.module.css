@@ -180,7 +180,10 @@
   gap: var(--space-2);
 }
 
-.firstLabel {
+/* The row's name, one width for both rows so their keys line up. */
+.skillLabel {
+  flex: none;
+  min-width: 6.5em;
   margin-right: var(--space-3);
   font-size: var(--text-sm);
   color: var(--text-3);
@@ -193,6 +196,20 @@
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+/* A level: its number over the key taken then. */
+.level {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.levelNumber {
+  font-size: var(--text-xs);
+  line-height: 1;
+  color: var(--text-3);
 }
 
 /* Items: starting items and boots side by side, the core build, then the 4th/5th/6th options. */

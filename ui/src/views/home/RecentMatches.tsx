@@ -1,5 +1,6 @@
-import { createResource, createSignal, For, type JSX, lazy, Show, Suspense } from "solid-js";
+import { type Accessor, createResource, createSignal, For, type JSX, lazy, Show, Suspense } from "solid-js";
 import { useData } from "../../data/context";
+import type { GradedMatch } from "../../data/generated/GradedMatch";
 import type { MatchGrade } from "../../data/generated/MatchGrade";
 import type { MatchSummary } from "../../data/generated/MatchSummary";
 import type { RiotId } from "../../data/generated/RiotId";
@@ -117,6 +118,33 @@ function MatchRow(props: {
   );
 }
 
+/** The grades (and roles) of your own games, by match id, once the core has read them. */
+export type LateGrades = Accessor<ReadonlyMap<string, GradedMatch> | undefined>;
+
+/**
+ * Your own games come without their grades (a grade needs the whole game): the core reads them
+ * from the client after the list, once, and answers each game's grade with the role you played
+ * there (the list only guesses it). Other players' games come graded: nothing to ask.
+ */
+export function createLateGrades(matches: Accessor<readonly MatchSummary[]>): LateGrades {
+  const { transport } = useData();
+  const [late] = createResource(
+    () => {
+      const ids = matches()
+        .filter((m) => !m.grade && m.durationSeconds > REMAKE_MAX_SECONDS)
+        .map((m) => m.matchId);
+      return ids.length > 0 && ids;
+    },
+    (matchIds) =>
+      transport.call("match_grades", { matchIds }).then(
+        (list) => new Map(list.map((g) => [g.matchId, g])),
+        () => new Map<string, GradedMatch>(),
+      ),
+  );
+  // Read only once ready: a pending resource would suspend the page.
+  return () => (late.state === "ready" ? late() : undefined);
+}
+
 function DayRecord(props: { matches: readonly MatchSummary[] }): JSX.Element {
   const counted = () => props.matches.filter((m) => m.durationSeconds > REMAKE_MAX_SECONDS);
   const wins = () => counted().filter((m) => m.win).length;
@@ -134,25 +162,13 @@ export function RecentMatches(props: {
   matches: readonly MatchSummary[];
   /** The player whose games these are: their line is marked in an opened game. */
   focus?: RiotId | undefined;
+  /** Your own games' grades, read after the list (`createLateGrades`): their chips wait empty meanwhile. */
+  late?: LateGrades | undefined;
 }): JSX.Element {
-  const { transport } = useData();
   const hasMatches = () => props.matches.length > 0;
   // One game open at a time; a second click, or Escape, closes it.
   const [open, setOpen] = createSignal<string>();
-  // Your own games come without their grades (a grade needs the whole game): the core reads them
-  // from the client after the list, once. Their chips wait empty meanwhile.
-  const [late] = createResource(
-    () => {
-      const ids = props.matches.filter((m) => !m.grade && m.durationSeconds > REMAKE_MAX_SECONDS).map((m) => m.matchId);
-      return ids.length > 0 && ids;
-    },
-    (matchIds) =>
-      transport.call("match_grades", { matchIds }).then(
-        (list) => new Map(list.map((g) => [g.matchId, g.grade])),
-        () => new Map<string, MatchGrade | null>(),
-      ),
-  );
-  const gradeOf = (m: MatchSummary) => m.grade ?? (late.state === "ready" ? late().get(m.matchId) : null) ?? null;
+  const gradeOf = (m: MatchSummary) => m.grade ?? props.late?.()?.get(m.matchId)?.grade ?? null;
 
   const toggle = (id: string, row: HTMLElement) => {
     // The clicked row stays where it is when a game above it closes.

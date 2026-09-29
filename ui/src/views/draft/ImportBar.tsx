@@ -133,6 +133,8 @@ export function ImportBar(props: {
   available: boolean;
   /** In champion select: spells can change. */
   inChampSelect: boolean;
+  /** The League client is connected: there is something to import into. */
+  clientReady: boolean;
   modes: ImportModes;
 }): JSX.Element {
   const { transport, gameData } = useData();
@@ -195,6 +197,7 @@ export function ImportBar(props: {
 
   const unavailable = (part: ImportPart): string | undefined => {
     if (props.championId === null) return t().imports.pickFirst;
+    if (!props.clientReady) return t().imports.needsClient;
     if (!props.available) return t().imports.notYet;
     if (part === "spells" && !props.inChampSelect) return t().imports.spellsInChampSelect;
     return undefined;
@@ -221,6 +224,8 @@ export function ImportBar(props: {
     if (failure) return { tone: "failed" as const, text: failure };
     const shown = statusOf(last(), spellName);
     if (shown) return shown;
+    // Every button off for the same reason: say it without a hover.
+    if (props.championId !== null && !props.clientReady) return { tone: "hint" as const, text: `${t().imports.needsClient}.` };
     if (props.championId !== null && !props.available) {
       return { tone: "hint" as const, text: t().imports.notYetStatus };
     }

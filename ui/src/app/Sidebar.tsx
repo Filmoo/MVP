@@ -28,20 +28,18 @@ function NavItem(props: { route: Route }): JSX.Element {
 }
 
 /**
- * The rail. The current section sits on a drop of liquid glass (design/liquid) that glides to
- * the next one, stretching along the way and magnifying what it passes over; at rest it sits
- * behind the icon and label, which stay crisp. Moves run on the compositor; at rest nothing runs.
+ * The rail. The current section sits on a pill of liquid glass (design/liquid) that glides to
+ * the next one, always behind the icons and labels, which stay crisp and keep their size (owner,
+ * 2026-09-28: a loupe lifted over them while stretching swelled, shrank and pixelated them).
+ * Moves run on the compositor; at rest nothing runs.
  */
 export function Sidebar(): JSX.Element {
   let rail: HTMLElement | undefined;
   let lens: HTMLSpanElement | undefined;
-  let glass: HTMLSpanElement | undefined;
   let at: { x: number; y: number; w: number; h: number } | undefined;
-  /** Counts glides: only the last one to finish sets the drop down again. */
-  let glides = 0;
 
   const place = (glide: boolean) => {
-    if (!rail || !lens || !glass) return;
+    if (!rail || !lens) return;
     const item = rail.querySelector<HTMLElement>('[aria-current="page"]');
     if (!item) {
       lens.dataset.hidden = "";
@@ -57,23 +55,9 @@ export function Sidebar(): JSX.Element {
     lens.style.height = `${to.h}px`;
     lens.style.transform = move(to);
     if (!glide || !from || (from.x === to.x && from.y === to.y) || reducedMotion()) return;
-    const moving = lens.animate([{ transform: move(from) }, { transform: move(to) }], {
+    lens.animate([{ transform: move(from) }, { transform: move(to) }], {
       duration: GLIDE.duration,
       easing: GLIDE.easing,
-    });
-    // Over the items while it moves (it magnifies them), behind them again once it lands.
-    const ticket = ++glides;
-    lens.dataset.moving = "";
-    const land = () => {
-      if (ticket === glides && lens) delete lens.dataset.moving;
-    };
-    moving.finished.then(land, land);
-    // Liquid, not solid: it stretches along the move, then gathers itself.
-    const vertical = Math.abs(to.y - from.y) >= Math.abs(to.x - from.x);
-    const stretch = vertical ? "scale(0.9, 1.16)" : "scale(1.16, 0.9)";
-    glass.animate([{ transform: "none" }, { transform: stretch, offset: 0.3 }, { transform: "none" }], {
-      duration: GLIDE.duration,
-      easing: "cubic-bezier(0.2, 0, 0, 1)",
     });
   };
 
@@ -97,13 +81,7 @@ export function Sidebar(): JSX.Element {
         <NavItem route={settingsRoute} />
       </div>
       <span class={styles.lens} ref={lens} aria-hidden="true" data-hidden data-testid="rail-lens">
-        <span
-          class={`${styles.glass} glass-rim`}
-          ref={(el) => {
-            glass = el;
-            liquid(el, "lens");
-          }}
-        />
+        <span class={`${styles.glass} glass-drop`} />
       </span>
     </nav>
   );

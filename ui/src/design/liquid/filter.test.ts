@@ -104,6 +104,13 @@ describe("lens filter", () => {
     const neutral = 128 / 255;
     expect((lr ?? 0) * neutral + (lg ?? 0) * neutral + (lo ?? 0)).toBeLessThan(0.01);
     expect(primitives.at(-1)?.attrs).toMatchObject({ in: "lens", in2: "shine", result: "lens" });
+    // Only on the rim: the light is cut by 1 − thickness, so it is exactly 0 where the glass is
+    // full thickness and meets the unlit middle without a step (the slices' edges showed as lines).
+    const rim = primitives.find((p) => p.attrs.result === "rim");
+    expect(rim?.attrs.in).toBe("map");
+    expect(String(rim?.attrs.values).split(/\s+/).slice(15)).toEqual(["0", "0", "-1", "0", "1"]);
+    const cut = primitives.find((p) => p.attrs.in === "shine" && p.attrs.in2 === "rim");
+    expect(cut?.attrs).toMatchObject({ operator: "in", result: "shine" });
     // Gathered toward the steepest rim: 1.6 by default, tighter on request.
     const gamma = (p: ReturnType<typeof lensPrimitives>) =>
       p.find((x) => x.attrs.result === "shine" && x.tag === "feComponentTransfer")?.children?.[0]?.attrs.exponent;

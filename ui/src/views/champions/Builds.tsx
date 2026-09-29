@@ -107,25 +107,35 @@ export function SpellsCard(props: { build: BuildStats }): JSX.Element {
   );
 }
 
+/**
+ * Two things, each named: the spell to max first (then the next), and the spell taken at each of
+ * the first levels. The runner-up max order is left out: two rows read at a glance.
+ */
 export function SkillsCard(props: { build: BuildStats }): JSX.Element {
   return (
     <Card title={t().champions.skills}>
       <Show when={props.build.skills.top[0]} fallback={<p class={styles.none}>{t().stats.notEnoughGames}</p>}>
         {(main) => (
           <div class={styles.skills}>
-            <div class={styles.option}>
-              <MaxOrder ids={main().ids} />
+            <div class={styles.option} data-testid="skills-max">
+              <span class={`${styles.visual} ${styles.wraps}`}>
+                <span class={styles.skillLabel}>{t().champions.maxLabel}</span>
+                <MaxOrder ids={main().ids} />
+              </span>
               <OptionStats option={main()} section={props.build.skills} />
             </div>
             <Show when={props.build.skillStart.top[0]}>
               {(start) => (
-                <div class={styles.option}>
+                <div class={styles.option} data-testid="skills-start">
                   <span class={`${styles.visual} ${styles.wraps}`}>
-                    <span class={styles.firstLabel}>{t().champions.firstPoints}</span>
+                    <span class={styles.skillLabel}>{t().champions.levelsLabel(start().ids.length)}</span>
                     <ol class={styles.firstKeys} aria-label={t().champions.firstPointsLabel}>
                       <For each={start().ids}>
-                        {(slot) => (
-                          <li>
+                        {(slot, i) => (
+                          <li class={styles.level}>
+                            <span class={`${styles.levelNumber} num`} aria-hidden="true">
+                              {i() + 1}
+                            </span>
                             <Keycap slot={slot} small />
                           </li>
                         )}
@@ -133,17 +143,6 @@ export function SkillsCard(props: { build: BuildStats }): JSX.Element {
                     </ol>
                   </span>
                   <OptionStats option={start()} section={props.build.skillStart} />
-                </div>
-              )}
-            </Show>
-            <Show when={props.build.skills.top[1]}>
-              {(other) => (
-                <div class={`${styles.option} ${styles.alt}`}>
-                  <span class={`${styles.visual} ${styles.wraps}`}>
-                    <span class={styles.firstLabel}>{t().champions.or}</span>
-                    <MaxOrder ids={other().ids} small />
-                  </span>
-                  <OptionStats option={other()} section={props.build.skills} />
                 </div>
               )}
             </Show>

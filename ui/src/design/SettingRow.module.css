@@ -13,12 +13,20 @@
   min-width: 0;
 }
 
-.row:first-child {
+/*
+ * A search hides rows. The first and last rows shown open and close the list like its first and
+ * last rows do (with every row shown, these are exactly those two).
+ */
+.row[hidden] {
+  display: none;
+}
+
+.row:not(.row:not([hidden]) ~ .row) {
   border-top: 0;
   padding-top: 0;
 }
 
-.row:last-child {
+.row:not(:has(~ .row:not([hidden]))) {
   padding-bottom: 0;
 }
 
@@ -33,8 +41,9 @@
   padding-bottom: var(--space-2);
 }
 
-.nested + .row {
-  margin-top: var(--space-5);
+/* Room before the next row shown. */
+.nested:has(~ .row:not([hidden])) {
+  margin-bottom: var(--space-6);
 }
 
 /* Text takes the room; below ~260px of it, the control wraps under it. */

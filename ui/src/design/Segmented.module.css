@@ -18,8 +18,7 @@
 }
 
 .thumb {
-  /* A neutral lift: over a flat track there is little to bend, so the glass must add light. */
-  --lg-tint: var(--bg-highlight);
+  /* A neutral drop (design/glass.css): over a flat track, the glass adds light. */
   position: absolute;
   top: var(--space-1);
   bottom: var(--space-1);
@@ -27,19 +26,8 @@
   width: calc((100% - 2 * var(--space-1)) / var(--count));
   transform: translateX(calc(var(--index) * 100%));
   border-radius: var(--radius-full);
-  background: var(--bg-4);
   transition: transform var(--dur-glide) var(--ease-glide);
   pointer-events: none;
-}
-
-/* Full effects: clear glass behind the chosen label, lifted over the labels while it glides. */
-:global(:root[data-effects="shader"]) .thumb {
-  background: var(--lg-fill, var(--bg-highlight));
-  backdrop-filter: var(--lg-filter, none);
-}
-
-:global(:root[data-effects="shader"]) .thumb[data-moving] {
-  z-index: 2;
 }
 
 .segment {

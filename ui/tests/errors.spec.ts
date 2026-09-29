@@ -25,6 +25,38 @@ test("profile failure: error state, retry calls the core again", async ({ page, 
   expect(errors).toEqual([]);
 });
 
+test("client not answering: the title bar and Home say so, the profile loads once it answers", async ({ page, t }) => {
+  const errors = trackErrors(page);
+  await openApp(page, { scenario: "client-not-answering" });
+  const status = page.getByTestId("client-status");
+  await expect(status).toContainText(t.shell.connection.notAnswering);
+  await expect(status).toHaveAttribute("title", t.shell.connection.notAnswering);
+  // A wait, not an error: the title bar's words and MVP's own sentence, never the request's address.
+  const card = page.getByRole("status").filter({ has: page.getByRole("heading", { name: t.shell.connection.notAnswering }) });
+  await expect(card).toContainText(t.home.notAnswering.text);
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(page.locator("main")).not.toContainText("127.0.0.1");
+  // It answers again: the profile loads by itself, nothing to click.
+  const reads = () => page.evaluate(() => window.__SCOUT_MOCK__?.calls.filter((c) => c === "current_profile").length);
+  expect(await reads()).toBe(1);
+  await page.evaluate(() => window.__SCOUT_MOCK__?.emit("client-status", { connection: "connected", phase: "idle" }));
+  await expect(status).toContainText(t.shell.connection.connected);
+  await expect(page.locator("[data-widget=profile-header]")).toContainText("Fillmo");
+  await expect(card).toHaveCount(0);
+  expect(await reads()).toBe(2);
+  expect(errors).toEqual([]);
+});
+
+test("client not answering: Retry now asks again at once", async ({ page, t }) => {
+  const errors = trackErrors(page);
+  await openApp(page, { scenario: "client-not-answering" });
+  const reads = () => page.evaluate(() => window.__SCOUT_MOCK__?.calls.filter((c) => c === "current_profile").length);
+  await page.getByRole("button", { name: t.home.notAnswering.retry }).click();
+  await expect.poll(reads).toBe(2);
+  await expect(page.locator("[data-widget=profile-header]")).toContainText("Fillmo");
+  expect(errors).toEqual([]);
+});
+
 test("slow core: skeletons first, then content without layout jumps", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.addInitScript(() => {
@@ -212,6 +244,30 @@ test("stats not published yet: the pages say so, champions still show", async ({
   await openApp(page, { view: "/champions", scenario: "stats-empty" });
   expect(await page.getByTestId("champion-tile").count(), "the list needs no stats").toBeGreaterThan(160);
   await expect(page.getByTestId("role-filter")).toHaveCount(0);
+  await expect(page.getByText(t.champions.noStats(t.stats.errors.notFound.title)), "why it isn't sorted by stats").toBeVisible();
+  await expect(page.getByRole("button", { name: t.common.tryAgain }), "asking again can't help").toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test("stats offline on /champions: every champion by class, why, and a retry that asks again", async ({ page, t }) => {
+  const errors = trackErrors(page);
+  await openApp(page, { view: "/champions", scenario: "stats-offline" });
+  const notice = page.getByText(t.champions.noStats(t.stats.errors.network.title));
+  await expect(notice).toBeVisible();
+  await expect(page.getByTestId("role-filter")).toHaveCount(0);
+  await expect(page.getByRole("radiogroup", { name: t.champions.sort })).toHaveCount(0);
+  const heads = await page
+    .locator("[data-widget=champion-grid] h2")
+    .evaluateAll((els) => els.map((el) => el.firstElementChild?.textContent));
+  expect(heads).toEqual(["Assassin", "Fighter", "Mage", "Marksman", "Support", "Tank"].map((tag) => t.classes[tag]));
+  const tiles = page.getByTestId("champion-tile");
+  expect(await tiles.count()).toBeGreaterThan(160);
+  await expect(tiles.first().getByRole("img", { name: /^Tier/ }), "no tiers").toHaveCount(0);
+  const calls = () => page.evaluate(() => window.__SCOUT_MOCK__?.calls.filter((name) => name === "tier_list").length ?? 0);
+  const before = await calls();
+  await page.getByRole("button", { name: t.common.tryAgain }).click();
+  await expect.poll(calls).toBe(before + 1);
+  await expect(notice, "still offline: still says so").toBeVisible();
   expect(errors).toEqual([]);
 });
 
@@ -232,7 +288,7 @@ for (const { view, command } of [
   });
 }
 
-for (const view of ["/tier-list", "/champions?id=103"]) {
+for (const view of ["/tier-list", "/champions?id=103", "/champions"]) {
   test(`slow stats on ${view}: skeletons first, then the numbers without layout jumps`, async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.addInitScript(() => {
@@ -246,7 +302,7 @@ for (const view of ["/tier-list", "/champions?id=103"]) {
     await page.goto(`/?scenario=stats-slow#${view}`);
     await expect(page.locator("main [data-state=loading]").first()).toBeVisible();
     await settle(page);
-    await expect(page.locator("[data-widget=tier-list], [data-widget=champion-runes]").first()).toBeVisible();
+    await expect(page.locator("[data-widget=tier-list], [data-widget=champion-runes], [data-testid=champion-tile]").first()).toBeVisible();
     const cls = await page.evaluate(() => (window as unknown as { __cls: number }).__cls);
     expect(cls, "cumulative layout shift").toBeLessThan(0.1);
   });
