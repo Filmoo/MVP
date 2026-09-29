@@ -419,6 +419,23 @@ test("matches: your game's end-of-game stats: what the League client counts, eac
   expect(errors).toEqual([]);
 });
 
+test("matches: on a narrow window the stats scroll sideways to your column, beside the labels", async ({ page }) => {
+  const errors = trackErrors(page);
+  await openApp(page, { width: 420, height: 800 });
+  await openGame(page);
+  // Your column (the mid's, third) first after the labels, which stay put (sticky).
+  const place = () =>
+    sheet(page)
+      .getByTestId("game-stats")
+      .evaluate((region) => {
+        const labels = region.querySelector("thead td")?.getBoundingClientRect();
+        const mine = region.querySelector("thead th[class*=marked]")?.getBoundingClientRect();
+        return { scrolled: region.scrollLeft > 0, beside: !!labels && !!mine && Math.abs(mine.left - labels.right) <= 1 };
+      });
+  await expect.poll(place).toEqual({ scrolled: true, beside: true });
+  expect(errors).toEqual([]);
+});
+
 test("matches: someone else's game (our backend) has every stat row", async ({ page }) => {
   const errors = trackErrors(page);
   await openApp(page, { view: "/player/euw1/Blade%20Dancer/IRE" });

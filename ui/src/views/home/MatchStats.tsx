@@ -5,7 +5,7 @@
  * the game has is left out (no wards on Howling Abyss, what the source doesn't count). Narrow
  * sheets scroll it sideways under its sticky first column.
  */
-import { For, type JSX, onMount } from "solid-js";
+import { For, type JSX, onCleanup, onMount } from "solid-js";
 import { useData } from "../../data/context";
 import type { EndOfGameStats } from "../../data/generated/EndOfGameStats";
 import type { MatchDetails } from "../../data/generated/MatchDetails";
@@ -150,10 +150,15 @@ export function MatchStats(props: { game: MatchDetails; marked: MatchPlayer | un
     `${c.first && i > 0 ? styles.split : ""} ${c.player === props.marked ? styles.marked : ""}`;
   let region!: HTMLElement;
   // Scrolled sideways (narrow sheets): your column (or the page owner's) first, by the labels.
+  // Read in the first frame, from the layout its paint makes anyway: measured while mounting, the
+  // table (and the sheet around it) would be laid out an extra time, mid-render.
   onMount(() => {
-    const mark = region.querySelector<HTMLElement>(`thead .${styles.marked}`);
-    const labels = region.querySelector<HTMLElement>("thead td")?.offsetWidth ?? 0;
-    if (mark && region.scrollWidth > region.clientWidth) region.scrollLeft = mark.offsetLeft - labels;
+    const frame = requestAnimationFrame(() => {
+      const mark = region.querySelector<HTMLElement>(`thead .${styles.marked}`);
+      const labels = region.querySelector<HTMLElement>("thead td")?.offsetWidth ?? 0;
+      if (mark && region.scrollWidth > region.clientWidth) region.scrollLeft = mark.offsetLeft - labels;
+    });
+    onCleanup(() => cancelAnimationFrame(frame));
   });
   return (
     // A region: on narrow sheets it scrolls sideways, and takes the keyboard's arrows for it.
