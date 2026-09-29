@@ -178,18 +178,23 @@ impl Scouted {
     pub fn apply(&mut self, result: Result<Vec<ScoutCard>, BackendError>) {
         match result {
             Ok(cards) => {
-                for player in self.seats_mut().filter(|p| !p.hidden && !p.bot) {
-                    let Some(id) = &player.riot_id else { continue };
-                    let card = cards
-                        .iter()
-                        .find(|c| c.riot_id.as_ref().is_some_and(|c| same_riot_id(c, id)));
-                    if let Some(card) = card {
-                        player.card = Some(card.clone());
-                    }
-                }
+                self.fill_cards(&cards);
                 self.game.scouting = Scouting::Done;
             }
             Err(error) => self.game.scouting = Scouting::Failed { error },
+        }
+    }
+
+    /// Puts each card on the seat of its Riot ID (case-insensitively), leaving the rest as is.
+    fn fill_cards(&mut self, cards: &[ScoutCard]) {
+        for player in self.seats_mut().filter(|p| !p.hidden && !p.bot) {
+            let Some(id) = &player.riot_id else { continue };
+            let card = cards
+                .iter()
+                .find(|c| c.riot_id.as_ref().is_some_and(|c| same_riot_id(c, id)));
+            if let Some(card) = card {
+                player.card = Some(card.clone());
+            }
         }
     }
 
@@ -434,7 +439,31 @@ async fn find_names(
     };
     scouted.game.names = LiveNames::Waiting { filtered };
     publish(live, scouted);
-    let players = game.wait_for_players().await;
+    // The others' names take the loading screen; the local player's own card needn't wait.
+    let own_card = async {
+        match (&sources.backend, me) {
+            (Some(backend), Some(me)) => backend.scout(platform, std::slice::from_ref(me)).await,
+            _ => Ok(Vec::new()),
+        }
+    };
+    let players = game.wait_for_players();
+    tokio::pin!(own_card, players);
+    let mut own_card_asked = false;
+    let players = loop {
+        tokio::select! {
+            players = &mut players => break players,
+            cards = &mut own_card, if !own_card_asked => {
+                own_card_asked = true;
+                // A failure shows with the others' cards, asked once the names are in.
+                if let Ok(cards) = cards.inspect_err(|error| tracing::info!(%error, "own card not in yet"))
+                    && !cards.is_empty()
+                {
+                    scouted.fill_cards(&cards);
+                    publish(live, scouted);
+                }
+            }
+        }
+    };
     scouted.name_from(&game::listed(&players, &*sources.ids), me);
     scouted.game.names = LiveNames::Known;
     tracing::info!(players = players.len(), "players named from the game");

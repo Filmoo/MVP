@@ -523,6 +523,18 @@ async fn a_filtered_queue_is_named_by_the_game_once_it_has_loaded() {
     .await;
     assert_eq!(waiting.scouting, Scouting::Loading);
     assert!(waiting.enemies.iter().all(|p| p.riot_id.is_none()));
+    // Your own card doesn't wait for the others' names.
+    let mine = live_until(&companion, |g| {
+        g.as_ref().is_some_and(|g| {
+            g.names == LiveNames::Waiting { filtered: true } && g.allies[0].card.is_some()
+        })
+    })
+    .await;
+    assert_eq!(
+        mine.scouting,
+        Scouting::Loading,
+        "the others' cards are to come"
+    );
     // The game hasn't loaded: its API answers nothing yet, and is asked again.
     tokio::time::sleep(Duration::from_millis(200)).await;
     assert!(game_api.count(ALL_GAME_DATA) >= 2);
@@ -549,17 +561,20 @@ async fn a_filtered_queue_is_named_by_the_game_once_it_has_loaded() {
     {
         let seen = seen.lock().unwrap();
         assert_eq!(seen.live.len(), 1, "filtered: not asked again");
+        assert_eq!(seen.batches[0].players, vec![riot_id("Fillmo", "7272")]);
         assert_eq!(
-            seen.batches[0].players,
+            seen.batches[1].players,
             vec![
-                riot_id("Fillmo", "7272"),
                 riot_id("Treeline Tom", "EUW"),
                 riot_id("Quiet Storm", "0412"),
                 riot_id("Blade Dancer", "IRE"),
-            ]
+            ],
+            "your card is in already"
         );
-        for private in ["Viego", "\"me\"", "c-a2", "c-e2"] {
-            assert!(!seen.bodies[0].contains(private), "{private} sent");
+        for body in &seen.bodies {
+            for private in ["Viego", "\"me\"", "c-a2", "c-e2"] {
+                assert!(!body.contains(private), "{private} sent");
+            }
         }
     }
     // The game answered: it's never asked again for this game.
