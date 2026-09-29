@@ -69,4 +69,10 @@ statsBracket: Bracket,
  * Send crash reports (opt-in): a crash of the core or an error in the UI goes to our
  * server, scrubbed of names, ids and paths first, and is kept 30 days.
  */
-crashReports: boolean, };
+crashReports: boolean, 
+/**
+ * Help build Mayhem stats (opt-in): after each ARAM: Mayhem game, and once for the recent
+ * ones when turned on, the champions, augments and final items of its ten players go to
+ * our server, with a one-way hash of the game. No names, ids of players or wins.
+ */
+shareMayhemGames: boolean, };

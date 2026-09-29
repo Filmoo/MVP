@@ -58,6 +58,8 @@ pub struct FeatureFlags {
     pub rune_import: bool,
     pub item_sets: bool,
     pub summoner_spells: bool,
+    /// Opted-in players' Mayhem games are sent (off: nothing is sent, whatever the setting).
+    pub mayhem_sharing: bool,
 }
 
 impl Default for FeatureFlags {
@@ -70,6 +72,7 @@ impl Default for FeatureFlags {
             rune_import: true,
             item_sets: true,
             summoner_spells: true,
+            mayhem_sharing: true,
         }
     }
 }

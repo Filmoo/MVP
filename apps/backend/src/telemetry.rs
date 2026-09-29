@@ -44,6 +44,8 @@ pub struct Metrics {
     rate_limited: AtomicU64,
     /// outcome → count.
     reports: Mutex<BTreeMap<&'static str, u64>>,
+    /// Shared Mayhem games by outcome (accepted, duplicate, invalid…).
+    mayhem: Mutex<BTreeMap<&'static str, u64>>,
     ids: IdSource,
 }
 
@@ -54,6 +56,11 @@ impl Metrics {
 
     pub fn report(&self, outcome: &'static str) {
         *lock(&self.reports).entry(outcome).or_default() += 1;
+    }
+
+    /// `n` shared Mayhem games had this `outcome`.
+    pub fn mayhem(&self, outcome: &'static str, n: u64) {
+        *lock(&self.mayhem).entry(outcome).or_default() += n;
     }
 
     fn observe(&self, route: &str, method: &str, status: u16, seconds: f64) {
@@ -97,6 +104,11 @@ impl Metrics {
         out.push_str("# TYPE mvp_reports_total counter\n");
         for (outcome, n) in lock(&self.reports).iter() {
             let _ = writeln!(out, "mvp_reports_total{{outcome=\"{outcome}\"}} {n}");
+        }
+        out.push_str("# HELP mvp_mayhem_games_total Shared Mayhem games by outcome.\n");
+        out.push_str("# TYPE mvp_mayhem_games_total counter\n");
+        for (outcome, n) in lock(&self.mayhem).iter() {
+            let _ = writeln!(out, "mvp_mayhem_games_total{{outcome=\"{outcome}\"}} {n}");
         }
     }
 }

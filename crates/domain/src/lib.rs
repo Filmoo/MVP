@@ -13,6 +13,7 @@ mod game_data;
 mod imports;
 mod live;
 mod matches;
+mod mayhem;
 mod player;
 mod remote;
 mod scout;
@@ -24,7 +25,8 @@ pub use backend::{ApiError, ApiErrorCode, BackendError, Health};
 pub use client::{AppInfo, ClientConnection, ClientStatus, GameflowPhase};
 pub use draft::{
     CompMember, CompReading, Compositions, DamageMix, DataInfo, DraftPhase, DraftSlot, DraftView,
-    Estimate, Mastery, PersonalRecord, Reason, ReasonKind, RoleOdds, Suggestion, TeamComp,
+    Estimate, GameMode, Mastery, PersonalRecord, Reason, ReasonKind, RoleOdds, Suggestion,
+    TeamComp,
 };
 pub use game_data::{
     ChampionInfo, GameData, ItemInfo, RankEmblem, RankEmblems, RuneInfo, RuneStyle, SpellInfo,
@@ -37,6 +39,13 @@ pub use live::{LiveGame, LivePlayer, Scouting};
 pub use matches::{
     GradeBadge, GradeFactor, GradeFactorKind, GradeLetter, GradedMatch, MatchDetails, MatchGrade,
     MatchPlayer, MatchTeam,
+};
+pub use mayhem::{
+    AugmentCatalog, AugmentInfo, AugmentPriorities, AugmentPriority, AugmentRarity, AugmentTier,
+    CatalogAugment, MAYHEM_CUSTOM_QUEUE, MAYHEM_GAME_MODE, MAYHEM_QUEUE, MayhemAugments,
+    MayhemChampion, MayhemChampionStats, MayhemGame, MayhemOverview, MayhemPlayer,
+    MayhemPopularity, MayhemStats, MayhemTiers, MayhemUpload, MayhemUploadAnswer, PickCount,
+    TierLists, is_mayhem_queue,
 };
 pub use player::{Division, MatchSummary, PlayerProfile, RankedEntry, RiotId, Role, Tier};
 pub use remote::{

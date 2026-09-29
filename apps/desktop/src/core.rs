@@ -7,6 +7,7 @@ use companion::automation::CoreEvent;
 use companion::backend::{BackendClient, BackendConfig};
 use companion::crash::{self, CrashReporter};
 use companion::imports::{BuildSource, ChampionNames, Importer, NoBuilds};
+use companion::mayhem::MayhemClient;
 use companion::remote::{self, RemoteConfigStore};
 use companion::settings::SettingsStore;
 use companion::stats::StatsClient;
@@ -134,6 +135,25 @@ pub struct Backend(pub Option<BackendClient>);
 #[derive(Debug)]
 pub struct Stats(pub Option<StatsClient>);
 
+/// ARAM: Mayhem data (disk-cached), `None` without a backend or a cache directory.
+#[derive(Debug)]
+pub struct Mayhem(pub Option<MayhemClient>);
+
+/// The Mayhem data client: our backend, cached under `{app cache}/mayhem`.
+fn mayhem_client<R: Runtime>(
+    app: &AppHandle<R>,
+    backend: Option<&BackendClient>,
+) -> Option<MayhemClient> {
+    let backend = backend?.clone();
+    match app.path().app_cache_dir() {
+        Ok(dir) => Some(MayhemClient::new(backend, dir.join("mayhem"))),
+        Err(error) => {
+            tracing::error!(%error, "no cache directory for Mayhem data");
+            None
+        }
+    }
+}
+
 /// The stats client: our backend, cached under `{app cache}/stats`.
 fn stats_client<R: Runtime>(
     app: &AppHandle<R>,
@@ -258,6 +278,8 @@ pub fn start<R: Runtime>(app: &AppHandle<R>, settings: &SettingsStore) {
     if let Some(stats) = &published {
         follow_stats(app, stats);
     }
+    let mayhem = mayhem_client(app, backend.as_ref());
+    app.manage(Mayhem(mayhem.clone()));
     let remote = platform_services(app, &dir, &install_id, backend.as_ref(), settings);
     // The client status, for the updater: never during a game.
     let (phase_tx, phase) = watch::channel(ClientStatus::not_running());
@@ -292,6 +314,7 @@ pub fn start<R: Runtime>(app: &AppHandle<R>, settings: &SettingsStore) {
             builds,
             names,
             language,
+            mayhem,
         };
         let companion = companion::start_with_services(config, settings, services);
         app.manage(Core {

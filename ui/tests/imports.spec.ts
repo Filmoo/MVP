@@ -190,6 +190,7 @@ test("draft: a part turned off has no button", async ({ page, t }) => {
     flashKey: "auto",
     statsBracket: "emeraldPlus",
     crashReports: false,
+    shareMayhemGames: false,
   };
   await page.evaluate((next) => window.__SCOUT_MOCK__?.emit("settings", next), settings);
   await expect(page.getByRole("button", { name: t.imports.importPart("spells") })).toHaveCount(0);

@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use super::valid_patch;
 
 #[derive(Debug, Clone)]
-pub(super) struct Disk {
+pub(crate) struct Disk {
     /// `{app cache}/stats`.
     root: PathBuf,
 }
@@ -40,11 +40,11 @@ fn etag_of(bytes: Option<Vec<u8>>) -> Option<String> {
 }
 
 impl Disk {
-    pub(super) fn new(root: PathBuf) -> Self {
+    pub(crate) fn new(root: PathBuf) -> Self {
         Self { root }
     }
 
-    pub(super) fn root(&self) -> &Path {
+    pub(crate) fn root(&self) -> &Path {
         &self.root
     }
 
@@ -57,14 +57,14 @@ impl Disk {
     }
 
     /// Body and `ETag` of a saved file, at startup (no runtime needed).
-    pub(super) fn read_blocking(&self, key: &str) -> Option<(Vec<u8>, Option<String>)> {
+    pub(crate) fn read_blocking(&self, key: &str) -> Option<(Vec<u8>, Option<String>)> {
         let path = self.path(key);
         let body = std::fs::read(&path).ok()?;
         Some((body, etag_of(std::fs::read(sibling(&path, ".etag")).ok())))
     }
 
     /// Body and `ETag` of a saved file.
-    pub(super) async fn read(&self, key: &str) -> Option<(Vec<u8>, Option<String>)> {
+    pub(crate) async fn read(&self, key: &str) -> Option<(Vec<u8>, Option<String>)> {
         let path = self.path(key);
         let body = tokio::fs::read(&path).await.ok()?;
         let etag = etag_of(tokio::fs::read(sibling(&path, ".etag")).await.ok());
@@ -72,7 +72,7 @@ impl Disk {
     }
 
     /// Saves `bytes` (and its `etag`) as `key`.
-    pub(super) async fn write(&self, key: &str, bytes: &[u8], etag: Option<&str>) {
+    pub(crate) async fn write(&self, key: &str, bytes: &[u8], etag: Option<&str>) {
         let path = self.path(key);
         let tag = sibling(&path, ".etag");
         let saved = async {
@@ -94,7 +94,7 @@ impl Disk {
     }
 
     /// Forgets `key` (the server no longer publishes it, or the copy is unreadable).
-    pub(super) async fn remove(&self, key: &str) {
+    pub(crate) async fn remove(&self, key: &str) {
         let path = self.path(key);
         for file in [sibling(&path, ".etag"), path] {
             if let Err(error) = remove_file(&file).await {
@@ -104,7 +104,7 @@ impl Disk {
     }
 
     /// Deletes every patch directory except `keep`.
-    pub(super) async fn prune(&self, keep: &[String]) {
+    pub(crate) async fn prune(&self, keep: &[String]) {
         let Ok(mut dir) = tokio::fs::read_dir(self.root.join("v1")).await else {
             return;
         };

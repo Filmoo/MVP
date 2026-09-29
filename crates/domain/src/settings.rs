@@ -52,6 +52,10 @@ pub struct Settings {
     /// Send crash reports (opt-in): a crash of the core or an error in the UI goes to our
     /// server, scrubbed of names, ids and paths first, and is kept 30 days.
     pub crash_reports: bool,
+    /// Help build Mayhem stats (opt-in): after each ARAM: Mayhem game, and once for the recent
+    /// ones when turned on, the champions, augments and final items of its ten players go to
+    /// our server, with a one-way hash of the game. No names, ids of players or wins.
+    pub share_mayhem_games: bool,
 }
 
 /// Visual effects level. The UI keeps a copy in `localStorage` so the first frame already
@@ -149,6 +153,7 @@ impl Default for Settings {
             flash_key: FlashKey::Auto,
             stats_bracket: Bracket::EmeraldPlus,
             crash_reports: false,
+            share_mayhem_games: false,
         }
     }
 }
@@ -250,11 +255,15 @@ mod tests {
     fn opt_ins_are_off_by_default() {
         assert!(!Settings::default().auto_accept);
         assert!(!Settings::default().crash_reports);
+        assert!(!Settings::default().share_mayhem_games);
         let older: Settings = serde_json::from_str(r#"{"closeToTray":false}"#).expect("loads");
         assert!(
             !older.crash_reports,
             "files from before the setting existed"
         );
+        assert!(!older.share_mayhem_games);
+        let json = serde_json::to_string(&Settings::default()).expect("serializable");
+        assert!(json.contains(r#""shareMayhemGames":false"#), "{json}");
     }
 
     #[test]

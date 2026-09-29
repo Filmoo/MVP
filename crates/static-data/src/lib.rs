@@ -13,6 +13,7 @@ use domain::{ChampionInfo, GameData, ItemInfo, RuneInfo, RuneStyle, SpellInfo};
 use serde::Deserialize;
 
 pub mod emblems;
+pub mod mayhem;
 
 pub const DDRAGON: &str = "https://ddragon.leagueoflegends.com";
 const FILES: [&str; 4] = [

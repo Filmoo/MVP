@@ -40,6 +40,20 @@ pub struct DraftView {
     pub rerolls: Option<u32>,
     /// Both teams' compositions (`None` without composition stats).
     pub comps: Option<Compositions>,
+    /// A mode that plays differently from its queue's usual one: ARAM: Mayhem, whose augments
+    /// show next to the champions. `None` otherwise.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub mode: Option<GameMode>,
+}
+
+/// A game mode the draft shows more for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum GameMode {
+    /// ARAM: Mayhem (queue 2400, custom 3270): ARAM with augments.
+    Mayhem,
 }
 
 /// Each team's composition from its champions' usual numbers in their roles (informational:

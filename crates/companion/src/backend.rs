@@ -1,6 +1,7 @@
 //! Client of our backend (`apps/backend`): player lookups, loading-screen scouting, the
-//! published stats files (conditional GETs, cached by [`crate::stats`]), the remote config and
-//! (opt-in) crash reports. App updates go through the Tauri updater in the shell.
+//! published stats files (conditional GETs, cached by [`crate::stats`] and [`crate::mayhem`]),
+//! the remote config, (opt-in) crash reports and (opt-in) shared Mayhem games. App updates go
+//! through the Tauri updater in the shell.
 //!
 //! The Riot API key lives on the server only; the app sends an anonymous install id
 //! (`X-MVP-Install`, random, persisted next to the settings) so the server can rate-limit per
@@ -18,8 +19,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use domain::{
-    ApiError, ApiErrorCode, BackendError, CrashReport, MatchDetails, PlayerProfile, RemoteConfig,
-    RiotId, ScoutCard, ScoutRequest,
+    ApiError, ApiErrorCode, BackendError, CrashReport, MatchDetails, MayhemUpload,
+    MayhemUploadAnswer, PlayerProfile, RemoteConfig, RiotId, ScoutCard, ScoutRequest,
 };
 use reqwest::header::{CACHE_CONTROL, ETAG, HeaderMap, HeaderValue, IF_NONE_MATCH, RETRY_AFTER};
 use reqwest::{StatusCode, Url};
@@ -326,27 +327,57 @@ impl BackendClient {
             .send()
             .await;
         let response = sent.map_err(|e| ReportRefused::Later(network(&e)))?;
-        let status = response.status();
-        if status.is_success() {
+        if response.status().is_success() {
             return Ok(());
         }
-        let retry_header = response
-            .headers()
-            .get(RETRY_AFTER)
-            .and_then(|v| v.to_str().ok())
-            .and_then(|v| v.trim().parse::<u32>().ok());
-        let body: Option<ApiError> = response
-            .bytes()
-            .await
-            .ok()
-            .and_then(|bytes| serde_json::from_slice(&bytes).ok());
-        let error = map_failure(status, body, retry_header);
-        // Too many or a server problem: try again later. Anything else won't ever be accepted.
-        if status == StatusCode::TOO_MANY_REQUESTS || status.is_server_error() {
-            Err(ReportRefused::Later(error))
-        } else {
-            Err(ReportRefused::Rejected(error))
+        Err(refused(response).await)
+    }
+
+    /// Sends the facts of shared Mayhem games (`POST /v1/mayhem/games`; only ever called when
+    /// the player opted in): how many the server counted now, and how many it had already.
+    pub async fn upload_mayhem(
+        &self,
+        upload: &MayhemUpload,
+    ) -> Result<MayhemUploadAnswer, ReportRefused> {
+        let url = self.url(&["v1", "mayhem", "games"]);
+        let sent = self
+            .0
+            .http
+            .post(url)
+            .json(upload)
+            .timeout(self.0.timeout)
+            .send()
+            .await;
+        let response = sent.map_err(|e| ReportRefused::Later(network(&e)))?;
+        if !response.status().is_success() {
+            return Err(refused(response).await);
         }
+        receive_response(response)
+            .await
+            .map_err(ReportRefused::Later)
+    }
+}
+
+/// Why the server refused a report or an upload: later (offline, rate limited, its problem)
+/// or never (it will never take this one).
+async fn refused(response: reqwest::Response) -> ReportRefused {
+    let status = response.status();
+    let retry_header = response
+        .headers()
+        .get(RETRY_AFTER)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.trim().parse::<u32>().ok());
+    let body: Option<ApiError> = response
+        .bytes()
+        .await
+        .ok()
+        .and_then(|bytes| serde_json::from_slice(&bytes).ok());
+    let error = map_failure(status, body, retry_header);
+    // Too many or a server problem: try again later. Anything else won't ever be accepted.
+    if status == StatusCode::TOO_MANY_REQUESTS || status.is_server_error() {
+        ReportRefused::Later(error)
+    } else {
+        ReportRefused::Rejected(error)
     }
 }
 

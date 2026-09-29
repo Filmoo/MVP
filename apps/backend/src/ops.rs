@@ -19,12 +19,13 @@ use tower_http::cors::CorsLayer;
 use crate::cache::CacheStats;
 use crate::config::{CONFIG_FILE, ConfigFile};
 use crate::limits::{RateLimit, TokenBuckets};
+use crate::mayhem::Mayhem;
 use crate::reports::{REPORTS_DIR, RETENTION_DAYS, Reports};
 use crate::store::SNAPSHOT_FILE;
 use crate::telemetry::Metrics;
 use crate::updates::{RELEASES_FILE, Releases};
 use crate::watched::Watched;
-use crate::{AppState, config, limits, reports, store, telemetry, updates};
+use crate::{AppState, config, limits, mayhem, reports, store, telemetry, updates};
 
 /// Largest request body outside `/v1/reports` (a scouting batch is well under 2 KB).
 pub const MAX_BODY: usize = 16 * 1024;
@@ -49,6 +50,11 @@ pub struct OpsSettings {
     pub cache_snapshot: bool,
     /// How often, at most, a request looks at whether `releases.json`/`config.json` changed.
     pub reload_check: Duration,
+    /// `MAYHEM_CATALOG=0` stops the background build of the Mayhem augment catalog (the
+    /// `mvp-backend mayhem augments` command still builds it).
+    pub mayhem_catalog: bool,
+    /// `CDRAGON_URL`: the `CommunityDragon` mirror the catalog is built from.
+    pub cdragon_url: String,
 }
 
 impl fmt::Debug for OpsSettings {
@@ -66,6 +72,8 @@ impl fmt::Debug for OpsSettings {
             .field("request_timeout", &self.request_timeout)
             .field("cache_snapshot", &self.cache_snapshot)
             .field("reload_check", &self.reload_check)
+            .field("mayhem_catalog", &self.mayhem_catalog)
+            .field("cdragon_url", &self.cdragon_url)
             .finish()
     }
 }
@@ -82,6 +90,8 @@ impl Default for OpsSettings {
             request_timeout: Duration::from_secs(45),
             cache_snapshot: true,
             reload_check: Duration::from_secs(2),
+            mayhem_catalog: true,
+            cdragon_url: static_data::mayhem::CDRAGON.to_owned(),
         }
     }
 }
@@ -129,6 +139,8 @@ impl OpsSettings {
             )?),
             cache_snapshot: flag("CACHE_SNAPSHOT", d.cache_snapshot),
             reload_check: d.reload_check,
+            mayhem_catalog: flag("MAYHEM_CATALOG", d.mayhem_catalog),
+            cdragon_url: env("CDRAGON_URL").unwrap_or(d.cdragon_url),
         })
     }
 }
@@ -140,12 +152,14 @@ pub struct Ops {
     releases: Arc<Watched<Releases>>,
     config: Arc<Watched<ConfigFile>>,
     reports: Arc<Reports>,
+    mayhem: Arc<Mayhem>,
     metrics: Arc<Metrics>,
     limiter: Arc<TokenBuckets>,
 }
 
 impl Ops {
-    /// Loads `releases.json` and `config.json` (missing: defaults; invalid: error).
+    /// Loads `releases.json`, `config.json` and `mayhem-tiers.json` (missing: defaults;
+    /// invalid: error) and the shared Mayhem games.
     pub fn new(settings: OpsSettings) -> Result<Self, String> {
         let dir = &settings.data_dir;
         let releases = Watched::load(
@@ -159,8 +173,10 @@ impl Ops {
             settings.reload_check,
         )?;
         let metrics = Arc::new(Metrics::default());
+        let mayhem = Mayhem::load(dir, settings.reload_check, Arc::clone(&metrics))?;
         Ok(Self {
             reports: Arc::new(Reports::new(dir.join(REPORTS_DIR), Arc::clone(&metrics))),
+            mayhem: Arc::new(mayhem),
             limiter: Arc::new(TokenBuckets::new(
                 settings.rate_burst,
                 f64::from(settings.rate_per_minute) / 60.0,
@@ -192,6 +208,24 @@ impl Ops {
                 post(reports::submit)
                     .with_state(Arc::clone(&self.reports))
                     .layer(DefaultBodyLimit::max(reports::MAX_BODY)),
+            )
+            .route(
+                "/v1/mayhem/tiers",
+                get(mayhem::get_tiers).with_state(Arc::clone(&self.mayhem)),
+            )
+            .route(
+                "/v1/mayhem/augments",
+                get(mayhem::get_augments).with_state(Arc::clone(&self.mayhem)),
+            )
+            .route(
+                "/v1/mayhem/stats",
+                get(mayhem::get_stats).with_state(Arc::clone(&self.mayhem)),
+            )
+            .route(
+                "/v1/mayhem/games",
+                post(mayhem::post_games)
+                    .with_state(Arc::clone(&self.mayhem))
+                    .layer(DefaultBodyLimit::max(mayhem::MAX_BODY)),
             );
         if let Some(token) = &self.settings.metrics_token {
             let guarded = MetricsState {
@@ -248,6 +282,16 @@ impl Ops {
             Ok(0) => {}
             Ok(n) => tracing::info!(files = n, "pruned old crash reports"),
             Err(e) => tracing::error!(error = %e, "cannot prune crash reports"),
+        }
+    }
+
+    /// Builds the Mayhem augment catalog when the game's version changed (run at startup and
+    /// every few hours unless `MAYHEM_CATALOG=0`).
+    pub async fn refresh_mayhem_catalog(&self) {
+        let settings = &self.settings;
+        match mayhem::build_catalog(&settings.data_dir, &settings.cdragon_url, false).await {
+            Ok(done) => tracing::info!("{done}"),
+            Err(error) => tracing::warn!(%error, "Mayhem augment catalog not built"),
         }
     }
 }

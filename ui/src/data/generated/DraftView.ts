@@ -4,6 +4,7 @@ import type { DataInfo } from "./DataInfo";
 import type { DraftPhase } from "./DraftPhase";
 import type { DraftSlot } from "./DraftSlot";
 import type { Estimate } from "./Estimate";
+import type { GameMode } from "./GameMode";
 import type { Role } from "./Role";
 import type { Suggestion } from "./Suggestion";
 
@@ -56,4 +57,9 @@ rerolls: number | null,
 /**
  * Both teams' compositions (`None` without composition stats).
  */
-comps: Compositions | null, };
+comps: Compositions | null, 
+/**
+ * A mode that plays differently from its queue's usual one: ARAM: Mayhem, whose augments
+ * show next to the champions. `None` otherwise.
+ */
+mode?: GameMode, };

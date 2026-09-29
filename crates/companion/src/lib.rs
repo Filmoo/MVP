@@ -13,6 +13,7 @@ pub mod draft;
 pub mod imports;
 pub mod live;
 pub mod matches;
+pub mod mayhem;
 pub mod profile;
 pub mod remote;
 pub mod settings;
@@ -98,6 +99,9 @@ pub struct Services {
     /// The UI's language (`auto` resolved by the UI), for the words MVP writes into the League
     /// client (its item set's block titles). English until the UI says.
     pub language: watch::Receiver<Language>,
+    /// ARAM: Mayhem data; with a backend, the player's Mayhem games are shared when they opted
+    /// in (`None`: no sharing).
+    pub mayhem: Option<mayhem::MayhemClient>,
 }
 
 impl Default for Services {
@@ -109,6 +113,7 @@ impl Default for Services {
             builds: Arc::new(NoBuilds),
             names: Arc::new(|_| None),
             language: watch::channel(Language::En).1,
+            mayhem: None,
         }
     }
 }
@@ -284,10 +289,9 @@ pub fn start_with_services(
         builds,
         names,
         language,
+        mayhem,
     } = services;
-    if !config.paths.iter().any(|p| p == champ_select::SESSION) {
-        config.paths.push(champ_select::SESSION.to_owned());
-    }
+    follow_champ_select(&mut config);
     let mut connector = lcu::spawn(config);
     let client = connector.client.clone();
     let (tx, status) = watch::channel(ClientStatus::not_running());
@@ -309,6 +313,14 @@ pub fn start_with_services(
         language,
     );
     let mut lock_in = LockIn::new(importer.clone(), events_tx.clone());
+    let sharing = spawn_sharing(
+        backend.clone(),
+        mayhem,
+        &client,
+        &status,
+        &settings,
+        &remote,
+    );
     let task = tokio::spawn(async move {
         let mut autopilot = Autopilot::default();
         let mut game = LiveFollower {
@@ -360,8 +372,8 @@ pub fn start_with_services(
             }
         }
         accept.stop();
-        if let Some(scouting) = game.task {
-            scouting.abort();
+        for running in [game.task, sharing].into_iter().flatten() {
+            running.abort();
         }
         helper.task.abort();
     });
@@ -377,6 +389,35 @@ pub fn start_with_services(
         matches: matches::MatchInsights::default(),
         task,
     }
+}
+
+/// The core reads champion select sessions as they change.
+fn follow_champ_select(config: &mut ConnectorConfig) {
+    if !config.paths.iter().any(|p| p == champ_select::SESSION) {
+        config.paths.push(champ_select::SESSION.to_owned());
+    }
+}
+
+/// Opt-in: the player's Mayhem games, shared as they end (nothing while the switch is off).
+/// Needs our backend and the Mayhem data client.
+fn spawn_sharing(
+    backend: Option<BackendClient>,
+    data: Option<mayhem::MayhemClient>,
+    client: &watch::Receiver<Option<LcuClient>>,
+    status: &watch::Receiver<ClientStatus>,
+    settings: &watch::Receiver<Settings>,
+    remote: &watch::Receiver<RemoteConfig>,
+) -> Option<JoinHandle<()>> {
+    let (backend, data) = backend.zip(data)?;
+    Some(tokio::spawn(mayhem::share(mayhem::Sharing {
+        client: client.clone(),
+        status: status.clone(),
+        settings: settings.clone(),
+        remote: remote.clone(),
+        backend,
+        mayhem: data,
+        after_game: mayhem::AFTER_GAME,
+    })))
 }
 
 /// Never blocks the core on a slow consumer: intents only matter right away.
