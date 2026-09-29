@@ -116,9 +116,11 @@ Everything below is merged on `claude/upbeat-hamilton-0bms1t` and green on
    server resolves them with account-v1 (cached a day) and the core matches cards back to seats by
    Riot ID. Client PUUIDs never leave the core; streamer-mode players are still dropped before
    anything (tested on the request body). `puuids` stays accepted for 0.1.0 apps, and a PUUID Riot
-   can't decrypt (400) now gets no card instead of failing the batch. **Verify on the real
-   client** that `/lol-gameflow/v1/session` team entries carry `gameName`/`tagLine` for every
-   visible player: a player without them gets no card (see the checklist).
+   can't decrypt (400) now gets no card instead of failing the batch. *(2026-09-29)* The real
+   client's session carries no names (checked 2026-09-28): the names now come from Riot's live
+   game (`GET /v1/live/…`, Spectator-V5) or, when Riot has none (Flex/Arena "filtered", no
+   server), from the game's Live Client Data API after the loading screen (architecture.md
+   "Loading-screen scouting", policy.md). **Verify on the real client** (checklist below).
 4. **Stats in the app:** *(core done, see architecture.md "Stats in the app")* `companion::stats`
    downloads the index + current patch files (disk cache per patch with ETags, offline, pruning),
    the commands `stats_index` / `tier_list` / `champion_stats` and the `stats-index` event are
@@ -228,14 +230,32 @@ Settings persist across restarts · auto-accept (turn on, queue) accepts after t
 after you declined · champ select brings the window up on Draft with the real teams/bans/roles
 (ranked: allies stay anonymous) and, with published stats (`STATS_DIR`), picks for your role that
 start from your pool (mastery, your games) and only list champions you own · loading screen
-switches to Live and fills 10 cards (looked up by Riot ID: if some stay empty, check the
-session's `gameName`/`tagLine` fields) · search a
+switches to Live and fills 10 cards (names checklist below) · search a
 Riot ID · close to tray keeps automations running · launch at startup starts in the tray ·
 RAM/idle CPU stay low (`scripts/windows-footprint.ps1`) · after the first start Home and Live show
 Riot's ranked emblems (log "ranked emblems ready"; cache in `%LOCALAPPDATA%\gg.mvp.companion\emblems\v1`):
 the crop frames every tier (Iron's small crest to Challenger's wings) at 100 % and 150 %, and an
 offline first start shows MVP's crests. Fix what differs from the mock; add a
 mock-lcu scenario for anything the real client does that the mock didn't.
+
+Live names (a backend with a Riot key; the log says "players named from Riot's live game" or
+"players named from the game"; without League: `pnpm mock-lcu`, then the app with
+`SCOUT_GAME_CLIENT=$(cat .cache/mock-lcu/game-client)` next to the two `SCOUT_LCU_*` variables):
+- **Solo/Duo, normals, ARAM:** names and cards land together during the loading screen (Riot's
+  live game); the enemy you know is on the right side and on the right champion; a friend in
+  streamer mode shows "Hidden player" (and never their name, in the app or in `mvp.log`).
+- **Ranked Flex, Arena:** the head says "Riot doesn't share live … games", names appear after
+  the loading screen (the game's API), then the cards. If they never come, the log line "the
+  game's API doesn't list the players yet" gives the reason (a TLS error means the game's
+  certificate isn't under the League client's root: `lcu::tls`). Arena's 16 players: check how
+  the session and the game's list split them (never tried).
+- **Custom game vs bots / co-op vs AI:** bots read "Bot", no card, no "Unknown player"; check
+  whether Spectator-V5 lists customs at all (else the game's list names everyone).
+- **Streamer mode on another account:** confirm how Riot's live game and the game's list show
+  that player (anonymous in both; the game's stand-in is its champion's name or no tag,
+  `live::game::listed`); adjust the stand-in rules if Riot shows it another way.
+- **Idle means idle:** once the names are in (or outside a game) nothing asks port 2999 (the
+  game's API isn't asked at all when Riot's live game answered).
 
 Draft insights (with published stats that have `compositions.json`; without League:
 `cargo run -p mock-lcu -- --aram` plays ARAM champion selects):
