@@ -15,6 +15,7 @@ JSON, camelCase. Types come from `crates/domain` and are exported to
 | `GET /health` | `Health` `{ ok, version, riotKey }` |
 | `GET /v1/players/{platform}/{gameName}/{tagLine}` | `PlayerProfile` (last 20 games) |
 | `POST /v1/players/batch` `{ platform, players: [{ gameName, tagLine }] }` (1–10; older apps: `puuids`) | `ScoutCard[]`, in request order |
+| `GET /v1/live/{platform}/{gameName}/{tagLine}?gameId=` | `ActiveGame`: the game that player is in, as Riot shows it (Spectator-V5), with the visible players' cards; 404 `notFound` / `filtered` |
 | `GET /v1/updates/{target}/{arch}/{currentVersion}?channel=&install_id=&lang=` | 204, or the Tauri updater manifest (see [App updates](#app-updates)) |
 | `GET /v1/config?version=&channel=` | `RemoteConfig` + `ETag`; 304 on `If-None-Match` (see [Remote config](#remote-config)) |
 | `POST /v1/reports` (`CrashReport`) | 202 (see [Crash reports](#crash-reports-and-privacy)) |
@@ -45,6 +46,16 @@ with `If-None-Match` rather than refetching a whole patch at once.
   season). A Riot ID nobody has, or a PUUID our key can't read (Riot answers 400 for another
   key's), gets no card; the rest of the batch still comes. League client PUUIDs (UUIDs, what
   0.1.0 apps sent) can never be read with our key and cost no Riot call.
+- Live games: the app asks once its player's game has started, with **that player's own Riot
+  ID** and the game's id (nobody else's). The server resolves the Riot ID (account-v1, cached a
+  day), asks Spectator-V5 and answers the participants as Riot shows them to apps: `riotId`
+  when visible, `null` when Riot keeps the player anonymous (streamer mode: no PUUID; a name
+  sent along is dropped), champion, team (100/200), spells, `bot`, and the card of each
+  visible player our key knows (from the batch's cache; those not built within 5 s are left
+  out with `cardsComplete: false`, their lookups carry on and the app's batch picks them up).
+  404 `notFound` when Riot lists no game for them, or another game than `gameId`; 404
+  `filtered` when Riot doesn't share live games of that queue with apps (Ranked Flex and
+  Arena, 2026).
 - Every request should carry **`X-MVP-Install: <install id>`** (a random UUID the app makes
   once per install): it keys the rate limit and staged rollouts. Answers carry
   `X-Request-Id` (quote it in bug reports; a sane incoming `X-Request-Id` is kept).
@@ -53,7 +64,8 @@ with `If-None-Match` rather than refetching a whole patch at once.
 | Status | `error` | When |
 | --- | --- | --- |
 | 400 | `badPlatform` / `badRequest` | unknown platform, malformed body or Riot ID, 0 or > 10 players, bad version/channel |
-| 404 | `notFound` | no such Riot ID / route |
+| 404 | `notFound` | no such Riot ID / route; no live game listed for that player |
+| 404 | `filtered` | Riot doesn't share live games of that queue with apps (Spectator-V5) |
 | 413 | `badRequest` | body over the limit (16 KB; 40 KB for reports) |
 | 429 | `rateLimited` | Riot's limit, or ours per client; `retryAfter` seconds (also a `Retry-After` header) |
 | 502 / 504 | `upstream` | Riot refused (bad key), failed, or took > 30 s; any request over 45 s |
@@ -62,7 +74,11 @@ with `If-None-Match` rather than refetching a whole patch at once.
 ### Caching
 In memory, per process: profiles and scout cards 2 min, account lookups 1 day, match documents
 forever (compacted to the fields we read, LRU-bounded to 20,000). Concurrent identical lookups
-share one upstream call, so scouting the same lobby twice costs no Riot calls.
+share one upstream call, so scouting the same lobby twice costs no Riot calls. A live game is
+kept an hour (longer than games last) under each visible player's PUUID, never served for
+another `gameId`: the other players of that game (and retries) cost no Spectator-V5 call, and
+the accounts Riot showed with it go to the account cache (no account-v1 call for the batch
+that follows). Live games aren't snapshotted.
 Accounts and matches are saved to `cache/riot-cache.json` on graceful shutdown and restored at
 startup (accounts keep their age), so a deploy doesn't re-spend Riot calls. A JSON snapshot
 rather than a database: the caches are bounded (tens of MB) and only a crash loses anything

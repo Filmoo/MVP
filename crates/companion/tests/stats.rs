@@ -1368,3 +1368,89 @@ async fn reads_what_the_publisher_writes() {
     assert_eq!(lane.champion_id, Some(2));
     assert!(lane.games > 100, "{lane:?}");
 }
+
+// ── Your games' roles ──────────────────────────────────────────────────────────────────────
+
+/// Your games' roles lean on this patch's published role shares: an Ahri the client calls TOP,
+/// next to an Annie it calls MIDDLE, stays top on the built-in prior (both named lanes agree);
+/// this patch's stats, where Annie plays top a third of the time, put Ahri back mid. Without a
+/// backend, the prior.
+#[tokio::test]
+async fn your_games_roles_lean_on_the_published_stats() {
+    use companion::matches::MatchInsights;
+    use mock_lcu::history::{self, Game, Local};
+
+    const ANNIE: u32 = 1;
+    let (base, server) = fake_backend().await;
+    publish(&server, "16.19", 1_000, "16.19", &[("16.19", 1_000)]);
+    let ranked = info("16.19", RANKED, 1_000);
+    let rows: Rows<'_> = &[
+        (AHRI, &[(Role::Middle, 30_000, 0.5)]),
+        (
+            ANNIE,
+            &[(Role::Middle, 7_000, 0.5), (Role::Top, 3_000, 0.5)],
+        ),
+    ];
+    server.lock().unwrap().files.insert(
+        "16.19/420/emeraldPlus/champions.json".to_owned(),
+        to_json(&champions_file(&ranked, rows)),
+    );
+
+    let mock = MockLcu::start().await.unwrap();
+    let me = Local {
+        puuid: "local-puuid".into(),
+        game_name: "Fillmo".into(),
+        tag_line: "7272".into(),
+        summoner_id: 42,
+    };
+    mock.set(
+        companion::profile::CURRENT_SUMMONER,
+        json!({ "gameName": "Fillmo", "tagLine": "7272", "puuid": "local-puuid", "summonerId": 42 }),
+    );
+    // Your team's mid laner in this game is the mock's Annie.
+    let game = Game {
+        game_id: 7_000_000_003,
+        queue_id: RANKED,
+        map_id: 11,
+        created: 1_790_500_000_000,
+        duration: 1800,
+        champion: AHRI,
+        lane: "TOP",
+        spells: [14, 4],
+        win: true,
+    };
+    history::serve(&mock, &me, std::slice::from_ref(&game));
+    let credentials = lcu::Lockfile::parse(&mock.lockfile())
+        .unwrap()
+        .credentials();
+    let lcu = lcu::LcuClient::new(
+        &credentials,
+        pinned_client_config(mock.ca_pem().as_bytes()).unwrap(),
+    )
+    .unwrap();
+    let ids = ["EUW1_7000000003".to_owned()];
+
+    // The index read at startup, like the app does.
+    let dir = tempfile::tempdir().unwrap();
+    let stats = stats_client(&base, dir.path());
+    stats.refresh_index().await.unwrap();
+    let published = MatchInsights::new(Some(stats));
+    published.profile(&lcu).await.unwrap();
+    assert_eq!(
+        published.grades(&lcu, &ids).await[0].role,
+        Some(Role::Middle)
+    );
+    assert!(
+        paths(&server).contains(&"16.19/420/emeraldPlus/champions.json".to_owned()),
+        "{:?}",
+        paths(&server)
+    );
+
+    // No index at hand (no server yet): the prior, without asking for one.
+    let (idle_base, idle) = fake_backend().await;
+    let offline = tempfile::tempdir().unwrap();
+    let prior = MatchInsights::new(Some(stats_client(&idle_base, offline.path())));
+    prior.profile(&lcu).await.unwrap();
+    assert_eq!(prior.grades(&lcu, &ids).await[0].role, Some(Role::Top));
+    assert!(paths(&idle).is_empty(), "{:?}", paths(&idle));
+}

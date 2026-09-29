@@ -35,6 +35,30 @@ async fn account(State(calls): State<Arc<Calls>>, headers: HeaderMap) -> impl In
     )
 }
 
+/// Spectator-V5 as Riot answers it: a game with an anonymous player and a bot, "filtered" for
+/// a flex game, a plain 404 when not in game.
+async fn spectator(axum::extract::Path(puuid): axum::extract::Path<String>) -> impl IntoResponse {
+    let not_found = |message: &str| {
+        (
+            StatusCode::NOT_FOUND,
+            format!(r#"{{"status":{{"message":"{message}","status_code":404}}}}"#),
+        )
+    };
+    match puuid.as_str() {
+        "p-flex" => not_found("Data not found - filtered"),
+        "p-idle" => not_found("Data not found - spectator game info isn't found"),
+        _ => (
+            StatusCode::OK,
+            r#"{"gameId":7100000042,"gameQueueConfigId":420,"gameMode":"CLASSIC","participants":[
+                {"puuid":"p-1","riotId":"Nightfall#EUW","teamId":100,"championId":103,"spell1Id":4,"spell2Id":14,"bot":false,"perks":{}},
+                {"puuid":null,"teamId":200,"championId":64,"spell1Id":11,"spell2Id":4,"bot":false},
+                {"teamId":200,"championId":1,"bot":true}
+            ]}"#
+            .to_owned(),
+        ),
+    }
+}
+
 async fn start() -> Arc<Calls> {
     let calls = Arc::new(Calls::default());
     let app = Router::new()
@@ -45,6 +69,10 @@ async fn start() -> Arc<Calls> {
         .route(
             "/lol/summoner/v4/summoners/by-puuid/{puuid}",
             axum::routing::get(|| async { StatusCode::NOT_FOUND }),
+        )
+        .route(
+            "/lol/spectator/v5/active-games/by-summoner/{puuid}",
+            axum::routing::get(spectator),
         )
         .with_state(Arc::clone(&calls));
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -90,6 +118,35 @@ async fn end_to_end_behaviour() {
         .await
         .unwrap_err();
     assert!(matches!(forbidden, RiotError::Forbidden(403)));
+
+    // Spectator-V5: a live game with an anonymous player and a bot; "filtered" is not "not
+    // found".
+    let spectate = |puuid: &'static str| async move {
+        client("RGAPI-test")
+            .current_game(Platform::Euw1, puuid)
+            .await
+    };
+    let game = spectate("p-1").await.unwrap();
+    assert_eq!(
+        (game.game_id, game.game_queue_config_id),
+        (7_100_000_042, 420)
+    );
+    assert_eq!(game.participants.len(), 3);
+    assert_eq!(
+        game.participants[0].riot_id.as_deref(),
+        Some("Nightfall#EUW")
+    );
+    assert_eq!(game.participants[0].spell2_id, 14);
+    assert_eq!(game.participants[1].puuid, None, "anonymous");
+    assert!(game.participants[2].bot && game.participants[2].puuid.is_none());
+    assert!(matches!(
+        spectate("p-flex").await.unwrap_err(),
+        RiotError::Filtered
+    ));
+    assert!(matches!(
+        spectate("p-idle").await.unwrap_err(),
+        RiotError::NotFound
+    ));
 
     // The key never shows up in debug output.
     assert!(!format!("{:?}", ApiKey::new("RGAPI-secret")).contains("secret"));

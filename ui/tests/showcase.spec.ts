@@ -24,6 +24,14 @@ const SHOTS = [
   { scenario: "not-running", sizes: [[1280, 800]] },
   { scenario: "new-player", sizes: [[1280, 800]] },
   { scenario: "profile-error", sizes: [[1280, 800]] },
+  // The title bar's words at 1280 px, its amber dot alone below 1024 px.
+  {
+    scenario: "client-not-answering",
+    sizes: [
+      [1280, 800],
+      [820, 760],
+    ],
+  },
   {
     scenario: "extreme",
     sizes: [
@@ -273,7 +281,16 @@ test("search slow lookup 1280x720", async ({ page }) => {
   await page.screenshot({ path: `${OUT}/search-loading-1280x720.png` });
 });
 
-for (const scenario of ["live-scouting", "live-failed", "live-extreme"] as const) {
+for (const scenario of [
+  "live-scouting",
+  "live-failed",
+  "live-extreme",
+  // Names on their way (only you named yet), a queue Riot doesn't share, bots, streamer mode.
+  "live-names",
+  "live-filtered",
+  "live-bots",
+  "live-hidden",
+] as const) {
   test(`live ${scenario} 1280x720`, async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 720 });
     await page.clock.setFixedTime(new Date(FIXTURE_NOW));
@@ -283,6 +300,15 @@ for (const scenario of ["live-scouting", "live-failed", "live-extreme"] as const
     await page.screenshot({ path: `${OUT}/live-${scenario}-1280x720.png` });
   });
 }
+
+test("live live-filtered 420x800", async ({ page }) => {
+  await page.setViewportSize({ width: 420, height: 800 });
+  await page.clock.setFixedTime(new Date(FIXTURE_NOW));
+  await page.goto("/?scenario=live-filtered#/live");
+  await page.getByTestId("live-card").first().waitFor();
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: `${OUT}/live-live-filtered-420x800.png` });
+});
 
 for (const name of ["Nobody/404", "Busy/429", "Offline/0"] as const) {
   test(`player ${name} 1280x720`, async ({ page }) => {
@@ -547,6 +573,10 @@ for (const lang of ["en", "fr"] as const) {
         await gameShot(page, `${prefix}home-game-extreme`, { scenario: "extreme", width, height });
       });
     }
+    // ARAM: Mayhem on a wide window: no roles, no vision column.
+    test(`${prefix}home game howling abyss 1920x1080`, async ({ page }) => {
+      await gameShot(page, `${prefix}home-game-howling-abyss`, { scenario: "howling-abyss", width: 1920, height: 1080 });
+    });
     for (const scenario of ["match-details-error", "match-details-gone", "match-details-slow"] as const) {
       test(`${prefix}home ${scenario} 1280x800`, async ({ page }) => {
         await gameShot(page, `${prefix}home-${scenario}`, { scenario, width: 1280, height: 800 });
@@ -623,6 +653,21 @@ test.describe("in French", () => {
     await settle(page);
     await capture(page, `${OUT}/fr-draft-import-failures-1280x800.png`, false);
   });
+
+  // The longest status line: a queue Riot doesn't share, names on their way (never settles).
+  for (const [width, height] of [
+    [1280, 720],
+    [420, 800],
+  ] as const) {
+    test(`fr live filtered ${width}x${height}`, async ({ page }) => {
+      await page.setViewportSize({ width, height });
+      await page.clock.setFixedTime(new Date(FIXTURE_NOW));
+      await page.goto("/?scenario=live-filtered#/live");
+      await page.getByTestId("live-card").first().waitFor();
+      await page.waitForTimeout(400);
+      await page.screenshot({ path: `${OUT}/fr-live-filtered-${width}x${height}.png` });
+    });
+  }
 
   test("fr draft import lock-in 1280x800", async ({ page }) => {
     await openApp(page, { view: "/draft", scenario: "import-lock-in" });

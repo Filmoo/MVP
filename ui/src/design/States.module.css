@@ -44,6 +44,8 @@
   color: var(--text-2);
   max-width: 420px;
   overflow-wrap: anywhere;
+  /* No lone last word on its own line. */
+  text-wrap: pretty;
 }
 
 .action {

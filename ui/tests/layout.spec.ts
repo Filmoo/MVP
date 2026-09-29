@@ -46,6 +46,8 @@ const SCENARIO_VIEWS = [
   { view: "/live", scenario: "live" },
   { view: "/live", scenario: "live-extreme" },
   { view: "/live", scenario: "live-failed" },
+  // Names waiting for the game: the longest head line (Riot doesn't share the queue).
+  { view: "/live", scenario: "live-filtered" },
   { view: "/player/euw1/Blade%20Dancer/IRE", scenario: "default" },
   { view: "/player/euw1/WWWWWWWWWWWWWWWW/WWWWW", scenario: "default" },
   { view: "/champions?id=103", scenario: "default" },
@@ -65,6 +67,8 @@ const STATE_VIEWS = [
   { view: "/draft", scenario: "draft-no-comps" },
   { view: "/live", scenario: "live-error" },
   { view: "/live", scenario: "live-scouting" },
+  { view: "/live", scenario: "live-bots" },
+  { view: "/live", scenario: "live-hidden" },
   { view: "/player/euw1/Nobody/404", scenario: "default" },
   { view: "/player/euw1/Busy/429", scenario: "default" },
   { view: "/settings", scenario: "crash-reports-on" },
@@ -127,6 +131,22 @@ test("home: an opened game and a grade's why lay out at every size", async ({ pa
       const inside = why && why.x >= 0 && why.y >= 0 && why.x + why.width <= size.width && why.y + why.height <= size.height;
       expect(inside, `${size.name} why ${at} inside the window: ${JSON.stringify(why)}`).toBe(true);
     }
+  }
+  expect(errors).toEqual([]);
+});
+
+// An opened game on Howling Abyss (no vision column there) at every size.
+test("home: an opened game on Howling Abyss lays out at every size", async ({ page, locale }) => {
+  test.slow();
+  const errors = trackErrors(page);
+  await openApp(page, { scenario: "howling-abyss" });
+  await page.locator("[data-testid=match-row] > button").first().click();
+  await expect(page.getByTestId("game-player")).toHaveCount(10);
+  for (const size of SIZES) {
+    if (isFrench(locale) && !FRENCH_SIZES.has(size.name)) continue;
+    await page.setViewportSize({ width: size.width, height: size.height });
+    await settle(page);
+    expect(await page.evaluate(auditLayout), `${size.name} opened`).toEqual([]);
   }
   expect(errors).toEqual([]);
 });

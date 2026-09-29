@@ -245,6 +245,10 @@ export const frViews = {
     show: "Afficher",
     tabs: { players: "Joueurs", build: "Mon build" },
     lookingUp: "Recherche des joueurs…",
+    names: {
+      waiting: "Noms après le chargement",
+      filtered: (queue: string) => `Noms après le chargement\u00A0: Riot ne partage pas les parties en ${queue} en cours`,
+    },
     readFailed: "Impossible de lire la partie",
     idle: {
       title: "Pas en partie",
@@ -272,6 +276,7 @@ export const frViews = {
     streamer: "Mode streamer",
     mains: (list: string) => `Main ${list}`,
     hidden: "Joueur masqué",
+    bot: "Bot IA",
     unknown: "Joueur inconnu",
     cardUnavailable: "Carte indisponible",
     noRankedData: "Aucune partie classée",

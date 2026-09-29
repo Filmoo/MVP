@@ -41,6 +41,9 @@ pub enum ApiErrorCode {
     RiotKeyMissing,
     /// Riot failed or refused (key rejected, outage, timeout).
     Upstream,
+    /// Riot doesn't share this with apps: Spectator-V5 answers "filtered" for live games of some
+    /// queues (Ranked Flex and Arena in 2026). Answered with 404.
+    Filtered,
 }
 
 /// Why a backend call made by the app failed, as the UI words it.
