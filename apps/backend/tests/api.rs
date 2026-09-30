@@ -49,7 +49,20 @@ fn players() -> Vec<Player> {
         })
         .collect();
     let night = (0..3).map(|i| (64, "JUNGLE", i != 1)).collect();
+    // Live games only (see `spectator`): Walled's ranked data is refused, Flexer plays flex,
+    // Idle isn't in a game.
+    let live_only = |puuid, game_name| Player {
+        puuid,
+        game_name,
+        tag_line: "EUW",
+        wins: 5,
+        losses: 5,
+        games: Vec::new(),
+    };
     vec![
+        live_only("p-walled", "Walled"),
+        live_only("p-flexer", "Flexer"),
+        live_only("p-idle", "Idle"),
         Player {
             puuid: "p-otp",
             game_name: "Foxfire",
@@ -153,6 +166,9 @@ async fn entries(Path(puuid): Path<String>) -> Response {
     if let Some(refused) = undecryptable(&puuid) {
         return refused;
     }
+    if puuid == "p-walled" {
+        return StatusCode::FORBIDDEN.into_response();
+    }
     found(find(|p| p.puuid == puuid).map(|p| {
         json!([{
             "queueType": "RANKED_SOLO_5x5", "tier": "EMERALD", "rank": "II", "leaguePoints": 42,
@@ -187,7 +203,7 @@ fn full_game() -> Value {
             } else {
                 format!("Player {i}")
             };
-            json!({
+            let mut player = json!({
                 "puuid": format!("full-{i}"), "riotIdGameName": name, "riotIdTagline": "EUW",
                 "teamId": if blue { 100 } else { 200 }, "win": blue,
                 "teamPosition": positions[lane], "championId": 100 + i, "champLevel": 15,
@@ -202,7 +218,23 @@ fn full_game() -> Value {
                     { "style": 8000, "selections": [{ "perk": 8008 }, { "perk": 9111 }] },
                     { "style": 8100, "selections": [{ "perk": 8143 }] }
                 ] }
-            })
+            });
+            // The end-of-game stats (one `json!` would be too deep for the macro).
+            let end_of_game = json!({
+                "largestKillingSpree": if i == 2 { 7 } else { 2 }, "largestMultiKill": 1 + i % 3,
+                "firstBloodKill": i == 2, "physicalDamageDealtToChampions": 5_000,
+                "magicDamageDealtToChampions": 9_000 + 1_000 * i,
+                "trueDamageDealtToChampions": 1_000, "damageDealtToTurrets": 2_000 + 100 * i,
+                "totalHeal": 3_000, "totalHealsOnTeammates": if lane == 4 { 5_500 } else { 0 },
+                "totalDamageShieldedOnTeammates": if lane == 4 { 7_200 } else { 0 },
+                "wardsPlaced": 8 + i, "wardsKilled": 2, "visionWardsBoughtInGame": 3,
+                "goldSpent": 10_000 + 100 * i, "timeCCingOthers": 10 + i,
+                "turretKills": u32::from(blue), "inhibitorKills": u32::from(i == 3)
+            });
+            if let (Some(player), Value::Object(more)) = (player.as_object_mut(), end_of_game) {
+                player.extend(more);
+            }
+            player
         })
         .collect();
     json!({
@@ -237,6 +269,43 @@ async fn match_by_id(Path(id): Path<String>) -> Response {
     found(game)
 }
 
+/// Game 7100000042 as Spectator-V5 shows it: Foxfire, Nightfall and Walled on blue; on red an
+/// anonymous player (Riot withholds the PUUID; the name sent along must not be used), a player
+/// our key knows nothing about and a bot.
+fn live_game_json() -> Value {
+    let player = |puuid: Value, riot_id: &str, team: u32, champion: u32| {
+        json!({ "puuid": puuid, "riotId": riot_id, "teamId": team, "championId": champion,
+                "spell1Id": 4, "spell2Id": 14, "bot": false, "profileIconId": 1, "perks": {} })
+    };
+    json!({
+        "gameId": 7_100_000_042_u64, "gameQueueConfigId": 420, "gameMode": "CLASSIC",
+        "gameStartTime": 1_790_000_000_000_i64, "gameLength": 12,
+        "participants": [
+            player(json!("p-otp"), "Foxfire#EUW", 100, 103),
+            player(json!("p-night"), "Nightfall#EUW", 100, 64),
+            player(json!("p-walled"), "Walled#EUW", 100, 1),
+            player(Value::Null, "Hidden Streamer#LIVE", 200, 234),
+            player(json!("p-stranger"), "Stranger#EUW", 200, 39),
+            { "teamId": 200, "championId": 22, "spell1Id": 7, "spell2Id": 4, "bot": true, "riotId": "Ashe Bot#BOT" }
+        ]
+    })
+}
+
+async fn spectator(Path(puuid): Path<String>) -> Response {
+    let not_found = |message: &str| {
+        (
+            StatusCode::NOT_FOUND,
+            Json(json!({ "status": { "message": message, "status_code": 404 } })),
+        )
+            .into_response()
+    };
+    match puuid.as_str() {
+        "p-otp" | "p-night" | "p-walled" | "p-stranger" => Json(live_game_json()).into_response(),
+        "p-flexer" => not_found("Data not found - filtered"),
+        _ => not_found("Data not found - spectator game info isn't found"),
+    }
+}
+
 async fn record(
     State(fake): State<Arc<Fake>>,
     uri: Uri,
@@ -259,6 +328,10 @@ async fn start_fake() -> (Arc<Fake>, String) {
         .route("/lol/league/v4/entries/by-puuid/{puuid}", get(entries))
         .route("/lol/match/v5/matches/by-puuid/{puuid}/ids", get(match_ids))
         .route("/lol/match/v5/matches/{id}", get(match_by_id))
+        .route(
+            "/lol/spectator/v5/active-games/by-summoner/{puuid}",
+            get(spectator),
+        )
         .layer(axum::middleware::from_fn_with_state(
             Arc::clone(&fake),
             record,
@@ -737,6 +810,26 @@ async fn match_details_come_from_the_match_cache() {
         (Some(8008), Some(8100))
     );
     assert!(mid.get("puuid").is_none(), "no PUUIDs go out");
+    // The end-of-game stats, through the compacted match cache.
+    assert_eq!(
+        mid["stats"],
+        json!({ "largestKillingSpree": 7, "largestMultiKill": 3, "firstBlood": true,
+                "physicalDamageToChampions": 5_000, "magicDamageToChampions": 11_000,
+                "trueDamageToChampions": 1_000, "damageToTurrets": 2_200,
+                "damageToObjectives": 4_000, "damageTaken": 20_000, "damageSelfMitigated": 7_000,
+                "healing": 3_000, "healingOnTeammates": 0, "shieldingOnTeammates": 0,
+                "wardsPlaced": 10, "wardsDestroyed": 2, "controlWards": 3, "goldSpent": 10_200,
+                "minions": 172, "monsters": 8, "crowdControlSeconds": 12,
+                "turretsDestroyed": 1, "inhibitorsDestroyed": 0 })
+    );
+    let support = &teams[0]["players"][4]["stats"];
+    assert_eq!(
+        (
+            &support["healingOnTeammates"],
+            &support["shieldingOnTeammates"]
+        ),
+        (&json!(5_500), &json!(7_200))
+    );
     // Riot withheld the name: it stays hidden.
     let jungler = &teams[1]["players"][1];
     assert_eq!(jungler["riotId"], Value::Null);
@@ -778,6 +871,146 @@ async fn match_details_validate_before_asking_riot() {
 
     let keyless = start(false).await;
     let (status, body) = keyless.get("/v1/matches/euw1/EUW1_9000000001").await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(body["error"], "riotKeyMissing");
+}
+
+// ---------------------------------------------------------------------------------------------
+// Live games (Spectator-V5)
+
+const LIVE: &str = "7100000042";
+
+#[tokio::test]
+async fn live_game_names_visible_players_and_keeps_the_rest_anonymous() {
+    let env = start(true).await;
+    let (status, body) = env
+        .get(&format!("/v1/live/euw1/foxfire/euw?gameId={LIVE}"))
+        .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["gameId"], 7_100_000_042_u64);
+    assert_eq!(body["queueId"], 420);
+    let players = body["participants"].as_array().unwrap();
+    assert_eq!(players.len(), 6);
+    let named = |i: usize| players[i]["riotId"]["gameName"].as_str().map(str::to_owned);
+    // Blue: cards for the players our key knows; Walled's couldn't be built.
+    assert_eq!(named(0).as_deref(), Some("Foxfire"));
+    assert_eq!(players[0]["teamId"], 100);
+    assert_eq!(players[0]["championId"], 103);
+    assert_eq!(players[0]["spells"], json!([4, 14]));
+    assert_eq!(players[0]["card"]["puuid"], "p-otp", "our key's PUUID");
+    assert_eq!(players[0]["card"]["tags"][0]["kind"], "otp");
+    assert_eq!(players[1]["card"]["riotId"]["gameName"], "Nightfall");
+    assert_eq!(named(2).as_deref(), Some("Walled"));
+    assert_eq!(players[2]["card"], Value::Null);
+    assert_eq!(
+        body["cardsComplete"], false,
+        "Walled's card is left to the batch"
+    );
+    // Red: the anonymous player keeps no name, nobody our key knows gets no card, a bot is one.
+    assert_eq!(players[3]["riotId"], Value::Null);
+    assert_eq!(
+        (players[3]["bot"].as_bool(), players[3]["teamId"].as_u64()),
+        (Some(false), Some(200))
+    );
+    assert_eq!(players[3]["card"], Value::Null);
+    assert_eq!(named(4).as_deref(), Some("Stranger"));
+    assert_eq!(players[4]["card"], Value::Null);
+    assert_eq!(players[5]["bot"], true);
+    assert_eq!(players[5]["riotId"], Value::Null);
+    let text = body.to_string();
+    assert!(
+        !text.contains("Hidden Streamer"),
+        "an anonymous player's name never goes out"
+    );
+    assert!(!text.contains("Ashe Bot"));
+    assert_eq!(env.fake.calls_to("/active-games/by-summoner/"), 1);
+    assert_eq!(env.fake.calls_to("/accounts/by-riot-id/"), 1);
+}
+
+#[tokio::test]
+async fn a_live_game_is_kept_for_everyone_in_it() {
+    let env = start(true).await;
+    let (status, _) = env
+        .get(&format!("/v1/live/euw1/Foxfire/EUW?gameId={LIVE}"))
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    let accounts = env.fake.calls_to("/accounts/by-riot-id/");
+
+    // Another player of the same game (their app asks at the same loading screen): neither
+    // Spectator-V5 nor account-v1 is asked again, and the cards are the batch's cached ones.
+    let (status, body) = env
+        .get(&format!("/v1/live/euw1/Nightfall/EUW?gameId={LIVE}"))
+        .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["participants"][0]["card"]["puuid"], "p-otp");
+    assert_eq!(env.fake.calls_to("/active-games/by-summoner/"), 1);
+    assert_eq!(env.fake.calls_to("/accounts/by-riot-id/"), accounts);
+
+    // The batch the app sends next for the cards left out finds the accounts already.
+    let (status, cards) = env
+        .batch(&json!({ "platform": "euw1", "players": [
+            { "gameName": "Stranger", "tagLine": "EUW" },
+            { "gameName": "Nightfall", "tagLine": "EUW" },
+        ] }))
+        .await;
+    assert_eq!(status, StatusCode::OK, "{cards}");
+    assert_eq!(
+        cards.as_array().map(Vec::len),
+        Some(1),
+        "Stranger has no card"
+    );
+    assert_eq!(env.fake.calls_to("/accounts/by-riot-id/"), accounts);
+
+    // A retry for the same game: kept. Another game: Riot is asked again, and a game other than
+    // the one being played is not answered.
+    let (status, _) = env
+        .get(&format!("/v1/live/euw1/Foxfire/EUW?gameId={LIVE}"))
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(env.fake.calls_to("/active-games/by-summoner/"), 1);
+    let (status, body) = env.get("/v1/live/euw1/Foxfire/EUW?gameId=7100000099").await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "{body}");
+    assert_eq!(body["error"], "notFound");
+    assert_eq!(env.fake.calls_to("/active-games/by-summoner/"), 2);
+    // Without a game id to check it against, a kept game is served only while fresh.
+    let (status, body) = env.get("/v1/live/euw1/Foxfire/EUW").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["gameId"], 7_100_000_042_u64);
+}
+
+#[tokio::test]
+async fn live_game_errors() {
+    let env = start(true).await;
+    // Riot doesn't share live flex games: 404, told apart from "not in a game".
+    let (status, body) = env.get("/v1/live/euw1/Flexer/EUW?gameId=1").await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert_eq!(body["error"], "filtered");
+    let (status, body) = env.get("/v1/live/euw1/Idle/EUW?gameId=1").await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert_eq!(body["error"], "notFound");
+    let (status, body) = env.get("/v1/live/euw1/Nobody/000").await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert_eq!(body["error"], "notFound");
+    assert_eq!(
+        env.fake.calls_to("/active-games/by-summoner/"),
+        2,
+        "nobody by that name: Spectator-V5 isn't asked"
+    );
+
+    let calls = env.fake.calls();
+    for (path, error) in [
+        ("/v1/live/xx9/Foxfire/EUW", "badPlatform"),
+        ("/v1/live/euw1/Foxfire/EUW?gameId=soon", "badRequest"),
+        ("/v1/live/euw1/%20/EUW", "badRequest"),
+    ] {
+        let (status, body) = env.get(path).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{path}");
+        assert_eq!(body["error"], error, "{path}");
+    }
+    assert_eq!(env.fake.calls(), calls, "rejected before any Riot call");
+
+    let keyless = start(false).await;
+    let (status, body) = keyless.get("/v1/live/euw1/Foxfire/EUW").await;
     assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
     assert_eq!(body["error"], "riotKeyMissing");
 }

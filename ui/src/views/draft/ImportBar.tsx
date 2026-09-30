@@ -2,39 +2,58 @@ import { type Accessor, createEffect, createSignal, Index, type JSX, on, Show } 
 import { useData } from "../../data/context";
 import { createFollowed } from "../../data/follow";
 import type { Bracket } from "../../data/generated/Bracket";
-import type { ImportMode } from "../../data/generated/ImportMode";
 import type { ImportOutcome } from "../../data/generated/ImportOutcome";
 import type { ImportPart } from "../../data/generated/ImportPart";
-import type { ImportResult } from "../../data/generated/ImportResult";
+import type { ImportWarning } from "../../data/generated/ImportWarning";
 import type { Role } from "../../data/generated/Role";
 import type { Settings } from "../../data/generated/Settings";
 import { Card } from "../../design/Card";
 import { ChampionIcon } from "../../design/GameIcon";
 import { Icon, type IconName } from "../../design/Icon";
 import { t } from "../../i18n";
-import { FLASH_ID, IMPORT_PARTS, type PartTone, statusOf, toneOf } from "../../lib/imports";
-import { lastLockIn } from "../../lib/lock-in-toasts";
+import {
+  createImportMemory,
+  FLASH_ID,
+  IMPORT_PARTS,
+  type ImportMemory,
+  importForLabel,
+  type Owner,
+  type PartTone,
+  statusOf,
+  toneOf,
+  warningRequest,
+  warningText,
+} from "../../lib/imports";
 import { roleLabel } from "../../lib/roles";
 import styles from "./ImportBar.module.css";
 
-export type ImportModes = Record<ImportPart, ImportMode>;
+/** The parts the player set to import by themselves at the first lock-in (Settings → Imports). */
+export type AutoImports = Record<ImportPart, boolean>;
 
-function modesOf(settings: Settings | undefined): ImportModes {
-  return {
-    runes: settings?.importRunes ?? "oneClick",
-    itemSet: settings?.importItemSet ?? "oneClick",
-    spells: settings?.importSpells ?? "oneClick",
-  };
-}
+const autoOf = (settings: Settings | undefined): AutoImports => ({
+  runes: settings?.autoImportRunes ?? false,
+  itemSet: settings?.autoImportItemSet ?? false,
+  spells: settings?.autoImportSpells ?? false,
+});
 
-/** The player's import modes, following changes (one click until settings are read). */
-export function useImportModes(): Accessor<ImportModes> {
+/** The player's "Auto import" switches, following changes (off until settings are read). */
+export function useAutoImports(): Accessor<AutoImports> {
   const { transport } = useData();
   const [settings] = createFollowed(
     () => transport.call("get_settings").catch(() => undefined),
     (set) => transport.listen("settings", set),
   );
-  return () => modesOf(settings.state === "ready" ? settings() : undefined);
+  return () => autoOf(settings.state === "ready" ? settings() : undefined);
+}
+
+/** Draft's warning after the automatic import, as the core has it (`null` without one). */
+export function useImportWarning(): Accessor<ImportWarning | null> {
+  const { transport } = useData();
+  const [warning] = createFollowed(
+    () => transport.call("import_warning").catch(() => null),
+    (set) => transport.listen("import-warning", set),
+  );
+  return () => (warning.state === "ready" ? (warning() ?? null) : null);
 }
 
 /** A part's button: its last outcome, or busy while the core imports it. */
@@ -44,8 +63,16 @@ export interface PartView {
   outcome?: ImportOutcome | undefined;
   /** Why the button can't be used now (shown as its tooltip). */
   disabled?: string | undefined;
-  /** Also imported automatically on lock-in. */
+  /** Also imported by itself at the first lock-in. */
   automatic: boolean;
+}
+
+/** The warning as the bar shows it: what changed, and its one click. */
+export interface WarningView {
+  text: string;
+  action: string;
+  busy: boolean;
+  onImport: () => void;
 }
 
 const TONE_ICON: Record<PartTone, IconName> = { done: "check", warn: "alert", skipped: "minimize", failed: "alert" };
@@ -58,6 +85,8 @@ export function ImportPanel(props: {
   parts: readonly PartView[];
   status?: { tone: PartTone | "hint"; text: string } | undefined;
   onImport: (part: ImportPart) => void;
+  /** After the automatic import, the player's champion or role changed: said on its own line. */
+  warning?: WarningView | undefined;
 }): JSX.Element {
   return (
     <Card flush class={styles.card}>
@@ -88,7 +117,7 @@ export function ImportPanel(props: {
                   aria-disabled={view().busy ? "true" : undefined}
                   aria-label={t().imports.importPart(view().part)}
                   aria-busy={view().busy ? "true" : undefined}
-                  title={view().disabled ?? (view().automatic ? t().imports.auto : undefined)}
+                  data-hint={view().disabled ?? (view().automatic ? t().imports.auto : undefined)}
                   data-testid={`import-${view().part}`}
                   data-tone={tone()}
                   onClick={() => {
@@ -107,6 +136,29 @@ export function ImportPanel(props: {
         <p class={`${styles.status} ${props.status ? styles[props.status.tone] : ""}`} role="status" data-testid="import-status">
           {props.status?.text ?? ""}
         </p>
+        <Show when={props.warning}>
+          {(warning) => (
+            <div class={styles.warning} role="alert" data-testid="import-warning">
+              <Icon name="alert" size={16} class={styles.warningIcon} />
+              <span class={styles.warningText}>{warning().text}</span>
+              <button
+                type="button"
+                class={styles.warningAction}
+                aria-disabled={warning().busy ? "true" : undefined}
+                aria-busy={warning().busy ? "true" : undefined}
+                data-testid="import-warning-action"
+                onClick={() => {
+                  if (!warning().busy) warning().onImport();
+                }}
+              >
+                <Show when={warning().busy}>
+                  <span class={styles.spinner} aria-hidden="true" />
+                </Show>
+                {warning().action}
+              </button>
+            </div>
+          )}
+        </Show>
       </div>
     </Card>
   );
@@ -114,9 +166,9 @@ export function ImportPanel(props: {
 
 /**
  * One-click imports of a champion's build into the League client: rune page, item set, summoner
- * spells. In Draft, of the champion the player hovers or locked (automatic imports on lock-in,
- * `import` events, show here too); on a champion page, of the build shown. Parts turned off in
- * Settings have no button.
+ * spells, whatever the "Auto import" switches. In Draft, of the champion the player hovers or
+ * locked (the automatic import shows here too, and the warning when the champion or role changed
+ * since it); on a champion page, of the build shown.
  */
 export function ImportBar(props: {
   championId: number | null;
@@ -133,94 +185,107 @@ export function ImportBar(props: {
   available: boolean;
   /** In champion select: spells can change. */
   inChampSelect: boolean;
-  modes: ImportModes;
+  /** The League client is connected: there is something to import into. */
+  clientReady: boolean;
+  /** Draft: imports are for this champion select (once it has ended, the core tries nothing). */
+  champSelect?: boolean;
+  /** Parts that also import by themselves at the first lock-in (Draft marks their buttons). */
+  auto?: AutoImports | undefined;
+  /** Draft's warning after the automatic import, with its one click. */
+  warning?: ImportWarning | null | undefined;
+  /** Where results are kept (Draft's outlive the view for the champion select); the bar's own by default. */
+  memory?: ImportMemory;
 }): JSX.Element {
   const { transport, gameData } = useData();
-  const [results, setResults] = createSignal<Partial<Record<ImportPart, ImportOutcome>>>({});
-  const [busy, setBusy] = createSignal<ReadonlySet<ImportPart>>(new Set());
-  const [last, setLast] = createSignal<ImportResult["parts"]>([]);
-  // The core couldn't be asked at all (still starting): shown instead of the last outcome.
-  const [unreachable, setUnreachable] = createSignal<string>();
+  // Read once: Draft hands its memory for the whole champion select, a champion page none.
+  const memory = props.memory ?? createImportMemory();
+  // Parts being imported, as `championId:part`: another champion's buttons aren't busy.
+  const [running, setRunning] = createSignal<ReadonlySet<string>>(new Set());
+  const busy = (part: ImportPart, championId = props.championId) => running().has(`${championId}:${part}`);
   const spellName = (id: number) => gameData()?.spells.get(id)?.name ?? (id === FLASH_ID ? "Flash" : t().common.spellN(id));
-  const name = () =>
-    props.championId === null ? undefined : (gameData()?.champions.get(props.championId)?.name ?? t().common.championN(props.championId));
+  const champion = (id: number) => gameData()?.champions.get(id)?.name ?? t().common.championN(id);
+  const owner = (): Owner | null => (props.championId === null ? null : { championId: props.championId, role: props.role });
+  const shown = () => memory.shown(owner());
 
-  // Results belong to one champion and role: another hover starts afresh.
+  // Results belong to one champion and role: another one starts afresh, the same one sent again
+  // (the client re-sends its session after a change) keeps them.
   createEffect(
     on(
       () => `${props.championId}:${props.role}`,
-      () => {
-        setResults({});
-        setLast([]);
-        setUnreachable(undefined);
-        setBusy(new Set<ImportPart>());
-      },
-      { defer: true },
+      () => memory.follow(owner()),
     ),
   );
 
-  const apply = (result: ImportResult) => {
-    if (result.championId !== props.championId) return;
-    setResults((current) => ({ ...current, ...Object.fromEntries(result.parts.map((p) => [p.part, p.outcome])) }));
-    setLast(result.parts);
-    setUnreachable(undefined);
-  };
-  // The import on lock-in of this champion select shows on the buttons too.
-  createEffect(
-    on(lastLockIn, (result) => {
-      if (result) apply(result);
-    }),
-  );
-
-  const run = async (part: ImportPart) => {
-    const championId = props.championId;
-    if (championId === null || busy().has(part)) return;
-    setBusy((current) => new Set([...current, part]));
+  const run = async (parts: readonly ImportPart[], who: Owner | null = owner()) => {
+    if (who === null) return;
+    const todo = parts.filter((part) => !busy(part, who.championId));
+    const keys = todo.map((part) => `${who.championId}:${part}`);
+    if (todo.length === 0) return;
+    setRunning((current) => new Set([...current, ...keys]));
     try {
-      apply(
+      memory.record(
         await transport.call("import_build", {
-          request: { championId, role: props.role, queue: props.queue ?? null, bracket: props.bracket ?? null, parts: [part] },
+          request: {
+            championId: who.championId,
+            role: who.role,
+            queue: props.queue ?? null,
+            bracket: props.bracket ?? null,
+            parts: todo,
+            champSelect: props.champSelect ?? false,
+          },
         }),
       );
     } catch (error) {
-      if (championId === props.championId) {
-        const message = error instanceof Error ? error.message : String(error);
-        setResults((current) => ({ ...current, [part]: { kind: "failed", reason: { kind: "client", message } } }));
-        setUnreachable(t().imports.failed(message));
-      }
+      memory.fail(who, todo, error instanceof Error ? error.message : String(error));
     } finally {
-      setBusy((current) => new Set([...current].filter((p) => p !== part)));
+      setRunning((current) => new Set([...current].filter((key) => !keys.includes(key))));
     }
   };
 
   const unavailable = (part: ImportPart): string | undefined => {
     if (props.championId === null) return t().imports.pickFirst;
+    if (!props.clientReady) return t().imports.needsClient;
     if (!props.available) return t().imports.notYet;
     if (part === "spells" && !props.inChampSelect) return t().imports.spellsInChampSelect;
     return undefined;
   };
 
   const parts = (): PartView[] =>
-    IMPORT_PARTS.filter((part) => props.modes[part] !== "off").map((part) => ({
+    IMPORT_PARTS.map((part) => ({
       part,
-      busy: busy().has(part),
-      outcome: results()[part],
+      busy: busy(part),
+      outcome: shown().results[part],
       disabled: unavailable(part),
-      automatic: props.modes[part] === "onLockIn",
+      automatic: props.auto?.[part] ?? false,
     }));
 
   const subtitle = () => {
-    const who = name();
-    if (!who) return t().imports.pick;
+    if (props.championId === null) return t().imports.pick;
     const role = props.role ? ` · ${roleLabel(props.role)}` : "";
-    return `${who}${role} · ${props.context ?? (props.hovering ? t().imports.hovering : t().imports.lockedIn)}`;
+    return `${champion(props.championId)}${role} · ${props.context ?? (props.hovering ? t().imports.hovering : t().imports.lockedIn)}`;
+  };
+
+  const warning = (): WarningView | undefined => {
+    const current = props.warning;
+    if (!current) return undefined;
+    const request = warningRequest(current);
+    return {
+      text: warningText(current, champion),
+      action: importForLabel(current, champion),
+      busy: request.parts.some((part) => busy(part, request.championId)),
+      onImport: () => void run(request.parts, { championId: request.championId, role: request.role }),
+    };
   };
 
   const status = () => {
-    const failure = unreachable();
+    const failure = shown().unreachable;
     if (failure) return { tone: "failed" as const, text: failure };
-    const shown = statusOf(last(), spellName);
-    if (shown) return shown;
+    const last = statusOf(shown().last, spellName);
+    if (last) return last;
+    // The warning says what matters now.
+    if (props.warning) return undefined;
+    // Every button off for the same reason: say it without a hover.
+    if (props.championId !== null && !props.clientReady) return { tone: "hint" as const, text: `${t().imports.needsClient}.` };
     if (props.championId !== null && !props.available) {
       return { tone: "hint" as const, text: t().imports.notYetStatus };
     }
@@ -233,7 +298,8 @@ export function ImportBar(props: {
       subtitle={subtitle()}
       parts={parts()}
       status={status()}
-      onImport={(part) => void run(part)}
+      onImport={(part) => void run([part])}
+      warning={warning()}
     />
   );
 }

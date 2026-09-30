@@ -1,42 +1,74 @@
 import type { Page } from "@playwright/test";
 import type { Settings } from "../src/data/generated/Settings";
+import type { TierEntry } from "../src/data/generated/TierEntry";
 // Brings the window.__SCOUT_MOCK__ declaration into scope.
 import type {} from "../src/data/mock";
-import { mockStatsIndex } from "../src/data/mock/stats-fixtures";
+import { mockStatsIndex, mockTierList } from "../src/data/mock/stats-fixtures";
 import { expect, openApp, SIZES, settle, test, trackErrors } from "./app";
 import { auditLayout } from "./layout-rules";
 
 /** Arguments of every call to a stats command, oldest first. */
-const argsOf = (page: Page, command: "tier_list" | "champion_stats") =>
+const argsOf = (page: Page, command: "tier_list" | "previous_tier_list" | "champion_stats") =>
   page.evaluate((c) => window.__SCOUT_MOCK__?.log.filter((l) => l.command === c).map((l) => l.args) ?? [], command);
 
 const segment = (page: Page, group: string, name: string | RegExp) => page.getByTestId(group).getByRole("radio", { name });
+/** A queue tab by its whole name: "ARAM" alone, not "ARAM: Mayhem" (its own tab). */
+const queue = (page: Page, name: string) => page.getByTestId("queue-switch").getByRole("radio", { name, exact: true });
 const rows = (page: Page) => page.getByTestId("tier-row");
+const rankButton = (page: Page) => page.getByTestId("rank-button");
+/** Picks a rank in the rank menu (it opens from its button, and closes on a choice). */
+async function pickRank(page: Page, name: string): Promise<void> {
+  await rankButton(page).click();
+  await segment(page, "bracket-switch", name).click();
+}
+
+const list = mockTierList(420, "emeraldPlus");
+/** A table row's entry, by its key (`id:role`). */
+const byKey = new Map<string, TierEntry>(list.entries.map((e) => [`${e.id}:${e.role ?? ""}`, e]));
+const rowEntries = (page: Page) =>
+  rows(page)
+    .evaluateAll((els) => els.map((el) => el.getAttribute("data-key") ?? ""))
+    .then((keys) => keys.map((k) => byKey.get(k)));
 
 test.describe("tier list", () => {
-  test("queue and rank switches ask again and are remembered", async ({ page, t }) => {
+  test("queue and rank ask again and are remembered", async ({ page, t }) => {
     const errors = trackErrors(page);
     await openApp(page, { view: "/tier-list" });
     await expect(rows(page).first()).toBeVisible();
     expect((await argsOf(page, "tier_list")).at(-1)).toEqual({ queue: 420, bracket: "emeraldPlus" });
+    expect((await argsOf(page, "previous_tier_list")).at(-1), "the previous patch, for trends").toEqual({
+      queue: 420,
+      bracket: "emeraldPlus",
+    });
 
-    await segment(page, "queue-switch", t.queues[450]).click();
+    await queue(page, t.queues[450]).click();
     await expect.poll(async () => (await argsOf(page, "tier_list")).at(-1)).toEqual({ queue: 450, bracket: "emeraldPlus" });
-    await expect(page.getByTestId("role-filter"), "ARAM has no roles").toHaveCount(0);
-    await expect(page.getByTestId("data-badge")).toContainText(t.queues[450]);
-    await segment(page, "bracket-switch", t.brackets.masterPlus).click();
+    await expect(page.getByTestId("role-filter"), "ARAM has no lanes").toHaveCount(0);
+    await pickRank(page, t.brackets.masterPlus);
     await expect.poll(async () => (await argsOf(page, "tier_list")).at(-1)).toEqual({ queue: 450, bracket: "masterPlus" });
+    await expect(rankButton(page)).toContainText(t.brackets.masterPlus);
+    await expect(page.getByTestId("bracket-switch").getByRole("radio"), "the menu closed on the choice").toHaveCount(0);
 
     await page.reload();
     await settle(page);
-    await expect(segment(page, "queue-switch", t.queues[450])).toHaveAttribute("aria-checked", "true");
-    await expect(segment(page, "bracket-switch", t.brackets.masterPlus)).toHaveAttribute("aria-checked", "true");
+    await expect(queue(page, t.queues[450])).toHaveAttribute("aria-checked", "true");
+    await expect(rankButton(page)).toContainText(t.brackets.masterPlus);
     expect((await argsOf(page, "tier_list")).at(-1)).toEqual({ queue: 450, bracket: "masterPlus" });
     expect(errors).toEqual([]);
   });
 
-  test("the role filter shows one role, ranked from 1, without asking again", async ({ page, t }) => {
+  test("the rank menu: the brackets published, the one shown checked; Escape closes it", async ({ page, t }) => {
     await openApp(page, { view: "/tier-list" });
+    await rankButton(page).click();
+    const menu = page.getByTestId("bracket-switch").getByRole("radiogroup", { name: t.stats.rank });
+    await expect(menu.getByRole("radio")).toHaveText([t.brackets.emeraldPlus, t.brackets.diamondPlus, t.brackets.masterPlus]);
+    await expect(menu.getByRole("radio", { name: t.brackets.emeraldPlus })).toHaveAttribute("aria-checked", "true");
+    await page.keyboard.press("Escape");
+    await expect(menu).toBeHidden();
+  });
+
+  test("lanes: one shows its champions, ranked from 1, without asking again; one tab stop, arrows move", async ({ page, t }) => {
+    await openApp(page, { view: "/tier-list?view=shelves" });
     // Count once the first answer is on screen (a slow machine may still be asking).
     await expect(rows(page).first()).toBeVisible();
     const asked = (await argsOf(page, "tier_list")).length;
@@ -44,54 +76,159 @@ test.describe("tier list", () => {
     await expect(rows(page).first()).toHaveAttribute("data-role", "middle");
     const roles = await rows(page).evaluateAll((els) => els.map((el) => el.getAttribute("data-role")));
     expect(new Set(roles)).toEqual(new Set(["middle"]));
-    await expect(rows(page).first().locator("td").first()).toHaveText("1");
     expect(await argsOf(page, "tier_list")).toHaveLength(asked);
+    // The title says the lane, in words.
+    await expect(page.getByRole("heading", { level: 1 })).toContainText(t.roles.middle);
+    // A radio group: the chosen lane is the one tab stop, arrows move the choice.
+    const mid = segment(page, "role-filter", t.roles.middle);
+    await expect(mid).toHaveAttribute("tabindex", "0");
+    await mid.focus();
+    await page.keyboard.press("ArrowRight");
+    await expect(segment(page, "role-filter", t.roles.bottom)).toBeFocused();
+    await expect(segment(page, "role-filter", t.roles.bottom)).toHaveAttribute("aria-checked", "true");
+    await expect(rows(page).first()).toHaveAttribute("data-role", "bottom");
   });
 
-  test("columns sort both ways", async ({ page, t }) => {
-    await openApp(page, { view: "/tier-list" });
-    // `53.6%` or `53,6 %`: read in either language.
-    const winRates = () =>
-      rows(page).evaluateAll((els) =>
-        els.map((el) => Number.parseFloat((el.querySelectorAll("td")[3]?.textContent ?? "").replace(",", "."))),
-      );
-    const winRate = t.tierList.columns.winRate;
-    await page.getByRole("button", { name: winRate }).click();
-    await expect(page.getByRole("columnheader", { name: winRate })).toHaveAttribute("aria-sort", "descending");
-    const down = await winRates();
-    expect(down).toEqual([...down].sort((a, b) => b - a));
-    await page.getByRole("button", { name: winRate }).click();
-    await expect(page.getByRole("columnheader", { name: winRate })).toHaveAttribute("aria-sort", "ascending");
-    const up = await winRates();
-    expect(up).toEqual([...up].sort((a, b) => a - b));
-    const champion = t.tierList.columns.champion;
-    await page.getByRole("button", { name: champion, exact: true }).click();
-    await expect(page.getByRole("columnheader", { name: champion, exact: true })).toHaveAttribute("aria-sort", "ascending");
-    // Compared in the page: the same collation as the app's.
+  test("shelves: the podium, a shelf per tier, the hover card with the numbers and their trend", async ({ page, t }) => {
+    const errors = trackErrors(page);
+    await openApp(page, { view: "/tier-list?view=shelves&role=middle" });
+    const middle = list.entries.filter((e) => e.role === "middle");
+    await expect(rows(page)).toHaveCount(middle.length);
+    // Best first: the podium's three, then the shelves from S down.
+    const steps = page.getByTestId("podium-step");
+    await expect(steps).toHaveCount(3);
+    const best = middle[0];
+    await expect(steps.first()).toHaveAttribute("href", `#/champions?id=${best?.id}&role=middle`);
+    await expect(page.getByRole("region", { name: t.stats.tier("S") })).toBeVisible();
+    // The card follows the pointer: the face's numbers and how they moved since the last patch.
+    await rows(page).first().hover();
+    await expect(page.getByText(t.tierList.sincePrevious)).toBeVisible();
+    await expect(page.getByText(t.tierList.rankIn(1, "middle"))).toBeVisible();
+    expect(errors).toEqual([]);
+  });
+
+  test("the meta map: a face lights its dot; it opens full screen, Escape closes it and the focus goes back", async ({ page, t }) => {
+    const errors = trackErrors(page);
+    await openApp(page, { view: "/tier-list?view=shelves&role=middle" });
+    const open = page.getByTestId("open-map");
+    await rows(page).first().hover();
+    await expect(open.locator("[data-lit]"), "its dot, lit").toHaveCount(1);
+    await open.click();
+    const dialog = page.getByRole("dialog", { name: t.tierList.map.title });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByTestId("map-point")).toHaveCount(await rows(page).count());
+    await page.keyboard.press("Escape");
+    await expect(dialog).toHaveCount(0);
+    await expect(open, "back to what opened it").toBeFocused();
+    // The close button too.
+    await open.click();
+    await dialog.getByRole("button", { name: t.tierList.map.close }).click();
+    await expect(dialog).toHaveCount(0);
+    expect(errors).toEqual([]);
+  });
+
+  test("the table sorts by every column, both ways", async ({ page, t }) => {
+    await openApp(page, { view: "/tier-list?view=table&role=all" });
+    const header = (name: string) => page.getByRole("columnheader", { name, exact: true });
+    const sortsBy = async (name: string, value: (e: TierEntry) => number, first: "descending" | "ascending") => {
+      await header(name).getByRole("button").click();
+      await expect(header(name)).toHaveAttribute("aria-sort", first);
+      const values = (await rowEntries(page)).map((e) => (e ? value(e) : Number.NaN));
+      const sign = first === "descending" ? -1 : 1;
+      expect(values, name).toEqual([...values].sort((a, b) => (a - b) * sign));
+      await header(name).getByRole("button").click();
+      await expect(header(name)).toHaveAttribute("aria-sort", first === "descending" ? "ascending" : "descending");
+    };
+    const columns = t.tierList.columns;
+    await sortsBy(columns.winRate, (e) => e.winRate, "descending");
+    await sortsBy(columns.pick, (e) => e.pickRate, "descending");
+    await sortsBy(columns.ban, (e) => e.banRate, "descending");
+    await sortsBy(columns.games, (e) => e.g, "descending");
+    await sortsBy(columns.tier, (e) => e.score, "descending");
+    // Names A to Z, compared by the page (the app's collation).
+    await header(columns.champion).getByRole("button").click();
+    await expect(header(columns.champion)).toHaveAttribute("aria-sort", "ascending");
     const sorted = await rows(page).evaluateAll((els) => {
-      const names = els.map((el) => el.querySelector("a span span")?.textContent ?? "");
+      const names = els.map((el) => el.querySelector("a")?.textContent ?? "");
       return names.every((n, i) => i === 0 || (names[i - 1] ?? "").localeCompare(n) <= 0);
     });
     expect(sorted).toBe(true);
+    // Lanes in map order; back to the rank.
+    await header(columns.lane).getByRole("button").click();
+    await expect(rows(page).first()).toHaveAttribute("data-role", "top");
+    await header(columns.rank).getByRole("button").click();
+    await expect(rows(page).first().locator("td").first()).toHaveText("1");
   });
 
-  test("a long list shows the first rows, then all on request", async ({ page }) => {
-    await openApp(page, { view: "/tier-list" });
+  test("one lane: its column says how much of each champion's games it has", async ({ page, t }) => {
+    await openApp(page, { view: "/tier-list?view=table&role=middle" });
+    await expect(page.getByRole("columnheader", { name: t.tierList.columns.share, exact: true })).toBeVisible();
+    await expect(page.getByRole("columnheader", { name: t.tierList.columns.lane, exact: true })).toHaveCount(0);
+    const share = rows(page).first().locator("td").nth(2);
+    await expect(share).toHaveText(/\d/);
+    await expect(share.getByRole("img"), "no lane icon: it would be the same on every row").toHaveCount(0);
+  });
+
+  test("every lane: a champion once per lane it's played in; the first rows, then all on request", async ({ page }) => {
+    await openApp(page, { view: "/tier-list?view=table&role=all" });
     await expect(rows(page)).toHaveCount(50);
     const all = page.getByTestId("tier-show-all");
     const total = Number((await all.innerText()).match(/\d+/)?.[0]);
-    expect(total).toBeGreaterThan(150);
+    expect(total).toBe(list.entries.length);
     await all.click();
     await expect(rows(page)).toHaveCount(total);
     await expect(all).toHaveCount(0);
+    // Lux is played support and mid (the fixture's table): a row each.
+    await expect(rows(page).and(page.locator("[data-champion='99']"))).toHaveCount(2);
   });
 
-  test("a row opens its champion's page in that role", async ({ page, t }) => {
+  test("trends: the change since the last patch under each win rate, none on the first patch", async ({ page }) => {
+    await openApp(page, { view: "/tier-list?view=table&role=middle" });
+    await expect(rows(page).first().locator("[data-trend]")).toHaveCount(1);
+    await openApp(page, { view: "/tier-list?view=table&role=middle", scenario: "stats-first-patch" });
+    await expect(rows(page).first()).toBeVisible();
+    await expect(page.locator("main [data-trend]"), "nothing to compare with").toHaveCount(0);
+  });
+
+  test("the filter keeps the ranking, and every column still sorts; Enter opens the best match", async ({ page, t }) => {
     const errors = trackErrors(page);
-    await openApp(page, { view: "/tier-list" });
+    await openApp(page, { view: "/tier-list?view=table&role=all" });
+    const filter = page.getByTestId("champion-filter");
+    await filter.fill("ka");
+    await expect(page.getByRole("columnheader", { name: t.tierList.columns.rank, exact: true })).toHaveAttribute("aria-sort", "ascending");
+    const ranks = await rows(page).evaluateAll((els) => els.map((el) => Number(el.querySelector("td")?.textContent)));
+    expect(ranks.length).toBeGreaterThan(1);
+    expect(ranks, "the list's order, not the matches'").toEqual([...ranks].sort((a, b) => a - b));
+    const winRate = page.getByRole("columnheader", { name: t.tierList.columns.winRate, exact: true });
+    await winRate.getByRole("button").click();
+    await expect(winRate).toHaveAttribute("aria-sort", "descending");
+    const rates = (await rowEntries(page)).map((e) => e?.winRate ?? Number.NaN);
+    expect(rates).toEqual([...rates].sort((a, b) => b - a));
+    await filter.fill("zzzz");
+    await expect(page.locator("main")).toContainText(t.tierList.noMatch);
+    await filter.fill("ahr");
+    await filter.press("Enter");
+    await expect(page).toHaveURL(/#\/champions\?id=103&role=middle$/);
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Ahri");
+    expect(errors).toEqual([]);
+  });
+
+  test("the view is remembered, and a link can pick it", async ({ page, t }) => {
+    await openApp(page, { view: "/tier-list?view=table" });
+    await expect(page.getByTestId("tier-table")).toBeVisible();
+    await page.goto("/?scenario=default#/tier-list");
+    await settle(page);
+    await expect(page.getByTestId("tier-table"), "remembered").toBeVisible();
+    await segment(page, "view-switch", t.tierList.views.shelves).click();
+    await expect(page.getByTestId("podium-step").first()).toBeVisible();
+  });
+
+  test("a row opens its champion's page in that lane", async ({ page, t }) => {
+    const errors = trackErrors(page);
+    await openApp(page, { view: "/tier-list?view=table" });
     await segment(page, "role-filter", t.roles.support).click();
     const first = rows(page).first();
-    const name = (await first.getByRole("link").innerText()).split("\n")[0] ?? "";
+    const name = (await first.getByRole("link").innerText()).trim();
     await first.click();
     await expect(page).toHaveURL(/#\/champions\?id=\d+&role=support$/);
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(name);
@@ -99,9 +236,9 @@ test.describe("tier list", () => {
     expect(errors).toEqual([]);
   });
 
-  test("a link can pick the queue, rank and role", async ({ page, t }) => {
+  test("a link can pick the queue, rank and lane", async ({ page, t }) => {
     await openApp(page, { view: "/tier-list?queue=420&bracket=diamondPlus&role=jungle" });
-    await expect(segment(page, "bracket-switch", t.brackets.diamondPlus)).toHaveAttribute("aria-checked", "true");
+    await expect(rankButton(page)).toContainText(t.brackets.diamondPlus);
     await expect(segment(page, "role-filter", t.roles.jungle)).toHaveAttribute("aria-checked", "true");
     await expect(rows(page).first()).toHaveAttribute("data-role", "jungle");
   });
@@ -117,10 +254,45 @@ test.describe("tier list", () => {
   });
 });
 
-test("segmented controls: one tab stop, arrow keys move the choice", async ({ page, t }) => {
+test.describe("one hub for tiers and builds", () => {
+  test("the nav has no champion list: /champions without an id is the tier list, a link's filters kept", async ({ page, t }) => {
+    await openApp(page, { view: "/champions?role=support&queue=420" });
+    await expect(page).toHaveURL(/#\/tier-list\?role=support&queue=420$/);
+    await expect(segment(page, "role-filter", t.roles.support)).toHaveAttribute("aria-checked", "true");
+    await expect(page.getByRole("navigation", { name: t.nav.main }).getByRole("link")).toHaveCount(5);
+  });
+
+  test("a champion's page keeps Tiers lit; its way back returns to the same scope", async ({ page, t }) => {
+    await openApp(page, { view: "/tier-list?view=table&role=jungle" });
+    await pickRank(page, t.brackets.diamondPlus);
+    await rows(page).first().click();
+    await expect(page).toHaveURL(/#\/champions\?id=\d+&role=jungle$/);
+    const nav = page.getByRole("navigation", { name: t.nav.main });
+    await expect(nav.getByRole("link", { name: t.nav.tierList.label })).toHaveAttribute("aria-current", "page");
+    await page.locator("main").getByRole("link", { name: t.tierList.title, exact: true }).click();
+    await expect(page).toHaveURL(/#\/tier-list$/);
+    await expect(page.getByTestId("tier-table")).toBeVisible();
+    await expect(segment(page, "role-filter", t.roles.jungle)).toHaveAttribute("aria-checked", "true");
+    await expect(rankButton(page)).toContainText(t.brackets.diamondPlus);
+  });
+
+  test("ARAM: Mayhem's page is lit under Tiers, its queue tabs where the tier list has them", async ({ page, t }) => {
+    await openApp(page, { view: "/tier-list" });
+    const top = async () => (await page.getByTestId("queue-switch").boundingBox())?.y ?? Number.NaN;
+    const onTierList = await top();
+    await queue(page, t.queues[2400]).click();
+    await expect(page).toHaveURL(/#\/mayhem$/);
+    await settle(page);
+    const nav = page.getByRole("navigation", { name: t.nav.main });
+    await expect(nav.getByRole("link", { name: t.nav.tierList.label })).toHaveAttribute("aria-current", "page");
+    expect(Math.abs((await top()) - onTierList), "the tabs don't move").toBeLessThanOrEqual(1);
+  });
+});
+
+test("queue tabs: one tab stop, arrow keys move the choice; the last one is ARAM: Mayhem's page", async ({ page, t }) => {
   await openApp(page, { view: "/tier-list" });
-  const ranked = segment(page, "queue-switch", t.queues[420]);
-  const aram = segment(page, "queue-switch", t.queues[450]);
+  const ranked = queue(page, t.queues[420]);
+  const aram = queue(page, t.queues[450]);
   await expect(ranked).toHaveAttribute("tabindex", "0");
   await expect(aram).toHaveAttribute("tabindex", "-1");
   await ranked.focus();
@@ -129,14 +301,33 @@ test("segmented controls: one tab stop, arrow keys move the choice", async ({ pa
   await expect(aram).toHaveAttribute("aria-checked", "true");
   await expect(aram).toHaveAttribute("tabindex", "0");
   await expect(ranked).toHaveAttribute("tabindex", "-1");
-  await page.keyboard.press("ArrowRight");
-  await expect(ranked, "wraps around").toBeFocused();
-  await expect(ranked).toHaveAttribute("aria-checked", "true");
-  await page.keyboard.press("End");
-  await expect(aram).toHaveAttribute("aria-checked", "true");
   await page.keyboard.press("Home");
+  await expect(ranked).toBeFocused();
   await expect(ranked).toHaveAttribute("aria-checked", "true");
   await expect(page.getByRole("radiogroup", { name: t.stats.queue })).toBeVisible();
+  // The last tab, ARAM: Mayhem, opens its page (the same tabs, Mayhem chosen).
+  await page.keyboard.press("End");
+  await expect(page).toHaveURL(/#\/mayhem$/);
+  await expect(queue(page, t.queues[2400])).toHaveAttribute("aria-checked", "true");
+});
+
+test("the rank menu from the keyboard: it opens on the rank shown, arrows choose, Enter closes it", async ({ page, t }) => {
+  await openApp(page, { view: "/tier-list" });
+  await expect(rows(page).first()).toBeVisible();
+  await rankButton(page).focus();
+  await page.keyboard.press("Enter");
+  const emerald = segment(page, "bracket-switch", t.brackets.emeraldPlus);
+  const diamond = segment(page, "bracket-switch", t.brackets.diamondPlus);
+  await expect(emerald, "the rank shown has the focus").toBeFocused();
+  await page.keyboard.press("ArrowRight");
+  await expect(diamond).toBeFocused();
+  await expect(diamond).toHaveAttribute("aria-checked", "true");
+  await expect.poll(async () => (await argsOf(page, "tier_list")).at(-1)).toEqual({ queue: 420, bracket: "diamondPlus" });
+  await expect(diamond, "an arrow chooses, the menu stays").toBeVisible();
+  await page.keyboard.press("Enter");
+  await expect(diamond).toBeHidden();
+  await expect(rankButton(page), "back to the button").toBeFocused();
+  await expect(rankButton(page)).toContainText(t.brackets.diamondPlus);
 });
 
 test.describe("champion page", () => {
@@ -168,7 +359,7 @@ test.describe("champion page", () => {
   test("ARAM: builds without roles, and no matchups", async ({ page, t }) => {
     const errors = trackErrors(page);
     await openApp(page, { view: "/champions?id=103" });
-    await segment(page, "queue-switch", t.queues[450]).click();
+    await queue(page, t.queues[450]).click();
     await expect
       .poll(async () => (await argsOf(page, "champion_stats")).at(-1))
       .toEqual({
@@ -215,32 +406,10 @@ test.describe("champion page", () => {
     expect(errors).toEqual([]);
   });
 
-  test("the way back leads to every champion", async ({ page, t }) => {
+  test("the way back leads to the tier list", async ({ page, t }) => {
     await openApp(page, { view: "/champions?id=103" });
-    await page.getByRole("link", { name: t.champions.all }).click();
-    await expect(page.getByRole("heading", { level: 1 })).toHaveText(t.champions.title);
-  });
-});
-
-test.describe("champion list", () => {
-  test("search by name, filter by role, open a champion", async ({ page, t }) => {
-    const errors = trackErrors(page);
-    await openApp(page, { view: "/champions" });
-    const tiles = page.getByTestId("champion-tile");
-    expect(await tiles.count()).toBeGreaterThan(160);
-    await page.getByTestId("champion-search").fill("ahr");
-    await expect(tiles.first()).toContainText("Ahri");
-    await page.getByTestId("champion-search").fill("zzzz");
-    await expect(page.locator("main")).toContainText(t.champions.noMatch("zzzz"));
-    await page.getByTestId("champion-search").fill("");
-    await segment(page, "role-filter", t.roles.support).click();
-    const hrefs = await tiles.evaluateAll((els) => els.map((el) => el.getAttribute("href") ?? ""));
-    expect(hrefs.length).toBeGreaterThan(20);
-    expect(hrefs.every((h) => h.endsWith("&role=support"))).toBe(true);
-    const name = await tiles.first().locator("span").last().innerText();
-    await tiles.first().click();
-    await expect(page.getByRole("heading", { level: 1 })).toHaveText(name);
-    expect(errors).toEqual([]);
+    await page.locator("main").getByRole("link", { name: t.tierList.title, exact: true }).click();
+    await expect(page.getByRole("heading", { level: 1 })).toContainText(t.tierList.title);
   });
 });
 
@@ -248,10 +417,27 @@ test.describe("champion list", () => {
 for (const size of SIZES) {
   test(`stats pages: switched states lay out @ ${size.name} ${size.width}×${size.height}`, async ({ page, t }) => {
     const errors = trackErrors(page);
-    await openApp(page, { view: "/tier-list", width: size.width, height: size.height });
+    await openApp(page, { view: "/tier-list?view=table&role=all", width: size.width, height: size.height });
     await page.getByTestId("tier-show-all").click();
     await settle(page);
-    expect(await page.evaluate(auditLayout), "all rows").toEqual([]);
+    expect(await page.evaluate(auditLayout), "every row").toEqual([]);
+    await page.getByTestId("champion-filter").fill("a");
+    await settle(page);
+    expect(await page.evaluate(auditLayout), "filtered").toEqual([]);
+    // The filter outlives a link to the same page: clear it for the podium and the map.
+    await page.getByTestId("champion-filter").fill("");
+    await openApp(page, { view: "/tier-list?view=shelves&role=all", width: size.width, height: size.height });
+    expect(await page.evaluate(auditLayout), "shelves, every lane").toEqual([]);
+    await rankButton(page).click();
+    await settle(page);
+    expect(await page.evaluate(auditLayout), "rank menu").toEqual([]);
+    await page.keyboard.press("Escape");
+    await page.getByTestId("open-map").click();
+    await page.getByTestId("map-point").first().waitFor();
+    await settle(page);
+    expect(await page.evaluate(auditLayout), "meta map").toEqual([]);
+    await openApp(page, { view: "/tier-list", scenario: "stats-offline", width: size.width, height: size.height });
+    expect(await page.evaluate(auditLayout), "offline: by class").toEqual([]);
     await openApp(page, { view: "/champions?id=103", width: size.width, height: size.height });
     await segment(page, "matchup-kind", t.champions.duos).click();
     await page.getByTestId("rune-page").nth(1).click();
@@ -293,24 +479,24 @@ test("the rank of Settings: saved, where the stats pages start; a rank picked th
   // The pages start from it.
   await tierList.click();
   await expect.poll(lastTierList).toEqual({ queue: 420, bracket: "diamondPlus" });
-  await expect(segment(page, "bracket-switch", t.brackets.diamondPlus)).toHaveAttribute("aria-checked", "true");
+  await expect(rankButton(page)).toContainText(t.brackets.diamondPlus);
 
   // Picked on a page, it holds there and on the champion pages.
-  await segment(page, "bracket-switch", t.brackets.masterPlus).click();
+  await pickRank(page, t.brackets.masterPlus);
   await expect.poll(lastTierList).toEqual({ queue: 420, bracket: "masterPlus" });
   await rows(page).first().click();
   await expect.poll(async () => (await argsOf(page, "champion_stats")).at(-1)).toMatchObject({ bracket: "masterPlus" });
   await settings.click();
   await expect(setting.getByRole("radio", { name: t.brackets.diamondPlus }), "the setting is its own").toBeChecked();
   await tierList.click();
-  await expect(segment(page, "bracket-switch", t.brackets.masterPlus)).toHaveAttribute("aria-checked", "true");
+  await expect(rankButton(page)).toContainText(t.brackets.masterPlus);
 
   // A new rank in Settings brings the pages to it.
   await settings.click();
   await setting.getByText(t.brackets.emeraldPlus).click();
   await expect.poll(async () => (await saved()).at(-1)).toBe("emeraldPlus");
   await tierList.click();
-  await expect(segment(page, "bracket-switch", t.brackets.emeraldPlus)).toHaveAttribute("aria-checked", "true");
+  await expect(rankButton(page)).toContainText(t.brackets.emeraldPlus);
   await expect.poll(lastTierList).toEqual({ queue: 420, bracket: "emeraldPlus" });
   expect(errors).toEqual([]);
 });

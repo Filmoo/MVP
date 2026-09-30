@@ -90,14 +90,45 @@ for (const style of runes) {
 for (const [id, item] of Object.entries(items.data)) {
   if (allIcons || (item.gold?.purchasable && item.maps?.["11"])) icons.add(`img/item/${id}.png`);
 }
-// Champion art (version-less on the CDN) for champions the fixtures feature in heroes.
-const ART = ["Ahri", "Aurora", "Orianna", "Lux", "Hwei", "Malphite", "Shen", "Ornn", "Jax", "KSante", "Garen", "Camille"];
+// Champion art (version-less on the CDN) for champions the fixtures feature in heroes and on the
+// tier list's podiums (every lane, Mid, Jungle, Support).
+const ART = [
+  ...["Ahri", "Aurora", "Orianna", "Lux", "Hwei", "Malphite", "Shen", "Ornn", "Jax", "KSante", "Garen", "Camille"],
+  ...["Zed", "Katarina", "Locke", "XinZhao", "Poppy", "Varus", "MasterYi", "Senna", "MonkeyKing"],
+];
 for (const key of ART) icons.add(`img/champion/centered/${key}_0.jpg`);
 // Profile icons referenced by fixtures.
 for (const id of [29, 4568, 5205, 6311, 588, 1, 7]) icons.add(`img/profileicon/${id}.png`);
 
 const failures = await pool([...icons], 12, download);
 console.log(`ddragon ${version}: ${fetched} downloaded, ${skipped} cached, ${failures.length} failed → ${out}`);
+
+/** An optional file of the client, as CommunityDragon mirrors it, into `cdragon/` (once). */
+async function clientFile(url, name, without) {
+  const dest = join(out, "cdragon", name);
+  if (existsSync(dest)) return;
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(20_000) });
+    if (!res.ok) throw new Error(`${res.status} ${url}`);
+    await mkdir(dirname(dest), { recursive: true });
+    await writeFile(dest, Buffer.from(await res.arrayBuffer()));
+    console.log(`${name} → ${dest}`);
+  } catch (error) {
+    console.log(`${name} not downloaded (${without}): ${error.message ?? error}`);
+  }
+}
+
+// Stat shards' names and effects (not in Data Dragon): the client's perks for this patch, which
+// the browser mock's tooltips read like the core does. Without it, the UI's own words.
+const patch = version.split(".").slice(0, 2).join(".");
+const PERKS = `https://raw.communitydragon.org/${patch}/plugins/rcp-be-lol-game-data/global/default/v1/perks.json`;
+await clientFile(PERKS, "perks.json", "shard tooltips use the UI's words");
+// League's position icons, which the core downloads at run time: the browser mock hands them to
+// the UI like the core does. Without them, the UI's own drawings.
+for (const role of ["top", "jungle", "middle", "bottom", "utility"]) {
+  const svg = `https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-static-assets/global/default/svg/position-${role}.svg`;
+  await clientFile(svg, `position-${role}.svg`, "the lanes show MVP's drawings");
+}
 if (failures.length) {
   console.log(failures.slice(0, 10).join("\n"));
   process.exitCode = failures.length > icons.size * 0.05 ? 1 : 0;

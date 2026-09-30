@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { glassFor, type LiquidSpec, lensPrimitives, opticalRadius } from "./filter";
+import { glassFor, type LiquidSpec, lensPrimitives, opticalRadius, THICKNESS_EASE } from "./filter";
 import { scaleFor, slices } from "./maps";
 
 const slab: LiquidSpec = {
@@ -54,7 +54,11 @@ describe("lens filter", () => {
     expect(deep?.attrs).toMatchObject({ in: "SourceGraphic", stdDeviation: 12 });
     // Weighted by the map's blue: none at the rim, all of it past the bezel.
     const core = primitives.find((p) => p.attrs.result === "core");
-    expect(core?.attrs.in).toBe("map");
+    expect(core?.attrs.in).toBe("thick");
+    // The thickness eases in (a gamma on blue), so the frost doesn't start right at the rim.
+    const thick = primitives.find((p) => p.attrs.result === "thick");
+    expect(thick?.attrs.in).toBe("map");
+    expect(thick?.children?.[0]?.attrs).toMatchObject({ type: "gamma", exponent: THICKNESS_EASE });
     expect(String(core?.attrs.values).split(/\s+/).slice(15)).toEqual(["0", "0", "1", "0", "0"]);
     const over = primitives.findIndex((p) => p.attrs.in === "deep" && p.attrs.in2 === "lens");
     expect(primitives[over]?.attrs).toMatchObject({ operator: "over", result: "lens" });
@@ -73,7 +77,7 @@ describe("lens filter", () => {
     const tint = { r: 0.07, g: 0.08, b: 0.12, a: 0.8 };
     const primitives = lensPrimitives(slab, parts, 10, tint);
     const matrix = primitives.find((p) => p.attrs.result === "tint");
-    expect(matrix?.attrs.in).toBe("map");
+    expect(matrix?.attrs.in).toBe("thick");
     // Alpha = 0.8 × blue; colour constant.
     expect(String(matrix?.attrs.values).split(/\s+/).slice(15)).toEqual(["0", "0", "0.8", "0", "0"]);
     const over = primitives.find((p) => p.attrs.in === "tint");
@@ -100,6 +104,13 @@ describe("lens filter", () => {
     const neutral = 128 / 255;
     expect((lr ?? 0) * neutral + (lg ?? 0) * neutral + (lo ?? 0)).toBeLessThan(0.01);
     expect(primitives.at(-1)?.attrs).toMatchObject({ in: "lens", in2: "shine", result: "lens" });
+    // Only on the rim: the light is cut by 1 − thickness, so it is exactly 0 where the glass is
+    // full thickness and meets the unlit middle without a step (the slices' edges showed as lines).
+    const rim = primitives.find((p) => p.attrs.result === "rim");
+    expect(rim?.attrs.in).toBe("map");
+    expect(String(rim?.attrs.values).split(/\s+/).slice(15)).toEqual(["0", "0", "-1", "0", "1"]);
+    const cut = primitives.find((p) => p.attrs.in === "shine" && p.attrs.in2 === "rim");
+    expect(cut?.attrs).toMatchObject({ operator: "in", result: "shine" });
     // Gathered toward the steepest rim: 1.6 by default, tighter on request.
     const gamma = (p: ReturnType<typeof lensPrimitives>) =>
       p.find((x) => x.attrs.result === "shine" && x.tag === "feComponentTransfer")?.children?.[0]?.attrs.exponent;

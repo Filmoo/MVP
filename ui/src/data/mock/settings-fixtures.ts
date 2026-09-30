@@ -1,7 +1,10 @@
 import { MAX_AUTO_ACCEPT_DELAY } from "../../lib/settings";
 import type { Settings } from "../generated/Settings";
 
-/** Mirrors `Settings::default()` in crates/domain/src/settings.rs. */
+/**
+ * Mirrors `Settings::default()` in crates/domain/src/settings.rs, but for the question asked once
+ * about sharing Mayhem games: this player answered "Not now" (`first-start` asks it).
+ */
 export const defaultSettings: Settings = {
   autoAccept: false,
   autoAcceptDelaySeconds: 2,
@@ -11,12 +14,13 @@ export const defaultSettings: Settings = {
   closeToTray: true,
   effects: "auto",
   language: "auto",
-  importRunes: "oneClick",
-  importItemSet: "oneClick",
-  importSpells: "oneClick",
+  autoImportRunes: false,
+  autoImportItemSet: false,
+  autoImportSpells: false,
   flashKey: "auto",
   statsBracket: "emeraldPlus",
   crashReports: false,
+  shareMayhemGames: false,
 };
 
 /** A player who turned automations on and changed the app's defaults. */
@@ -29,28 +33,21 @@ export const customSettings: Settings = {
   closeToTray: false,
   effects: "auto",
   language: "auto",
-  importRunes: "onLockIn",
-  importItemSet: "onLockIn",
-  importSpells: "off",
+  autoImportRunes: true,
+  autoImportItemSet: true,
+  autoImportSpells: false,
   flashKey: "f",
   statsBracket: "diamondPlus",
   crashReports: false,
+  shareMayhemGames: false,
 };
 
-/** Every part imported by itself on lock-in. */
-export const lockInSettings: Settings = {
+/** Every part imported by itself at the first lock-in. */
+export const autoImportSettings: Settings = {
   ...defaultSettings,
-  importRunes: "onLockIn",
-  importItemSet: "onLockIn",
-  importSpells: "onLockIn",
-};
-
-/** Every import turned off: no import bar in Draft. */
-export const importsOffSettings: Settings = {
-  ...defaultSettings,
-  importRunes: "off",
-  importItemSet: "off",
-  importSpells: "off",
+  autoImportRunes: true,
+  autoImportItemSet: true,
+  autoImportSpells: true,
 };
 
 /** What the core does with an update: clamps the delay, then answers what it saved. */

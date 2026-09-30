@@ -10,8 +10,8 @@ use companion::imports::{
 };
 use domain::{
     Bracket, BuildOption, BuildSection, BuildStats, ClientConnection, ClientStatus, FailReason,
-    FlashKey, FlashNote, GameflowPhase, ImportMode, ImportOutcome, ImportPart, ImportRequest,
-    ImportResult, Language, RemoteConfig, Role, Settings, SkipReason, SpellKey,
+    FlashKey, FlashNote, GameflowPhase, ImportOutcome, ImportPart, ImportRequest, ImportResult,
+    ImportWarning, Language, Lock, RemoteConfig, Role, Settings, SkipReason, SpellKey,
 };
 use lcu::tls::pinned_client_config;
 use lcu::{ConnectorConfig, LcuClient};
@@ -20,6 +20,10 @@ use serde_json::{Value, json};
 use tokio::sync::watch;
 
 const AHRI: u32 = 103;
+/// A second champion with a build (a trade's).
+const SYNDRA: u32 = 134;
+/// A champion without a build.
+const LUX: u32 = 99;
 const FLASH: u32 = 4;
 const IGNITE: u32 = 14;
 const SUMMONER_ID: u64 = 2_345_678;
@@ -71,11 +75,13 @@ fn ahri_build(role: Option<Role>) -> BuildStats {
 /// A build asked for: champion, role, queue, bracket.
 type Asked = (u32, Option<Role>, u32, Bracket);
 
-/// Builds for Ahri only (at every bracket but `unpublished`); remembers what was asked.
+/// Builds for Ahri and Syndra only (at every bracket but `unpublished`), answered after `slow`;
+/// remembers what was asked.
 #[derive(Debug, Default)]
 struct FakeBuilds {
     asked: Mutex<Vec<Asked>>,
     unpublished: Option<Bracket>,
+    slow: Option<Duration>,
 }
 
 impl BuildSource for FakeBuilds {
@@ -91,9 +97,14 @@ impl BuildSource for FakeBuilds {
             .unwrap()
             .push((champion_id, role, queue, bracket));
         let published = self.unpublished != Some(bracket);
-        Box::pin(std::future::ready(
-            (champion_id == AHRI && published).then(|| ahri_build(role)),
-        ))
+        let build = ([AHRI, SYNDRA].contains(&champion_id) && published).then(|| ahri_build(role));
+        let slow = self.slow;
+        Box::pin(async move {
+            if let Some(slow) = slow {
+                tokio::time::sleep(slow).await;
+            }
+            build
+        })
     }
 }
 
@@ -189,12 +200,16 @@ struct Setup {
     importer: Importer,
     builds: Arc<FakeBuilds>,
     settings: watch::Sender<Settings>,
-    _status: watch::Sender<ClientStatus>,
+    status: watch::Sender<ClientStatus>,
     remote: watch::Sender<RemoteConfig>,
 }
 
 fn names() -> imports::ChampionNames {
-    Arc::new(|id| (id == AHRI).then(|| "Ahri".to_owned()))
+    Arc::new(|id| match id {
+        AHRI => Some("Ahri".to_owned()),
+        SYNDRA => Some("Syndra".to_owned()),
+        _ => None,
+    })
 }
 
 /// An importer on `mock`, in `phase`, with `settings`.
@@ -209,13 +224,23 @@ fn importer_with(
     settings: Settings,
     builds: FakeBuilds,
 ) -> Setup {
+    importer_on(lcu_client(mock), phase, settings, builds)
+}
+
+/// An importer talking to `client`.
+fn importer_on(
+    client: LcuClient,
+    phase: GameflowPhase,
+    settings: Settings,
+    builds: FakeBuilds,
+) -> Setup {
     let builds = Arc::new(builds);
     let (settings_tx, settings_rx) = watch::channel(settings);
     let (status_tx, status_rx) = watch::channel(ClientStatus {
         connection: ClientConnection::Connected,
         phase,
     });
-    let (_client_tx, client_rx) = watch::channel(Some(lcu_client(mock)));
+    let (_client_tx, client_rx) = watch::channel(Some(client));
     let (remote_tx, remote_rx) = watch::channel(RemoteConfig::default());
     Setup {
         importer: Importer::new(
@@ -229,11 +254,12 @@ fn importer_with(
         ),
         builds,
         settings: settings_tx,
-        _status: status_tx,
+        status: status_tx,
         remote: remote_tx,
     }
 }
 
+/// A click on a champion page's bar (not tied to a champion select).
 fn request(parts: &[ImportPart]) -> ImportRequest {
     ImportRequest {
         champion_id: AHRI,
@@ -241,6 +267,15 @@ fn request(parts: &[ImportPart]) -> ImportRequest {
         queue: None,
         bracket: None,
         parts: parts.to_vec(),
+        champ_select: false,
+    }
+}
+
+/// A click in Draft: for the champion select.
+fn in_draft(parts: &[ImportPart]) -> ImportRequest {
+    ImportRequest {
+        champ_select: true,
+        ..request(parts)
     }
 }
 
@@ -313,6 +348,45 @@ fn assert_player_pages_untouched(mock: &MockLcu) {
 }
 
 // ── Rune pages ────────────────────────────────────────────────────────────────────────────
+
+/// A client that doesn't answer (seen on a real PC: another app held every connection the
+/// League client accepts): the import says so, instead of quoting a transport error as the
+/// client's refusal.
+#[tokio::test]
+async fn a_client_that_does_not_answer_is_not_a_refusal() {
+    let mock = client_with_player_data(3).await;
+    // A port nothing listens on: every request fails before any answer.
+    let port = std::net::TcpListener::bind("127.0.0.1:0")
+        .unwrap()
+        .local_addr()
+        .unwrap()
+        .port();
+    let creds = lcu::Lockfile::parse(&format!("LeagueClient:1:{port}:secret:https"))
+        .unwrap()
+        .credentials();
+    let silent = LcuClient::new(
+        &creds,
+        pinned_client_config(mock.ca_pem().as_bytes()).unwrap(),
+    )
+    .unwrap();
+    let setup = importer_on(
+        silent,
+        GameflowPhase::ChampSelect,
+        Settings::default(),
+        FakeBuilds::default(),
+    );
+    let result = setup
+        .importer
+        .import(&request(&[ImportPart::Runes]), false)
+        .await;
+    assert_eq!(
+        outcome(&result, ImportPart::Runes),
+        ImportOutcome::Failed {
+            reason: FailReason::NotAnswering
+        }
+    );
+    assert_eq!(mock.count("POST", PAGES), 0);
+}
 
 #[tokio::test]
 async fn creates_mvp_page_when_there_is_room() {
@@ -736,31 +810,120 @@ async fn spells_only_in_champion_select() {
 
 // ── Whole imports ─────────────────────────────────────────────────────────────────────────
 
+/// The switches only say what is imported by itself: every part's button works either way.
 #[tokio::test]
-async fn parts_turned_off_are_never_written() {
+async fn the_buttons_work_whatever_the_switches() {
     let mock = client_with_player_data(3).await;
     mock.set(SESSION, champ_select(AHRI, true, "BAN_PICK", 25_000));
-    let settings = Settings {
-        import_runes: ImportMode::Off,
-        import_spells: ImportMode::Off,
+    let off = Settings {
+        auto_import_runes: false,
+        auto_import_item_set: false,
+        auto_import_spells: false,
         ..Settings::default()
     };
-    let setup = importer(&mock, GameflowPhase::ChampSelect, settings);
+    let setup = importer(&mock, GameflowPhase::ChampSelect, off);
     let result = setup
         .importer
-        .import(&request(&ImportPart::ALL), false)
+        .import(&in_draft(&ImportPart::ALL), false)
         .await;
-    let off = ImportOutcome::Skipped {
-        reason: SkipReason::Off,
-    };
-    assert_eq!(outcome(&result, ImportPart::Runes), off);
-    assert_eq!(outcome(&result, ImportPart::Spells), off);
+    assert!(matches!(
+        outcome(&result, ImportPart::Runes),
+        ImportOutcome::Saved { .. }
+    ));
     assert!(matches!(
         outcome(&result, ImportPart::ItemSet),
         ImportOutcome::Saved { .. }
     ));
-    assert_eq!(mock.count("POST", PAGES), 0);
-    assert_eq!(mock.count("PATCH", MY_SELECTION), 0);
+    assert!(matches!(
+        outcome(&result, ImportPart::Spells),
+        ImportOutcome::SpellsSet { changed: true, .. }
+    ));
+    assert_eq!(mock.count("POST", PAGES), 1);
+    assert_eq!(mock.count("PUT", &sets_path()), 1);
+    assert_eq!(mock.count("PATCH", MY_SELECTION), 1);
+}
+
+const ENDED: ImportOutcome = ImportOutcome::Skipped {
+    reason: SkipReason::ChampSelectEnded,
+};
+
+/// A click in Draft as champion select ends (the game is starting): nothing is tried, and the
+/// player is told so rather than a failure that isn't one.
+#[tokio::test]
+async fn a_click_as_champion_select_ends_tries_nothing() {
+    let mock = client_with_player_data(3).await;
+    let setup = importer(&mock, GameflowPhase::Loading, Settings::default());
+    let result = setup
+        .importer
+        .import(&in_draft(&ImportPart::ALL), false)
+        .await;
+    for part in ImportPart::ALL {
+        assert_eq!(outcome(&result, part), ENDED, "{part:?}");
+    }
+    assert!(
+        setup.builds.asked.lock().unwrap().is_empty(),
+        "nothing read"
+    );
+    assert_eq!(writes(&mock), 0);
+
+    // The session's last seconds: the game is starting, nothing can change any more.
+    mock.set(SESSION, champ_select(AHRI, true, "GAME_STARTING", 3_000));
+    setup
+        .status
+        .send_modify(|s| s.phase = GameflowPhase::ChampSelect);
+    let result = setup
+        .importer
+        .import(&in_draft(&ImportPart::ALL), false)
+        .await;
+    for part in ImportPart::ALL {
+        assert_eq!(outcome(&result, part), ENDED, "{part:?}");
+    }
+    assert_eq!(writes(&mock), 0);
+
+    // A champion page's import is for any game: it goes ahead.
+    let page = setup
+        .importer
+        .import(&request(&[ImportPart::Runes]), false)
+        .await;
+    assert!(matches!(
+        outcome(&page, ImportPart::Runes),
+        ImportOutcome::Saved { .. }
+    ));
+}
+
+/// Seen on a real client: a click as champion select ended said "No build for this champion and
+/// role" (the session was gone by the time the build was looked up). What happened is said.
+#[tokio::test]
+async fn champion_select_ending_during_the_import_is_what_it_says() {
+    let mock = client_with_player_data(3).await;
+    mock.set(SESSION, champ_select(LUX, true, "FINALIZATION", 6_000));
+    let builds = FakeBuilds {
+        slow: Some(Duration::from_millis(300)),
+        ..FakeBuilds::default()
+    };
+    let setup = importer_with(
+        &mock,
+        GameflowPhase::ChampSelect,
+        Settings::default(),
+        builds,
+    );
+    let lux = ImportRequest {
+        champion_id: LUX,
+        ..in_draft(&ImportPart::ALL)
+    };
+    let importer = setup.importer.clone();
+    let running = tokio::spawn(async move { importer.import(&lux, false).await });
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    // The game starts while the build is looked up.
+    mock.remove(SESSION);
+    setup
+        .status
+        .send_modify(|s| s.phase = GameflowPhase::Loading);
+    let result = running.await.unwrap();
+    for part in ImportPart::ALL {
+        assert_eq!(outcome(&result, part), ENDED, "{part:?}");
+    }
+    assert_eq!(writes(&mock), 0);
 }
 
 #[tokio::test]
@@ -883,7 +1046,7 @@ async fn without_a_client_every_part_says_so() {
     }
 }
 
-// ── Automatic import on lock-in ───────────────────────────────────────────────────────────
+// ── Automatic import (first lock-in) ──────────────────────────────────────────────────────
 
 fn config_for(mock: &MockLcu) -> ConnectorConfig {
     let lockfile = mock.lockfile();
@@ -900,15 +1063,25 @@ fn config_for(mock: &MockLcu) -> ConnectorConfig {
     }
 }
 
-fn on_lock_in() -> Settings {
+/// Every part's "Auto import" switch on.
+fn auto_import_all() -> Settings {
     Settings {
-        import_runes: ImportMode::OnLockIn,
-        import_item_set: ImportMode::OnLockIn,
-        import_spells: ImportMode::OnLockIn,
+        auto_import_runes: true,
+        auto_import_item_set: true,
+        auto_import_spells: true,
         // Only the imports matter here.
         auto_switch_view: false,
         bring_to_front_on_champ_select: false,
         ..Settings::default()
+    }
+}
+
+/// Only the rune page's switch on.
+fn auto_import_runes() -> Settings {
+    Settings {
+        auto_import_item_set: false,
+        auto_import_spells: false,
+        ..auto_import_all()
     }
 }
 
@@ -979,6 +1152,21 @@ async fn next_import(companion: &mut companion::Companion) -> ImportResult {
     }
 }
 
+/// Waits until Draft's warning is `wanted`.
+async fn warning_is(companion: &companion::Companion, wanted: Option<&ImportWarning>) {
+    let mut warning = companion.import_warning.clone();
+    let reached = tokio::time::timeout(
+        Duration::from_secs(5),
+        warning.wait_for(|now| now.as_ref() == wanted),
+    )
+    .await;
+    assert!(
+        reached.is_ok(),
+        "warning {:?}, waited for {wanted:?}",
+        *companion.import_warning.borrow()
+    );
+}
+
 fn writes(mock: &MockLcu) -> usize {
     ["POST", "PUT", "PATCH", "DELETE"]
         .iter()
@@ -986,10 +1174,18 @@ fn writes(mock: &MockLcu) -> usize {
         .sum()
 }
 
+/// Locked in mid (the fixture's position).
+const fn mid(champion_id: u32) -> Lock {
+    Lock {
+        champion_id,
+        role: Some(Role::Middle),
+    }
+}
+
 #[tokio::test]
-async fn imports_once_per_lock() {
+async fn imports_once_at_the_first_lock_in() {
     let mock = client_with_player_data(3).await;
-    let (mut companion, _settings, _builds) = in_champ_select(&mock, on_lock_in()).await;
+    let (mut companion, _settings, _builds) = in_champ_select(&mock, auto_import_all()).await;
     // Hovering: nothing.
     mock.set(SESSION, champ_select(AHRI, false, "BAN_PICK", 20_000));
     tokio::time::sleep(Duration::from_millis(300)).await;
@@ -1027,15 +1223,16 @@ async fn imports_once_per_lock() {
     assert_eq!(mock.count("PUT", &sets_path()), 1);
     assert_eq!(mock.count("PATCH", MY_SELECTION), 1);
     assert_player_pages_untouched(&mock);
+    assert_eq!(*companion.import_warning.borrow(), None);
 }
 
 #[tokio::test]
-async fn a_kill_switch_stops_the_lock_in_import_at_once() {
+async fn a_kill_switch_stops_the_automatic_import_at_once() {
     let mock = client_with_player_data(3).await;
     let (remote_tx, remote_rx) = watch::channel(RemoteConfig::default());
     let (mut companion, _settings, _builds) =
-        in_champ_select_with(&mock, on_lock_in(), remote_rx).await;
-    // Switched on in the middle of the champion select: the next lock leaves rune pages alone.
+        in_champ_select_with(&mock, auto_import_all(), remote_rx).await;
+    // Switched on in the middle of the champion select: the lock-in leaves rune pages alone.
     remote_tx.send_modify(|config| config.kill_switches.rune_import = true);
     mock.set(SESSION, champ_select(AHRI, true, "BAN_PICK", 20_000));
     let result = next_import(&mut companion).await;
@@ -1048,19 +1245,35 @@ async fn a_kill_switch_stops_the_lock_in_import_at_once() {
 }
 
 #[tokio::test]
-async fn one_click_by_default_never_imports_by_itself() {
+async fn no_automatic_import_when_every_switch_is_off() {
+    // Off until the player turns them on.
+    let defaults = Settings::default();
+    assert!(
+        ImportPart::ALL
+            .into_iter()
+            .all(|p| !defaults.auto_import(p))
+    );
     let mock = client_with_player_data(3).await;
-    let (_companion, _settings, builds) = in_champ_select(&mock, Settings::default()).await;
+    let off = Settings {
+        auto_switch_view: false,
+        bring_to_front_on_champ_select: false,
+        ..defaults
+    };
+    let (companion, _settings, builds) = in_champ_select(&mock, off).await;
     mock.set(SESSION, champ_select(AHRI, true, "BAN_PICK", 20_000));
-    tokio::time::sleep(Duration::from_millis(400)).await;
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    // A trade: nothing was imported by itself, so nothing to warn about either.
+    mock.set(SESSION, champ_select(SYNDRA, true, "BAN_PICK", 18_000));
+    tokio::time::sleep(Duration::from_millis(300)).await;
     assert_eq!(writes(&mock), 0);
     assert!(builds.asked.lock().unwrap().is_empty());
+    assert_eq!(*companion.import_warning.borrow(), None);
 }
 
 #[tokio::test]
 async fn a_last_second_lock_sets_spells_on_the_next_turn() {
     let mock = client_with_player_data(3).await;
-    let (mut companion, _settings, _builds) = in_champ_select(&mock, on_lock_in()).await;
+    let (mut companion, _settings, _builds) = in_champ_select(&mock, auto_import_all()).await;
     // Locked with 2 s left on the pick timer: runes and items now, spells wait.
     mock.set(SESSION, champ_select(AHRI, true, "BAN_PICK", 2_000));
     let first = next_import(&mut companion).await;
@@ -1086,25 +1299,177 @@ async fn a_last_second_lock_sets_spells_on_the_next_turn() {
 }
 
 #[tokio::test]
-async fn a_trade_is_a_new_lock() {
+async fn a_trade_after_the_automatic_import_warns_and_does_not_import() {
     let mock = client_with_player_data(3).await;
-    let settings = Settings {
-        import_spells: ImportMode::OneClick,
-        import_item_set: ImportMode::OneClick,
-        ..on_lock_in()
+    let (mut companion, _settings, builds) = in_champ_select(&mock, auto_import_runes()).await;
+    mock.set(SESSION, champ_select(AHRI, true, "BAN_PICK", 20_000));
+    let first = next_import(&mut companion).await;
+    assert_eq!(first.parts.len(), 1);
+    assert_eq!(*companion.import_warning.borrow(), None);
+    let before = writes(&mock);
+
+    // Traded for Syndra: nothing is imported, Draft warns.
+    mock.set(SESSION, champ_select(SYNDRA, true, "BAN_PICK", 15_000));
+    let warning = ImportWarning {
+        built_for: mid(AHRI),
+        now: mid(SYNDRA),
+        parts: vec![ImportPart::Runes],
     };
-    let (mut companion, _settings, builds) = in_champ_select(&mock, settings).await;
+    warning_is(&companion, Some(&warning)).await;
+    // The new lock's later events and finalization: still nothing by itself.
+    mock.set(SESSION, champ_select(SYNDRA, true, "BAN_PICK", 9_000));
+    mock.set(SESSION, champ_select(SYNDRA, true, "FINALIZATION", 30_000));
+    tokio::time::sleep(Duration::from_millis(400)).await;
+    assert_eq!(writes(&mock), before, "never imported again by itself");
+    assert_eq!(
+        builds.asked.lock().unwrap().len(),
+        1,
+        "Syndra's never looked up"
+    );
+    assert_eq!(mvp_pages(&mock)[0]["name"], "MVP · Ahri Mid");
+    assert_eq!(companion.import_warning.borrow().as_ref(), Some(&warning));
+}
+
+#[tokio::test]
+async fn the_warnings_import_imports_for_the_new_champion() {
+    let mock = client_with_player_data(3).await;
+    let (mut companion, _settings, builds) = in_champ_select(&mock, auto_import_all()).await;
     mock.set(SESSION, champ_select(AHRI, true, "BAN_PICK", 20_000));
     next_import(&mut companion).await;
-    // Traded for another champion (no build for it): a new import is tried.
-    mock.set(SESSION, champ_select(99, true, "FINALIZATION", 20_000));
-    let traded = next_import(&mut companion).await;
-    assert_eq!(traded.champion_id, 99);
+    mock.set(SESSION, champ_select(SYNDRA, true, "BAN_PICK", 20_000));
+    let warning = ImportWarning {
+        built_for: mid(AHRI),
+        now: mid(SYNDRA),
+        parts: ImportPart::ALL.to_vec(),
+    };
+    warning_is(&companion, Some(&warning)).await;
+
+    // "Import for Syndra": the parts it lists, for the lock it names, from Draft.
+    let request = ImportRequest {
+        champion_id: warning.now.champion_id,
+        role: warning.now.role,
+        queue: None,
+        bracket: None,
+        parts: warning.parts.clone(),
+        champ_select: true,
+    };
+    let result = companion.imports.import(&request, false).await;
     assert_eq!(
-        outcome(&traded, ImportPart::Runes),
-        ImportOutcome::Failed {
-            reason: FailReason::NoBuild
+        outcome(&result, ImportPart::Runes),
+        ImportOutcome::Saved {
+            name: "MVP · Syndra Mid".into()
         }
     );
-    assert_eq!(builds.asked.lock().unwrap().len(), 2);
+    assert!(matches!(
+        outcome(&result, ImportPart::ItemSet),
+        ImportOutcome::Saved { .. }
+    ));
+    assert!(matches!(
+        outcome(&result, ImportPart::Spells),
+        ImportOutcome::SpellsSet { .. }
+    ));
+    warning_is(&companion, None).await;
+    let ours = mvp_pages(&mock);
+    assert_eq!(ours.len(), 1, "MVP's page, replaced");
+    assert_eq!(ours[0]["name"], "MVP · Syndra Mid");
+    // MVP keeps one set per champion: Syndra's comes next to Ahri's.
+    let sets = mock.get(&sets_path()).unwrap();
+    let syndra = sets["itemSets"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|set| set["title"] == "MVP · Syndra Mid")
+        .cloned()
+        .unwrap();
+    assert_eq!(syndra["associatedChampions"], json!([SYNDRA]));
+    assert_eq!(
+        builds.asked.lock().unwrap().last().map(|asked| asked.0),
+        Some(SYNDRA)
+    );
+    assert_player_pages_untouched(&mock);
+}
+
+/// MVP never watches the player's things: what they change themselves (another page, their
+/// spells, their item sets) neither warns nor imports.
+#[tokio::test]
+async fn the_players_own_changes_never_warn_nor_import() {
+    let mock = client_with_player_data(3).await;
+    let (mut companion, _settings, _builds) = in_champ_select(&mock, auto_import_all()).await;
+    mock.set(SESSION, champ_select(AHRI, true, "BAN_PICK", 20_000));
+    next_import(&mut companion).await;
+    let before = writes(&mock);
+
+    // Their own page made current again, MVP's page edited, MVP's item set deleted…
+    let pages: Vec<Value> = pages_now(&mock)
+        .into_iter()
+        .map(|mut page| {
+            let mine = page["id"] == 101;
+            page["current"] = json!(mine);
+            if page["name"].as_str().is_some_and(imports::is_mvp_name) {
+                page["selectedPerkIds"][0] = json!(8128);
+            }
+            page
+        })
+        .collect();
+    mock.set(PAGES, Value::Array(pages));
+    mock.set(&sets_path(), player_item_sets());
+    // …and Ghost instead of Ignite, all in the client.
+    let mut session = champ_select(AHRI, true, "BAN_PICK", 15_000);
+    session["myTeam"][1]["spell1Id"] = json!(6);
+    session["myTeam"][1]["spell2Id"] = json!(FLASH);
+    mock.set(SESSION, session);
+    tokio::time::sleep(Duration::from_millis(400)).await;
+    assert_eq!(writes(&mock), before, "nothing imported again");
+    assert_eq!(
+        *companion.import_warning.borrow(),
+        None,
+        "nothing to warn about"
+    );
+}
+
+#[tokio::test]
+async fn the_warning_follows_the_switches_and_ends_with_champion_select() {
+    let mock = client_with_player_data(3).await;
+    let (mut companion, settings, _builds) = in_champ_select(&mock, auto_import_runes()).await;
+    mock.set(SESSION, champ_select(AHRI, true, "BAN_PICK", 20_000));
+    next_import(&mut companion).await;
+    mock.set(SESSION, champ_select(SYNDRA, true, "BAN_PICK", 20_000));
+    let warning = ImportWarning {
+        built_for: mid(AHRI),
+        now: mid(SYNDRA),
+        parts: vec![ImportPart::Runes],
+    };
+    warning_is(&companion, Some(&warning)).await;
+    // The rune page's switch turned off: nothing left for that one click to import.
+    settings.send_modify(|s| s.auto_import_runes = false);
+    warning_is(&companion, None).await;
+    settings.send_modify(|s| s.auto_import_runes = true);
+    warning_is(&companion, Some(&warning)).await;
+    // Traded back: MVP's build is for what you play again.
+    mock.set(SESSION, champ_select(AHRI, true, "BAN_PICK", 18_000));
+    warning_is(&companion, None).await;
+    mock.set(SESSION, champ_select(SYNDRA, true, "BAN_PICK", 16_000));
+    warning_is(&companion, Some(&warning)).await;
+    // The game starts.
+    mock.set(lcu::GAMEFLOW_PHASE, json!("InProgress"));
+    warning_is(&companion, None).await;
+}
+
+#[tokio::test]
+async fn a_trade_before_deferred_spells_leaves_them_to_the_warning() {
+    let mock = client_with_player_data(3).await;
+    let (mut companion, _settings, _builds) = in_champ_select(&mock, auto_import_all()).await;
+    // Locked with 2 s left: runes and items now, spells wait for time on the clock…
+    mock.set(SESSION, champ_select(AHRI, true, "BAN_PICK", 2_000));
+    next_import(&mut companion).await;
+    // …but a trade comes first: Ahri's spells never go on Syndra.
+    mock.set(SESSION, champ_select(SYNDRA, true, "BAN_PICK", 27_000));
+    let warning = ImportWarning {
+        built_for: mid(AHRI),
+        now: mid(SYNDRA),
+        parts: ImportPart::ALL.to_vec(),
+    };
+    warning_is(&companion, Some(&warning)).await;
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    assert_eq!(mock.count("PATCH", MY_SELECTION), 0);
 }

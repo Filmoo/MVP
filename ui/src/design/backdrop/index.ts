@@ -1,3 +1,3 @@
 export { Backdrop } from "./Backdrop";
-export { effects, rendered, setEffects } from "./controller";
+export { effects, osEnvironment, rendered, setEffects } from "./controller";
 export { EFFECTS, type Effects } from "./quality";

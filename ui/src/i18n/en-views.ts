@@ -32,12 +32,36 @@ export const enViews = {
     network: { title: "Can't reach MVP's servers", text: "Check your internet connection, then try again." },
   },
 
-  /** A match row opened: the whole game. */
+  /** A match row opened: the whole game, in a window of the stack of opened games. */
   matchDetails: {
-    columns: { damage: "Damage", gold: "Gold", cs: "CS", vision: "Vision", grade: "Grade" },
+    columns: {
+      damage: "Damage",
+      gold: "Gold",
+      cs: "CS",
+      vision: "Vision",
+      grade: "Grade",
+      /** What the KDA column says under each K / D / A (its heading's hint). */
+      kdaHint:
+        "Kills / deaths / assists, then the KDA ratio and the kill participation: the share of the team's kills the player took part in.",
+    },
+    /** Kill participation, under the K / D / A: `62% KP`. */
+    kp: (pct: string) => `${pct} KP`,
     /** A champion's level at the end of the game. */
     level: (n: number) => `Level ${n}`,
     damageTitle: (damage: string) => `${damage} damage to champions`,
+    /** The window's tabs: the scoreboard, then the end-of-game stats (MatchStats.tsx's `STAT_TABS`). */
+    tabs: { label: "Show", scoreboard: "Scoreboard", damage: "Damage", vision: "Vision & gold", combat: "Combat" },
+    /** After a grade's score: `8.4 / 10`. */
+    outOf: "/ 10",
+    /** A grade's place among the ten, after its score: `2nd of 10`. */
+    placeOf: (place: string) => `${place} of 10`,
+    /** A ranked game's LP beside its result (the change itself reads like a row's: `+21 LP`). */
+    lp: {
+      promoted: "Promoted",
+      demoted: "Demoted",
+      /** The game that just ended: the client hasn't counted it yet. */
+      pending: "Counting LP…",
+    },
     /** Why a game can't open (unreachable servers and rate limits read like the other lookups'). */
     errors: {
       title: "Couldn't open this game",
@@ -45,6 +69,66 @@ export const enViews = {
       unavailable: "MVP's server can't open games right now. Try again in a moment.",
     },
     note: "Each grade compares the player with the other nine of this game (kill participation, KDA, damage, vision and objectives, CS and gold against the lane opponent), weighted by role. It rates one game, not a player.",
+    /** When the game ended: `Today, 21:34`, `12 Sep, 09:05` (`day` from `dayLabel`). */
+    playedAt: (day: string, hours: number, minutes: number) =>
+      `${day}, ${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`,
+    close: "Close",
+    /**
+     * The stack of opened games: what a pull past its ends does, said while the stack is pulled
+     * (and while older games load, or failed to).
+     */
+    stack: {
+      close: "Keep scrolling to close",
+      load: "Keep scrolling to load older games",
+      failed: "Couldn't load older games. Keep scrolling to try again.",
+      /** A player's page: its games are all the stack has. */
+      endHere: "No older games on this page",
+    },
+    /** The neighbours peeking at the stack's edges, on hover (a click goes there). */
+    peek: { newer: "Newer game", older: "Older game" },
+    /** The raw end-of-game numbers, like the League client's post-game Stats tab. */
+    stats: {
+      groups: {
+        combat: "Combat",
+        damageDealt: "Damage dealt",
+        damageTaken: "Damage taken and healing",
+        vision: "Vision",
+        income: "Income",
+        objectives: "Objectives",
+      },
+      rows: {
+        kda: "KDA",
+        largestKillingSpree: "Largest killing spree",
+        largestMultiKill: "Largest multikill",
+        firstBlood: "First blood",
+        crowdControl: "Crowd control on enemies",
+        toChampions: "To champions",
+        physical: "Physical",
+        magic: "Magic",
+        trueDamage: "True",
+        toTurrets: "To turrets",
+        toObjectives: "To objectives",
+        taken: "Damage taken",
+        selfMitigated: "Self-mitigated",
+        healing: "Healing",
+        healingOnTeammates: "Healing on teammates",
+        shieldingOnTeammates: "Shielding on teammates",
+        visionScore: "Vision score",
+        wardsPlaced: "Wards placed",
+        wardsDestroyed: "Wards destroyed",
+        controlWards: "Control wards bought",
+        goldEarned: "Gold earned",
+        goldSpent: "Gold spent",
+        minions: "Minions killed",
+        monsters: "Monsters killed",
+        turrets: "Turrets destroyed",
+        inhibitors: "Inhibitors destroyed",
+      },
+      /** Seconds of crowd control: `42 s`. */
+      seconds: (value: string) => `${value} s`,
+      /** First blood's mark, for screen readers. */
+      yes: "Yes",
+    },
   },
 
   /** Why a game got its grade (hover or focus a match row's grade). */
@@ -180,19 +264,26 @@ export const enViews = {
     nouns: parts,
     importPart: (part: "runes" | "itemSet" | "spells") =>
       ({ runes: "Import runes", itemSet: "Import item set", spells: "Import spells" })[part],
-    auto: "Also imported by itself when you lock in",
+    auto: "Also imported by itself at your first lock-in",
     idle: (flash: string) => `Your own rune pages and item sets are never changed, and ${flash} stays on your key.`,
+    /** After the automatic import, your champion or role changed (a trade, a swap). */
+    warning: {
+      text: (built: string, now: string) => `MVP's build is for ${built}, you're now on ${now}.`,
+      importFor: (now: string) => `Import for ${now}`,
+    },
     pickFirst: "Hover or lock in a champion first",
     pick: "Hover or lock in a champion",
     notYet: "Builds come with the champion stats, not available yet",
     notYetStatus: "Builds come with the champion stats, which aren't available yet.",
     spellsInChampSelect: "Spells can only change during champion select",
+    needsClient: "Open the League client to import into it",
     hovering: "hovering",
     lockedIn: "locked in",
     mostPlayedIn: (queue: 420 | 450, bracket: string) => `most played build in ${en.queues[queue]} · ${bracket}`,
     failed: (message: string) => `Couldn't import: ${message}`,
     fail: {
       noClient: "The League client isn't connected.",
+      notAnswering: "The League client didn't answer. It may be busy: try again, or restart it.",
       noBuild: "No build for this champion and role in the stats yet.",
       noRunes: "The stats have no full rune page for this build yet.",
       noItems: "The stats have no items for this build yet.",
@@ -202,9 +293,9 @@ export const enViews = {
       client: (message: string) => `The League client refused: ${message}`,
     },
     skip: {
-      off: "Turned off in Settings.",
       paused: "Paused by MVP for now, while it's fixed for the latest League client.",
       notInChampSelect: "Spells can only change during champion select.",
+      champSelectEnded: "Champion select ended before the import.",
       tooLate: (seconds: number) =>
         seconds > 0 ? `Spells not changed: only ${seconds} s left in champion select.` : "Spells not changed: the game is starting.",
     },
@@ -230,6 +321,14 @@ export const enViews = {
     show: "Show",
     tabs: { players: "Players", build: "My build" },
     lookingUp: "Looking players up…",
+    /**
+     * Riot's live game had no names for this game: the game itself gives them once loaded.
+     * When first, why after: narrow windows cut the end of the line.
+     */
+    names: {
+      waiting: "Names after the loading screen",
+      filtered: (queue: string) => `Names after the loading screen: Riot doesn't share live ${queue} games`,
+    },
     readFailed: "Couldn't read the game",
     idle: {
       title: "Not in a game",
@@ -256,6 +355,8 @@ export const enViews = {
     streamer: "Streamer mode",
     mains: (roles: string) => `${roles} main`,
     hidden: "Hidden player",
+    /** Not just "Bot": the bottom lane is "Bot" too. */
+    bot: "AI bot",
     unknown: "Unknown player",
     cardUnavailable: "Card unavailable",
     noRankedData: "No ranked data",
@@ -269,9 +370,10 @@ export const enViews = {
   stats: {
     queue: "Queue",
     rank: "Rank",
+    /** The rank button's tooltip: whose games the numbers count. */
+    rankHint: "Whose games the stats count: players of this rank and above.",
     role: "Role",
-    all: "All",
-    queueN: (id: number) => `Queue ${id}`,
+    allRoles: "All roles",
     errors: {
       notFound: {
         title: "No stats published yet",
@@ -299,39 +401,72 @@ export const enViews = {
 
   tierList: {
     title: "Tier list",
-    note: "Tiers come from the score: the win rate pulled toward 50 % as if every champion had 1,000 more games at 50 % (so a lucky small sample can't top the list), minus 50 %. S ≥ +2 · A ≥ +0.75 · B ≥ −0.75 · C ≥ −2 · D below. Pick and ban rates are shares of all games counted.",
+    note: "Tiers come from the score: the win rate pulled toward 50% as if every champion had 1,000 more games at 50% (so a lucky small sample can't top the list), minus 50%. S ≥ +2 · A ≥ +0.75 · B ≥ −0.75 · C ≥ −2 · D below. Pick and ban rates are shares of all games counted.",
     columns: {
       rank: "#",
       champion: "Champion",
+      lane: "Lane",
+      /** One lane shown: how much of the champion's games it has. */
+      share: "Share",
       tier: "Tier",
       winRate: "Win rate",
       pick: "Pick",
       ban: "Ban",
-      score: "Score",
+      games: "Games",
     },
     titles: {
       rank: "Rank by score",
+      lane: "The lane, and the share of the champion's games played there",
+      share: "Share of the champion's games played in this lane",
       tier: "S ≥ +2 · A ≥ +0.75 · B ≥ −0.75 · C ≥ −2 · D below (score, points)",
-      winRate: "Win rate shrunk toward 50 %: small samples count less",
-      pick: "Share of games with this champion in this role",
+      winRate: "Win rate shrunk toward 50% (small samples count less), then its change since the previous patch",
+      pick: "Share of games with this champion in this lane",
       ban: "Share of games where it was banned",
-      score: "Shrunk win rate minus 50 %, in points: what the tier is based on",
+      games: "Games counted",
     },
     empty: {
       title: "No champion ranked here yet",
       text: "Champions need enough games in a role to be ranked. Try another role or rank.",
     },
     showAll: (n: number) => `Show all ${n}`,
+    views: { label: "View", shelves: "Shelves", table: "Table" },
+    filter: "Filter champions",
+    noMatch: "No champion matches the filter",
+    /** Why every champion shows by class: `reason` is why stats are missing (`Can't reach MVP's servers`). */
+    noStats: (reason: string) => `${reason}. Champions are grouped by class until tiers and pick rates are available.`,
+    /** A tier's size, or a lane's: `18 champions`. */
+    champions: (n: number) => `${integer(n)} ${plural(n, "champion", "champions")}`,
+    /** A tier's mean win rate: `avg 52.8%`. */
+    average: (pct: string) => `avg ${pct}`,
+    /** A champion's face, read aloud: `Zed, Mid: 52.6% win rate`. */
+    tileLabel: (name: string, role: string | undefined, winRate: string) => `${name}${role ? `, ${role}` : ""}: ${winRate} win rate`,
+    /** Rank in the list shown: `#3`. */
+    rankN: (rank: number) => `#${rank}`,
+    /** Rank within a lane: `#3 in Mid`. */
+    rankIn: (rank: number, role: Role) => `#${rank} in ${roles[role]}`,
+    /** The first three, on steps. */
+    podium: "Top three",
+    /** Under the numbers that moved: what they are compared with. */
+    sincePrevious: "since the previous patch",
+    map: {
+      title: "Meta map",
+      open: "Open the meta map",
+      close: "Close the meta map",
+      strength: "Strength",
+      popularity: "Popularity",
+      /** The dashed line at an even record. */
+      even: "50%",
+      hidden: "Strong, rarely picked",
+      meta: "Strong and popular",
+      traps: "Popular, below average",
+      /** A face on the map, read aloud. */
+      pointLabel: (name: string, winRate: string, pick: string) => `${name}: ${winRate} win rate, ${pick} pick rate`,
+    },
   },
 
   champions: {
-    title: "Champions",
-    all: "All champions",
-    search: "Search a champion",
     classes: "Classes",
     record: "Record",
-    tiersFrom: { before: "Tiers from the ", link: "tier list", after: (scope: string) => `: ${scope}` },
-    noMatch: (query: string) => `No champion matches “${query}”`,
     noneYet: "No champion here yet",
     checkSpelling: "Check the spelling, or clear the search.",
     whenLoaded: "Champions show once game data and stats are loaded.",
@@ -340,9 +475,8 @@ export const enViews = {
       text: (champion: string, role: Role | undefined) =>
         `${champion} needs more games${role ? ` as ${roles[role]}` : ""} before its build is published.`,
     },
-    /** The tier's score: `+3.1 pts over 50 %`. */
-    pointsVs50: (score: number) => `${signedPoints(score)} pts ${score >= 0 ? "over" : "under"} 50 %`,
-    pointsTitle: "Shrunk win rate minus 50 %, in points (what the tier is based on)",
+    /** The tier's score: `+3.1 pts over 50%`. */
+    pointsVs50: (score: number) => `${signedPoints(score)} pts ${score >= 0 ? "over" : "under"} 50%`,
     winRate: "Win rate",
     pickRate: "Pick rate",
     banRate: "Ban rate",
@@ -353,7 +487,7 @@ export const enViews = {
     ofGames: (n: number) => `of ${games(n)} ${plural(n, "game", "games")}`,
     bans: (n: number) => `${games(n)} ${plural(n, "ban", "bans")}`,
     shrunkTitle: (wins: number, games: number, raw: string) =>
-      `Shrunk toward 50 %: ${integer(wins)} wins in ${integer(games)} games is ${raw} raw`,
+      `Shrunk toward 50%: ${integer(wins)} wins in ${integer(games)} games is ${raw} raw`,
     build: "Build",
     runes: "Runes",
     shards: "Shards",
@@ -365,9 +499,9 @@ export const enViews = {
     spells: "Summoner spells",
     skills: "Skill order",
     maxOrder: (keys: readonly string[]) => `Max ${keys.join(", then ")}`,
-    firstPoints: "First points",
-    firstPointsLabel: "First four skill points",
-    or: "Or",
+    maxLabel: "Max order",
+    levelsLabel: (levels: number) => `Levels 1–${levels}`,
+    firstPointsLabel: "Skill taken at each of the first levels",
     items: "Items",
     starting: "Starting items",
     boots: "Boots",
@@ -375,14 +509,17 @@ export const enViews = {
     nth: (n: number) => `${n}th item`,
     matchups: "Matchups",
     lane: "Lane",
-    vsJungler: "vs Jungler",
-    duos: "Duos",
+    /** How the champion does depending on the enemy team's jungler (who ganks the lane). */
+    vsJungler: "Enemy jungler",
+    /** How the champion does with each teammate. */
+    duos: "Teammates",
     bestWith: "Best with",
     bestAgainst: "Best against",
     worstWith: "Worst with",
     worstAgainst: "Worst against",
     noEffect: "No clear effect yet.",
-    effectTitle: "Win-rate effect beyond both champions' strength, in points, shrunk when games are few",
+    /** A matchup's effect in its tooltip: `+2.5 pts on the win rate, …`. */
+    effectOf: (points: string) => `${points} pts on the win rate, beyond both champions' own strength (shrunk when games are few).`,
     effectNote: "The colored number is the effect on win rate in points, beyond both champions' strength, shrunk when games are few.",
     aram: {
       title: "No matchups in ARAM.",
@@ -395,7 +532,68 @@ export const enViews = {
     buildRecord: (n: number) => `win rate · ${games(n)} ${plural(n, "game", "games")}`,
   },
 
-  /** Stat shards (Data Dragon doesn't describe them). */
+  /** ARAM: Mayhem's augments: MVP's tiers and pick rates from shared games, never win rates. */
+  mayhem: {
+    augments: "Augments",
+    rarity: "Rarity",
+    rarities: { silver: "Silver", gold: "Gold", prismatic: "Prismatic" },
+    all: "All",
+    /** A tier's heading: `S tier`. */
+    tier: (tier: string) => `${tier} tier`,
+    /** Why an augment stands where it does: `S tier · #2`. */
+    ranked: (tier: string, rank: number) => `${tier} tier · #${rank}`,
+    untiered: "Not tiered yet",
+    /** What MVP's augment tiers are, on a tier's badge and on each `S · 2` (never win rates). */
+    tierHint: "MVP's tiers, made by hand from S (best) to C: inside a tier, the first is the best.",
+    /** Over every champion: `picked in 12.4% of games`. */
+    picked: (pct: string) => `picked in ${pct} of games`,
+    /** One champion's: `picked in 34% of Kog'Maw games`. */
+    pickedBy: (pct: string, champion: string) => `picked in ${pct} of ${champion} games`,
+    order: {
+      byRate: (champion: string, n: number) =>
+        `By MVP's tiers, best first; then augments without a tier that ${champion} players pick. Pick rates from ${games(n)} shared games.`,
+      byTier: "By MVP's tiers, best first.",
+      byPicks: (champion: string, n: number) => `No tiers yet: by how often ${champion} players pick them (${games(n)} shared games).`,
+    },
+    /** Too few shared games yet: what switches on, and how far it is (`12 / 30`). */
+    gathering: {
+      title: "Pick rates are on their way",
+      page: (n: number) => `They switch on once ${integer(n)} Mayhem games of this patch are shared.`,
+      champion: (champion: string, n: number) => `${champion}'s pick rates and common items switch on at ${n} shared games`,
+      shared: "Shared games",
+      count: (have: number, needed: number) => `${integer(have)} / ${integer(needed)}`,
+    },
+    /** Asked once, on the first start after installing or updating (never in a game). */
+    question: {
+      title: "Share your ARAM: Mayhem games?",
+      data: "It's only game data: champions, augments and items. No names, no player ids, no wins.",
+      why: "It makes MVP's percentages better and switches features on.",
+      waiting: "Waiting for more games",
+      pageRates: "Augment pick rates",
+      championRates: "Champions with their own pick rates",
+      later: "You can change this anytime in Settings.",
+      yes: "Share game data",
+      no: "Not now",
+      thanks: "Thanks! Your Mayhem games will be shared.",
+    },
+    none: "Nothing to rank yet: no tiers, and not enough shared games.",
+    mostPicked: "Most picked",
+    items: "Common items",
+    of: (champion: string) => `${champion}'s augments`,
+    search: "Filter by champion",
+    clear: "All champions",
+    aramBuilds: "ARAM builds",
+    aramNote: "From ARAM games: Riot keeps Mayhem games private, so none are counted.",
+    noTiers: { title: "No tiers yet", text: "MVP's tiers for Mayhem's augments are on their way. Meanwhile, every augment is listed." },
+    unbuilt: { title: "Augments aren't available yet", text: "MVP's server is reading this patch's augments. Try again in a few minutes." },
+    failed: "Couldn't load Mayhem's augments",
+    note: "Tiers are MVP's own picks, made by hand: inside a tier, the first is the best. Pick rates count the games players share with “Help build Mayhem stats”. No win rates: Riot doesn't allow them for augments. Nothing here reacts to what your game offers.",
+  },
+
+  /**
+   * Stat shards (Data Dragon doesn't describe them): their tooltips use the League client's own
+   * words when the core has them, these meanwhile (offline before the first download).
+   */
   shards: {
     rows: { offense: "Offense", flex: "Flex", defense: "Defense" },
     names: {
@@ -405,12 +603,48 @@ export const enViews = {
       5005: { name: "Attack Speed", stat: "+10% Attack Speed" },
       5007: { name: "Ability Haste", stat: "+8 Ability Haste" },
       5008: { name: "Adaptive Force", stat: "+9 Adaptive Force" },
-      5010: { name: "Move Speed", stat: "+2% Move Speed" },
+      5010: { name: "Move Speed", stat: "+2.5% Move Speed" },
       5011: { name: "Health", stat: "+65 Health" },
-      5013: { name: "Tenacity and Slow Resist", stat: "+10% Tenacity and Slow Resist" },
+      5013: { name: "Tenacity and Slow Resist", stat: "+15% Tenacity and Slow Resist" },
     },
+    /** Also what a shard is, in its tooltip. */
     unknown: "Stat shard",
     unknownN: (id: number) => `Stat shard ${id}`,
+  },
+
+  /** Tooltips of the game's things (design/tip): what a rune, shard, spell or item is. */
+  tip: {
+    /** An item's cost, beside its name: `3,000 gold`. */
+    gold: (cost: string) => `${cost} gold`,
+    spell: "Summoner spell",
+    /** After "Summoner spell ·". */
+    cooldown: (seconds: number) => `${seconds} s cooldown`,
+    /** A minor rune, before its tree: `Rune · Precision` (a keystone says Keystone). */
+    rune: "Rune",
+    tree: "Rune path",
+    /** What each tier of the tier list means (the score: see `tierList.note`). */
+    tiers: {
+      S: "Among the strongest picks this patch: its win rate is 2 points or more over 50%, small samples evened out.",
+      A: "A strong pick: 0.75 to 2 points over 50%.",
+      B: "About even: within 0.75 points of 50%.",
+      C: "A weaker pick: 0.75 to 2 points under 50%.",
+      D: "Among the weakest picks this patch: 2 points or more under 50%.",
+    },
+    /** What each page of the rail holds. */
+    nav: {
+      home: "Your profile, rank and recent games, each with its grade.",
+      draft: "Champion select: the picks the stats favour for your role, and why.",
+      live: "The game you're in: every player's rank and form, and your build.",
+      tierList: "Champions ranked by how they win in each role this patch, and each one's build.",
+      settings: "Automations, build imports, language, visual effects and updates.",
+    },
+    /** What the League client's status in the title bar means for MVP. */
+    status: {
+      connected: "MVP follows your games, champion select and live game from it.",
+      connecting: "The League client is starting: MVP connects by itself.",
+      notRunning: "Start League of Legends: MVP connects by itself, nothing to set up.",
+      notAnswering: "It's running but doesn't answer, maybe busy: MVP keeps trying by itself.",
+    },
   },
 
   settings: {
@@ -438,10 +672,16 @@ export const enViews = {
       title: "Stats",
       bracket: "Rank",
       bracketText: "Games from this rank up count for Draft, imported builds, and the stats pages at first.",
+      shareMayhem: {
+        title: "Help build Mayhem stats",
+        text: "After each ARAM: Mayhem game (and once for all your past ones when you turn this on), MVP sends every player's champion, augments and final items to its server, with a one-way code for the game. No names, no player ids, no wins.",
+      },
+      sharePaused: "Sharing is paused for everyone for now. Your choice is kept.",
     },
     imports: {
       title: "Imports",
-      modes: { off: "Off", oneClick: "One click", onLockIn: "On lock-in" },
+      /** Each part's switch. */
+      auto: "Auto import",
       runes: {
         title: "Rune page",
         text: "Writes the build's runes into MVP's own page, named “MVP”, and selects it. Your pages are never changed.",
@@ -456,7 +696,8 @@ export const enViews = {
         text: (flash: string) => `${flash} always goes on this key, whatever the build lists.`,
       },
       fromGames: "From your games",
-      footnote: "One click: buttons in Draft. On lock-in: also by itself, once, when you lock in your champion.",
+      footnote:
+        "Auto import runs once, at your first lock-in. After a trade or a role swap, Draft offers to import again: MVP never does it by itself. The buttons in Draft and on champion pages always work.",
     },
     app: {
       title: "App",
@@ -476,7 +717,7 @@ export const enViews = {
       effects: {
         title: "Visual effects",
         text: "How much glass and light MVP draws. Full bends the light like real glass, when your graphics card draws it easily.",
-        levels: { auto: "Full", light: "Light", off: "Off" },
+        levels: { full: "Full", light: "Light", off: "Off" },
         fallback: (reason: string) => `Showing Light for now: ${reason}.`,
         reasons: {
           "no-webgl": "this PC has no graphics acceleration for the window",
@@ -503,6 +744,33 @@ export const enViews = {
       legalTitle: "Legal",
       legal:
         "MVP isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riot Games, and all associated properties are trademarks or registered trademarks of Riot Games, Inc.",
+    },
+    search: {
+      label: "Search settings",
+      /** The key that finds it, as printed on keyboards. */
+      shortcut: "Ctrl F",
+      clear: "Clear search",
+      noMatch: (query: string) => `No setting matches “${query}”`,
+      tryOther: "Try another word, or fewer words.",
+      // What players type for a setting that its words on screen don't say (views/settings/search.ts).
+      keywords: {
+        autoAccept: "queue, ready check",
+        bringToFront: "focus, foreground",
+        runes: "keystone",
+        itemSet: "items, shop",
+        spells: "ignite, teleport",
+        flashKey: "D, F, hotkey, keybind",
+        bracket: "elo, ranked, tier",
+        shareMayhem: "augments, ARAM Mayhem, share, statistics",
+        language: "English, French, Français",
+        closeToTray: "minimize, background, systray, exit",
+        launchAtStartup: "boot, autostart",
+        crashReports: "bug, telemetry",
+        effects: "blur, transparency, animations",
+        updates: "version, upgrade",
+        data: "privacy",
+        help: "logs, bug, support, problem",
+      },
     },
   },
 

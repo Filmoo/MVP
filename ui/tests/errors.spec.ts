@@ -25,6 +25,41 @@ test("profile failure: error state, retry calls the core again", async ({ page, 
   expect(errors).toEqual([]);
 });
 
+test("client not answering: the title bar and Home say so, the profile loads once it answers", async ({ page, t }) => {
+  const errors = trackErrors(page);
+  await openApp(page, { scenario: "client-not-answering" });
+  const status = page.getByTestId("client-status");
+  await expect(status).toContainText(t.shell.connection.notAnswering);
+  // Hovered, it says what that means (design/tip).
+  await status.hover();
+  await expect(page.locator("#hint")).toContainText(t.tip.status.notAnswering);
+  await page.mouse.move(640, 700);
+  // A wait, not an error: the title bar's words and MVP's own sentence, never the request's address.
+  const card = page.getByRole("status").filter({ has: page.getByRole("heading", { name: t.shell.connection.notAnswering }) });
+  await expect(card).toContainText(t.home.notAnswering.text);
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(page.locator("main")).not.toContainText("127.0.0.1");
+  // It answers again: the profile loads by itself, nothing to click.
+  const reads = () => page.evaluate(() => window.__SCOUT_MOCK__?.calls.filter((c) => c === "current_profile").length);
+  expect(await reads()).toBe(1);
+  await page.evaluate(() => window.__SCOUT_MOCK__?.emit("client-status", { connection: "connected", phase: "idle" }));
+  await expect(status).toContainText(t.shell.connection.connected);
+  await expect(page.locator("[data-widget=profile-header]")).toContainText("Fillmo");
+  await expect(card).toHaveCount(0);
+  expect(await reads()).toBe(2);
+  expect(errors).toEqual([]);
+});
+
+test("client not answering: Retry now asks again at once", async ({ page, t }) => {
+  const errors = trackErrors(page);
+  await openApp(page, { scenario: "client-not-answering" });
+  const reads = () => page.evaluate(() => window.__SCOUT_MOCK__?.calls.filter((c) => c === "current_profile").length);
+  await page.getByRole("button", { name: t.home.notAnswering.retry }).click();
+  await expect.poll(reads).toBe(2);
+  await expect(page.locator("[data-widget=profile-header]")).toContainText("Fillmo");
+  expect(errors).toEqual([]);
+});
+
 test("slow core: skeletons first, then content without layout jumps", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.addInitScript(() => {
@@ -194,10 +229,11 @@ test("aram: before your champion is there, the list says what will show", async 
   expect(errors).toEqual([]);
 });
 
-test("champion page for an unknown id: the champion list", async ({ page, t }) => {
+test("champion page for an unknown id: the tier list, where champions are found", async ({ page, t }) => {
   await openApp(page, { view: "/champions?id=999999" });
-  await expect(page.getByRole("heading", { level: 1, name: t.champions.title })).toBeVisible();
-  await expect(page.getByTestId("champion-tile").first()).toBeVisible();
+  await expect(page).toHaveURL(/#\/tier-list$/);
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(t.tierList.title);
+  await expect(page.getByTestId("tier-row").first()).toBeVisible();
 });
 
 // Stats pages: nothing published is an empty state (no retry), failures say why and retry.
@@ -209,9 +245,39 @@ test("stats not published yet: the pages say so, champions still show", async ({
   await openApp(page, { view: "/champions?id=103", scenario: "stats-empty" });
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Ahri");
   await expect(page.locator("main")).toContainText(t.stats.errors.notFound.title);
-  await openApp(page, { view: "/champions", scenario: "stats-empty" });
+  // The tier list still leads to every champion (by class, no lanes to filter); why, in its header.
+  await openApp(page, { view: "/tier-list", scenario: "stats-empty" });
   expect(await page.getByTestId("champion-tile").count(), "the list needs no stats").toBeGreaterThan(160);
   await expect(page.getByTestId("role-filter")).toHaveCount(0);
+  const notice = page.getByTestId("no-stats");
+  await expect(notice).toHaveAttribute("role", "status");
+  await expect(notice).toContainText(t.tierList.noStats(t.stats.errors.notFound.title));
+  await expect(page.getByRole("button", { name: t.common.tryAgain }), "asking again can't help").toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test("stats offline on the tier list: every champion by class, why, and a retry that asks again", async ({ page, t }) => {
+  const errors = trackErrors(page);
+  await openApp(page, { view: "/tier-list", scenario: "stats-offline" });
+  // Why, in the header where the lanes were: one line, the retry ending it.
+  const alert = page.getByRole("alert");
+  await expect(alert).toHaveAttribute("data-testid", "no-stats");
+  await expect(alert).toContainText(t.tierList.noStats(t.stats.errors.network.title));
+  await expect(page.getByTestId("role-filter")).toHaveCount(0);
+  await expect(page.getByTestId("view-switch")).toHaveCount(0);
+  await expect(page.getByTestId("rank-button"), "the rank can still change").toBeVisible();
+  const heads = await page.locator("[data-widget=tier-no-stats] h2").evaluateAll((els) => els.map((el) => el.firstChild?.textContent));
+  expect(heads).toEqual(["Assassin", "Fighter", "Mage", "Marksman", "Support", "Tank"].map((tag) => t.classes[tag]));
+  const tiles = page.getByTestId("champion-tile");
+  expect(await tiles.count()).toBeGreaterThan(160);
+  // The filter still works, and a tile opens its champion.
+  await page.getByTestId("champion-filter").fill("ahr");
+  await expect(tiles.first()).toContainText("Ahri");
+  const calls = () => page.evaluate(() => window.__SCOUT_MOCK__?.calls.filter((name) => name === "tier_list").length ?? 0);
+  const before = await calls();
+  await alert.getByRole("button", { name: t.common.tryAgain }).click();
+  await expect.poll(calls).toBe(before + 1);
+  await expect(page.getByRole("alert"), "still offline: still says so").toContainText(t.stats.errors.network.title);
   expect(errors).toEqual([]);
 });
 
@@ -232,7 +298,7 @@ for (const { view, command } of [
   });
 }
 
-for (const view of ["/tier-list", "/champions?id=103"]) {
+for (const view of ["/tier-list", "/champions?id=103", "/tier-list?view=table"]) {
   test(`slow stats on ${view}: skeletons first, then the numbers without layout jumps`, async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.addInitScript(() => {
@@ -246,7 +312,7 @@ for (const view of ["/tier-list", "/champions?id=103"]) {
     await page.goto(`/?scenario=stats-slow#${view}`);
     await expect(page.locator("main [data-state=loading]").first()).toBeVisible();
     await settle(page);
-    await expect(page.locator("[data-widget=tier-list], [data-widget=champion-runes]").first()).toBeVisible();
+    await expect(page.locator("[data-widget=tier-shelves], [data-widget=tier-table], [data-widget=champion-runes]").first()).toBeVisible();
     const cls = await page.evaluate(() => (window as unknown as { __cls: number }).__cls);
     expect(cls, "cumulative layout shift").toBeLessThan(0.1);
   });
@@ -256,24 +322,34 @@ test("only ARAM published: ranked says so, ARAM shows its tier list", async ({ p
   const errors = trackErrors(page);
   await openApp(page, { view: "/tier-list", scenario: "stats-aram-only" });
   await expect(page.locator("main")).toContainText(t.stats.errors.notFound.title);
-  await page.getByTestId("queue-switch").getByRole("radio", { name: t.queues[450] }).click();
+  await page.getByTestId("queue-switch").getByRole("radio", { name: t.queues[450], exact: true }).click();
   await expect(page.getByTestId("tier-row").first()).toBeVisible();
   await expect(page.locator("main")).not.toContainText(t.stats.errors.notFound.title);
   expect(errors).toEqual([]);
 });
 
-// An opened match row: its game fails in place, nothing else does.
+// An opened game: it fails in its window (its head still says which game), nothing else does,
+// not even its neighbours.
 const firstGame = (page: Page) => page.locator("[data-testid=match-row] > button").first();
+const current = (page: Page) => page.locator("[data-testid=game-window][data-current]");
 
 test("an opened game that can't load: its error in place, and a retry asks again", async ({ page, t }) => {
   const errors = trackErrors(page);
   await openApp(page, { scenario: "match-details-error" });
   await firstGame(page).click();
-  const alert = page.getByTestId("game").getByRole("alert");
+  const alert = current(page).getByRole("alert");
   await expect(alert).toContainText(t.players.network.title);
   await expect(alert).toContainText(t.players.network.text);
+  await expect(current(page).getByRole("heading", { level: 2 })).toContainText(t.matches.outcome.win);
+  // No tabs for a game that can't show.
+  await expect(current(page).getByTestId("game-tabs")).toHaveCount(0);
+  const asked = () => page.evaluate(() => window.__SCOUT_MOCK__?.calls.filter((c) => c === "match_details").length);
+  // Its window and its neighbour below: two games asked for, each failing in its own window.
+  await expect.poll(asked).toBe(2);
   await alert.getByRole("button", { name: t.common.tryAgain }).click();
-  await expect.poll(() => page.evaluate(() => window.__SCOUT_MOCK__?.calls.filter((c) => c === "match_details").length)).toBe(2);
+  await expect.poll(asked).toBe(3);
+  await expect(current(page).getByTestId("game-stats")).toHaveCount(0);
+  await page.keyboard.press("Escape");
   await expect(page.getByTestId("match-row").nth(1)).toBeVisible();
   expect(errors).toEqual([]);
 });
@@ -282,21 +358,38 @@ test("a game that isn't there anymore says so, without a retry", async ({ page, 
   const errors = trackErrors(page);
   await openApp(page, { scenario: "match-details-gone" });
   await firstGame(page).click();
-  const alert = page.getByTestId("game").getByRole("alert");
+  const alert = current(page).getByRole("alert");
   await expect(alert).toContainText(t.matchDetails.errors.notFound);
   await expect(alert.getByRole("button", { name: t.common.tryAgain })).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
-test("a slow game: a skeleton the table's height, then the table in its place", async ({ page }) => {
+test("MVP's server can't open games right now: says so, with a retry", async ({ page, t }) => {
+  const errors = trackErrors(page);
+  await openApp(page, { scenario: "match-details-unavailable" });
+  await firstGame(page).click();
+  const alert = current(page).getByRole("alert");
+  await expect(alert).toContainText(t.matchDetails.errors.title);
+  await expect(alert).toContainText(t.matchDetails.errors.unavailable);
+  await expect(alert.getByRole("button", { name: t.common.tryAgain })).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("a slow game: its head at once, a skeleton the tables' height, then the tables in its place", async ({ page, t }) => {
   const errors = trackErrors(page);
   await openApp(page, { scenario: "match-details-slow" });
-  const row = page.getByTestId("match-row").first();
   await firstGame(page).click();
-  await expect(row.locator("[data-state=loading]")).toBeVisible();
-  const loading = await row.boundingBox();
-  await expect(row.getByTestId("game-player")).toHaveCount(10, { timeout: 5_000 });
-  const loaded = await row.boundingBox();
-  expect(loaded?.height, "the row's height, loading then loaded").toBe(loading?.height);
+  await expect(current(page).getByRole("heading", { level: 2 })).toContainText(t.matches.outcome.win);
+  // Its grade and LP too, from the row.
+  await expect(current(page).getByTestId("game-grade")).toBeVisible();
+  const skeleton = current(page).locator("[data-widget=match-details] [data-state=loading]");
+  await expect(skeleton).toBeVisible();
+  const loading = await skeleton.boundingBox();
+  await expect(current(page).getByTestId("game-player")).toHaveCount(10, { timeout: 5_000 });
+  const loaded = await current(page).locator("[data-widget=match-details]").boundingBox();
+  // Measured through the stack's rise: a transformed box is off by a hair.
+  expect(loaded?.height, "the teams' height, loading then loaded").toBeCloseTo(loading?.height ?? 0, 0);
+  await current(page).getByTestId("game-tabs").getByRole("radio").nth(1).click();
+  await expect(current(page).getByTestId("game-stats")).toBeVisible();
   expect(errors).toEqual([]);
 });

@@ -1,0 +1,127 @@
+/* The tier list's tools (Toolbar.tsx): lanes, why there are no stats. */
+
+/* ——— Lanes: icon buttons, the chosen one on a neutral drop of glass ——— */
+.lanes {
+  --lane: var(--space-9);
+  position: relative;
+  display: flex;
+  flex: none;
+  padding: var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--bg-1);
+  box-shadow:
+    inset 0 1px 2px var(--line-shade),
+    inset 0 0 0 1px var(--line-glass);
+}
+
+/* The glass is neutral (the lens reads its tint once), a drop's light over it. */
+.drop {
+  --lg-tint: var(--bg-highlight);
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+  width: var(--lane);
+  height: var(--lane);
+  border-radius: var(--radius-full);
+  background: var(--bg-4);
+  transform: translateX(calc(var(--index) * var(--lane)));
+  transition: transform var(--dur-glide) var(--ease-glide);
+  pointer-events: none;
+}
+
+.drop::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--bg-drop);
+}
+
+:global(:root[data-effects="shader"]) .drop {
+  background: var(--lg-fill, var(--bg-highlight));
+  backdrop-filter: var(--lg-filter, none);
+}
+
+.lane {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: var(--lane);
+  height: var(--lane);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  transition: color var(--dur-1) var(--ease);
+}
+
+.laneIcon {
+  display: grid;
+  transition: transform var(--dur-1) var(--ease);
+}
+
+.lane:hover {
+  color: var(--text-1);
+}
+
+.lane[aria-checked="true"] {
+  color: var(--text-1);
+  cursor: default;
+}
+
+/* A press you can feel (the icon is a vector: it stays sharp). */
+.lane:active .laneIcon {
+  transform: scale(0.9);
+}
+
+.lane:focus-visible {
+  outline-offset: 0;
+}
+
+/* ——— Without stats: why, as tall as the tools, the sign on its first line ——— */
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  min-height: var(--space-10);
+  font-size: var(--text-md);
+  color: var(--text-2);
+}
+
+.noticeIcon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--space-9);
+  height: var(--space-9);
+  border-radius: var(--radius-full);
+  background: var(--loss-soft);
+  color: var(--loss);
+}
+
+.noticeText {
+  flex: 1;
+  min-width: 0;
+  /* The sentence starts level with the sign's middle. */
+  padding-top: var(--space-3);
+  text-wrap: pretty;
+}
+
+.retry {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-1);
+  font: inherit;
+  font-weight: var(--weight-semibold);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.retry:hover {
+  color: var(--accent-strong);
+}

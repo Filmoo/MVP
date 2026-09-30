@@ -4,12 +4,13 @@
  * change without touching the markup.
  */
 .group {
+  --pad: var(--space-1);
   position: relative;
   display: inline-grid;
   grid-auto-flow: column;
   grid-auto-columns: 1fr;
   max-width: 100%;
-  padding: var(--space-1);
+  padding: var(--pad);
   /* Capsules, like the thumb's glass drop: its optics and its outline agree. */
   border-radius: var(--radius-full);
   background: var(--bg-1);
@@ -18,28 +19,16 @@
 }
 
 .thumb {
-  /* A neutral lift: over a flat track there is little to bend, so the glass must add light. */
-  --lg-tint: var(--bg-highlight);
+  /* A neutral drop (design/glass.css): over a flat track, the glass adds light. */
   position: absolute;
-  top: var(--space-1);
-  bottom: var(--space-1);
-  left: var(--space-1);
-  width: calc((100% - 2 * var(--space-1)) / var(--count));
+  top: var(--pad);
+  bottom: var(--pad);
+  left: var(--pad);
+  width: calc((100% - 2 * var(--pad)) / var(--count));
   transform: translateX(calc(var(--index) * 100%));
   border-radius: var(--radius-full);
-  background: var(--bg-4);
   transition: transform var(--dur-glide) var(--ease-glide);
   pointer-events: none;
-}
-
-/* Full effects: clear glass behind the chosen label, lifted over the labels while it glides. */
-:global(:root[data-effects="shader"]) .thumb {
-  background: var(--lg-fill, var(--bg-highlight));
-  backdrop-filter: var(--lg-filter, none);
-}
-
-:global(:root[data-effects="shader"]) .thumb[data-moving] {
-  z-index: 2;
 }
 
 .segment {
@@ -79,6 +68,17 @@
   font-size: var(--text-md);
 }
 
+/* A 40 px pill: the stats pages' tools (lanes, rank, filter) are as tall. */
+.lg {
+  --pad: var(--space-2);
+}
+
+.lg .segment {
+  height: 30px;
+  padding: 0 var(--space-6);
+  font-size: var(--text-md);
+}
+
 .sm .segment {
   height: 24px;
   padding: 0 var(--space-4);
@@ -87,6 +87,7 @@
 
 .icon {
   flex: none;
+  display: grid;
 }
 
 .label {
@@ -104,12 +105,20 @@
   color: var(--text-2);
 }
 
+/* The narrowest pages: words in 40 px pills keep their room ("Prismatique"). */
+@container page (max-width: 439px) {
+  .lg .segment:not(.withIcon) {
+    padding: 0 var(--space-3);
+  }
+}
+
 /* Narrow pages: segments with an icon show just the icon (the label stays their name). */
 @container page (max-width: 639px) {
   .withIcon .label {
     display: none;
   }
-  .md .withIcon {
+  .md .withIcon,
+  .lg .withIcon {
     padding: 0 var(--space-4);
   }
 }

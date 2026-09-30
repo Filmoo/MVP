@@ -7,9 +7,12 @@ import { EmptyState, Skeleton } from "../../design/States";
 import { t } from "../../i18n";
 import { createQuery } from "../../lib/query";
 import { roleLabel } from "../../lib/roles";
-import { bracketLabel, scopeLabel, statsQueueOf } from "../../lib/stats";
+import { asStatsQueue, bracketLabel, scopeLabel } from "../../lib/stats";
 import { filters } from "../../lib/stats-filters";
+import { Widget } from "../../widgets/Widget";
 import { ChampionBuilds } from "../champions/Champions";
+import champ from "../champions/Champions.module.css";
+import { ChampionAugments, isMayhem, sentence } from "../mayhem/parts";
 import { StatsProblem, useStatsIndex } from "../stats/common";
 import styles from "./Live.module.css";
 
@@ -22,7 +25,8 @@ export function MyBuild(props: { game: LiveGame }): JSX.Element {
   const { transport, gameData } = useData();
   const { version } = useStatsIndex();
   const me = () => props.game.allies.find((p) => p.isMe);
-  const queue = () => statsQueueOf(props.game.queueId);
+  // The core reads it from the game's map: Rift builds for customs and co-op vs AI too.
+  const queue = () => asStatsQueue(props.game.statsQueue);
   const key = createMemo(() => {
     const championId = me()?.championId;
     const q = queue();
@@ -36,10 +40,17 @@ export function MyBuild(props: { game: LiveGame }): JSX.Element {
     return id ? (gameData()?.champions.get(id)?.name ?? t().common.championN(id)) : t().common.yourChampion;
   };
   const role = () => (queue() === 450 ? undefined : (me()?.role ?? undefined));
+  // ARAM: Mayhem: the augments first (known before the game: nothing reacts to its offers), then
+  // ARAM's build, said to be ARAM's.
+  const mayhem = () => isMayhem(props.game.queueId);
 
   const scope = () => {
     const q = queue();
     return q ? t().imports.mostPlayedIn(q, bracketLabel(filters().bracket)) : "";
+  };
+  const link = (id: number) => {
+    const extra = mayhem() ? "&mode=mayhem" : role() ? `&role=${role()}` : "";
+    return `#/champions?id=${id}${extra}`;
   };
 
   return (
@@ -53,9 +64,28 @@ export function MyBuild(props: { game: LiveGame }): JSX.Element {
               {role() ? ` · ${roleLabel(role() ?? "top")}` : ""}
             </span>
             <span class={styles.buildScope}>
-              {scope()} · <a href={`#/champions?id=${id()}${role() ? `&role=${role()}` : ""}`}>{t().live.build.page}</a>
+              {/* Mayhem: where the build comes from is said above it, under "ARAM builds". */}
+              {mayhem() ? "" : `${scope()} · `}
+              <a href={link(id())}>{t().live.build.page}</a>
             </span>
           </p>
+        )}
+      </Show>
+      <Show when={mayhem() && me()?.championId}>
+        {(id) => (
+          <>
+            <Card title={t().mayhem.of(name())}>
+              <Widget name="mayhem-champion">
+                <ChampionAugments championId={id()} name={name()} full />
+              </Widget>
+            </Card>
+            <div class={champ.aramHead}>
+              <h2 class={champ.aramTitle}>{t().mayhem.aramBuilds}</h2>
+              <p class={champ.aramNote}>
+                {sentence(scope())} · {t().mayhem.aramNote}
+              </p>
+            </div>
+          </>
         )}
       </Show>
       <Switch>

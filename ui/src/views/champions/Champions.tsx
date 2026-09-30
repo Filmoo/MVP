@@ -8,19 +8,18 @@ import { useAmbient } from "../../design/ambient";
 import { Card } from "../../design/Card";
 import { championArtUrl } from "../../design/GameIcon";
 import { Icon } from "../../design/Icon";
-import { Segmented } from "../../design/Segmented";
 import { EmptyState, Skeleton } from "../../design/States";
 import { t } from "../../i18n";
 import { createQuery } from "../../lib/query";
 import { ROLES } from "../../lib/roles";
-import { bracketLabel, buildFor, pickRole, roleFilterOptions, roleTabs, scopeLabel } from "../../lib/stats";
-import { ARAM, filters, setFilter } from "../../lib/stats-filters";
+import { bracketLabel, buildFor, pickRole, roleTabs, scopeLabel } from "../../lib/stats";
+import { ARAM, filters } from "../../lib/stats-filters";
 import { Widget } from "../../widgets/Widget";
-import { ImportBar, useImportModes } from "../draft/ImportBar";
+import { ImportBar } from "../draft/ImportBar";
+import { ChampionAugments } from "../mayhem/parts";
 import page from "../page.module.css";
-import { ScopeSwitches, StatsProblem, useLinkFilters, useStatsIndex } from "../stats/common";
+import { QueueTabs, RankPicker, StatsProblem, useLinkFilters, useStatsIndex } from "../stats/common";
 import { ItemsCard, SkillsCard, SpellsCard } from "./Builds";
-import { ChampionGrid } from "./ChampionGrid";
 import { ChampionHero } from "./ChampionHero";
 import styles from "./Champions.module.css";
 import { MatchupsCard } from "./Matchups";
@@ -104,7 +103,16 @@ function ChampionView(props: { championId: number }): JSX.Element {
   const { transport, gameData } = useData();
   const { index, version } = useStatsIndex();
   useLinkFilters({ role: false });
-  const queue = createMemo(() => filters().queue);
+  // ARAM: Mayhem's tab (`&mode=mayhem`): the champion's augments, then ARAM's builds.
+  const [mayhem, setMayhem] = createSignal(queryParam("mode") === "mayhem");
+  createEffect(
+    on(
+      () => queryParam("mode"),
+      (mode) => setMayhem(mode === "mayhem"),
+      { defer: true },
+    ),
+  );
+  const queue = createMemo(() => (mayhem() ? ARAM : filters().queue));
   const bracket = createMemo(() => filters().bracket);
   const stats = createQuery(
     () => ({ championId: props.championId, queue: queue(), bracket: bracket(), version: version() }),
@@ -127,19 +135,19 @@ function ChampionView(props: { championId: number }): JSX.Element {
   useAmbient(() => championArtUrl(gameData(), props.championId));
   const name = () => gameData()?.champions.get(props.championId)?.name ?? t().common.championN(props.championId);
   // The build shown can go into the League client, like in Draft (spells in champion select only).
-  const modes = useImportModes();
   const client = useClientStatus();
-  const imports = () => Object.values(modes()).some((mode) => mode !== "off");
 
   return (
     <div class={page.page}>
-      <div class={styles.top}>
-        <a class={styles.back} href="#/champions">
-          <Icon name="back" size={16} />
-          {t().champions.all}
-        </a>
-        <ScopeSwitches />
-      </div>
+      <a class={styles.back} href="#/tier-list">
+        <Icon name="back" size={16} />
+        {t().tierList.title}
+      </a>
+      {/* The tier list's tabs row: the same place, the same remembered choices. */}
+      <QueueTabs
+        mayhem={{ selected: mayhem(), onSelect: () => setMayhem(true), onLeave: () => setMayhem(false) }}
+        end={<RankPicker index={index()} />}
+      />
       <Widget name="champion-hero">
         <ChampionHero
           championId={props.championId}
@@ -149,8 +157,20 @@ function ChampionView(props: { championId: number }): JSX.Element {
           forRole={role()}
           onRole={setWanted}
           index={index()}
+          identityOnly={mayhem()}
         />
       </Widget>
+      <Show when={mayhem()}>
+        <Card title={t().mayhem.of(name())}>
+          <Widget name="mayhem-champion">
+            <ChampionAugments championId={props.championId} name={name()} full />
+          </Widget>
+        </Card>
+        <div class={styles.aramHead}>
+          <h2 class={styles.aramTitle}>{t().mayhem.aramBuilds}</h2>
+          <p class={styles.aramNote}>{t().mayhem.aramNote}</p>
+        </div>
+      </Show>
       <Switch>
         <Match when={stats.error() !== undefined && !stats.loading()}>
           <StatsProblem error={stats.error()} onRetry={stats.refetch} />
@@ -170,20 +190,18 @@ function ChampionView(props: { championId: number }): JSX.Element {
         <Match when={stats.data()}>
           {(p) => (
             <div class={`${styles.content} ${stats.loading() ? styles.busy : ""}`}>
-              <Show when={imports()}>
-                <Widget name="champion-import">
-                  <ImportBar
-                    championId={props.championId}
-                    role={queue() === ARAM ? null : (role() ?? null)}
-                    context={t().imports.mostPlayedIn(queue(), bracketLabel(bracket()))}
-                    queue={queue()}
-                    bracket={bracket()}
-                    available={buildFor(p(), role()) !== undefined}
-                    inChampSelect={client()?.phase === "champSelect"}
-                    modes={modes()}
-                  />
-                </Widget>
-              </Show>
+              <Widget name="champion-import">
+                <ImportBar
+                  championId={props.championId}
+                  role={queue() === ARAM ? null : (role() ?? null)}
+                  context={t().imports.mostPlayedIn(queue(), bracketLabel(bracket()))}
+                  queue={queue()}
+                  bracket={bracket()}
+                  available={buildFor(p(), role()) !== undefined}
+                  inChampSelect={client()?.phase === "champSelect"}
+                  clientReady={client()?.connection === "connected"}
+                />
+              </Widget>
               <ChampionBuilds page={p()} forRole={role()} />
             </div>
           )}
@@ -193,61 +211,10 @@ function ChampionView(props: { championId: number }): JSX.Element {
   );
 }
 
-/** `/champions`: every champion, searchable, with its tier in the chosen role. */
-function ChampionIndex(): JSX.Element {
-  const { transport } = useData();
-  const { version } = useStatsIndex();
-  useLinkFilters({ role: true });
-  const queue = createMemo(() => filters().queue);
-  const bracket = createMemo(() => filters().bracket);
-  const list = createQuery(
-    () => ({ queue: queue(), bracket: bracket(), version: version() }),
-    (k) => transport.call("tier_list", { queue: k.queue, bracket: k.bracket }),
-  );
-  const [query, setQuery] = createSignal("");
-  const ranked = () => queue() !== ARAM && list.data() !== undefined;
-  return (
-    <div class={page.page}>
-      <div class={styles.indexHead}>
-        <h1 class={page.title}>{t().champions.title}</h1>
-        <label class={styles.search}>
-          <Icon name="search" size={16} class={styles.searchIcon} />
-          <input
-            type="search"
-            class={styles.searchInput}
-            placeholder={t().champions.search}
-            aria-label={t().champions.search}
-            value={query()}
-            onInput={(e) => setQuery(e.currentTarget.value)}
-            data-testid="champion-search"
-          />
-        </label>
-      </div>
-      <div class={styles.indexFilters}>
-        <Show when={ranked()}>
-          <Segmented
-            label={t().stats.role}
-            options={roleFilterOptions()}
-            value={filters().role}
-            onChange={(r) => setFilter({ role: r })}
-            testId="role-filter"
-          />
-        </Show>
-        <Show when={list.data()}>
-          <p class={styles.scope}>
-            {t().champions.tiersFrom.before}
-            <a href="#/tier-list">{t().champions.tiersFrom.link}</a>
-            {t().champions.tiersFrom.after(scopeLabel(queue(), bracket()))}
-          </p>
-        </Show>
-      </div>
-      <Widget name="champion-grid">
-        <ChampionGrid list={list.data()} roleFilter={ranked() ? filters().role : "all"} query={query()} />
-      </Widget>
-    </div>
-  );
-}
-
+/**
+ * `/champions?id=…`: a champion's page. Without a (known) id, the tier list, where champions are
+ * found: `#/champions?role=middle` goes to `#/tier-list?role=middle`.
+ */
 export default function Champions(): JSX.Element {
   const { gameData } = useData();
   const id = () => {
@@ -255,13 +222,20 @@ export default function Champions(): JSX.Element {
     const n = raw === null ? Number.NaN : Number(raw);
     return Number.isInteger(n) && n > 0 ? n : undefined;
   };
-  // Unknown ids wait for game data before falling back to the list.
+  // Unknown ids wait for game data before going to the list.
   const known = () => {
     const n = id();
     return n !== undefined && (gameData() === undefined || gameData()?.champions.has(n)) ? n : undefined;
   };
+  createEffect(() => {
+    if (known() !== undefined) return;
+    const params = new URLSearchParams(location.hash.split("?")[1] ?? "");
+    params.delete("id");
+    const rest = params.toString();
+    location.replace(`#/tier-list${rest ? `?${rest}` : ""}`);
+  });
   return (
-    <Show when={known()} fallback={<ChampionIndex />} keyed>
+    <Show when={known()} keyed>
       {(championId) => <ChampionView championId={championId} />}
     </Show>
   );

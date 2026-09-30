@@ -1,5 +1,4 @@
 import type { Role } from "../data/generated/Role";
-import type { IconName } from "../design/Icon";
 import { t } from "../i18n";
 
 /** A role's name: `Mid` (French `Milieu`). */
@@ -10,11 +9,3 @@ export const roleShort = (role: Role): string => t().rolesShort[role];
 
 /** Map order. */
 export const ROLES: readonly Role[] = ["top", "jungle", "middle", "bottom", "support"];
-
-export const ROLE_ICON: Record<Role, IconName> = {
-  top: "roleTop",
-  jungle: "roleJungle",
-  middle: "roleMiddle",
-  bottom: "roleBottom",
-  support: "roleSupport",
-};

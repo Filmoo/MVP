@@ -12,8 +12,9 @@ before the production-key application.
 - Track enemy cooldowns (ultimates, summoners, abilities), power-spike alerts, or prompts that
   dictate actions. Treat jungle/objective timers as avoid.
 - MMR/Elo estimates, dodge advice/auto-dodge, shaming tags or negative labels.
-- Arena augment/item win rates; Brawl data; historic Riot IDs; game-session info the player
-  couldn't know.
+- Arena augment/item win rates, and win/loss statistics of ARAM: Mayhem over players' games
+  (augments, items, champions: Riot keeps those games private); Brawl data; historic Riot IDs;
+  game-session info the player couldn't know.
 - Scrape other stat sites, use the League client to bypass API rate limits, or redistribute Riot data.
 - Ship the API key in the app; run a public app on a dev/personal key.
 - Ads in-game, on loading screens or in the Riot client; betting/crypto/NFT.
@@ -37,15 +38,42 @@ detection, composite player scores, live win probability, sending data to third-
   cancelled as soon as the phase leaves the ready check; a toast confirms every accept.
   LCU endpoints: `GET /lol-matchmaking/v1/ready-check`, `POST /lol-matchmaking/v1/ready-check/accept`
   (declare both at product registration).
-- **Loading-screen scouting (2026-09-27, shipped).** Player cards appear only once the game has
-  started (Loading/InGame), when the game itself shows every name; champion select is never read
-  for identities. Streamer-mode players (`nameVisibilityType: HIDDEN`) are shown as "Hidden
-  player": their PUUID and name are dropped in the core before any lookup. Visible players are
-  looked up on our backend **by Riot ID** (what the loading screen shows); the client's PUUIDs
-  never leave the app (they aren't our API key's anyway), and the backend stores the Riot ID
-  next to its own PUUID. Tags are positive or neutral only (one-trick, win streak, veteran,
-  main role); no "first time", no MMR, no grades of other players. LCU endpoints: `GET /lol-gameflow/v1/session`, `GET /lol-summoner/v1/current-summoner`,
-  `GET /riotclient/region-locale` (declare at product registration).
+- **Loading-screen scouting (2026-09-27, shipped; name sources revised 2026-09-29).** Player
+  cards appear only once the game has started (Loading/InGame), when the game itself shows every
+  name; champion select is never read for identities. The League client's gameflow session no
+  longer names anyone but the local player (seen 2026-09-28: no `gameName`/`tagLine`, no
+  `nameVisibilityType`), so the names come from Riot's two supported sources for a running game,
+  **both of which keep Streamer Mode players anonymous**, in this order:
+  1. **Riot's live game** (Spectator-V5, asked by our backend: `GET /v1/live/…`). The app sends
+     only the local player's own Riot ID (from `current-summoner`, as for their own card) and
+     the game's id. Since 2025-10 Riot's live-game results "respect players' streamer mode
+     settings": an anonymous player comes without a PUUID, and the backend drops whatever name
+     comes with them (never answered, looked up, stored or logged). Riot answers 404
+     "filtered" for Ranked Flex and Arena live games (2026-06): the app says so plainly and
+     doesn't try Spectator-V5 another way.
+  2. **The game itself** (Live Client Data API, `https://127.0.0.1:2999`), only when Riot has no
+     answer (no server, not listed, filtered): the in-game player list, i.e. the names the game
+     shows every player once the loading screen is over. Asked only while the game runs and
+     until it answers (then never again for that game). Riot says streamer-mode players have
+     "no reliable identifier" there: a missing or partial Riot ID, a champion's name in its
+     place, or a name several players share is taken for a stand-in, never for a Riot ID — the
+     player shows as "Hidden player" and is never looked up. **Open question for Riot (App
+     Note):** Spectator-V5's Flex/Arena filter has no stated intent; if it is meant to keep
+     those players from apps, this fallback must stop for those queues (one condition in
+     `companion::live::find_names`).
+  Seats are matched to these lists by side and champion, never by anything hidden; a seat the
+  client marks hidden stays hidden whatever a list says. Bots are shown as bots, never looked
+  up. Visible players are looked up on our backend **by Riot ID** (what the loading screen
+  shows); the client's PUUIDs never leave the app (they aren't our API key's anyway), and the
+  backend stores the Riot ID next to its own PUUID. Tags are positive or neutral only
+  (one-trick, win streak, veteran, main role); no "first time", no MMR, no grades of other
+  players. Endpoints to declare at product registration: LCU `GET /lol-gameflow/v1/session`,
+  `GET /lol-summoner/v1/current-summoner`, `GET /riotclient/region-locale`; Game Client API
+  `GET https://127.0.0.1:2999/liveclientdata/allgamedata` (only `allPlayers` is read); Riot
+  API (server) `GET /riot/account/v1/accounts/by-riot-id/{gameName}/{tagLine}`,
+  `GET /lol/spectator/v5/active-games/by-summoner/{encryptedPUUID}`, and for the cards
+  `GET /lol/league/v4/entries/by-puuid/{puuid}`, `GET /lol/match/v5/matches/by-puuid/{puuid}/ids`,
+  `GET /lol/match/v5/matches/{matchId}`.
 - **Window follows the game (not gray, noted for completeness).** Bringing MVP to the front in
   champ select and switching views only moves our own window; both can be turned off, and a view
   the player opened themselves is never switched away from.
@@ -75,9 +103,11 @@ detection, composite player scores, live win probability, sending data to third-
   Porofessor and U.GG write the same endpoints; research E §15–16) when user-triggered or opted
   in. The build is statistics only: the most played options of our Emerald+ aggregates.
   Guard rails:
-  - **One click by default, never automatic by default.** Per part (Settings → Imports): off (no
-    button, no automation) / one click (Draft's import bar) / on lock-in (opt-in). Parts turned
-    off are refused by the core whoever asks.
+  - **Buttons always; automatic only when opted in, and only once.** Every part has its button
+    (Draft's import bar, champion pages): user-triggered. Settings → Imports has one "Auto import"
+    switch per part, off by default; a part switched on is imported by itself once, at the first
+    lock-in of a champion select (2026-09-29, the owner: "import once, and warn if different, not
+    enforce").
   - **The player's things are never touched.** Rune pages: only MVP's own page (named "MVP…";
     the player can hand one over by renaming it "MVP") is replaced; a new one is created only
     when the account has room, else a clear error ("No free rune page: delete one, or rename one
@@ -91,10 +121,15 @@ detection, composite player scores, live win probability, sending data to third-
     build, or had to be guessed.
   - **The server can pause each part for everyone** (feature flag or kill switch in the remote
     config): a paused part is skipped at once, also in the middle of a champion select.
-  - **On lock-in means once per lock-in**: not on hovers or pick intents, not again on later
-    session events (a trade or an ARAM swap is a new lock). Spells of a lock in a turn's last
-    seconds wait for time on the clock. A toast confirms every automatic import, and the Draft
-    bar shows it.
+  - **Auto import: once, then warn, never enforce.** Not on hovers or pick intents, and never
+    again by itself in that champion select: if the player's champion or role changes after it (a
+    trade, an ARAM reroll or bench swap, a role swap), Draft warns ("MVP's build is for Ahri Mid,
+    you're now on Lux") with a one-click "Import for Lux" (a toast elsewhere in MVP), and the
+    player chooses. MVP never watches the player's pages, sets or spells: what they change
+    themselves never warns nor imports. Spells of a first lock in a turn's last seconds wait for
+    time on the clock. A toast confirms every automatic import, and the Draft bar shows it.
+  - **Nothing once the game is starting**: an import for the champion select (Draft's buttons,
+    the automatic import) that comes as it ends tries nothing and says so.
   LCU endpoints (declare at product registration): reads `GET /lol-perks/v1/pages`,
   `GET /lol-perks/v1/inventory`, `GET /lol-summoner/v1/current-summoner`,
   `GET /lol-item-sets/v1/item-sets/{summonerId}/sets`, `GET /lol-champ-select/v1/session`,
@@ -118,6 +153,12 @@ detection, composite player scores, live win probability, sending data to third-
   Riot also publishes these emblems for developers on developer.riotgames.com: before the
   production-key application, check which source Riot prefers and switch if needed
   (`static_data::emblems`, one constant).
+- **League's position icons (2026-09-30, built; not gray, noted for the asset rules).** The lanes'
+  icons (the tier list, the champion page's role tabs) are the League client's own
+  `position-*.svg`, handled exactly like the ranked emblems: downloaded at run time from
+  `CommunityDragon`'s mirror of the client, cached, never committed or bundled, the request
+  carrying nothing about the player; the app only tints them. MVP's own drawings stand in while
+  they aren't there (`static_data::positions`, the same source constant).
 - **Per-game grades (2026-09-28, built; gray: a composite score; the owner kept it the same day).** Every
   finished game in a match history (yours on Home, anyone's on a player page) gets a letter
   (S+ to C), a score out of 10 and a place among the ten; an opened game shows all ten players'.
@@ -135,6 +176,30 @@ detection, composite player scores, live win probability, sending data to third-
   stay `null`), and the details stay. LCU endpoint (read, declare at product registration):
   `GET /lol-match-history/v1/games/{gameId}` (your listed games only, each read once), next to
   the match list already declared.
+- **Opened games: end-of-game stats and links to players (2026-09-29, built; not gray, noted for
+  the reasoning).** An opened game shows the raw end-of-game numbers of all ten players, those
+  of the League client's own post-game Stats tab (damage by type, healing, wards, gold spent…):
+  what every player of that finished game saw on its end screen, from the same reads as the
+  scoreboard (your listed games from the client, anyone's from Match-V5 on our server); nothing
+  during a game, no rating built on them beyond the grade above. Each **named** player's Riot ID
+  opens their page, like typing it in the search (the game shows the name; the page is looked up
+  on our server when it opens); streamer-mode players and bots are never links, never looked up.
+  *Planned* (next version): the game over time (gold, XP, CS, damage, the teams' gold difference,
+  a kill/death heatmap and positions) from Match-V5's timeline and, for your own games, the
+  client's `GET /lol-match-history/v1/game-timelines/{gameId}` (declare it then): still a
+  finished game only, hidden players drawn anonymously.
+- **LP per game and the post-game summary (2026-09-29, built; not gray, noted for the reasoning
+  and the endpoint list).** The League client never says what a game was worth: MVP reads the
+  player's own standing before a ranked game and after the client has counted it, and shows the
+  difference (100 LP per division, apex tiers plain LP). Two numbers the player saw and their
+  difference, kept on their machine only: **no MMR, no hidden-rating estimate**, no prediction.
+  The game that just ended opens by itself (2026-09-30: a window of the stack of opened games, once
+  per game) and shows what any opened game shows: the end-of-game numbers everyone in the game saw
+  (the grade's rules above apply; named players link to their pages, a hidden player stays hidden).
+  LCU endpoints (reads, declare at product registration): `GET /lol-ranked/v1/current-ranked-stats`
+  (and its event), `GET /lol-gameflow/v1/session` (the game's id and queue at its start),
+  `GET /lol-match-history/v1/games/{gameId}`, `GET /lol-match-history/v1/products/lol/current-summoner/matches`
+  with `begIndex`/`endIndex` (older games), `GET /lol-champion-mastery/v1/local-player/champion-mastery`.
 - **Remote config and self-updates (2026-09-28, shipped).** The app asks our server for its
   config and for updates with its version and install id only (no Riot data). Kill switches can
   only turn features **off**: they stop our own automations (auto-accept, each build import
@@ -142,3 +207,57 @@ detection, composite player scores, live win probability, sending data to third-
   misbehave. Updates never download or install during a ready
   check, champ select or a game, and never restart the app without the player's click (else
   they install when MVP quits).
+- **ARAM: Mayhem augments: tiers, shared picks, priorities (2026-09-29, built; gray: data
+  leaving the machine, opt-in; not yet tried on a real client).**
+  - **No win rates, and no results collected at all.** Riot forbids augment win rates (Arena's,
+    above; Mayhem's augments are the same kind of choice) and keeps Mayhem games off Match-V5
+    (403, Riot's issue #1109) so that nobody "solves" the mode with win/loss statistics. So
+    sharing never reads a game's result, the upload has no field for one (unknown fields are
+    dropped when it is parsed) and the server stores and computes **pick counts only**. The
+    champion page's Mayhem tab shows ARAM's builds, win rates included, **labelled as ARAM
+    data**: no Mayhem game is ever in them.
+  - **Tiers are editorial**: written by hand by the owner in a file on our server
+    (`mayhem-tiers.json`, apps/backend/README.md); the order inside a tier is the rank (first =
+    best, shown "S · 1"). Never copied from another site (no scraping).
+  - **Popularity only from players who opt in**: off until the player says yes. The app asks
+    once (2026-09-30), on Home at the first start after installing or updating, never in
+    champion select or a game and without blocking anything: plain words (game data only: no
+    names, no player ids, no wins), what the data switches on with how far each feature is, and
+    two equal answers ("Share game data" / "Not now", same button, no default). Either answer is
+    kept and changeable in Settings → Stats → "Help build Mayhem stats" (what is sent written
+    under the switch); the server can pause sharing for everyone (`features.mayhemSharing` in
+    the remote config, which also stops the question). When a game ends, and once for the whole
+    history when sharing is turned on (every page the client lists, 500 games at most, one
+    request at a time, never during champion select or a game), the core reads the player's
+    own match history from their League client and sends, for each Mayhem game not shared yet
+    (matchmade, or custom when its queue says Mayhem): the platform,
+    the patch, a one-way hash of the game id (SHA-256 of a fixed prefix, the platform and the id,
+    the same for every player of that game so it counts once) and each of the ten players'
+    champion, augments and final items. **Never** names, Riot IDs, PUUIDs, summoner ids, which
+    player shared, wins, KDA or anything else. Remakes are never sent. The
+    server uses the install id for the rate limit only (in memory); a stored game is its time of
+    arrival, platform, hash, patch and the ten players' picks.
+    Caveat: game ids are sequential numbers, so someone holding the stored files could hash
+    candidate ids and find a game they know of; they would learn the champions, augments and
+    items of that game (what its ten players saw), never who played or who won. A secret key
+    wouldn't help: the app is open source and every sharer of a game must produce the same hash.
+  - **Priorities are several options with their reasons, shown before the game or as reference.**
+    Per champion and rarity: the tier and the owner's rank first, the champion's pick rate from
+    shared games second once it has 30 games (fewer: the tiers alone, and a bar says how far it
+    is; no percentage from a handful of games anywhere, the page's own from 100 games);
+    every entry says why ("S tier · #2", "picked in 34% of Kog'Maw games"). Never a single "pick
+    this", never an order to follow.
+  - **Nothing reacts to what the game offers.** The Live Client Data API has no augments (checked
+    on a real Mayhem game, 2026-09-28); MVP never reads the screen, never watches the offers and
+    shows nothing triggered by them ("apps that dictate player decisions" are unapproved;
+    overlays that simulate decision-making are banned since 2025). Draft shows the priorities in
+    champion select (known before the game); Live's "My build" and the stats pages show the same
+    static reference, which doesn't change during the game.
+  - **Game files**: our server reads the augments' names, rarities, descriptions and icon paths
+    from `CommunityDragon`'s mirror of the game files once per game version, and the app shows the
+    icons from `CommunityDragon` at run time (as for the ranked emblems): nothing is committed or
+    bundled. Before the production-key application, check which source Riot prefers.
+  LCU endpoints (reads, all already declared above): `GET /lol-match-history/v1/products/lol/current-summoner/matches`,
+  `GET /lol-match-history/v1/games/{gameId}` (the player's own listed Mayhem games, each read
+  once), `GET /riotclient/region-locale` (a game's platform when the history lacks it),
+  `GET /lol-gameflow/v1/session` (the mode, in champion select and in game).

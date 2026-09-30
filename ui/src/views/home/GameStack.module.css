@@ -1,0 +1,705 @@
+/*
+ * Opened games (GameStack.tsx, GameWindow.tsx): a stack of windows of glass over the page, which
+ * recedes behind it. The dialog is the whole window: around the stack's cell is "outside", a click
+ * there closes it. The cell floats in the middle with a margin all around, where the page shows;
+ * the current window fills it but for its top and bottom bands, where the neighbours peek. Only
+ * transform, translate, scale and opacity move: the page recedes and comes back, the track glides
+ * from game to game, the stack rises in and leaves, the windows' glass, content and shadow fade
+ * (never a window itself: its glass would lose the page).
+ */
+.stack {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-1);
+  overflow: hidden;
+}
+
+/*
+ * The cell in the middle of the room the receded page leaves beside its rail and under its title
+ * bar (3vw and 3vh: where the page's edges went), so neither is covered: they say where you are.
+ */
+.stack[open] {
+  display: grid;
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+  place-items: center;
+}
+
+@media (min-width: 560px) {
+  .stack[open] {
+    grid-template-columns: calc(3vw + var(--sidebar-w)) minmax(0, 1fr);
+  }
+  .cell {
+    grid-column: 2;
+  }
+}
+
+@media (min-height: 640px) {
+  .stack[open] {
+    grid-template-rows: calc(3vh + var(--titlebar-h)) minmax(0, 1fr);
+  }
+  .cell {
+    grid-row: 2;
+  }
+}
+
+/* The page dims itself (below): nothing between it and the stack. */
+.stack::backdrop {
+  background: transparent;
+}
+
+/*
+ * The page behind recedes while the stack is open: zoomed out a little and dimmed, still the page
+ * you were on (every effects level). One transition, both ways; reduced motion: at once
+ * (base.css). The dialog lives in the top layer: the page's scale and opacity never reach it.
+ */
+:global([data-ambient-host]),
+:global([data-ambient-host] > :is(header, nav)) {
+  transition:
+    scale var(--dur-glide) var(--ease-glide),
+    opacity var(--dur-glide) var(--ease-glide);
+}
+
+:global([data-ambient-host]):has(.stack[open]:not([data-closing])) {
+  scale: 0.94;
+  opacity: 0.55;
+}
+
+/* Where the stack must cover the title bar (a short window) or the tab bar (a narrow one): gone. */
+@media (max-height: 639px) {
+  :global([data-ambient-host]):has(.stack[open]:not([data-closing])) > :global(header) {
+    opacity: 0;
+  }
+}
+
+@media (max-width: 559px) {
+  :global([data-ambient-host]):has(.stack[open]:not([data-closing])) > :global(nav) {
+    opacity: 0;
+  }
+}
+
+/*
+ * The stack's room: a margin around it where the page shows, as wide as the page's content at
+ * most and as tall as a window needs (`--room`: its head and the scoreboard at full size,
+ * MatchTable.module.css). Its top and bottom bands (`--peek`) show the neighbours' edges, `--gap`
+ * from the current window; nothing goes past them, while the windows' shadows spread sideways.
+ * Clipped, not masked: a mask would hide the page from the glass.
+ */
+.cell {
+  --gap: var(--space-4);
+  --peek: var(--space-8);
+  --room: 680px;
+  position: relative;
+  width: min(100% - 2 * clamp(var(--space-5), 5vw - var(--space-9), 120px), var(--content-max));
+  height: min(100% - 2 * clamp(var(--space-4), 2vh, var(--space-8)), var(--room) + 2 * var(--peek));
+  overflow-x: visible;
+  overflow-y: clip;
+  animation: rise var(--dur-spring) var(--ease-spring);
+}
+
+/*
+ * A window's height; each window sits at its place in the history (GameWindow.tsx, `translate`), the
+ * track brings the current one into view (GameStack.tsx), gliding from game to game on a spring.
+ */
+.track {
+  position: absolute;
+  inset: var(--peek) 0;
+  transition: translate var(--dur-spring) var(--ease-spring);
+}
+
+/* Pulled past an end: a wheel's notches glide, a finger is followed as it moves. */
+.stack[data-pulling="wheel"] .track {
+  transition-duration: var(--dur-1);
+  transition-timing-function: var(--ease);
+}
+
+.stack[data-pulling="touch"] .track {
+  transition: none;
+}
+
+.window {
+  container: frame / inline-size;
+  position: absolute;
+  inset: 0;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-5);
+  transition:
+    transform var(--dur-2) var(--ease),
+    scale var(--dur-spring) var(--ease-spring);
+}
+
+/* It has the keyboard as the current game: no ring around the whole window. */
+.window:focus-visible {
+  outline: none;
+}
+
+/*
+ * A neighbour is a window behind the current one: a little narrower (its peeking edge stays where
+ * it is; it grows to full width as it glides in), its rim quieter, its glass under a veil.
+ */
+.window:not([data-current]) {
+  --line-rim: var(--line-specular);
+  scale: 0.97 1;
+}
+
+/* Its shadow, a layer of its own: glass that bends the page mustn't cast one (liquid.ts). */
+.window::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  border-radius: inherit;
+  box-shadow: var(--shadow-float);
+  animation: appear var(--dur-2) var(--ease);
+}
+
+/*
+ * Liquid glass over the page (design/liquid, "sheet"): the page bent at the rim, frosted and
+ * tinted in the middle (`--bg-sheet`), where its lights still come through, faintly, under the
+ * tables. Without it (Light, Off) a solid layer (`--bg-sheet-flat`, opaque in Off) with a clear
+ * edge: its rim all around, not only where the light catches it, and the app's top-lit sheen.
+ */
+.glass {
+  --lg-tint: var(--bg-sheet);
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--lg-fill, var(--bg-sheet-flat));
+  background-image: var(--sheen, none);
+  backdrop-filter: var(--lg-filter, var(--blur-glass));
+  pointer-events: none;
+  animation: appear var(--dur-2) var(--ease);
+}
+
+:global(:root:not([data-effects="shader"])) .window {
+  --line-rim-far: var(--line-specular);
+  --sheen: linear-gradient(180deg, var(--bg-sheen), transparent 25%);
+}
+
+/* Over a neighbour's glass (after it: the same layer, painted later), lifted as it arrives. */
+.veil {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--bg-scrim);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-2) var(--ease);
+}
+
+.window:not([data-current]) .veil {
+  opacity: 1;
+}
+
+/* ── The head: the game, from its row, at once ────────────────────────────────────────── */
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  padding: var(--space-6) var(--space-7) var(--space-5);
+  animation: appear var(--dur-2) var(--ease);
+}
+
+.head > img,
+.head > [role="img"] {
+  flex: none;
+  border-radius: var(--radius-3);
+}
+
+/* It takes the width: the close button ends the head. */
+.heading {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+/* The result and queue, then the LP (on a line of their own when the window is narrow). */
+.titleLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-5);
+  min-width: 0;
+}
+
+.title {
+  min-width: 0;
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.win {
+  color: var(--win);
+}
+
+.loss {
+  color: var(--loss);
+}
+
+.remake {
+  color: var(--text-2);
+}
+
+/* `+21 LP`, like the row's, then the standing after the game. */
+.lp {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-4);
+  min-width: 0;
+  font-size: var(--text-sm);
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.delta {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  color: var(--text-2);
+}
+
+.delta[data-lp="1"] {
+  color: var(--win);
+}
+
+.delta[data-lp="-1"] {
+  color: var(--loss);
+}
+
+.standing {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+/* Promoted or demoted, in the colour of the LP that did it. */
+.moved {
+  font-weight: var(--weight-semibold);
+}
+
+.moved[data-lp="1"] {
+  color: var(--win);
+}
+
+.moved[data-lp="-1"] {
+  color: var(--loss);
+}
+
+.pending {
+  font-size: var(--text-sm);
+  color: var(--text-3);
+}
+
+.meta {
+  font-size: var(--text-sm);
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.close {
+  display: grid;
+  place-items: center;
+  flex: none;
+  align-self: flex-start;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-3);
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.close:hover {
+  background: var(--bg-3);
+  color: var(--text-1);
+}
+
+/* A neighbour's head, pulled into view, has nothing to press. */
+.window:not([data-current]) .close {
+  visibility: hidden;
+}
+
+/* ── Your line: the grade and what moved it, then the window's tabs ───────────────────── */
+
+/* The grade takes the width, the tabs end the line (under it on narrow windows). */
+.bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: var(--space-4) var(--space-6);
+  padding: 0 var(--space-7) var(--space-5);
+  animation: appear var(--dur-2) var(--ease);
+}
+
+.grade {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-5);
+  min-width: 0;
+  min-height: 24px;
+}
+
+.score {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+}
+
+.outOf {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-regular);
+  color: var(--text-3);
+}
+
+.badge,
+.place {
+  margin-left: var(--space-3);
+  font-size: var(--text-sm);
+}
+
+.badge {
+  color: var(--accent);
+  font-weight: var(--weight-semibold);
+}
+
+.place {
+  color: var(--text-2);
+  font-weight: var(--weight-medium);
+}
+
+.factors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-6);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-sm);
+  color: var(--text-2);
+}
+
+/* Up or down: a mark in the win or loss colour before the fact. */
+.up,
+.down {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+.up::before,
+.down::before {
+  content: "";
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  transform: translateY(-1px);
+}
+
+.up::before {
+  background: var(--win);
+}
+
+.down::before {
+  background: var(--loss);
+}
+
+/* The tabs end the line, with or without a grade before it. */
+.tabs {
+  grid-column: 2;
+  justify-self: end;
+}
+
+/* A narrow window: the tabs on a line of their own, across it, their words given the room. */
+@container frame (max-width: 639px) {
+  .bar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .tabs {
+    grid-column: 1;
+    width: 100%;
+  }
+  .bar .tabs [role="radio"] {
+    padding: 0 var(--space-2);
+  }
+}
+
+/* ── The game: a tab at a time, nothing scrolls ───────────────────────────────────────── */
+
+.main {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  border-top: 1px solid var(--line-1);
+  transition: opacity var(--dur-2) var(--ease);
+  animation: appear var(--dur-2) var(--ease);
+}
+
+/*
+ * A neighbour's game waits unseen: its edge at the stack's top or bottom is clean glass, and its
+ * game fades in as it becomes the current one (its head shows, pulled into view).
+ */
+.window:not([data-current]) .main {
+  opacity: 0;
+}
+
+/*
+ * The tab's room, as tall as the window leaves it: the tables share it out (`cqh`, their lines'
+ * heights; `game-window`, what they drop when it is short). Never scrolled.
+ */
+.body {
+  container: game-window / size;
+  flex: 1;
+  min-height: 0;
+  overflow: clip;
+  padding: 0 var(--space-5) var(--space-5);
+}
+
+/* A game that can't show: its message in the middle of the window. */
+.body:has([data-state="error"]) {
+  display: grid;
+  align-content: center;
+}
+
+/* ── The neighbours' edges: a click goes there, the pointer brings them a little closer ─── */
+
+.peek {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 1;
+  height: var(--peek);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.peek[data-peek="newer"] {
+  top: 0;
+}
+
+.peek[data-peek="older"] {
+  bottom: 0;
+}
+
+.cell:has(> [data-peek="newer"]:hover) [data-place="newer"] {
+  transform: translateY(var(--space-3));
+}
+
+.cell:has(> [data-peek="older"]:hover) [data-place="older"] {
+  transform: translateY(calc(-1 * var(--space-3)));
+}
+
+/*
+ * What a pull past an end does, said while the stack is pulled, its bar filling up to it
+ * (`--progress`, 0–1, from GameStack.tsx), at the edge being pulled: the stack moving away opens
+ * the room it sits in. Older games on their way (or a failure) at the last game say so too.
+ */
+.cue {
+  position: absolute;
+  bottom: var(--space-2);
+  left: 50%;
+  z-index: 2;
+  isolation: isolate;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  max-width: calc(100% - 2 * var(--space-6));
+  padding: var(--space-3) var(--space-6) var(--space-3) var(--space-5);
+  border-radius: var(--radius-full);
+  background: var(--bg-3);
+  box-shadow:
+    var(--shadow-float),
+    inset 0 0 0 1px var(--line-2);
+  color: var(--text-1);
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0;
+  /* It rides the seam between the windows as the pull opens it (`--pull`, from GameStack.tsx). */
+  translate: -50% calc(-1 * var(--pull, 0px));
+  transition:
+    opacity var(--dur-1) var(--ease),
+    translate var(--dur-1) var(--ease);
+}
+
+.stack[data-pulling="touch"] .cue {
+  transition: opacity var(--dur-1) var(--ease);
+}
+
+.cue svg {
+  flex: none;
+}
+
+.cue span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The pill fills up with the accent, left to right, as the pull nears what it does. */
+.cue::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--bg-lens-accent);
+  transform: scaleX(var(--progress, 0));
+  transform-origin: left;
+  transition: transform var(--dur-1) var(--ease);
+}
+
+.stack[data-pulling]:not([data-closing]) .cue[data-said],
+.stack[data-status]:not([data-closing]) .cue[data-said] {
+  opacity: 1;
+}
+
+.cue[data-edge="top"] {
+  top: var(--space-2);
+  bottom: auto;
+  translate: -50% var(--pull, 0px);
+}
+
+.cue[data-edge="top"] svg {
+  rotate: 180deg;
+}
+
+/* Waiting for older games (or after a failure): no bar to fill, back at rest, no arrow to follow. */
+.stack:not([data-pulling]) .cue::after {
+  transform: scaleX(0);
+}
+
+.stack[data-status]:not([data-pulling]) .cue {
+  translate: -50% 0;
+}
+
+.stack[data-status="loading"]:not([data-pulling]) .cue svg {
+  display: none;
+}
+
+/* ── Rising in, leaving: down when pulled past the newest game, a short drop otherwise ─── */
+
+.stack[data-closing] .cell {
+  animation: leave var(--dur-2) var(--ease) forwards;
+}
+
+.stack[data-closing="down"] .cell {
+  --leave: 24vh;
+}
+
+.stack[data-closing] .window::before,
+.stack[data-closing] .window::after,
+.stack[data-closing] .glass,
+.stack[data-closing] .veil,
+.stack[data-closing] .head,
+.stack[data-closing] .bar,
+.stack[data-closing] .main {
+  animation: vanish var(--dur-2) var(--ease) forwards;
+}
+
+@keyframes rise {
+  from {
+    transform: translateY(var(--space-8));
+  }
+}
+
+@keyframes leave {
+  to {
+    transform: translateY(var(--leave, var(--space-8)));
+  }
+}
+
+@keyframes appear {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes vanish {
+  to {
+    opacity: 0;
+  }
+}
+
+/* Short windows: thinner bands, a tighter head; the grade without what moved it (a hover away). */
+@media (max-height: 719px) {
+  .cell {
+    --peek: var(--space-7);
+  }
+  .head {
+    padding-top: var(--space-5);
+    padding-bottom: var(--space-4);
+  }
+  .bar {
+    padding-bottom: var(--space-4);
+  }
+  .body {
+    padding-bottom: var(--space-4);
+  }
+}
+
+@media (max-height: 639px) {
+  .factors {
+    display: none;
+  }
+}
+
+/* Narrow windows: a smaller radius, a tighter head. */
+@media (max-width: 559px) {
+  .window {
+    border-radius: var(--radius-4);
+  }
+  .head {
+    gap: var(--space-4);
+    padding-right: var(--space-4);
+    padding-left: var(--space-5);
+  }
+  .title {
+    font-size: var(--text-lg);
+  }
+  .bar {
+    gap: var(--space-4);
+    padding-right: var(--space-4);
+    padding-left: var(--space-5);
+  }
+  .body {
+    padding-right: var(--space-2);
+    padding-left: var(--space-2);
+  }
+  /* Its words on two lines rather than cut. */
+  .cue {
+    border-radius: var(--radius-4);
+    font-size: var(--text-md);
+    white-space: normal;
+  }
+}

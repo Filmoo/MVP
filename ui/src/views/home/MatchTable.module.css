@@ -1,10 +1,18 @@
 /*
- * The whole game under an opened match row (MatchDetails.tsx): one grid per line, fixed line
- * heights. The table is always 540 px tall, the height of the skeleton the row shows while it
- * loads (RecentMatches.tsx): 8 + 2 teams × (24 + 5 × 44 + 5 × 2) + 12 + 12. Columns give way
- * as the list narrows.
+ * The scoreboard of an opened game (MatchDetails.tsx): one grid per line. Nothing scrolls: its ten
+ * lines share the window's height (`cqh`: the window's body, GameStack.module.css), 44 px each at
+ * most; the table is then 540 px tall, the height of the skeleton its window shows while it loads
+ * (GameWindow.tsx): 8 + 2 teams × (24 + 5 × 44 + 5 × 2) + 12 + 12. Two lines of text need 35 px:
+ * a shorter window (`game-window` under 450 px) keeps one a player, tighter heads, a smaller
+ * champion column (MatchDetails.module.css drops the captions, the damage bar, spells and runes).
+ * Columns: the champion (level, spells, keystone and tree), the player, K / D / A (the ratio and
+ * the kill participation under it), damage (its bar under it), gold, CS and vision (each with its
+ * pace under it), items and trinket, the grade. They give way as the window narrows: gold and
+ * vision go, then the items, then the damage, then the CS. Widths hold Windows' text too (Inter
+ * renders a few px wider there than on Linux: "101 / 14 / 129" needs 91 px).
  */
 .table {
+  --champ: 68px;
   container: game / inline-size;
   display: flex;
   flex-direction: column;
@@ -21,11 +29,12 @@
   list-style: none;
 }
 
+/* A window's width: the name and the damage bar share what the other columns leave. */
 .head,
 .player {
   display: grid;
-  grid-template-columns: 68px minmax(0, 1fr) 88px 80px 48px 40px 40px 152px 56px;
-  column-gap: var(--space-4);
+  grid-template-columns: var(--champ) minmax(0, 260px) 112px minmax(140px, 1fr) 64px 64px 48px 156px 56px;
+  column-gap: var(--space-7);
   align-items: center;
   padding: 0 var(--space-4);
   min-width: 0;
@@ -50,8 +59,13 @@
 }
 
 .player {
-  height: 44px;
+  height: clamp(24px, (100cqh - 100px) / 10, 44px);
   border-radius: var(--radius-3);
+}
+
+/* The line under the pointer, across the row (yours keeps its mark). */
+.player:not([data-marked]):hover {
+  background: var(--bg-sheen);
 }
 
 .champ,
@@ -76,38 +90,92 @@
   justify-self: stretch;
 }
 
+/* The bar starts a step away from the kill participation before it. */
+.damage {
+  padding-left: var(--space-5);
+}
+
 .grade {
   justify-self: end;
 }
 
-@container game (max-width: 739px) {
+/* No vision in the game (Howling Abyss: 0 for everyone): no vision column. */
+.noVision .vision {
+  display: none;
+}
+
+.noVision .head,
+.noVision .player {
+  grid-template-columns: var(--champ) minmax(0, 260px) 112px minmax(140px, 1fr) 64px 64px 156px 56px;
+}
+
+/* Narrower: no gold and vision. */
+@container game (max-width: 999px) {
   .head,
-  .player {
-    grid-template-columns: 68px minmax(0, 1fr) 88px 80px 86px 56px;
+  .player,
+  .noVision .head,
+  .noVision .player {
+    grid-template-columns: var(--champ) minmax(0, 1fr) 104px 96px 60px 156px 56px;
+    column-gap: var(--space-4);
   }
   .gold,
-  .cs,
   .vision {
     display: none;
   }
+  .damage {
+    padding-left: 0;
+  }
 }
 
-@container game (max-width: 559px) {
+/* Then no items; then no damage; then the champion alone and no CS. */
+@container game (max-width: 739px) {
   .head,
-  .player {
-    grid-template-columns: 68px minmax(0, 1fr) 88px 72px 44px;
+  .player,
+  .noVision .head,
+  .noVision .player {
+    grid-template-columns: var(--champ) minmax(0, 1fr) 100px 72px 52px 56px;
   }
   .items {
     display: none;
   }
 }
 
-@container game (max-width: 419px) {
+@container game (max-width: 559px) {
   .head,
-  .player {
-    grid-template-columns: 32px minmax(0, 1fr) 88px 44px;
+  .player,
+  .noVision .head,
+  .noVision .player {
+    grid-template-columns: var(--champ) minmax(0, 1fr) 100px 52px 44px;
   }
   .damage {
     display: none;
+  }
+}
+
+@container game (max-width: 419px) {
+  .head,
+  .player,
+  .noVision .head,
+  .noVision .player {
+    --champ: 32px;
+    grid-template-columns: var(--champ) minmax(0, 1fr) 96px 44px;
+  }
+  .cs {
+    display: none;
+  }
+}
+
+/* A short window: a line of text a player, and the room it leaves shared out again. */
+@container game-window (max-height: 449px) {
+  .table {
+    --champ: 32px;
+    gap: var(--space-4);
+    padding: var(--space-2) 0;
+  }
+  .head {
+    height: 20px;
+  }
+  .player {
+    height: clamp(20px, (100cqh - 76px) / 10, 44px);
   }
 }

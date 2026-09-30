@@ -18,7 +18,6 @@
 
 .thumb {
   --travel: 0px;
-  --lg-tint: var(--bg-highlight);
   position: absolute;
   top: 50%;
   left: var(--space-1);
@@ -54,14 +53,12 @@
   opacity: 0.4;
 }
 
-/* Held: the knob swells into clear glass that bends the track under it (design/liquid, "lens"). */
+/* Held: the knob swells a little into a drop of glass (the material of design/glass.css). */
 .toggle[data-pressed] .thumb,
 .toggle[data-pressed]:hover .thumb {
-  background: var(--lg-fill, var(--bg-highlight));
-  backdrop-filter: var(--lg-filter, none);
-  /* Inset only: an outer shadow would shift the lens (see Search.module.css). */
+  background: linear-gradient(180deg, var(--bg-drop-sheen), transparent 60%), var(--bg-drop);
   box-shadow:
-    inset 1px 1px 0 var(--line-rim),
-    inset -1px -1px 0 var(--line-rim-far);
-  transform: translate(var(--travel), -50%) scale(1.5, 1.32);
+    inset 0 1px 0 var(--line-drop-lit),
+    inset 0 0 0 1px var(--line-drop);
+  transform: translate(var(--travel), -50%) scale(1.22, 1.12);
 }

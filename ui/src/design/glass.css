@@ -20,6 +20,25 @@
   opacity: 1;
 }
 
+/*
+ * A drop of glass on a control (rail selection, segmented and choice thumbs, a held switch):
+ * evenly tinted (`--drop-tint`, set by the control), a soft sheen over its upper half, and a
+ * smooth rim, brighter along the top where it faces the light. Owner, 2026-09-28: tinted by the
+ * glass' thickness it read as "two bubbles" (a clear ring around a coloured middle), and bending
+ * the page through an SVG filter it had rough edges and settled a pixel off after each glide.
+ * Box-shadows, not a masked ring: anti-aliased on every curve, moving or not; no backdrop filter.
+ */
+.glass-drop {
+  background: linear-gradient(180deg, var(--bg-drop-sheen), transparent 60%), var(--drop-tint, var(--bg-drop));
+  box-shadow:
+    inset 0 1px 0 var(--line-drop-lit),
+    inset 0 0 0 1px var(--line-drop);
+}
+
+:root[data-effects="flat"] .glass-drop {
+  background: var(--drop-tint, var(--bg-drop));
+}
+
 /* A pill of glass inside a card: faint fill, lit top edge. */
 .glass-pill {
   background-image: linear-gradient(180deg, var(--bg-sheen), transparent);
@@ -75,4 +94,5 @@
   --blur-glass: none;
   /* Without blur, floating panels stay opaque so what's behind never competes with them. */
   --bg-float: var(--bg-2);
+  --bg-sheet-flat: var(--bg-1);
 }

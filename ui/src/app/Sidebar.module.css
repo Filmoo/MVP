@@ -77,10 +77,10 @@
 }
 
 /*
- * Liquid glass lens over the current section (design/liquid, "lens"): it magnifies the icon
- * a little, bends it at the rim and glides between sections (Sidebar.tsx). Placed by JS.
+ * Liquid glass behind the current section (design/liquid, "lens"): a pill whose edge bends
+ * what is under it, gliding between sections (Sidebar.tsx). Placed by JS.
  */
-/* Behind the items at rest, so icons and labels stay crisp; over them while it glides. */
+/* Always behind the items, so icons and labels stay crisp and their size while it glides. */
 .lens {
   position: absolute;
   top: 0;
@@ -95,19 +95,12 @@
   display: none;
 }
 
-.lens[data-moving] {
-  z-index: 2;
-}
-
-/* Its rim of light is the glass-rim ring; the shadow is the wrapper's (see Search.module.css). */
+/* A drop (design/glass.css): the accent, lightly, so a choice reads as lit, never as a hole. */
 .glass {
-  /* The accent, as glass: a choice reads as lit, never as a hole in the rail. */
-  --lg-tint: var(--bg-lens-accent);
+  --drop-tint: var(--bg-drop-accent);
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: var(--lg-fill, var(--bg-lens-accent));
-  backdrop-filter: var(--lg-filter, none);
 }
 
 .active::before {

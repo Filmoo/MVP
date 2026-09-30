@@ -22,6 +22,8 @@ No in-game overlay for now (keep the architecture overlay-ready).
   deploy notes in its README.
 - `apps/crawler/` `mvp-crawler`: `crawl` (Emerald+ ladders → ranked/ARAM matches + timelines →
   facts in SQLite, resumable, idempotent) and `publish` (→ `stats/v1/{patch}/{queue}/{bracket}/…`).
+- `apps/roadmap/` `mvp-roadmap`: the private roadmap at dev.mvpgg.com (axum + SQLite, its SolidJS
+  page in `web/`); only the repo's admins (GitHub) and Claude (a token) get in. README has the deploy.
 - `deploy/` the server behind Cloudflare (`https://api.mvpgg.com`): its configuration files,
   `mvp-deploy` (release tags of `main` only), `mvp-set-riot-key` and the runbook (`deploy/README.md`).
 - `crates/domain` UI-facing types → exported to `ui/src/data/generated/*.ts` by ts-rs
@@ -56,6 +58,9 @@ No in-game overlay for now (keep the architecture overlay-ready).
 - `node scripts/check.mjs fast|ui|full` — the quality gates (also run by the Stop hook and CI).
   `MVP_UI_PORT=4183` moves the Playwright preview off 4173 (several checkouts side by side).
 - `pnpm --filter @scout/ui screenshots` → `reports/screenshots/*.png` for design review.
+- Roadmap (dev.mvpgg.com): `node scripts/roadmap.mjs list|propose|status|comment …` (token in
+  `MVP_ROADMAP_TOKEN` or `.cache/roadmap-token`): propose what you'd suggest, move what you build to
+  in progress/done with its commit; `pnpm roadmap --dev-login` tries it locally on 127.0.0.1:8790.
 - Real data for the owner's account (Fillmo#7272, EUW): with `RIOT_API_KEY` set,
   `cargo run -p players --bin capture-profile -- "Fillmo#7272"` → `.cache/fixtures/profile.json`
   (git-ignored), shown by `?scenario=me`. Personal data is never committed.

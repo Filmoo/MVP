@@ -2,7 +2,6 @@
 import type { Bracket } from "./Bracket";
 import type { Effects } from "./Effects";
 import type { FlashKey } from "./FlashKey";
-import type { ImportMode } from "./ImportMode";
 import type { Language } from "./Language";
 
 /**
@@ -45,17 +44,19 @@ effects: Effects,
  */
 language: Language, 
 /**
- * Rune page import: off, one click, or also automatically on lock-in.
+ * Auto import of MVP's rune page: by itself, once, at the first lock-in of a champion
+ * select. The Runes button works either way. (`importRunes` in files up to 0.2.)
  */
-importRunes: ImportMode, 
+autoImportRunes: boolean, 
 /**
- * Item set import: off, one click, or also automatically on lock-in.
+ * Auto import of MVP's item set, like the rune page's. (`importItemSet` up to 0.2.)
  */
-importItemSet: ImportMode, 
+autoImportItemSet: boolean, 
 /**
- * Summoner spells import (champion select only): off, one click, or also on lock-in.
+ * Auto import of the summoner spells, like the rune page's (champion select only, never in
+ * its last seconds). (`importSpells` up to 0.2.)
  */
-importSpells: ImportMode, 
+autoImportSpells: boolean, 
 /**
  * The key Flash goes on when spells are imported.
  */
@@ -69,4 +70,11 @@ statsBracket: Bracket,
  * Send crash reports (opt-in): a crash of the core or an error in the UI goes to our
  * server, scrubbed of names, ids and paths first, and is kept 30 days.
  */
-crashReports: boolean, };
+crashReports: boolean, 
+/**
+ * Help build Mayhem stats (opt-in): after each ARAM: Mayhem game, and once for every past one
+ * the League client lists when turned on, the champions, augments and final items of its
+ * ten players go to our server, with a one-way hash of the game. No names, ids of players or
+ * wins. `None` (off) until the player answers the question the app asks once.
+ */
+shareMayhemGames: boolean | null, };

@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::Tier;
+use crate::{Role, Tier};
 
 /// Static game data for one patch (names and asset ids), from Riot's Data Dragon.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
@@ -18,7 +18,8 @@ pub struct GameData {
     pub items: Vec<ItemInfo>,
     pub summoner_spells: Vec<SpellInfo>,
     /// Rune trees (Precision, Domination…), from `runesReforged.json`. Stat shards (ids
-    /// 5001–5013) aren't in Data Dragon: the UI names them itself.
+    /// 5001–5013) aren't in Data Dragon: the UI names them itself. What each rune does comes
+    /// apart, when a tooltip asks (`game_description`), not with the names.
     pub runes: Vec<RuneStyle>,
 }
 
@@ -82,8 +83,63 @@ pub struct RuneInfo {
     pub name: String,
     /// Icon path under the version-less art base: `{art_base}/img/{icon}`.
     pub icon: String,
-    /// One-line description as plain text (Data Dragon's markup removed).
-    pub short_desc: String,
+}
+
+/// What `game_description` describes: a rune, a stat shard, a summoner spell or an item.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum DescriptionKind {
+    Rune,
+    Shard,
+    Spell,
+    Item,
+}
+
+/// What a rune, a stat shard, a summoner spell or an item does, in the language of the loaded
+/// `GameData` (`game_description`, asked when a tooltip shows: never with the names). From Data
+/// Dragon, and for stat shards from the League client's own data (Data Dragon has none).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Description {
+    /// A stat shard's name (shards aren't in `GameData`); the others are named there.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub name: Option<String>,
+    /// A summoner spell's cooldown, in seconds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub cooldown: Option<u32>,
+    /// The text, line by line; an empty line ends a paragraph. Riot's markup is gone: only
+    /// text and a tone for what it stressed.
+    pub text: Vec<Vec<TextSpan>>,
+}
+
+/// A run of text in one tone.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct TextSpan {
+    pub text: String,
+    /// Plain text when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub tone: Option<TextTone>,
+}
+
+/// How a span reads: stressed (a stat's value, a passive's name), subtle (rules, flavour
+/// text), or in a damage type's or healing's colour, as the game shows them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum TextTone {
+    Strong,
+    Subtle,
+    Physical,
+    Magic,
+    True,
+    Heal,
 }
 
 /// Riot's ranked emblems as the core has them (`rank_emblems`, `rank-emblems` event): each tier's
@@ -103,4 +159,62 @@ pub struct RankEmblem {
     pub tier: Tier,
     /// `data:image/png;base64,…`
     pub url: String,
+}
+
+/// League's position icons as the core has them (`position_icons`, `position-icons` event): each
+/// role's icon from the League client, as a data URL the UI tints. Roles not downloaded yet are
+/// missing: the UI draws its own icons for them.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct PositionIcons {
+    pub icons: Vec<PositionIcon>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct PositionIcon {
+    pub role: Role,
+    /// `data:image/svg+xml;base64,…`
+    pub url: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn descriptions_leave_out_what_they_lack() {
+        let spell = Description {
+            name: None,
+            cooldown: Some(300),
+            text: vec![
+                vec![
+                    TextSpan {
+                        text: "Deals ".into(),
+                        tone: None,
+                    },
+                    TextSpan {
+                        text: "true damage".into(),
+                        tone: Some(TextTone::True),
+                    },
+                ],
+                vec![],
+            ],
+        };
+        let json = serde_json::to_string(&spell).expect("serializable");
+        assert_eq!(
+            json,
+            r#"{"cooldown":300,"text":[[{"text":"Deals "},{"text":"true damage","tone":"true"}],[]]}"#
+        );
+        assert_eq!(
+            serde_json::from_str::<Description>(&json).expect("parses"),
+            spell
+        );
+        assert_eq!(
+            serde_json::to_string(&DescriptionKind::Shard).expect("serializable"),
+            r#""shard""#
+        );
+    }
 }

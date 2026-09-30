@@ -1,0 +1,400 @@
+/*
+ * Versions as stations along a track, each with a ring for its progress; below each, a thread
+ * of its features, done work nearest the station, coloured by area. It draws itself in once
+ * (rings fill, nodes drop onto the thread) and then rests.
+ */
+.page {
+  height: 100%;
+  overflow-y: auto;
+  padding: var(--space-4) var(--space-7) var(--space-11);
+}
+
+.legend {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-3);
+  max-width: 1100px;
+  margin: 0 auto var(--space-9);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: 28px;
+  padding: 0 var(--space-5) 0 var(--space-4);
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--bg-card);
+  box-shadow: inset 0 0 0 1px var(--line-glass);
+  color: var(--text-2);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--dur-1) var(--ease),
+    color var(--dur-1) var(--ease);
+}
+
+.chip:hover {
+  background: var(--bg-3);
+  color: var(--text-1);
+}
+
+.chip[aria-pressed="true"] {
+  background: color-mix(in oklab, var(--area) 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--area) 50%, transparent);
+  color: var(--text-1);
+}
+
+.chipDot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--area);
+  box-shadow: 0 0 8px color-mix(in oklab, var(--area) 60%, transparent);
+}
+
+.chipCount {
+  color: var(--text-3);
+}
+
+.stops {
+  display: grid;
+  grid-template-columns: repeat(var(--stops), minmax(200px, 340px));
+  justify-content: center;
+  gap: 0 var(--space-7);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* As tall as its own thread (not the row's tallest), so the thread ends at its last node. */
+.stop {
+  position: relative;
+  align-self: start;
+  min-width: 0;
+}
+
+/* The track: from this station to the next, solid through released work, lit through the
+   version being built, dashed ahead. */
+.stop:not([data-last="true"])::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  top: 31px;
+  left: 64px;
+  right: calc(-1 * var(--space-7));
+  height: 2px;
+  border-radius: var(--radius-full);
+  background: repeating-linear-gradient(90deg, var(--line-2) 0 6px, transparent 6px 12px);
+  transform-origin: left;
+  animation: draw 700ms var(--ease) calc(var(--i) * 140ms) both;
+}
+
+.stop[data-state="released"]::after {
+  background: linear-gradient(90deg, var(--good), color-mix(in oklab, var(--good) 40%, var(--accent)));
+}
+
+.stop[data-state="active"]::after {
+  background: linear-gradient(90deg, var(--accent), var(--line-2));
+}
+
+@keyframes draw {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+/* The station: its ring on the track, its words under it, beside the thread. */
+.milestone {
+  position: relative;
+  z-index: 1;
+}
+
+.ring {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-full);
+  background: radial-gradient(circle, var(--bg-2) 58%, transparent 60%);
+}
+
+.stop[data-state="active"] .ring {
+  box-shadow: 0 0 36px -6px color-mix(in oklab, var(--accent) 70%, transparent);
+}
+
+.ringName {
+  position: absolute;
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  letter-spacing: -0.02em;
+}
+
+.label {
+  min-width: 0;
+  margin-top: var(--space-4);
+  padding-left: 47px;
+}
+
+.stateLine {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  color: var(--text-2);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+
+.state {
+  padding: 0 var(--space-4);
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-full);
+  background: var(--bg-3);
+  color: var(--text-2);
+  font-size: var(--text-xs);
+}
+
+.state[data-state="released"] {
+  background: color-mix(in oklab, var(--good) 14%, transparent);
+  color: var(--good);
+}
+
+.state[data-state="active"] {
+  background: var(--bg-lens-accent);
+  color: var(--accent-strong);
+}
+
+.when {
+  color: var(--text-3);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-regular);
+}
+
+/* Three lines always, written or not, so every thread starts at the same height. */
+.goal {
+  margin-top: var(--space-3);
+  min-height: calc(3 * 1.45em);
+  color: var(--text-3);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* The thread hangs from the station's ring, past its words, along its features. */
+.stop::before {
+  content: "";
+  position: absolute;
+  top: 64px;
+  bottom: var(--space-4);
+  left: 31px;
+  width: 2px;
+  border-radius: var(--radius-full);
+  background: linear-gradient(180deg, var(--line-2), color-mix(in oklab, var(--line-2) 30%, transparent));
+}
+
+.stop[data-state="released"]::before {
+  background: linear-gradient(180deg, color-mix(in oklab, var(--good) 55%, transparent), var(--line-1));
+}
+
+.stop[data-state="active"]::before {
+  background: linear-gradient(180deg, color-mix(in oklab, var(--accent) 70%, transparent), var(--line-1));
+}
+
+.thread {
+  position: relative;
+  margin: var(--space-5) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.node {
+  position: relative;
+  animation: drop 420ms var(--ease) calc(var(--i) * 140ms + var(--n) * 28ms + 200ms) both;
+  transition: opacity var(--dur-2) var(--ease);
+}
+
+.node[data-dim="true"] {
+  opacity: 0.22;
+}
+
+@keyframes drop {
+  from {
+    opacity: 0;
+    transform: translateY(calc(-1 * var(--space-3)));
+  }
+}
+
+.nodeButton {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  width: 100%;
+  min-height: 30px;
+  padding: var(--space-2) var(--space-4) var(--space-2) 25px;
+  border: 0;
+  border-radius: var(--radius-3);
+  background: none;
+  color: var(--text-2);
+  font-size: var(--text-md);
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+}
+
+.nodeButton:hover,
+.nodeButton[aria-current="true"] {
+  background: var(--bg-sheen);
+  color: var(--text-1);
+}
+
+.nodeButton:focus-visible {
+  outline-offset: -2px;
+}
+
+/* A node on the thread: filled when done, half when being built, a ring when agreed, dashed
+   while proposed. */
+.dot {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-top: 2px;
+  border-radius: var(--radius-full);
+  background: var(--bg-1);
+  box-shadow:
+    0 0 0 2px var(--area),
+    0 0 0 4px var(--bg-1);
+  transition: transform var(--dur-2) var(--ease-spring);
+}
+
+.node[data-status="done"] .dot {
+  background: var(--area);
+}
+
+/* A station's done work as one row: a mint node for the lot. */
+.node[data-summary] {
+  --area: var(--good);
+  --n: 0;
+}
+
+.fold {
+  flex: none;
+  color: var(--text-3);
+  font-size: var(--text-xs);
+}
+
+.nodeButton:hover .fold {
+  color: var(--accent-strong);
+}
+
+.node[data-status="in_progress"] .dot {
+  background: conic-gradient(var(--area) 0 50%, var(--bg-1) 0);
+  box-shadow:
+    0 0 0 2px var(--area),
+    0 0 0 4px var(--bg-1),
+    0 0 12px color-mix(in oklab, var(--area) 70%, transparent);
+}
+
+.node[data-status="proposed"] .dot {
+  box-shadow: 0 0 0 4px var(--bg-1);
+  outline: 2px dashed var(--area);
+  outline-offset: -2px;
+}
+
+.node[data-status="rejected"] .dot {
+  opacity: 0.5;
+}
+
+.nodeButton:hover .dot {
+  transform: scale(1.25);
+}
+
+.title {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.node[data-status="done"] .title {
+  color: var(--text-3);
+}
+
+.nodeButton:hover .title,
+.nodeButton[aria-current="true"] .title {
+  color: var(--text-1);
+}
+
+.node[data-status="rejected"] .title {
+  text-decoration: line-through;
+}
+
+.none {
+  padding: var(--space-3) 0 var(--space-3) 25px;
+  color: var(--text-3);
+  font-size: var(--text-sm);
+}
+
+/* Narrow windows: the track runs down the page, one station under the other. */
+@media (max-width: 859px) {
+  .page {
+    padding: var(--space-3) var(--space-5) var(--space-11);
+  }
+  /* One row that scrolls sideways: the stations start on the first screen. */
+  .legend {
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin: 0 calc(-1 * var(--space-5)) var(--space-7);
+    padding: 0 var(--space-5);
+  }
+  .chip {
+    flex: none;
+  }
+  .stops {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-8);
+  }
+  .stop:not([data-last="true"])::after {
+    top: 64px;
+    left: 31px;
+    right: auto;
+    bottom: calc(-1 * var(--space-8));
+    width: 2px;
+    height: auto;
+    background: repeating-linear-gradient(180deg, var(--line-2) 0 6px, transparent 6px 12px);
+    transform-origin: top;
+    animation-name: draw-down;
+  }
+  .stop[data-state="released"]::after {
+    background: linear-gradient(180deg, var(--good), color-mix(in oklab, var(--good) 40%, var(--accent)));
+  }
+  .stop[data-state="active"]::after {
+    background: linear-gradient(180deg, var(--accent), var(--line-2));
+  }
+  /* The track carries on as the thread, except under the last station (no track below it). */
+  .stop:not([data-last="true"])::before {
+    display: none;
+  }
+  .thread {
+    margin-top: var(--space-4);
+  }
+}
+
+@keyframes draw-down {
+  from {
+    transform: scaleY(0);
+  }
+}

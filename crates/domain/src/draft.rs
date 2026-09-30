@@ -10,8 +10,13 @@ use crate::Role;
 #[ts(export)]
 pub struct DraftView {
     pub phase: DraftPhase,
-    /// Seconds left in the current phase, if known.
+    /// Seconds left in the current phase when the client took its timer snapshot, if known.
     pub seconds_left: Option<u32>,
+    /// When the current phase's timer runs out, Unix epoch milliseconds on this PC's clock.
+    /// The client sends its timer again only when the session changes, so the UI counts down
+    /// to this. `None` when unknown or endless.
+    #[ts(type = "number | null")]
+    pub phase_ends_at: Option<i64>,
     /// The local player's assigned role.
     pub my_role: Option<Role>,
     pub allies: Vec<DraftSlot>,
@@ -35,6 +40,20 @@ pub struct DraftView {
     pub rerolls: Option<u32>,
     /// Both teams' compositions (`None` without composition stats).
     pub comps: Option<Compositions>,
+    /// A mode that plays differently from its queue's usual one: ARAM: Mayhem, whose augments
+    /// show next to the champions. `None` otherwise.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub mode: Option<GameMode>,
+}
+
+/// A game mode the draft shows more for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum GameMode {
+    /// ARAM: Mayhem (queue 2400, custom 3270): ARAM with augments.
+    Mayhem,
 }
 
 /// Each team's composition from its champions' usual numbers in their roles (informational:

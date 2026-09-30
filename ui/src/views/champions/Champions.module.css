@@ -1,15 +1,9 @@
-/* Champion page: a way back and the data scope on top, the hero, then builds beside matchups. */
-.top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: var(--space-4) var(--space-6);
-  min-height: var(--space-9);
-}
-
+/* Champion page: a way back, the tier list's tabs row, the hero, then builds beside matchups. */
 .back {
+  align-self: flex-start;
   display: inline-flex;
+  /* As tall as the tier list's head: the tabs under it sit where the tier list has them. */
+  min-height: var(--space-9);
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-2) var(--space-4) var(--space-2) var(--space-2);
@@ -102,76 +96,20 @@
   }
 }
 
-/* Champion index: title with the search, then the role filter. */
-.indexHead {
+/* ARAM: Mayhem's tab: the augments, then ARAM's builds under their own heading. */
+.aramHead {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: var(--space-4) var(--space-6);
-  min-height: var(--space-9);
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
 }
 
-.search {
-  position: relative;
-  display: flex;
-  align-items: center;
-  flex: 0 1 320px;
-  min-width: 0;
+.aramTitle {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
 }
 
-.searchIcon {
-  position: absolute;
-  left: var(--space-5);
-  color: var(--text-3);
-  pointer-events: none;
-}
-
-.searchInput {
-  width: 100%;
-  height: 36px;
-  padding: 0 var(--space-5) 0 var(--space-10);
-  border: 1px solid var(--line-glass);
-  border-radius: var(--radius-3);
-  background: var(--bg-1);
-  color: var(--text-1);
-  font: inherit;
-  font-size: var(--text-md);
-  outline: none;
-  transition: border-color var(--dur-1) var(--ease);
-}
-
-.searchInput::placeholder {
-  color: var(--text-3);
-}
-
-/* Narrow: the search takes its own full line under the title. */
-@container page (max-width: 559px) {
-  .search {
-    flex-basis: 100%;
-  }
-}
-
-.searchInput:focus-visible {
-  border-color: var(--accent);
-}
-
-.indexFilters {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-4) var(--space-6);
-}
-
-.scope {
+.aramNote {
   font-size: var(--text-sm);
   color: var(--text-3);
-}
-
-.scope a {
-  color: var(--text-2);
-}
-
-.scope a:hover {
-  color: var(--text-1);
 }

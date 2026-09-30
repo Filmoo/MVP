@@ -29,7 +29,8 @@ export const test = base.extend<{ t: Messages }>({
 export const localizedFor = (locale: string | undefined, text: { en: string; fr: string }): string =>
   isFrench(locale) ? text.fr : text.en;
 
-export const VIEWS = ["/", "/draft", "/live", "/champions", "/tier-list", "/settings"] as const;
+// `/champions` without an id is the tier list: its own entry is a champion's page.
+export const VIEWS = ["/", "/draft", "/live", "/champions?id=103", "/tier-list", "/settings"] as const;
 export type View = (typeof VIEWS)[number];
 
 /** Window sizes the app must support (CSS px; 1920×1080 at 150 % scaling = 1280×720). */
@@ -52,7 +53,7 @@ export interface OpenOptions {
   /** Freeze Date at FIXTURE_NOW (default). Perf tests opt out: the fake clock also stubs `performance`. */
   freezeClock?: boolean;
   /** Visual effects preference (default: none saved, i.e. the app's `auto`). */
-  effects?: "auto" | "light" | "off";
+  effects?: "auto" | "full" | "light" | "off";
   /**
    * WebGL as the app sees it. `trusted` (default): the WebGL backdrop is kept even on this
    * software rasterizer, which its speed probe would reject, so every suite covers it the same

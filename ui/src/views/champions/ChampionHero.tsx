@@ -4,22 +4,28 @@ import type { ChampionPage } from "../../data/generated/ChampionPage";
 import type { Role } from "../../data/generated/Role";
 import type { StatsIndex } from "../../data/generated/StatsIndex";
 import { ChampionArt, ChampionIcon } from "../../design/GameIcon";
-import { Icon } from "../../design/Icon";
 import { liquid } from "../../design/liquid/liquid";
+import { RoleIcon } from "../../design/RoleIcon";
 import { Segmented } from "../../design/Segmented";
 import { Skeleton } from "../../design/States";
-import { GradeBadge } from "../../design/TierBadge";
+import { TierMark } from "../../design/TierMark";
 import { t } from "../../i18n";
 import { className } from "../../lib/champions";
 import { percent, timeAgo } from "../../lib/format";
-import { ROLE_ICON, roleLabel } from "../../lib/roles";
+import { roleLabel } from "../../lib/roles";
 import { bracketLabel, patchName, type RoleTab, tierFor } from "../../lib/stats";
 import { parseQueue } from "../../lib/stats-filters";
 import styles from "./ChampionHero.module.css";
 
+/** A figure of the hero; `title` explains it on hover or focus (design/tip), headed by its label. */
 function Stat(props: { value: string; label: string; detail: string; tone?: "good" | "bad" | undefined; title?: string }): JSX.Element {
   return (
-    <div class={styles.stat} title={props.title}>
+    <div
+      class={styles.stat}
+      data-hint={props.title}
+      data-hint-title={props.title ? props.label : undefined}
+      tabIndex={props.title ? 0 : undefined}
+    >
       <span class={`${styles.statValue} ${props.tone ? styles[props.tone] : ""}`}>{props.value}</span>
       <span class={styles.statLabel}>
         {props.label}
@@ -42,10 +48,13 @@ export function ChampionHero(props: {
   forRole: Role | undefined;
   onRole: (role: Role) => void;
   index: StatsIndex | null | undefined;
+  /** Art and identity only, no tier or numbers (ARAM: Mayhem's tab: ARAM's are shown lower, said to be ARAM's). */
+  identityOnly?: boolean;
 }): JSX.Element {
   const { gameData } = useData();
   const champion = () => gameData()?.champions.get(props.championId);
-  const tier = () => (props.page ? tierFor(props.page, props.forRole) : undefined);
+  const numbers = () => !props.identityOnly;
+  const tier = () => (numbers() && props.page ? tierFor(props.page, props.forRole) : undefined);
   const record = () => props.page?.stats?.roles.find((r) => r.role === props.forRole);
   const roleTabs = () => props.tabs.filter((t): t is RoleTab & { role: Role } => t.role !== undefined);
   const aram = () => parseQueue(props.page?.info.queue) === 450;
@@ -70,7 +79,7 @@ export function ChampionHero(props: {
                 options={roleTabs().map((tab) => ({
                   value: tab.role,
                   label: roleLabel(tab.role),
-                  icon: ROLE_ICON[tab.role],
+                  icon: () => <RoleIcon role={tab.role} size={16} />,
                   detail: percent(tab.share),
                 }))}
                 value={props.forRole ?? roleTabs()[0]?.role ?? "middle"}
@@ -81,7 +90,7 @@ export function ChampionHero(props: {
             <Match when={roleTabs()[0]}>
               {(only) => (
                 <span class={styles.onlyRole} data-testid="only-role">
-                  <Icon name={ROLE_ICON[only().role]} size={16} />
+                  <RoleIcon role={only().role} size={16} />
                   {roleLabel(only().role)}
                 </span>
               )}
@@ -93,7 +102,7 @@ export function ChampionHero(props: {
             </Match>
           </Switch>
         </div>
-        <Show when={props.loading && !props.page}>
+        <Show when={numbers() && props.loading && !props.page}>
           <div class={`${styles.grade} glass-rim`}>
             <div class={styles.gradeGlass} aria-hidden="true" />
             <Skeleton width="40px" height="40px" />
@@ -105,12 +114,19 @@ export function ChampionHero(props: {
         </Show>
         <Show when={tier()}>
           {(entry) => (
-            <div class={`${styles.grade} glass-rim`} data-testid="champion-tier">
+            // What the tier means, on hover or focus of the whole block (design/tip).
+            <div
+              class={`${styles.grade} glass-rim`}
+              data-testid="champion-tier"
+              data-tip={`tier:${entry().tier}`}
+              // biome-ignore lint/a11y/noNoninteractiveTabindex: its explanation (design/tip) shows on keyboard focus too
+              tabIndex={0}
+            >
               <div class={styles.gradeGlass} aria-hidden="true" ref={(el) => liquid(el, "clear")} />
-              <GradeBadge grade={entry().tier} size="lg" />
+              <TierMark grade={entry().tier} size="lg" decorative />
               <div class={styles.gradeText}>
                 <span class={styles.gradeTitle}>{t().stats.tier(entry().tier)}</span>
-                <span class={`${styles.gradeDetail} num`} title={t().champions.pointsTitle}>
+                <span class={`${styles.gradeDetail} num`}>
                   {t().champions.pointsVs50(entry().score)}
                   {aram() ? "" : ` · ${roleLabel(entry().role ?? "middle")}`}
                 </span>
@@ -119,7 +135,7 @@ export function ChampionHero(props: {
           )}
         </Show>
       </div>
-      <Show when={props.loading && !props.page}>
+      <Show when={numbers() && props.loading && !props.page}>
         <div class={styles.strip} aria-busy="true">
           <For each={[0, 1, 2, 3]}>
             {() => (
@@ -131,7 +147,7 @@ export function ChampionHero(props: {
           </For>
         </div>
       </Show>
-      <Show when={props.page?.stats ? props.page : undefined}>
+      <Show when={numbers() && props.page?.stats ? props.page : undefined}>
         {(p) => (
           <section class={`${styles.strip} num`} aria-label={t().champions.record}>
             <Show

@@ -1,6 +1,7 @@
 //! Client of our backend (`apps/backend`): player lookups, loading-screen scouting, the
-//! published stats files (conditional GETs, cached by [`crate::stats`]), the remote config and
-//! (opt-in) crash reports. App updates go through the Tauri updater in the shell.
+//! published stats files (conditional GETs, cached by [`crate::stats`] and [`crate::mayhem`]),
+//! the remote config, (opt-in) crash reports and (opt-in) shared Mayhem games. App updates go
+//! through the Tauri updater in the shell.
 //!
 //! The Riot API key lives on the server only; the app sends an anonymous install id
 //! (`X-MVP-Install`, random, persisted next to the settings) so the server can rate-limit per
@@ -18,8 +19,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use domain::{
-    ApiError, ApiErrorCode, BackendError, CrashReport, MatchDetails, PlayerProfile, RemoteConfig,
-    RiotId, ScoutCard, ScoutRequest,
+    ActiveGame, ApiError, ApiErrorCode, BackendError, CrashReport, MatchDetails, MayhemUpload,
+    MayhemUploadAnswer, PlayerProfile, RemoteConfig, RiotId, ScoutCard, ScoutRequest,
 };
 use reqwest::header::{CACHE_CONTROL, ETAG, HeaderMap, HeaderValue, IF_NONE_MATCH, RETRY_AFTER};
 use reqwest::{StatusCode, Url};
@@ -245,6 +246,42 @@ impl BackendClient {
         receive(request.send().await).await
     }
 
+    /// The game the local player `me` is in, as Riot shows it to apps
+    /// (`GET /v1/live/{platform}/{gameName}/{tagLine}?gameId=`). Only the local player's own
+    /// Riot ID and the game's id are sent.
+    pub async fn active_game(
+        &self,
+        platform: &str,
+        me: &RiotId,
+        game_id: u64,
+    ) -> Result<ActiveGameAnswer, BackendError> {
+        let mut url = self.url(&["v1", "live", platform, &me.game_name, &me.tag_line]);
+        url.query_pairs_mut()
+            .append_pair("gameId", &game_id.to_string());
+        let response = self
+            .0
+            .http
+            .get(url)
+            .timeout(self.0.timeout)
+            .send()
+            .await
+            .map_err(|e| network(&e))?;
+        if response.status() == StatusCode::NOT_FOUND {
+            let body: Option<ApiError> = response
+                .bytes()
+                .await
+                .ok()
+                .and_then(|bytes| serde_json::from_slice(&bytes).ok());
+            let filtered = body.is_some_and(|b| b.error == ApiErrorCode::Filtered);
+            return Ok(if filtered {
+                ActiveGameAnswer::Filtered
+            } else {
+                ActiveGameAnswer::NotListed
+            });
+        }
+        receive_response(response).await.map(ActiveGameAnswer::Game)
+    }
+
     /// `GET base/segments…` of a cacheable file, revalidating the copy tagged `etag` when one
     /// is given (`If-None-Match`: the server answers 304 while it is current).
     pub async fn get_file(
@@ -326,28 +363,70 @@ impl BackendClient {
             .send()
             .await;
         let response = sent.map_err(|e| ReportRefused::Later(network(&e)))?;
-        let status = response.status();
-        if status.is_success() {
+        if response.status().is_success() {
             return Ok(());
         }
-        let retry_header = response
-            .headers()
-            .get(RETRY_AFTER)
-            .and_then(|v| v.to_str().ok())
-            .and_then(|v| v.trim().parse::<u32>().ok());
-        let body: Option<ApiError> = response
-            .bytes()
-            .await
-            .ok()
-            .and_then(|bytes| serde_json::from_slice(&bytes).ok());
-        let error = map_failure(status, body, retry_header);
-        // Too many or a server problem: try again later. Anything else won't ever be accepted.
-        if status == StatusCode::TOO_MANY_REQUESTS || status.is_server_error() {
-            Err(ReportRefused::Later(error))
-        } else {
-            Err(ReportRefused::Rejected(error))
-        }
+        Err(refused(response).await)
     }
+
+    /// Sends the facts of shared Mayhem games (`POST /v1/mayhem/games`; only ever called when
+    /// the player opted in): how many the server counted now, and how many it had already.
+    pub async fn upload_mayhem(
+        &self,
+        upload: &MayhemUpload,
+    ) -> Result<MayhemUploadAnswer, ReportRefused> {
+        let url = self.url(&["v1", "mayhem", "games"]);
+        let sent = self
+            .0
+            .http
+            .post(url)
+            .json(upload)
+            .timeout(self.0.timeout)
+            .send()
+            .await;
+        let response = sent.map_err(|e| ReportRefused::Later(network(&e)))?;
+        if !response.status().is_success() {
+            return Err(refused(response).await);
+        }
+        receive_response(response)
+            .await
+            .map_err(ReportRefused::Later)
+    }
+}
+
+/// Why the server refused a report or an upload: later (offline, rate limited, its problem)
+/// or never (it will never take this one).
+async fn refused(response: reqwest::Response) -> ReportRefused {
+    let status = response.status();
+    let retry_header = response
+        .headers()
+        .get(RETRY_AFTER)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.trim().parse::<u32>().ok());
+    let body: Option<ApiError> = response
+        .bytes()
+        .await
+        .ok()
+        .and_then(|bytes| serde_json::from_slice(&bytes).ok());
+    let error = map_failure(status, body, retry_header);
+    // Too many or a server problem: try again later. Anything else won't ever be accepted.
+    if status == StatusCode::TOO_MANY_REQUESTS || status.is_server_error() {
+        ReportRefused::Later(error)
+    } else {
+        ReportRefused::Rejected(error)
+    }
+}
+
+/// The answer to [`BackendClient::active_game`].
+#[derive(Debug, Clone, PartialEq)]
+pub enum ActiveGameAnswer {
+    /// Riot's view of the game: streamer-mode players anonymous, with the visible ones' cards.
+    Game(ActiveGame),
+    /// Riot lists no game for the player (not yet, or never for this kind of game), or the
+    /// backend doesn't know this route.
+    NotListed,
+    /// Riot doesn't share live games of this queue with apps (Ranked Flex, Arena).
+    Filtered,
 }
 
 /// The answer to [`BackendClient::get_file`].

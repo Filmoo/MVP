@@ -34,22 +34,43 @@ export function TitleBar(props: { status: ClientStatus | undefined; native: bool
       <div class={styles.center} data-tauri-drag-region>
         <Search />
       </div>
-      <div class={styles.status} data-testid="client-status" title={statusText()}>
-        <span class={`${styles.dot} ${styles[connection()] ?? ""}`} />
+      {/* What the status means for MVP, on hover or focus (design/tip). */}
+      <div
+        class={styles.status}
+        data-testid="client-status"
+        data-tauri-drag-region
+        data-tip={`status:${connection()}`}
+        // biome-ignore lint/a11y/noNoninteractiveTabindex: its explanation (design/tip) shows on keyboard focus too
+        tabIndex={0}
+      >
+        <span class={`${styles.dot} ${styles[connection()] ?? ""}`} data-mark />
         <span class={styles.statusText}>{statusText()}</span>
       </div>
       <Show when={props.native} fallback={<div style={{ width: "var(--space-6)" }} />}>
         <div class={styles.controls}>
-          <button class={styles.control} type="button" aria-label={t().shell.minimize} onClick={() => void windowAction("minimize")}>
+          <button
+            class={styles.control}
+            type="button"
+            aria-label={t().shell.minimize}
+            data-hint={t().shell.minimize}
+            onClick={() => void windowAction("minimize")}
+          >
             <Icon name="minimize" size={16} />
           </button>
-          <button class={styles.control} type="button" aria-label={t().shell.maximize} onClick={() => void windowAction("toggle_maximize")}>
+          <button
+            class={styles.control}
+            type="button"
+            aria-label={t().shell.maximize}
+            data-hint={t().shell.maximize}
+            onClick={() => void windowAction("toggle_maximize")}
+          >
             <Icon name="maximize" size={14} />
           </button>
           <button
             class={`${styles.control} ${styles.close}`}
             type="button"
             aria-label={t().shell.close}
+            data-hint={t().shell.close}
             onClick={() => void windowAction("close")}
           >
             <Icon name="close" size={16} />

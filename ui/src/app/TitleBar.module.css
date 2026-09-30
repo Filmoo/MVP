@@ -22,7 +22,9 @@
   position: absolute;
   inset: 0;
   z-index: -1;
-  background: var(--lg-fill, var(--bg-chrome));
+  /* Denser along the window's top edge: over the thin strip above the search field, text scrolling
+     under the bar read a little brighter than the rest (owner, 2026-09-28). */
+  background: linear-gradient(180deg, var(--bg-chrome), transparent var(--space-5)), var(--lg-fill, var(--bg-chrome));
   backdrop-filter: var(--lg-filter, var(--blur-glass));
   box-shadow: inset 0 -1px 0 var(--line-glass);
   pointer-events: none;
@@ -61,6 +63,12 @@
   white-space: nowrap;
   /* No clipping here: the dot's glow reaches past the line (the words clip themselves). */
   min-width: 0;
+  /* Hovered, it says what the status means (design/tip); dragged, it moves the window like the
+     rest of the bar (it is a drag region too, and a drag starting on its words lands on it). */
+  cursor: default;
+}
+
+.status > * {
   pointer-events: none;
 }
 
@@ -77,6 +85,11 @@
 }
 .connecting {
   background: var(--warn);
+}
+/* Up, but not answering requests: amber, and lit like a state that lasts. */
+.notAnswering {
+  background: var(--warn);
+  box-shadow: 0 0 8px var(--warn);
 }
 
 .controls {
@@ -105,6 +118,15 @@
 .statusText {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Wide windows: the status keeps one width whatever it says ("not responding" is longer than
+   "connected"), so the search field between them never shifts. */
+@media (min-width: 1024px) {
+  .status {
+    min-width: 220px;
+    justify-content: flex-end;
+  }
 }
 
 /* Narrower windows keep the dot; the words are in its tooltip. */

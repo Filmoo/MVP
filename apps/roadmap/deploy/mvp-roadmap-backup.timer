@@ -1,0 +1,11 @@
+# /etc/systemd/system/mvp-roadmap-backup.timer: `systemctl enable --now mvp-roadmap-backup.timer`.
+[Unit]
+Description=MVP roadmap: nightly backup
+
+[Timer]
+OnCalendar=*-*-* 03:30:00 UTC
+RandomizedDelaySec=10min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

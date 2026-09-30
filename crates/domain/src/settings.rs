@@ -1,7 +1,7 @@
 use serde::{Deserialize, Deserializer, Serialize};
 use ts_rs::TS;
 
-use crate::{Bracket, FlashKey, ImportMode};
+use crate::{Bracket, FlashKey, ImportPart};
 
 /// User preferences, owned and persisted by the core.
 ///
@@ -33,15 +33,17 @@ pub struct Settings {
     /// The app's language; `auto` follows the system's (the webview's) language.
     #[serde(deserialize_with = "or_default")]
     pub language: Language,
-    /// Rune page import: off, one click, or also automatically on lock-in.
-    #[serde(deserialize_with = "or_default")]
-    pub import_runes: ImportMode,
-    /// Item set import: off, one click, or also automatically on lock-in.
-    #[serde(deserialize_with = "or_default")]
-    pub import_item_set: ImportMode,
-    /// Summoner spells import (champion select only): off, one click, or also on lock-in.
-    #[serde(deserialize_with = "or_default")]
-    pub import_spells: ImportMode,
+    /// Auto import of MVP's rune page: by itself, once, at the first lock-in of a champion
+    /// select. The Runes button works either way. (`importRunes` in files up to 0.2.)
+    #[serde(alias = "importRunes", deserialize_with = "auto_import")]
+    pub auto_import_runes: bool,
+    /// Auto import of MVP's item set, like the rune page's. (`importItemSet` up to 0.2.)
+    #[serde(alias = "importItemSet", deserialize_with = "auto_import")]
+    pub auto_import_item_set: bool,
+    /// Auto import of the summoner spells, like the rune page's (champion select only, never in
+    /// its last seconds). (`importSpells` up to 0.2.)
+    #[serde(alias = "importSpells", deserialize_with = "auto_import")]
+    pub auto_import_spells: bool,
     /// The key Flash goes on when spells are imported.
     #[serde(deserialize_with = "or_default")]
     pub flash_key: FlashKey,
@@ -52,6 +54,11 @@ pub struct Settings {
     /// Send crash reports (opt-in): a crash of the core or an error in the UI goes to our
     /// server, scrubbed of names, ids and paths first, and is kept 30 days.
     pub crash_reports: bool,
+    /// Help build Mayhem stats (opt-in): after each ARAM: Mayhem game, and once for every past one
+    /// the League client lists when turned on, the champions, augments and final items of its
+    /// ten players go to our server, with a one-way hash of the game. No names, ids of players or
+    /// wins. `None` (off) until the player answers the question the app asks once.
+    pub share_mayhem_games: Option<bool>,
 }
 
 /// Visual effects level. The UI keeps a copy in `localStorage` so the first frame already
@@ -60,10 +67,14 @@ pub struct Settings {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub enum Effects {
-    /// Liquid glass that bends light, and the light shader, when the GPU draws them cheaply
-    /// (else the same as `Light`).
+    /// The default: `Full`, unless Windows asks for less transparency (its "Transparency
+    /// effects" switch off), then `Light`.
     #[default]
     Auto,
+    /// Liquid glass that bends light, and the light shader, when the GPU draws them cheaply
+    /// (else the same as `Light`), whatever Windows' transparency switch says: the player
+    /// chose it.
+    Full,
     /// Soft blur and static light only.
     Light,
     /// Flat background, no blur: the lightest.
@@ -114,6 +125,27 @@ where
     })
 }
 
+/// An "Auto import" switch: `true` / `false`, or the per-part mode files up to 0.2 kept
+/// (`"onLockIn"` → on; `"oneClick"` and `"off"` → off: every part's button is always there now).
+/// Anything else is off, the default, without failing the file.
+fn auto_import<'de, D>(deserializer: D) -> Result<bool, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Switch {
+        On(bool),
+        Mode(String),
+        Other(serde::de::IgnoredAny),
+    }
+    Ok(match Switch::deserialize(deserializer)? {
+        Switch::On(on) => on,
+        Switch::Mode(mode) => mode == "onLockIn",
+        Switch::Other(_) => false,
+    })
+}
+
 impl Settings {
     pub const MAX_AUTO_ACCEPT_DELAY: u8 = 8;
 
@@ -124,6 +156,22 @@ impl Settings {
             .auto_accept_delay_seconds
             .min(Self::MAX_AUTO_ACCEPT_DELAY);
         self
+    }
+
+    /// Mayhem games are shared: the player said yes (in the question or in Settings).
+    #[must_use]
+    pub const fn shares_mayhem_games(&self) -> bool {
+        matches!(self.share_mayhem_games, Some(true))
+    }
+
+    /// Whether `part` is imported by itself at the first lock-in of a champion select.
+    #[must_use]
+    pub const fn auto_import(&self, part: ImportPart) -> bool {
+        match part {
+            ImportPart::Runes => self.auto_import_runes,
+            ImportPart::ItemSet => self.auto_import_item_set,
+            ImportPart::Spells => self.auto_import_spells,
+        }
     }
 }
 
@@ -138,13 +186,14 @@ impl Default for Settings {
             close_to_tray: true,
             effects: Effects::Auto,
             language: Language::Auto,
-            // One click is user-triggered; automatic imports are opt-in (docs/policy.md).
-            import_runes: ImportMode::OneClick,
-            import_item_set: ImportMode::OneClick,
-            import_spells: ImportMode::OneClick,
+            // The buttons are user-triggered; automatic imports are opt-in (docs/policy.md).
+            auto_import_runes: false,
+            auto_import_item_set: false,
+            auto_import_spells: false,
             flash_key: FlashKey::Auto,
             stats_bracket: Bracket::EmeraldPlus,
             crash_reports: false,
+            share_mayhem_games: None,
         }
     }
 }
@@ -210,6 +259,8 @@ mod tests {
         assert!(json.contains(r#""effects":"light""#), "{json}");
         let old: Settings = serde_json::from_str(r#"{"closeToTray":false}"#).expect("loads");
         assert_eq!(old.effects, Effects::Auto);
+        let full: Settings = serde_json::from_str(r#"{"effects":"full"}"#).expect("loads");
+        assert_eq!(full.effects, Effects::Full);
     }
 
     #[test]
@@ -244,42 +295,107 @@ mod tests {
     fn opt_ins_are_off_by_default() {
         assert!(!Settings::default().auto_accept);
         assert!(!Settings::default().crash_reports);
+        assert!(!Settings::default().shares_mayhem_games());
         let older: Settings = serde_json::from_str(r#"{"closeToTray":false}"#).expect("loads");
         assert!(
             !older.crash_reports,
             "files from before the setting existed"
         );
+        assert_eq!(older.share_mayhem_games, None, "not asked yet");
+        let json = serde_json::to_string(&Settings::default()).expect("serializable");
+        assert!(json.contains(r#""shareMayhemGames":null"#), "{json}");
+        for (file, answer) in [("true", Some(true)), ("false", Some(false)), ("null", None)] {
+            let read: Settings =
+                serde_json::from_str(&format!(r#"{{"shareMayhemGames":{file}}}"#)).expect("loads");
+            assert_eq!(read.share_mayhem_games, answer);
+            assert_eq!(read.shares_mayhem_games(), answer == Some(true));
+        }
     }
 
     #[test]
-    fn imports_are_one_click_by_default() {
+    fn auto_import_is_off_by_default() {
         let settings = Settings::default();
-        for mode in [
-            settings.import_runes,
-            settings.import_item_set,
-            settings.import_spells,
-        ] {
-            assert_eq!(mode, ImportMode::OneClick);
+        for part in ImportPart::ALL {
+            assert!(!settings.auto_import(part), "{part:?}");
         }
         assert_eq!(settings.flash_key, FlashKey::Auto);
+        let older: Settings = serde_json::from_str(r#"{"closeToTray":false}"#).expect("loads");
+        assert!(ImportPart::ALL.into_iter().all(|p| !older.auto_import(p)));
+    }
+
+    /// A settings file as 0.2 wrote it (per-part modes): "on lock-in" turns the part's auto
+    /// import on, "one click" and "off" leave it off (its button is always there now), and every
+    /// other setting is kept.
+    #[test]
+    fn files_of_0_2_keep_everything_and_their_lock_in_imports() {
+        let written_by_0_2 = r#"{
+          "autoAccept": true,
+          "autoAcceptDelaySeconds": 4,
+          "bringToFrontOnChampSelect": false,
+          "autoSwitchView": true,
+          "launchAtStartup": true,
+          "closeToTray": false,
+          "effects": "light",
+          "language": "fr",
+          "importRunes": "onLockIn",
+          "importItemSet": "oneClick",
+          "importSpells": "off",
+          "flashKey": "f",
+          "statsBracket": "diamondPlus",
+          "crashReports": true
+        }"#;
+        let settings: Settings = serde_json::from_str(written_by_0_2).expect("loads");
+        assert_eq!(
+            settings,
+            Settings {
+                auto_accept: true,
+                auto_accept_delay_seconds: 4,
+                bring_to_front_on_champ_select: false,
+                auto_switch_view: true,
+                launch_at_startup: true,
+                close_to_tray: false,
+                effects: Effects::Light,
+                language: Language::Fr,
+                auto_import_runes: true,
+                auto_import_item_set: false,
+                auto_import_spells: false,
+                flash_key: FlashKey::F,
+                stats_bracket: Bracket::DiamondPlus,
+                crash_reports: true,
+                share_mayhem_games: None,
+            }
+        );
+        let all_on: Settings = serde_json::from_str(
+            r#"{"importRunes":"onLockIn","importItemSet":"onLockIn","importSpells":"onLockIn"}"#,
+        )
+        .expect("loads");
+        assert!(ImportPart::ALL.into_iter().all(|p| all_on.auto_import(p)));
+        // Written back in this version's words only.
+        let json = serde_json::to_string(&settings).expect("serializable");
+        assert!(json.contains(r#""autoImportRunes":true"#), "{json}");
+        assert!(json.contains(r#""autoImportItemSet":false"#), "{json}");
+        assert!(!json.contains("importRunes\""), "{json}");
+        let again: Settings = serde_json::from_str(&json).expect("loads");
+        assert_eq!(again, settings);
     }
 
     #[test]
     fn unknown_values_fall_back_to_defaults() {
         let settings: Settings = serde_json::from_str(
-            r#"{"autoAccept":true,"importRunes":"onLockIn","importSpells":"someFutureMode","flashKey":7}"#,
+            r#"{"autoAccept":true,"autoImportRunes":true,"autoImportSpells":"someFutureMode","autoImportItemSet":3,"flashKey":7}"#,
         )
         .expect("deserializable");
         assert!(settings.auto_accept);
-        assert_eq!(settings.import_runes, ImportMode::OnLockIn);
-        assert_eq!(settings.import_spells, ImportMode::OneClick);
+        assert!(settings.auto_import_runes);
+        assert!(!settings.auto_import_spells);
+        assert!(!settings.auto_import_item_set);
         assert_eq!(settings.flash_key, FlashKey::Auto);
         let json = serde_json::to_string(&Settings {
             flash_key: FlashKey::F,
             ..Settings::default()
         })
         .expect("serializable");
-        assert!(json.contains(r#""importItemSet":"oneClick""#), "{json}");
+        assert!(json.contains(r#""autoImportItemSet":false"#), "{json}");
         assert!(json.contains(r#""flashKey":"f""#), "{json}");
     }
 

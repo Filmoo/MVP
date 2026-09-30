@@ -42,6 +42,11 @@ It refuses a tag that isn't on `main` and builds both images before touching any
 build changes nothing). Then it swaps the backend, checks `/health`, and goes back to the
 previous backend if the new one doesn't answer. The crawler uses its new image from its next run.
 
+Installed apps ask this server for updates first, and its answer decides, so a new app version
+only reaches players once it is offered here. The release workflow's summary prints the command:
+run it with `sudo` in front, with a small `--rollout` first, then widen it with
+`release promote` (or stop it with `release block`).
+
 ## Everyday tasks
 
 - **Change the Riot key**, every day while it is a development key: `ssh mvp`, then

@@ -1,0 +1,123 @@
+.status {
+  flex: none;
+  display: block;
+}
+
+.status[data-status="proposed"] {
+  color: var(--text-3);
+}
+.status[data-status="accepted"] {
+  color: var(--win);
+}
+.status[data-status="in_progress"] {
+  color: var(--accent);
+}
+.status[data-status="done"] {
+  color: var(--good);
+}
+.status[data-status="rejected"] {
+  color: var(--loss);
+}
+
+.dot {
+  flex: none;
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--area);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--area) 18%, transparent);
+}
+
+.kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-1);
+  background: none;
+  box-shadow: inset 0 0 0 1px var(--line-2);
+  color: var(--text-3);
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+@media (pointer: coarse) {
+  .kbd {
+    display: none;
+  }
+}
+
+.claude {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0 var(--space-3) 0 var(--space-2);
+  height: 18px;
+  border-radius: var(--radius-full);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+}
+
+.ring {
+  display: block;
+  transform: rotate(-90deg);
+}
+
+.ringTrack {
+  stroke: var(--line-2);
+}
+
+.ringDone {
+  stroke: var(--good);
+  stroke-linecap: butt;
+  stroke-dashoffset: var(--offset);
+  animation: fill 900ms var(--ease) both;
+}
+
+.ringActive {
+  /* Work under way: a quiet lavender, so only done work reads as progress. */
+  stroke: color-mix(in oklab, var(--accent) 35%, var(--line-2));
+  stroke-linecap: butt;
+  /* In-progress work follows the done arc round the ring. */
+  transform: rotate(var(--turn, 0deg));
+  transform-origin: 50% 50%;
+  stroke-dashoffset: var(--offset);
+  animation: fill 900ms var(--ease) 120ms both;
+}
+
+/* Once, when the ring appears: the arc grows from nothing to where it is. */
+@keyframes fill {
+  from {
+    stroke-dashoffset: var(--full);
+  }
+}
+
+.avatar {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  border-radius: var(--radius-full);
+  background: var(--bg-4);
+  color: var(--text-1);
+  font-weight: var(--weight-semibold);
+  overflow: hidden;
+}
+
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatar[data-kind="claude"] {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}

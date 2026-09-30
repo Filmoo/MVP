@@ -3,4 +3,4 @@
 /**
  * Connection state between the app and the local League client.
  */
-export type ClientConnection = "notRunning" | "connecting" | "connected";
+export type ClientConnection = "notRunning" | "connecting" | "connected" | "notAnswering";

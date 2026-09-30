@@ -1,0 +1,16 @@
+# The roadmap's site block: add it to /etc/caddy/Caddyfile next to api.mvpgg.com, then
+# `caddy validate --config /etc/caddy/Caddyfile` and `systemctl reload caddy`.
+# The service sends its own security headers (CSP, noindex, frame and referrer rules).
+dev.mvpgg.com {
+	tls /etc/caddy/origin.pem /etc/caddy/origin.key
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+	reverse_proxy 127.0.0.1:8790 {
+		# Only Cloudflare can reach this server (firewall), so its client-IP header is trustworthy:
+		# the roadmap rate-limits sign-ins by it.
+		header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
+	}
+}

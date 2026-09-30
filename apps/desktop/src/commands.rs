@@ -1,18 +1,21 @@
 //! Commands the UI can invoke. Names and payloads mirror `ui/src/data/transport.ts`.
 
+use companion::mayhem::MayhemClient;
 use companion::settings::SettingsStore;
 use companion::stats::StatsClient;
 use domain::{
-    AppInfo, BackendError, Bracket, ChampionPage, ClientStatus, DraftView, GameData, GradedMatch,
-    ImportRequest, ImportResult, Language, LiveGame, MatchDetails, PlayerProfile, RankEmblems,
+    AppInfo, BackendError, Bracket, ChampionMastery, ChampionPage, ClientError, ClientStatus,
+    Description, DescriptionKind, DraftView, GameData, GradedMatch, ImportRequest, ImportResult,
+    ImportWarning, Language, LiveGame, LpGame, MatchDetails, MatchSummary, MayhemAugments,
+    MayhemChampion, MayhemOverview, PlayerProfile, PositionIcons, PostGame, RankEmblems,
     RemoteConfig, RiotId, Settings, StatsIndex, TierList, UpdateStatus,
 };
 use tauri::{Emitter as _, Manager as _};
 use tauri_plugin_autostart::ManagerExt as _;
 
 use crate::core::{
-    Backend, Core, Crashes, EmblemState, GameDataState, InstallId, LogFile, Remote, Stats,
-    UiLanguage,
+    Art, Backend, Core, Crashes, GameDataState, InstallId, LogFile, Mayhem, Remote, ShardTexts,
+    Stats, UiLanguage, ddragon_cache,
 };
 use crate::updater::Updates;
 use crate::{diagnostics, logging};
@@ -136,13 +139,14 @@ pub fn client_status(app: tauri::AppHandle) -> ClientStatus {
 }
 
 /// The logged-in player's own profile from the League client; `None` while it isn't running.
-/// Games already read whole carry their grade (`match_grades` reads the others).
+/// Games already read whole carry their grade (`match_grades` reads the others). Fails with a
+/// `ClientError` the UI words (`notAnswering`: the client didn't answer at all).
 #[tauri::command]
 #[allow(
     clippy::needless_pass_by_value,
     reason = "Tauri injects command arguments by value"
 )]
-pub async fn current_profile(app: tauri::AppHandle) -> Result<Option<PlayerProfile>, String> {
+pub async fn current_profile(app: tauri::AppHandle) -> Result<Option<PlayerProfile>, ClientError> {
     let Some(core) = app.try_state::<Core>() else {
         return Ok(None);
     };
@@ -154,7 +158,7 @@ pub async fn current_profile(app: tauri::AppHandle) -> Result<Option<PlayerProfi
         .profile(&client)
         .await
         .map(Some)
-        .map_err(|error| error.to_string())
+        .map_err(|error| companion::profile::client_error(&error))
 }
 
 /// Your grade in each of your listed games (`current_profile`'s ids): the League client's
@@ -175,6 +179,7 @@ pub async fn match_grades(app: tauri::AppHandle, match_ids: Vec<String>) -> Vec<
             .map(|match_id| GradedMatch {
                 match_id,
                 grade: None,
+                role: None,
             })
             .collect(),
     }
@@ -201,6 +206,83 @@ pub async fn match_details(
     core.matches
         .details(client.as_ref(), backend.as_ref(), match_id.trim())
         .await
+}
+
+/// Your games further back than `current_profile`'s: `beg_index` and the 19 after it (fewer, or
+/// none, at the end of the history), graded and opened like the first page's.
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub async fn older_matches(
+    app: tauri::AppHandle,
+    beg_index: u32,
+) -> Result<Vec<MatchSummary>, ClientError> {
+    let core = app.try_state::<Core>().ok_or_else(|| ClientError::Failed {
+        message: "MVP is still starting, try again in a moment".to_owned(),
+    })?;
+    let client = core.client.borrow().clone();
+    let client = client.ok_or(ClientError::NotAnswering)?;
+    core.matches
+        .older(&client, beg_index)
+        .await
+        .map_err(|error| companion::profile::client_error(&error))
+}
+
+/// The summary of the game that just ended, `None` once dismissed or when the next game starts
+/// (`post-game` events follow).
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub fn post_game(app: tauri::AppHandle) -> Option<PostGame> {
+    app.try_state::<Core>()
+        .and_then(|core| core.post_game.current())
+}
+
+/// The player closed the summary of `match_id`: it doesn't come back.
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub fn dismiss_post_game(app: tauri::AppHandle, match_id: String) {
+    if let Some(core) = app.try_state::<Core>() {
+        core.post_game.dismiss(&match_id);
+    }
+}
+
+/// The LP of each ranked game MVP followed (solo/duo and flex), newest first.
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub fn lp_history(app: tauri::AppHandle) -> Vec<LpGame> {
+    app.try_state::<Core>()
+        .map(|core| core.post_game.lp_history())
+        .unwrap_or_default()
+}
+
+/// Your champions by mastery points (the League client's), most first; empty while the client
+/// isn't running.
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub async fn champion_mastery(app: tauri::AppHandle) -> Result<Vec<ChampionMastery>, String> {
+    let client = app
+        .try_state::<Core>()
+        .and_then(|core| core.client.borrow().clone());
+    let Some(client) = client else {
+        return Ok(Vec::new());
+    };
+    companion::profile::mastery(&client)
+        .await
+        .map_err(|error| error.to_string())
 }
 
 /// Current champion select, `None` outside of it (`draft` events follow changes).
@@ -233,6 +315,40 @@ pub fn game_data(app: tauri::AppHandle, language: Option<Language>) -> Option<Ga
     state.get(locale)
 }
 
+/// What a rune, stat shard, summoner spell or item does, in the loaded game data's patch and
+/// language (so it reads like the names next to it); `None` without game data or without a
+/// text for it. Read when a tooltip first shows it: from Data Dragon's cached files, and for
+/// stat shards from `CommunityDragon` (downloaded once per patch and language, then cached).
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub async fn game_description(
+    app: tauri::AppHandle,
+    kind: DescriptionKind,
+    id: u32,
+) -> Option<Description> {
+    let (version, locale) = app.try_state::<GameDataState>()?.loaded()?;
+    let source = static_data::DataDragon::new(static_data::DDRAGON, ddragon_cache(&app)?, locale)
+        .inspect_err(|error| tracing::warn!(%error, "no Data Dragon client"))
+        .ok()?;
+    if kind == DescriptionKind::Shard {
+        let shards = app.try_state::<ShardTexts>()?;
+        return shards
+            .get(&source, &version, locale)
+            .await
+            .get(&id)
+            .cloned();
+    }
+    source
+        .describe(&version, kind, id)
+        .await
+        .inspect_err(|error| tracing::debug!(%error, ?kind, id, "no description"))
+        .ok()
+        .flatten()
+}
+
 /// Riot's ranked emblems, `None` until downloaded or read from the cache (`rank-emblems` follows).
 #[tauri::command]
 #[allow(
@@ -240,8 +356,23 @@ pub fn game_data(app: tauri::AppHandle, language: Option<Language>) -> Option<Ga
     reason = "Tauri injects command arguments by value"
 )]
 pub fn rank_emblems(app: tauri::AppHandle) -> Option<RankEmblems> {
-    app.try_state::<EmblemState>()
-        .and_then(|state| state.0.read().ok().and_then(|emblems| emblems.clone()))
+    art(&app)
+}
+
+/// League's position icons, `None` until downloaded or read from the cache (`position-icons`
+/// follows).
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub fn position_icons(app: tauri::AppHandle) -> Option<PositionIcons> {
+    art(&app)
+}
+
+fn art<T: Clone + Send + Sync + 'static>(app: &tauri::AppHandle) -> Option<T> {
+    app.try_state::<Art<T>>()
+        .and_then(|state| state.0.read().ok().and_then(|art| art.clone()))
 }
 
 /// The player's settings.
@@ -393,6 +524,20 @@ pub async fn tier_list(
     stats(&app)?.current_tier_list(queue, bracket).await
 }
 
+/// The previous patch's tier list for `queue` × `bracket` (trends), `None` when there is none.
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub async fn previous_tier_list(
+    app: tauri::AppHandle,
+    queue: u32,
+    bracket: Bracket,
+) -> Result<Option<TierList>, BackendError> {
+    stats(&app)?.previous_tier_list(queue, bracket).await
+}
+
 /// One champion's page for `queue` × `bracket`, current patch: missing files leave their part
 /// empty; fails with `notFound` only when the data set doesn't exist.
 #[tauri::command]
@@ -411,9 +556,57 @@ pub async fn champion_stats(
         .await
 }
 
+fn mayhem(app: &tauri::AppHandle) -> Result<MayhemClient, BackendError> {
+    app.try_state::<Mayhem>()
+        .and_then(|mayhem| mayhem.0.clone())
+        .ok_or_else(|| BackendError::Unavailable {
+            message: "no backend configured".to_owned(),
+        })
+}
+
+/// ARAM: Mayhem's augments in the UI's `language` (names, rarities, icons, descriptions);
+/// `None` before our server has built them. Answers from the disk cache offline.
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub async fn mayhem_augments(
+    app: tauri::AppHandle,
+    language: Option<Language>,
+) -> Result<Option<MayhemAugments>, BackendError> {
+    mayhem(&app)?.augments(language.unwrap_or_default()).await
+}
+
+/// The owner's augment tiers and every augment's pick count in shared games (pick counts only,
+/// never win rates); a part that can't be had is `None`.
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub async fn mayhem_overview(app: tauri::AppHandle) -> Result<MayhemOverview, BackendError> {
+    Ok(mayhem(&app)?.overview().await)
+}
+
+/// One champion in Mayhem: its augments ranked per rarity with their reasons, its most picked
+/// augments and most common items. Fails when the augments themselves can't be had.
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub async fn mayhem_champion(
+    app: tauri::AppHandle,
+    champion_id: u32,
+) -> Result<MayhemChampion, BackendError> {
+    mayhem(&app)?.champion(champion_id).await
+}
+
 /// Imports (parts of) a build into the League client: MVP's rune page, its item set, the
-/// summoner spells (champion select only). Answers what happened to each part; parts turned off
-/// in Settings are skipped. Rejects only while the app is still starting.
+/// summoner spells (champion select only). Answers what happened to each part; an import for
+/// the champion select that comes as it ends tries nothing. Rejects only while the app is still
+/// starting.
 #[tauri::command]
 #[allow(
     clippy::needless_pass_by_value,
@@ -428,6 +621,18 @@ pub async fn import_build(
         .map(|core| core.imports.clone())
         .ok_or_else(|| "MVP is still starting, try again in a moment".to_owned())?;
     Ok(importer.import(&request, false).await)
+}
+
+/// Draft's warning after the automatic import (the player's champion or role changed since),
+/// `None` without one (`import-warning` events follow).
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub fn import_warning(app: tauri::AppHandle) -> Option<ImportWarning> {
+    app.try_state::<Core>()
+        .and_then(|core| core.import_warning.borrow().clone())
 }
 
 /// A plain-text report for bug reports (Settings → About → "Copy diagnostics"): versions, the
@@ -450,16 +655,7 @@ pub fn diagnostics(app: tauri::AppHandle) -> String {
         .and_then(|stats| stats.0.as_ref().and_then(StatsClient::cached_index))
         .and_then(|index| index.current.clone());
     let game_data = app.try_state::<GameDataState>().and_then(|g| g.loaded());
-    let emblems = app
-        .try_state::<EmblemState>()
-        .and_then(|state| {
-            state
-                .0
-                .read()
-                .ok()
-                .map(|e| e.as_ref().map_or(0, |e| e.emblems.len()))
-        })
-        .unwrap_or(0);
+    let emblems = art::<RankEmblems>(&app).map_or(0, |e| e.emblems.len());
     let settings = app
         .try_state::<SettingsStore>()
         .map(|store| store.get())

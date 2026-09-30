@@ -1,10 +1,11 @@
-import { createEffect, For, type JSX, lazy, Match, on, onCleanup, onMount, Suspense, Switch } from "solid-js";
+import { createEffect, createSignal, For, type JSX, lazy, Match, on, onCleanup, onMount, Show, Suspense, Switch } from "solid-js";
 import { useData } from "../data/context";
 import { createFollowed } from "../data/follow";
 import type { Settings as SettingsData } from "../data/generated/Settings";
 import { Backdrop, setEffects } from "../design/backdrop";
 import { Icon } from "../design/Icon";
 import { liquid } from "../design/liquid/liquid";
+import { followTips } from "../design/tip/follow";
 import { loadViewWords, setLanguage, t } from "../i18n";
 import { dismissIssue, issues, notify, reportError } from "../lib/errors";
 import { listenForLockInImports } from "../lib/lock-in-toasts";
@@ -27,13 +28,15 @@ const withWords =
 const Settings = lazy(withWords(() => import("../views/settings/Settings")));
 const Draft = lazy(withWords(() => import("../views/draft/Draft")));
 const Live = lazy(withWords(() => import("../views/live/Live")));
-// The player page's chunk also carries an opened match row's code (the whole game, a grade's
-// why), which Home's match history needs too: it loads them from here.
+// The player page's chunk also carries the stack of opened games (its windows, the whole game, the
+// stats table, a grade's why), which Home's match history needs too, and the tooltips of every
+// page: they load it from here.
 const playerPage = withWords(() => import("../views/player/Player"));
 const Player = lazy(playerPage);
 provideDetails(playerPage);
 const Champions = lazy(withWords(() => import("../views/champions/Champions")));
 const TierList = lazy(withWords(() => import("../views/tierlist/TierList")));
+const Mayhem = lazy(withWords(() => import("../views/mayhem/Mayhem")));
 // Test-only page of mock builds (the desktop build leaves it out with the mock).
 const Harness = __MVP_MOCK__ ? lazy(withWords(() => import("../widgets/Harness"))) : () => null;
 const Banners = lazy(withWords(() => import("./Banners")));
@@ -46,8 +49,25 @@ function Toasts(): JSX.Element {
           <div class={`${styles.toast} ${styles[issue.tone]} glass-rim`} role="status" data-testid="toast" data-tone={issue.tone}>
             <div class={styles.toastGlass} aria-hidden="true" ref={(el) => liquid(el, "panel")} />
             <Icon name={issue.tone === "success" ? "check" : "alert"} size={16} class={styles.toastIcon} />
-            <span>{issue.message}</span>
-            <button type="button" aria-label={t().common.dismiss} onClick={() => dismissIssue(issue.id)}>
+            <div class={styles.toastText}>
+              <span>{issue.message}</span>
+              <Show when={issue.action}>
+                {(action) => (
+                  <button
+                    type="button"
+                    class={styles.toastAction}
+                    data-testid="toast-action"
+                    onClick={() => {
+                      dismissIssue(issue.id);
+                      action().run();
+                    }}
+                  >
+                    {action().label}
+                  </button>
+                )}
+              </Show>
+            </div>
+            <button type="button" aria-label={t().common.dismiss} data-hint={t().common.dismiss} onClick={() => dismissIssue(issue.id)}>
               <Icon name="close" size={14} />
             </button>
           </div>
@@ -68,12 +88,16 @@ export function App(): JSX.Element {
     (set) => transport.listen("client-status", set),
   );
   onCleanup(followPointerOnGlass());
+  onCleanup(followTips({ transport, gameData }, playerPage));
   // The core keeps the lasting visual effects and language choices; the first frame used the
-  // local copies. The stats pages start from the settings' bracket.
-  const apply = (settings: SettingsData) => {
-    setEffects(settings.effects);
-    void setLanguage(settings.language);
-    setSettingsBracket(settings.statsBracket);
+  // local copies. The stats pages start from the settings' bracket; the banners ask what the
+  // player hasn't answered yet.
+  const [settings, setSettings] = createSignal<SettingsData>();
+  const apply = (next: SettingsData) => {
+    setSettings(next);
+    setEffects(next.effects);
+    void setLanguage(next.language);
+    setSettingsBracket(next.statsBracket);
   };
   transport
     .call("get_settings")
@@ -105,10 +129,14 @@ export function App(): JSX.Element {
     }),
   );
   onCleanup(
-    listenForLockInImports(transport, () => ({
-      champion: (id) => gameData()?.champions.get(id)?.name,
-      spell: (id) => gameData()?.spells.get(id)?.name,
-    })),
+    listenForLockInImports(
+      transport,
+      () => ({
+        champion: (id) => gameData()?.champions.get(id)?.name,
+        spell: (id) => gameData()?.spells.get(id)?.name,
+      }),
+      () => path() === "/draft",
+    ),
   );
 
   return (
@@ -117,7 +145,7 @@ export function App(): JSX.Element {
       <TitleBar status={status()} native={transport.kind === "tauri"} />
       <Sidebar />
       <main class={styles.main} data-view={path()}>
-        <Banners status={status()} />
+        <Banners status={status()} settings={settings()} />
         {/* Nothing to see while a view's code loads, but the page says it is loading (tests wait). */}
         <Suspense fallback={<div data-state="loading" hidden />}>
           <Switch
@@ -147,6 +175,9 @@ export function App(): JSX.Element {
             </Match>
             <Match when={path() === "/tier-list"}>
               <TierList />
+            </Match>
+            <Match when={path() === "/mayhem"}>
+              <Mayhem />
             </Match>
             <Match when={path() === "/settings"}>
               <Settings />

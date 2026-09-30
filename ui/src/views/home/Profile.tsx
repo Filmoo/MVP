@@ -1,4 +1,7 @@
-import { For, type JSX, Show } from "solid-js";
+import { createMemo, For, type JSX, Show } from "solid-js";
+import type { ChampionMastery } from "../../data/generated/ChampionMastery";
+import type { LpGame } from "../../data/generated/LpGame";
+import type { MatchSummary } from "../../data/generated/MatchSummary";
 import type { PlayerProfile } from "../../data/generated/PlayerProfile";
 import type { GameDataView } from "../../data/static-data";
 import { Card } from "../../design/Card";
@@ -7,31 +10,56 @@ import { Skeleton } from "../../design/States";
 import { t } from "../../i18n";
 import { Widget } from "../../widgets/Widget";
 import styles from "./Home.module.css";
+import { MatchHistory } from "./MatchHistory";
 import { PerformanceSummary } from "./PerformanceSummary";
 import { ProfileHeader } from "./ProfileHeader";
 import hero from "./ProfileHeader.module.css";
-import { RecentMatches } from "./RecentMatches";
-import { summarize } from "./summary";
+import { createLateGrades, type LastGame } from "./RecentMatches";
+import { summarize, withLateRoles } from "./summary";
 
 /** The art a profile page takes its colors from: the player's most played recent champion. */
 export function profileArt(gameData: GameDataView | undefined, profile: PlayerProfile | null | undefined): string | undefined {
   return profile ? championArtUrl(gameData, summarize(profile.recentMatches).champions[0]?.championId) : undefined;
 }
 
+/** What only your own profile has (Home): from your League client and what MVP kept. */
+export interface OwnExtras {
+  /** The LP of your tracked ranked games, newest first. */
+  lp?: readonly LpGame[] | undefined;
+  /** Your champions by mastery points. */
+  mastery?: readonly ChampionMastery[] | undefined;
+  /** Games further back in your history. */
+  older?: ((begIndex: number) => Promise<MatchSummary[]>) | undefined;
+  /** The game that just ended: its window opens by itself, once. */
+  lastGame?: LastGame | undefined;
+}
+
 /** A player's page: hero with the stat strip, match history, champions. Home and player lookups share it. */
-export function ProfileContent(props: { profile: PlayerProfile }): JSX.Element {
+export function ProfileContent(props: { profile: PlayerProfile } & OwnExtras): JSX.Element {
   const hasGames = () => props.profile.recentMatches.length > 0;
+  // Your own games' grades come after the list, each with the role worked out from the whole
+  // game: the main role and the roles bar follow them, so they agree with the grades.
+  const late = createLateGrades(() => props.profile.recentMatches);
+  const matches = createMemo(() => withLateRoles(props.profile.recentMatches, late()));
+  const profile = createMemo(() => ({ ...props.profile, recentMatches: matches() }));
   return (
     <div class={`${styles.grid} ${hasGames() ? "" : styles.solo}`}>
       <Widget name="profile-header" class={styles.header}>
-        <ProfileHeader profile={props.profile} />
+        <ProfileHeader profile={profile()} lp={props.lp} />
       </Widget>
       <Widget name="recent-matches" class={styles.matches}>
-        <RecentMatches matches={props.profile.recentMatches} focus={props.profile.riotId} />
+        <MatchHistory
+          matches={props.profile.recentMatches}
+          focus={props.profile.riotId}
+          late={late}
+          lp={props.lp}
+          older={props.older}
+          lastGame={props.lastGame}
+        />
       </Widget>
       <Show when={hasGames()}>
         <Widget name="performance-summary" class={styles.summary}>
-          <PerformanceSummary matches={props.profile.recentMatches} />
+          <PerformanceSummary matches={matches()} mastery={props.mastery} />
         </Widget>
       </Show>
     </div>

@@ -1,17 +1,28 @@
 import type { AppInfo } from "./generated/AppInfo";
 import type { AutoAcceptEvent } from "./generated/AutoAcceptEvent";
 import type { Bracket } from "./generated/Bracket";
+import type { ChampionMastery } from "./generated/ChampionMastery";
 import type { ChampionPage } from "./generated/ChampionPage";
 import type { ClientStatus } from "./generated/ClientStatus";
+import type { Description } from "./generated/Description";
+import type { DescriptionKind } from "./generated/DescriptionKind";
 import type { DraftView } from "./generated/DraftView";
 import type { GameData } from "./generated/GameData";
 import type { GradedMatch } from "./generated/GradedMatch";
 import type { ImportRequest } from "./generated/ImportRequest";
 import type { ImportResult } from "./generated/ImportResult";
+import type { ImportWarning } from "./generated/ImportWarning";
 import type { Language } from "./generated/Language";
 import type { LiveGame } from "./generated/LiveGame";
+import type { LpGame } from "./generated/LpGame";
 import type { MatchDetails } from "./generated/MatchDetails";
+import type { MatchSummary } from "./generated/MatchSummary";
+import type { MayhemAugments } from "./generated/MayhemAugments";
+import type { MayhemChampion } from "./generated/MayhemChampion";
+import type { MayhemOverview } from "./generated/MayhemOverview";
 import type { PlayerProfile } from "./generated/PlayerProfile";
+import type { PositionIcons } from "./generated/PositionIcons";
+import type { PostGame } from "./generated/PostGame";
 import type { RankEmblems } from "./generated/RankEmblems";
 import type { RemoteConfig } from "./generated/RemoteConfig";
 import type { RiotId } from "./generated/RiotId";
@@ -24,11 +35,20 @@ import type { ViewRoute } from "./generated/ViewRoute";
 /** Commands answered by the core. Keep in sync with `apps/desktop/src/commands.rs`. */
 export interface Commands {
   app_info: { args: undefined; result: AppInfo };
+  /**
+   * The League client's connection and phase (`client-status` events follow): `notAnswering`
+   * while it is up but doesn't answer requests (the core asks it again by itself).
+   */
   client_status: { args: undefined; result: ClientStatus };
-  /** Your profile from the League client; games already read whole carry their grade. */
+  /**
+   * Your profile from the League client (`null` while it isn't running); games already read
+   * whole carry their grade. Rejects with a `ClientError` as the error's `detail`
+   * (`notAnswering`: no answer at all).
+   */
   current_profile: { args: undefined; result: PlayerProfile | null };
   /**
-   * Your grade in each of your listed games (`current_profile`'s ids): the core reads each game
+   * Your grade in each of your listed games (`current_profile`'s ids), and the role you played
+   * there as worked out from the whole game (the list only guesses it): the core reads each game
    * whole from the League client once, a few at a time. Remakes, modes without two teams of five
    * and ids that aren't your listed games answer `grade: null` (the last without any read).
    */
@@ -39,13 +59,35 @@ export interface Commands {
    */
   match_details: { args: { matchId: string }; result: MatchDetails };
   /**
+   * Your games further back than `current_profile`'s: `begIndex` and the 19 after it (fewer, or
+   * none, at the end of the history), graded and opened like the first page's. Rejects when the
+   * League client doesn't answer.
+   */
+  older_matches: { args: { begIndex: number }; result: MatchSummary[] };
+  /** The game that just ended, summed up; `null` once dismissed or when the next game starts (`post-game` events follow). */
+  post_game: { args: undefined; result: PostGame | null };
+  /** The player closed the summary of `matchId`: it doesn't come back. */
+  dismiss_post_game: { args: { matchId: string }; result: null };
+  /** The LP of each ranked game MVP followed (solo/duo and flex), newest first. */
+  lp_history: { args: undefined; result: LpGame[] };
+  /** Your champions by mastery points, most first (the League client's; empty without it). */
+  champion_mastery: { args: undefined; result: ChampionMastery[] };
+  /**
    * Names and asset ids of the current patch in `language` (the UI's, `auto` resolved: English
    * or French); `null` until the core has loaded them in it (a `game-data` event follows). Asking
    * in another language makes the core load that one and emit `game-data` again.
    */
   game_data: { args: { language: Language }; result: GameData | null };
+  /**
+   * What a rune, stat shard, summoner spell or item does, in the loaded game data's patch and
+   * language (Riot's markup already turned into text and tones); `null` without game data or
+   * without a text for it. Asked when a tooltip first shows it, never with the names.
+   */
+  game_description: { args: { kind: DescriptionKind; id: number }; result: Description | null };
   /** Riot's ranked emblems, `null` until the core has them (a `rank-emblems` event follows). */
   rank_emblems: { args: undefined; result: RankEmblems | null };
+  /** League's position icons, `null` until the core has them (a `position-icons` event follows). */
+  position_icons: { args: undefined; result: PositionIcons | null };
   /** Current champion select, `null` outside of it (`draft` events follow changes). */
   draft_state: { args: undefined; result: DraftView | null };
   get_settings: { args: undefined; result: Settings };
@@ -75,18 +117,44 @@ export interface Commands {
    */
   tier_list: { args: { queue: number; bracket: Bracket }; result: TierList };
   /**
+   * The tier list of the patch before the current one (trends: win and pick rates then), from
+   * the same disk cache; `null` when no older patch or data set is published, or its file isn't.
+   */
+  previous_tier_list: { args: { queue: number; bracket: Bracket }; result: TierList | null };
+  /**
    * One champion's page (record, tiers, builds, matchups) for `queue` × `bracket`, current
    * patch. Missing files leave their part empty; rejects like `tier_list` when there is no
    * data set at all.
    */
   champion_stats: { args: { championId: number; queue: number; bracket: Bracket }; result: ChampionPage };
   /**
+   * ARAM: Mayhem's augments in `language` (names, rarities, icons, descriptions), from our
+   * server's catalog (cached on disk: answers offline). `null` before the server has built it.
+   * Rejects with a `BackendError` as the error's `detail` when nothing is cached and the server
+   * can't be reached.
+   */
+  mayhem_augments: { args: { language: Language }; result: MayhemAugments | null };
+  /** The owner's augment tiers and every augment's pick count (never win rates); `null` parts aren't published yet. */
+  mayhem_overview: { args: undefined; result: MayhemOverview };
+  /**
+   * One champion in Mayhem: its augments ranked per rarity with their reasons (tier, rank, its
+   * pick rate once it has enough shared games), its most picked augments and common items.
+   * Rejects like `mayhem_augments` when the augments can't be had.
+   */
+  mayhem_champion: { args: { championId: number }; result: MayhemChampion };
+  /**
    * Imports parts of a build into the League client: MVP's own rune page (made current), its
    * item set for the champion, the summoner spells (champion select only, Flash on the player's
-   * key, never in the timer's last seconds). Answers what happened to each part; parts turned
-   * off in Settings are skipped.
+   * key, never in the timer's last seconds). Answers what happened to each part. A request for
+   * the champion select (`champSelect`: Draft) that comes as it ends tries nothing
+   * (`champSelectEnded`).
    */
   import_build: { args: { request: ImportRequest }; result: ImportResult };
+  /**
+   * Draft's warning after the automatic import: the player's champion or role changed since
+   * (a trade, an ARAM reroll or swap, a role swap); `null` without one (`import-warning` events follow).
+   */
+  import_warning: { args: undefined; result: ImportWarning | null };
   /**
    * The server's remote config as the core last received it (banners, feature flags, kill
    * switches, `updateRequired`); defaults when it never answered. `remote-config` events follow.
@@ -117,6 +185,8 @@ export interface Events {
   "game-data": GameData;
   /** Riot's ranked emblems, once the core has them (downloaded once, then from its cache). */
   "rank-emblems": RankEmblems;
+  /** League's position icons, once the core has them (downloaded once, then from its cache). */
+  "position-icons": PositionIcons;
   /** `null` when champion select ends. */
   draft: DraftView | null;
   settings: Settings;
@@ -127,10 +197,14 @@ export interface Events {
   live: LiveGame | null;
   /** The core fetched a newer stats index (new patch or republication): stats views refetch. */
   "stats-index": StatsIndex;
-  /** An automatic import on lock-in finished (`automatic: true`). */
+  /** The automatic import at the first lock-in finished (`automatic: true`). */
   import: ImportResult;
+  /** Draft's warning after the automatic import changed; `null` once imported for the new lock, or when champion select ends. */
+  "import-warning": ImportWarning | null;
   /** A new remote config arrived: banners, flags and `updateRequired` apply at once. */
   "remote-config": RemoteConfig;
+  /** The last game's summary changed (it arrived, its LP followed); `null` when it goes. */
+  "post-game": PostGame | null;
   "app-update": UpdateStatus;
 }
 

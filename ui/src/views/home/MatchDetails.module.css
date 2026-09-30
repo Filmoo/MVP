@@ -1,9 +1,4 @@
-/* An opened game (layout: MatchTable.module.css) and a grade's why. */
-
-.game {
-  position: relative;
-  border-radius: var(--radius-3);
-}
+/* The whole game in an opened game's sheet (layout: MatchTable.module.css) and a grade's why. */
 
 .champ {
   display: flex;
@@ -60,6 +55,20 @@
   font-weight: var(--weight-medium);
 }
 
+/* A named player opens their page: the name reads as a name until pointed at. */
+.link {
+  text-decoration: none;
+  cursor: pointer;
+  border-radius: var(--radius-1);
+}
+
+.link:hover {
+  color: var(--accent-strong);
+  text-decoration: underline;
+  text-decoration-color: var(--accent);
+  text-underline-offset: 3px;
+}
+
 .tag {
   color: var(--text-3);
   font-weight: var(--weight-regular);
@@ -88,10 +97,13 @@
   color: var(--loss);
 }
 
-/* Damage to champions against the game's best. */
+/*
+ * Damage to champions against the game's best, on the second line: the cell is as tall as its
+ * neighbours' (a number and a caption), so the numbers share a line across the row.
+ */
 .bar {
   height: 4px;
-  margin-top: var(--space-1);
+  margin-block: var(--space-3);
   border-radius: var(--radius-full);
   background: var(--bg-4);
   overflow: hidden;
@@ -111,14 +123,19 @@
 
 .items {
   display: flex;
-  flex-wrap: wrap;
   gap: var(--space-1);
+}
+
+/* The trinket, a step apart from the six items. */
+.items > :last-child {
+  margin-left: var(--space-2);
 }
 
 .grade {
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  border-radius: var(--radius-2);
 }
 
 .score {
@@ -161,34 +178,37 @@
   }
 }
 
-/* ---- A grade's why: a floating pane next to its chip ---------------------------------------- */
-
-.why {
-  position: fixed;
-  position-anchor: --grade-why;
-  position-area: bottom;
-  /* Centred under the chip; else over it, or to one side of it where the window ends. */
-  position-try-fallbacks:
-    flip-block,
-    bottom span-left,
-    bottom span-right,
-    top span-left,
-    top span-right;
-  position-visibility: anchors-visible;
-  inset: auto;
-  margin: var(--space-2) 0;
-  max-width: min(320px, calc(100vw - var(--space-6)));
-  padding: var(--space-5) var(--space-6);
-  border: 0;
-  border-radius: var(--radius-4);
-  overflow: visible;
-  background: var(--bg-float);
-  backdrop-filter: var(--blur-glass);
-  box-shadow: var(--shadow-float);
-  color: var(--text-1);
-  font-size: var(--text-md);
-  pointer-events: none;
+/*
+ * A short window (MatchTable.module.css): a line of text a player, the portrait alone (its level on
+ * hover) and smaller; the shortest, the grade's chip smaller too.
+ */
+@container game-window (max-height: 449px) {
+  .sub,
+  .bar,
+  .pair,
+  .level {
+    display: none;
+  }
+  .portrait > img {
+    width: 24px;
+    height: 24px;
+  }
 }
+
+@container game-window (max-height: 359px) {
+  .portrait > img {
+    width: 20px;
+    height: 20px;
+  }
+  .grade [data-chip] {
+    width: 20px;
+    height: 20px;
+    border-radius: var(--radius-1);
+    font-size: var(--text-xs);
+  }
+}
+
+/* ---- A grade's why, in a tooltip next to its chip (design/tip) ---------------------------------- */
 
 .whyTitle {
   display: flex;

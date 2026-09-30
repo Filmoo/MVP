@@ -1,0 +1,441 @@
+/* A column per version, each with its status lanes; the board scrolls sideways, a column
+   scrolls down on its own, so every column keeps its head in view. */
+.board {
+  height: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+}
+
+.track {
+  display: grid;
+  grid-template-columns: repeat(var(--versions), minmax(var(--column-w), 380px));
+  /* One row as tall as the board: a column's max-height then holds, and its body scrolls
+     (an auto row grew with the longest column, which the board clips, out of reach). */
+  grid-template-rows: minmax(0, 1fr);
+  justify-content: safe center;
+  gap: var(--space-6);
+  align-items: start;
+  height: 100%;
+  padding: var(--space-4) var(--space-7) var(--space-7);
+}
+
+.column {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  max-height: 100%;
+  min-width: 0;
+  border-radius: var(--radius-5);
+  background: linear-gradient(180deg, var(--bg-sheen), transparent 160px), var(--bg-card);
+  box-shadow:
+    var(--shadow-glass),
+    inset 0 1px 0 var(--line-specular),
+    inset 0 0 0 1px var(--line-glass);
+}
+
+/* The version being built glows a little, like the app's selected things. */
+.column[data-state="active"] {
+  box-shadow:
+    var(--shadow-glass),
+    0 24px 60px -36px color-mix(in oklab, var(--accent) 70%, transparent),
+    inset 0 1px 0 var(--line-rim),
+    inset 0 0 0 1px color-mix(in oklab, var(--accent) 30%, transparent);
+}
+
+.head {
+  flex: none;
+  padding: var(--space-6) var(--space-6) var(--space-5);
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.name {
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-bold);
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.state {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 22px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-full);
+  background: var(--bg-3);
+  color: var(--text-2);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+}
+
+.state[data-state="released"] {
+  background: color-mix(in oklab, var(--good) 14%, transparent);
+  color: var(--good);
+}
+
+.state[data-state="active"] {
+  background: var(--bg-lens-accent);
+  color: var(--accent-strong);
+}
+
+.ring {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  margin-left: auto;
+}
+
+.ringValue {
+  position: absolute;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--text-1);
+}
+
+.goal {
+  margin-top: var(--space-4);
+  color: var(--text-2);
+  font-size: var(--text-md);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin-top: var(--space-4);
+  color: var(--text-3);
+  font-size: var(--text-sm);
+}
+
+.meta strong {
+  color: var(--text-2);
+  font-weight: var(--weight-semibold);
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 var(--space-4) var(--space-4);
+  scrollbar-width: thin;
+  overscroll-behavior-y: contain;
+}
+
+.lane {
+  border-radius: var(--radius-4);
+  transition: background-color var(--dur-1) var(--ease);
+}
+
+.lane + .lane {
+  margin-top: var(--space-2);
+}
+
+.laneHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  height: 32px;
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-2);
+  background: none;
+  color: var(--text-3);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.laneHead:hover {
+  background: var(--bg-sheen);
+  color: var(--text-2);
+}
+
+.laneCount {
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.laneChevron {
+  margin-left: auto;
+  transition: transform var(--dur-2) var(--ease);
+}
+
+.laneHead[aria-expanded="false"] .laneChevron {
+  transform: rotate(-90deg);
+}
+
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-1) 0 var(--space-4);
+}
+
+/* While a card is dragged every lane is a place to drop it; nothing changes size, so what is
+   under the pointer stays there. */
+:global(:root[data-dragging]) .lane {
+  outline: 1px dashed var(--line-2);
+  outline-offset: -1px;
+}
+
+:global(:root[data-dragging]) .lane[data-target="true"] {
+  outline-color: color-mix(in oklab, var(--accent) 60%, transparent);
+  background: var(--bg-lens);
+}
+
+:global(:root[data-dragging]) {
+  cursor: grabbing;
+  user-select: none;
+}
+
+/* A lane this version doesn't have yet, offered while dragging. */
+.dropZone {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: 44px;
+  margin-top: var(--space-2);
+  padding: 0 var(--space-4);
+  border: 1px dashed var(--line-2);
+  border-radius: var(--radius-3);
+  color: var(--text-3);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.dropZone[data-target="true"] {
+  border-color: color-mix(in oklab, var(--accent) 60%, transparent);
+  background: var(--bg-lens);
+  color: var(--text-1);
+}
+
+/* Where the card will land: a line of light drawn by its neighbour (no box moves). */
+.card[data-drop]::after {
+  content: "";
+  position: absolute;
+  left: var(--space-3);
+  right: var(--space-3);
+  height: 3px;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  box-shadow: 0 0 12px var(--accent);
+  pointer-events: none;
+}
+
+.card[data-drop="before"]::after {
+  top: calc(-1 * var(--space-3) / 2 - 2px);
+}
+
+.card[data-drop="after"]::after {
+  bottom: calc(-1 * var(--space-3) / 2 - 2px);
+}
+
+.add {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  height: 34px;
+  margin-top: var(--space-2);
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-3);
+  background: none;
+  color: var(--text-3);
+  font-size: var(--text-md);
+  cursor: pointer;
+}
+
+.add:hover {
+  background: var(--bg-sheen);
+  color: var(--text-1);
+}
+
+.empty {
+  padding: var(--space-5) var(--space-3);
+  color: var(--text-3);
+  font-size: var(--text-sm);
+}
+
+@media (max-width: 639px) {
+  .board {
+    scroll-snap-type: x mandatory;
+  }
+  .track {
+    grid-template-columns: repeat(var(--versions), min(86vw, 360px));
+    gap: var(--space-5);
+    padding: var(--space-3) var(--space-5) var(--space-5);
+  }
+  .column {
+    scroll-snap-align: center;
+  }
+}
+
+/* ---- Cards ---------------------------------------------------------------------------- */
+
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-5) var(--space-4);
+  border-radius: var(--radius-3);
+  background: linear-gradient(180deg, var(--bg-sheen), transparent 48px), color-mix(in oklab, var(--bg-3) 82%, transparent);
+  box-shadow:
+    inset 0 1px 0 var(--line-specular),
+    inset 0 0 0 1px var(--line-glass),
+    0 6px 14px -10px rgb(0 0 0 / 0.7);
+  cursor: pointer;
+  transition:
+    background-color var(--dur-1) var(--ease),
+    transform var(--dur-2) var(--ease),
+    box-shadow var(--dur-1) var(--ease);
+}
+
+.card:hover {
+  background: linear-gradient(180deg, var(--bg-sheen), transparent 48px), var(--bg-4);
+  transform: translateY(-1px);
+}
+
+.card:focus-visible {
+  outline: none;
+}
+
+.card[aria-current="true"] {
+  box-shadow:
+    inset 0 1px 0 var(--line-specular),
+    0 0 0 2px var(--accent),
+    0 8px 22px -12px color-mix(in oklab, var(--accent) 70%, transparent);
+}
+
+.card[data-status="proposed"] {
+  background: color-mix(in oklab, var(--bg-2) 70%, transparent);
+  box-shadow: 0 6px 14px -10px rgb(0 0 0 / 0.7);
+  outline: 1px dashed color-mix(in oklab, var(--text-3) 55%, transparent);
+  outline-offset: -1px;
+}
+
+.card[data-status="proposed"][aria-current="true"] {
+  outline: 2px solid var(--accent);
+}
+
+.card[data-lifted="true"] {
+  opacity: 0.35;
+}
+
+.cardTop {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-4);
+}
+
+.cardTop > svg {
+  flex: none;
+  align-self: flex-start;
+  margin-top: 2px;
+}
+
+.cardTitle {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-1);
+  font-size: var(--text-md);
+  font-weight: var(--weight-medium);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.card[data-status="done"] .cardTitle {
+  color: var(--text-2);
+}
+
+.card[data-status="rejected"] .cardTitle {
+  color: var(--text-3);
+  text-decoration: line-through;
+}
+
+.cardId {
+  flex: none;
+  color: var(--text-3);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.cardMeta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  padding-left: calc(14px + var(--space-4));
+  color: var(--text-3);
+  font-size: var(--text-xs);
+}
+
+.area {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.claude {
+  display: inline-grid;
+  place-items: center;
+  color: var(--accent-strong);
+}
+
+.counts {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-left: auto;
+}
+
+.counts span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.decide {
+  display: flex;
+  gap: var(--space-3);
+  padding-left: calc(14px + var(--space-4));
+}
+
+/* The copy that follows the pointer while dragging. */
+.ghost {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 100;
+  margin: 0;
+  pointer-events: none;
+  box-shadow:
+    var(--shadow-float),
+    0 0 0 1px color-mix(in oklab, var(--accent) 40%, transparent);
+  opacity: 0.96;
+}

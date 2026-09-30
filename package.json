@@ -21,7 +21,8 @@
     "check:fast": "node scripts/check.mjs fast",
     "check": "node scripts/check.mjs full",
     "mock-lcu": "cargo run -p mock-lcu",
-    "backend": "cargo run -p mvp-backend"
+    "backend": "cargo run -p mvp-backend",
+    "roadmap": "pnpm --filter @scout/roadmap build && cargo run -p mvp-roadmap -- serve --db .cache/roadmap/roadmap.db"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.14",

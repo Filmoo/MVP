@@ -3,6 +3,8 @@
 //! Files are cached on disk per version and locale (`{version}/{locale}/champion.json`: the
 //! app's languages side by side), so the app starts offline with the last known patch and
 //! downloads a new patch once per language. Only the current and previous versions are kept.
+//! What runes, shards, spells and items do is read from the same files when a tooltip asks
+//! ([`descriptions`]), never with the names.
 
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
@@ -12,7 +14,13 @@ use std::time::Duration;
 use domain::{ChampionInfo, GameData, ItemInfo, RuneInfo, RuneStyle, SpellInfo};
 use serde::Deserialize;
 
+pub mod client;
+pub mod descriptions;
 pub mod emblems;
+pub mod mayhem;
+pub mod positions;
+
+pub use descriptions::rich_text;
 
 pub const DDRAGON: &str = "https://ddragon.leagueoflegends.com";
 const FILES: [&str; 4] = [
@@ -51,6 +59,9 @@ pub struct DataDragon {
     base: String,
     cache: PathBuf,
     locale: String,
+    /// `CommunityDragon`'s mirror of the client's files (patch folders under it): the stat
+    /// shards' texts.
+    community: String,
 }
 
 impl DataDragon {
@@ -70,7 +81,17 @@ impl DataDragon {
             base: base.into().trim_end_matches('/').to_owned(),
             cache: cache.into(),
             locale: locale.into(),
+            community: descriptions::COMMUNITY_DRAGON.to_owned(),
         })
+    }
+
+    /// Reads the stat shards' texts from another `CommunityDragon` (tests: a local fake).
+    #[must_use]
+    pub fn with_community_dragon(mut self, base: impl Into<String>) -> Self {
+        base.into()
+            .trim_end_matches('/')
+            .clone_into(&mut self.community);
+        self
     }
 
     /// Latest game data: downloads a new patch when online, otherwise the newest cached one.
@@ -306,35 +327,6 @@ struct DdRune {
     key: String,
     name: String,
     icon: String,
-    #[serde(default, rename = "shortDesc")]
-    short_desc: String,
-}
-
-/// Data Dragon descriptions carry the client's markup (`<b>`, `<br>`, tooltip tags): plain
-/// text for the UI, a line break read as a space.
-fn plain_text(markup: &str) -> String {
-    let mut text = String::with_capacity(markup.len());
-    let mut rest = markup;
-    while let Some(open) = rest.find('<') {
-        text.push_str(&rest[..open]);
-        let Some(len) = rest[open..].find('>') else {
-            // An unclosed `<` is text.
-            text.push_str(&rest[open..]);
-            rest = "";
-            break;
-        };
-        let tag = rest[open + 1..open + len].trim_start_matches('/');
-        let name = tag
-            .split(|c: char| c.is_whitespace() || c == '/')
-            .next()
-            .unwrap_or_default();
-        if name.eq_ignore_ascii_case("br") {
-            text.push(' ');
-        }
-        rest = &rest[open + len + 1..];
-    }
-    text.push_str(rest);
-    text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 fn rune_style(style: DdRuneStyle) -> RuneStyle {
@@ -354,7 +346,6 @@ fn rune_style(style: DdRuneStyle) -> RuneStyle {
                         key: r.key,
                         name: r.name,
                         icon: r.icon,
-                        short_desc: plain_text(&r.short_desc),
                     })
                     .collect()
             })
@@ -502,23 +493,7 @@ mod tests {
             .map(|row| row.iter().map(|r| r.id).collect())
             .collect();
         assert_eq!(rows, [vec![8005, 8010], vec![9111]], "keystones first");
-        assert_eq!(
-            precision.slots[0][0].short_desc,
-            "Hitting an enemy 3 consecutive times deals bonus damage."
-        );
-        assert_eq!(
-            precision.slots[0][1].short_desc, "Gain stacks. Heal at 12 stacks.",
-            "a line break reads as a space"
-        );
-        assert_eq!(precision.slots[1][0].short_desc, "", "no description");
-    }
-
-    #[test]
-    fn plain_text_drops_markup_only() {
-        assert_eq!(plain_text("a <b>b</b>  c<br/>d<br />e<BR>f"), "a b c d e f");
-        assert_eq!(plain_text("x<i>y</i>z"), "xyz");
-        assert_eq!(plain_text("2 < 3"), "2 < 3", "an unclosed `<` is text");
-        assert_eq!(plain_text(""), "");
+        assert_eq!(precision.slots[0][1].name, "Conqueror");
     }
 
     #[test]

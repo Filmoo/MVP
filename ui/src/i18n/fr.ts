@@ -4,7 +4,7 @@
  *
  * Typography: a no-break space (U+00A0) before `:` and `%` and inside « », a narrow one
  * (U+202F) before `;`, `!` and `?`, the typographic apostrophe ’. Riot's own French terms where
- * they exist (Classée Solo/Duo, sorts d’invocateur, voie, clé de voûte, PL…).
+ * they exist (Classé en solo/duo, sorts d’invocateur, voie, clé de voûte, PL…).
  */
 import type { Role } from "../data/generated/Role";
 import { games } from "../lib/format";
@@ -44,7 +44,6 @@ export const fr = {
     runeN: (id: number) => `Rune ${id}`,
     runeTreeN: (id: number) => `Voie de runes ${id}`,
     profileIcon: "Icône de profil",
-    colon: (label: string, text: string) => `${label}\u00A0: ${text}`,
     games: (n: number) => count(n, "partie", "parties"),
     lp: (lp: number) => `${lp}\u00A0PL`,
     record: (wins: number, losses: number) => `${wins}V ${losses}D`,
@@ -99,28 +98,36 @@ export const fr = {
   >,
 
   queues: {
-    400: "Sélection alternée",
-    420: "Classée Solo/Duo",
-    430: "Sélection aveugle",
-    440: "Classée Flexible",
+    400: "Mode Draft",
+    420: "Classé solo/duo",
+    430: "Mode Aveugle",
+    440: "Classé flexible",
     450: "ARAM",
-    480: "Partie rapide",
-    490: "Jeu rapide",
+    480: "Partie accélérée",
+    490: "Partie rapide",
     700: "Clash",
+    720: "Clash ARAM",
+    870: "Coop vs IA",
+    880: "Coop vs IA",
+    890: "Coop vs IA",
     900: "ARURF",
     1700: "Arena",
+    1750: "Arena",
     1900: "URF",
+    2400: "ARAM du chaos",
+    4210: "Bots du chaos",
+    4310: "Classic",
+    4320: "Classic (Coop vs IA)",
     custom: "Personnalisée",
   },
 
-  soloDuo: "Classée Solo/Duo",
+  soloDuo: "Classé en solo/duo",
 
   nav: {
     main: "Principale",
     home: { label: "Accueil", short: "Accueil" },
     draft: { label: "Draft", short: "Draft" },
     live: { label: "Partie en cours", short: "Partie" },
-    champions: { label: "Champions", short: "Champs" },
     tierList: { label: "Tier list", short: "Tiers" },
     settings: { label: "Paramètres", short: "Réglages" },
   },
@@ -130,6 +137,7 @@ export const fr = {
       connected: "Client League connecté",
       connecting: "Connexion à League…",
       notRunning: "En attente du client League",
+      notAnswering: "Le client League ne répond pas",
     },
     minimize: "Réduire",
     maximize: "Agrandir",
@@ -166,6 +174,10 @@ export const fr = {
 
   home: {
     loadFailed: "Impossible de charger votre profil",
+    notAnswering: {
+      text: "Il est peut-être occupé. MVP continue d’essayer : votre profil s’affiche dès qu’il répond.",
+      retry: "Réessayer maintenant",
+    },
     waiting: {
       title: "En attente du client League",
       text: "Lancez League of Legends\u00A0: votre profil, vos parties en cours et l’aide à la sélection des champions s’affichent ici automatiquement.",
@@ -186,6 +198,7 @@ export const fr = {
       averageGame: "Durée moyenne",
     },
     roleShare: (games: number, of: number) => `${games} sur ${of}`,
+    lpTrend: (games: number, total: string) => `${total} sur vos ${games} dernières parties classées suivies par MVP`,
   },
 
   matches: {
@@ -194,6 +207,30 @@ export const fr = {
     perfectKda: "KDA parfait",
     perMinute: (value: string) => `${value} / min`,
     empty: { title: "Aucune partie récente", text: "Terminez une partie et elle s’affiche ici, avec vos stats et votre build." },
+    lp: (signed: string) => `${signed} PL`,
+    filters: {
+      queue: "File d’attente",
+      queues: { all: "Toutes", solo: "Solo", flex: "Flex", aram: "ARAM", other: "Autres" },
+      champion: "Champion",
+      allChampions: "Tous les champions",
+      championGames: (name: string, games: number) => `${name} · ${games}`,
+      clear: "Effacer les filtres",
+      none: {
+        title: "Aucune partie pour ces filtres",
+        text: (games: number, more: boolean) =>
+          more
+            ? `Aucune des ${games} parties chargées. Chargez-en plus pour remonter plus loin.`
+            : games < 2
+              ? "Pas votre dernière partie."
+              : `Aucune de vos ${games} dernières parties.`,
+      },
+    },
+    more: {
+      load: "Charger plus de parties",
+      loading: "Chargement des parties plus anciennes…",
+      failed: "Impossible de charger les parties plus anciennes",
+      end: "Aucune partie plus ancienne",
+    },
   },
 
   grade: {
@@ -209,5 +246,7 @@ export const fr = {
     empty: { title: "Pas encore de stats", text: "Jouez quelques parties pour voir votre forme." },
     roles: "Rôles",
     remakes: (n: number) => (n < 2 ? `${n} remake non compté` : `${n} remakes non comptés`),
+    mastery: "Maîtrise",
+    masteryTitle: (champion: string, level: number, points: string) => `${champion} · maîtrise niveau ${level} · ${points} points`,
   },
 } satisfies CoreMessages;

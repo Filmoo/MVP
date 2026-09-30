@@ -3,9 +3,10 @@ import type { Page } from "@playwright/test";
 // Brings the window.__SCOUT_MOCK__ declaration into scope.
 import type {} from "../src/data/mock";
 import { FIXTURE_NOW } from "../src/data/mock/fixtures";
-import { lockInImport } from "../src/data/mock/import-fixtures";
+import { lockInImport, tradedWarning } from "../src/data/mock/import-fixtures";
 import type { ScenarioName } from "../src/data/mock/scenarios";
 import { animationsDone, openApp, settle, test, VIEWS } from "./app";
+import { aim, current, notches, rows, stack, tabs } from "./stack";
 
 // Screenshots for human/UI-agent review. Not asserted: layout, coherence and
 // error specs are the gates. Output: reports/screenshots/<view>-<scenario>-<size>.png
@@ -24,6 +25,14 @@ const SHOTS = [
   { scenario: "not-running", sizes: [[1280, 800]] },
   { scenario: "new-player", sizes: [[1280, 800]] },
   { scenario: "profile-error", sizes: [[1280, 800]] },
+  // The title bar's words at 1280 px, its amber dot alone below 1024 px.
+  {
+    scenario: "client-not-answering",
+    sizes: [
+      [1280, 800],
+      [820, 760],
+    ],
+  },
   {
     scenario: "extreme",
     sizes: [
@@ -74,7 +83,7 @@ for (const [width, height] of [
 for (const view of VIEWS.slice(1)) {
   test(`${view} 1280x800`, async ({ page }) => {
     await openApp(page, { view });
-    await page.screenshot({ path: `${OUT}/${view.slice(1)}-default-1280x800.png` });
+    await page.screenshot({ path: `${OUT}/${view.slice(1).replace(/[^a-z0-9-]+/gi, "-")}-default-1280x800.png` });
   });
 }
 
@@ -111,6 +120,27 @@ test("draft import lock-in 1280x800", async ({ page }) => {
   await page.getByTestId("toast").waitFor();
   await settle(page);
   await capture(page, `${OUT}/draft-import-lock-in-1280x800.png`, false);
+});
+
+// After a trade: Draft's warning with its one click, wide and narrow; elsewhere, its toast.
+for (const [width, height] of [
+  [1280, 800],
+  [420, 800],
+] as const) {
+  test(`draft import warning ${width}x${height}`, async ({ page }) => {
+    await openApp(page, { view: "/draft", scenario: "import-warning", width, height });
+    await page.getByTestId("import-warning").waitFor();
+    await settle(page);
+    await capture(page, `${OUT}/draft-import-warning-${width}x${height}.png`, false);
+  });
+}
+
+test("import warning toast 1280x800", async ({ page }) => {
+  await openApp(page, { scenario: "import-warning" });
+  await page.evaluate((warning) => window.__SCOUT_MOCK__?.emit("import-warning", warning), tradedWarning);
+  await page.getByTestId("toast-action").waitFor();
+  await settle(page);
+  await capture(page, `${OUT}/import-warning-toast-1280x800.png`, false);
 });
 
 test("draft no stats 1280x800", async ({ page }) => {
@@ -265,7 +295,16 @@ test("search slow lookup 1280x720", async ({ page }) => {
   await page.screenshot({ path: `${OUT}/search-loading-1280x720.png` });
 });
 
-for (const scenario of ["live-scouting", "live-failed", "live-extreme"] as const) {
+for (const scenario of [
+  "live-scouting",
+  "live-failed",
+  "live-extreme",
+  // Names on their way (only you named yet), a queue Riot doesn't share, bots, streamer mode.
+  "live-names",
+  "live-filtered",
+  "live-bots",
+  "live-hidden",
+] as const) {
   test(`live ${scenario} 1280x720`, async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 720 });
     await page.clock.setFixedTime(new Date(FIXTURE_NOW));
@@ -275,6 +314,15 @@ for (const scenario of ["live-scouting", "live-failed", "live-extreme"] as const
     await page.screenshot({ path: `${OUT}/live-${scenario}-1280x720.png` });
   });
 }
+
+test("live live-filtered 420x800", async ({ page }) => {
+  await page.setViewportSize({ width: 420, height: 800 });
+  await page.clock.setFixedTime(new Date(FIXTURE_NOW));
+  await page.goto("/?scenario=live-filtered#/live");
+  await page.getByTestId("live-card").first().waitFor();
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: `${OUT}/live-live-filtered-420x800.png` });
+});
 
 for (const name of ["Nobody/404", "Busy/429", "Offline/0"] as const) {
   test(`player ${name} 1280x720`, async ({ page }) => {
@@ -291,7 +339,7 @@ test("player loading 1280x720", async ({ page }) => {
   await page.screenshot({ path: `${OUT}/player-loading-1280x720.png` });
 });
 
-// Stats pages: tier list, champion page, champion list, and their states.
+// Stats pages: the tier list (shelves and table), a champion's page, and their states.
 for (const [width, height] of [
   [1280, 800],
   [1920, 1080],
@@ -299,24 +347,24 @@ for (const [width, height] of [
   [420, 800],
 ] as const) {
   test(`tier list ${width}x${height}`, async ({ page }) => {
-    await openApp(page, { view: "/tier-list", width, height });
+    await openApp(page, { view: "/tier-list?view=shelves", width, height });
     await capture(page, `${OUT}/tierlist-default-${width}x${height}.png`, width < 900);
+  });
+
+  test(`tier table ${width}x${height}`, async ({ page }) => {
+    await openApp(page, { view: "/tier-list?view=table&role=all", width, height });
+    await capture(page, `${OUT}/tierlist-table-${width}x${height}.png`, false);
   });
 
   test(`champion page ${width}x${height}`, async ({ page }) => {
     await openApp(page, { view: "/champions?id=103", width, height });
     await capture(page, `${OUT}/champion-ahri-${width}x${height}.png`, true);
   });
-
-  test(`champion list ${width}x${height}`, async ({ page }) => {
-    await openApp(page, { view: "/champions", width, height });
-    await capture(page, `${OUT}/champions-list-${width}x${height}.png`, false);
-  });
 }
 
 for (const { name, view } of [
-  { name: "tierlist-aram", view: "/tier-list?queue=450" },
-  { name: "tierlist-support", view: "/tier-list?queue=420&role=support" },
+  { name: "tierlist-aram", view: "/tier-list?queue=450&view=table" },
+  { name: "tierlist-support", view: "/tier-list?queue=420&role=support&view=shelves" },
   { name: "champion-lux-support", view: "/champions?id=99" },
   { name: "champion-thresh", view: "/champions?id=412" },
   { name: "champion-lux-aram", view: "/champions?id=99&queue=450" },
@@ -335,6 +383,60 @@ for (const scenario of ["stats-empty", "stats-offline"] as const) {
       await capture(page, `${OUT}/${view.includes("tier") ? "tierlist" : "champion"}-${scenario}-1280x720.png`, false);
     });
   }
+}
+
+// The tier list's states, in English and French (`fr-…`): the hover card, the rank menu, the
+// filter, the full meta map, the table without trends (the first patch published).
+for (const lang of ["en", "fr"] as const) {
+  test.describe(lang === "fr" ? "tier list in French" : "tier list states", () => {
+    if (lang === "fr") test.use({ locale: "fr-FR" });
+    const prefix = lang === "fr" ? "fr-" : "";
+    for (const [width, height] of [
+      [420, 800],
+      [1280, 800],
+      [2560, 1440],
+    ] as const) {
+      test(`${prefix}tier list mid ${width}x${height}`, async ({ page }) => {
+        await openApp(page, { view: "/tier-list?view=shelves&role=middle", width, height });
+        await capture(page, `${OUT}/${prefix}tierlist-mid-${width}x${height}.png`, false);
+      });
+      test(`${prefix}tier table ${width}x${height}`, async ({ page }) => {
+        await openApp(page, { view: "/tier-list?view=table&role=all", width, height });
+        await capture(page, `${OUT}/${prefix}tierlist-table-all-${width}x${height}.png`, false);
+      });
+      test(`${prefix}meta map ${width}x${height}`, async ({ page }) => {
+        await openApp(page, { view: "/tier-list?view=shelves&role=middle", width, height });
+        await page.getByTestId("open-map").click();
+        await page.getByTestId("map-point").first().waitFor();
+        await page.mouse.move(0, 0);
+        await settle(page);
+        await animationsDone(page);
+        await page.screenshot({ path: `${OUT}/${prefix}tierlist-map-${width}x${height}.png` });
+      });
+    }
+    test(`${prefix}tier list card 1280x800`, async ({ page }) => {
+      await openApp(page, { view: "/tier-list?view=shelves&role=middle" });
+      await page.getByTestId("tier-row").first().hover();
+      await settle(page);
+      await capture(page, `${OUT}/${prefix}tierlist-card-1280x800.png`, false);
+    });
+    test(`${prefix}tier list rank menu 1280x800`, async ({ page }) => {
+      await openApp(page, { view: "/tier-list?view=shelves&role=middle" });
+      await page.getByTestId("rank-button").click();
+      await settle(page);
+      await capture(page, `${OUT}/${prefix}tierlist-rank-1280x800.png`, false);
+    });
+    test(`${prefix}tier list filtered 1280x800`, async ({ page }) => {
+      await openApp(page, { view: "/tier-list?view=table&role=all" });
+      await page.getByTestId("champion-filter").fill("ka");
+      await settle(page);
+      await capture(page, `${OUT}/${prefix}tierlist-filtered-1280x800.png`, false);
+    });
+    test(`${prefix}tier list first patch 1280x800`, async ({ page }) => {
+      await openApp(page, { view: "/tier-list?view=table&role=middle", scenario: "stats-first-patch" });
+      await capture(page, `${OUT}/${prefix}tierlist-first-patch-1280x800.png`, false);
+    });
+  });
 }
 
 for (const view of ["/tier-list", "/champions?id=103"]) {
@@ -363,12 +465,14 @@ for (const [view, width, height, by] of [
   ["/", 1280, 800, 200],
   ["/", 420, 800, 470],
   ["/tier-list", 420, 800, 300],
+  // The shelves under the title bar, mid-way through the A shelf.
+  ["/tier-list?view=shelves&role=all", 1280, 800, 640],
 ] as const) {
   test(`scrolled ${view} ${width}x${height}`, async ({ page }) => {
     await openApp(page, { view, width, height });
     await page.locator("main").evaluate((main, y) => main.scrollTo(0, y), by);
     await settle(page);
-    const name = view === "/" ? "home" : view.slice(1);
+    const name = view === "/" ? "home" : view.slice(1).split("?")[0];
     await page.screenshot({ path: `${OUT}/scrolled-${name}-${width}x${height}.png` });
   });
 }
@@ -409,20 +513,117 @@ test("settings crash-reports-on 420x800", async ({ page }) => {
   await capture(page, `${OUT}/settings-crash-reports-on-420x800.png`, true);
 });
 
-// Match rows: an opened game (its row scrolled to the top of the page), a grade's why, and the
-// game's other states, in English and French (`fr-…`). `row`: which row, newest first.
-async function gameShot(page: Page, name: string, opts: { scenario?: ScenarioName; width: number; height: number; row?: number }) {
-  await openApp(page, { scenario: opts.scenario ?? "default", width: opts.width, height: opts.height });
-  const row = page.locator("[data-testid=match-row] > button").nth(opts.row ?? 0);
-  await row.click();
-  if (opts.scenario !== "match-details-slow") {
-    await page.getByTestId("game").locator("[data-testid=game-player], [role=alert]").first().waitFor();
+// The settings search in English and French (`fr-…`): what a query keeps, marked; only About
+// kept; nothing found.
+for (const lang of ["en", "fr"] as const) {
+  test.describe(lang === "fr" ? "settings search in French" : "settings search", () => {
+    if (lang === "fr") test.use({ locale: "fr-FR" });
+    const prefix = lang === "fr" ? "fr-" : "";
+    const SEARCHES = [
+      { name: "search", query: "windows" },
+      { name: "search-about", query: "logs" },
+      { name: "search-none", query: "overlay" },
+    ];
+    for (const { name, query } of SEARCHES) {
+      for (const [width, height] of [
+        [1280, 800],
+        [420, 800],
+      ] as const) {
+        test(`${prefix}settings ${name} ${width}x${height}`, async ({ page }) => {
+          await openApp(page, { view: "/settings", width, height });
+          await page.getByTestId("settings-search").fill(query);
+          await page.mouse.move(0, 0);
+          await settle(page);
+          await animationsDone(page);
+          await capture(page, `${OUT}/${prefix}settings-${name}-${width}x${height}.png`, width < 900);
+        });
+      }
+    }
+  });
+}
+
+// Match rows: the stack of opened games over the page receded behind it (a game's window on its
+// scoreboard or one of its stats tabs, in Full or Light, pulled past the newest game to close,
+// older games on their way), a grade's why, and the game's other states, in English and French
+// (`fr-…`). `row`: which row, newest first (the third has a neighbour peeking at each edge); `tab`:
+// which of the window's tabs (0, the scoreboard, then the stats).
+async function gameShot(
+  page: Page,
+  name: string,
+  opts: {
+    scenario?: ScenarioName;
+    view?: string;
+    width: number;
+    height: number;
+    row?: number;
+    effects?: "full" | "light" | "off";
+    tab?: number;
+    part?: "close" | "older";
+  },
+) {
+  // Two settles and three windows' worth of images: more than 30 s on a busy machine.
+  test.slow();
+  const { width, height, effects } = opts;
+  await openApp(page, { scenario: opts.scenario ?? "default", view: opts.view ?? "/", width, height, ...(effects ? { effects } : {}) });
+  await rows(page)
+    .nth(opts.row ?? 0)
+    .click();
+  const path = `${OUT}/${name}-${width}x${height}.png`;
+  if (opts.scenario === "match-details-slow") {
+    // Still loading: its head and the skeleton, once it has risen in (the skeleton pulses for good).
+    await current(page).locator("[data-state=loading]").first().waitFor();
+    await stack(page)
+      .locator("div")
+      .first()
+      .evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
+    await page.mouse.move(0, 0);
+    await page.screenshot({ path });
+    return;
   }
-  await row.evaluate((el) => el.scrollIntoView({ block: "start" }));
-  await page.locator("main").evaluate((main) => main.scrollBy(0, -12));
-  if (opts.scenario !== "match-details-slow") await settle(page);
+  await current(page).locator("[data-testid=game-player], [role=alert]").first().waitFor();
+  await settle(page);
+  await animationsDone(page);
+  if (opts.tab) {
+    await tabs(page).nth(opts.tab).click();
+    await animationsDone(page);
+  }
+  if (!opts.part) {
+    await page.mouse.move(0, 0);
+    await page.screenshot({ path });
+    return;
+  }
+  if (opts.part === "older") {
+    // The last game loaded, pulled on by two notches: older games on their way.
+    await page.keyboard.press("End");
+    await animationsDone(page);
+    await aim(page);
+    await notches(page, 2, 100);
+    await stack(page).and(page.locator("[data-status]")).waitFor();
+    await page.mouse.move(0, 0);
+    await animationsDone(page);
+    await page.screenshot({ path });
+    return;
+  }
+  // Pulled past the newest game by a finger held there, short of closing (a wheel's pull springs
+  // back half a second after the wheel stops; a finger's holds while it is down): the stack
+  // follows, the hint says what more would do. Needs a touch screen (`test.use({ hasTouch })`).
+  // The mouse out of the way (no row under it, no tooltip); the finger from an empty spot of the
+  // head.
   await page.mouse.move(0, 0);
-  await page.screenshot({ path: `${OUT}/${name}-${opts.width}x${opts.height}.png` });
+  const box = await current(page).boundingBox();
+  const title = await current(page).locator("h2").boundingBox();
+  const x = (box?.x ?? 0) + (box?.width ?? 0) - 200;
+  const y = (title?.y ?? 0) + (title?.height ?? 0) / 2;
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
+  for (let step = 1; step <= 3; step++) {
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y: y + (120 * step) / 3 }] });
+  }
+  await stack(page).and(page.locator("[data-pulling]")).waitFor();
+  await page.waitForTimeout(200);
+  await page.screenshot({ path });
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await cdp.detach();
 }
 
 async function whyShot(page: Page, name: string, width: number, height: number, row: number) {
@@ -442,10 +643,17 @@ for (const lang of ["en", "fr"] as const) {
     for (const [width, height] of [
       [1280, 800],
       [420, 800],
+      [2560, 1440],
     ] as const) {
-      test(`${prefix}home game open ${width}x${height}`, async ({ page }) => {
-        await gameShot(page, `${prefix}home-game-open`, { width, height, row: 2 });
-      });
+      // Full (glass) and Light: the scoreboard, and the damage tab.
+      for (const effects of ["full", "light"] as const) {
+        test(`${prefix}home game ${effects} ${width}x${height}`, async ({ page }) => {
+          await gameShot(page, `${prefix}home-game-${effects}`, { width, height, row: 2, effects });
+        });
+        test(`${prefix}home game damage ${effects} ${width}x${height}`, async ({ page }) => {
+          await gameShot(page, `${prefix}home-game-damage-${effects}`, { width, height, row: 2, effects, tab: 1 });
+        });
+      }
       test(`${prefix}home grade why ${width}x${height}`, async ({ page }) => {
         await whyShot(page, `${prefix}home-grade-why`, width, height, 1);
       });
@@ -453,19 +661,172 @@ for (const lang of ["en", "fr"] as const) {
         await gameShot(page, `${prefix}home-game-extreme`, { scenario: "extreme", width, height });
       });
     }
-    for (const scenario of ["match-details-error", "match-details-gone", "match-details-slow"] as const) {
+    // The other tabs; the smallest window, where each line keeps a line of text.
+    for (const [tab, what] of [
+      [2, "vision"],
+      [3, "combat"],
+    ] as const) {
+      test(`${prefix}home game ${what} 1280x800`, async ({ page }) => {
+        await gameShot(page, `${prefix}home-game-${what}`, { width: 1280, height: 800, row: 2, effects: "full", tab });
+      });
+    }
+    for (const tab of [0, 1] as const) {
+      test(`${prefix}home game smallest tab ${tab} 400x560`, async ({ page }) => {
+        await gameShot(page, `${prefix}home-game-smallest-${tab}`, { width: 400, height: 560, row: 2, effects: "full", tab });
+      });
+    }
+    // Between the widths above (the rail beside the stack, the stats turned around), and Off.
+    test(`${prefix}home game full 1024x768`, async ({ page }) => {
+      await gameShot(page, `${prefix}home-game-full`, { width: 1024, height: 768, row: 2, effects: "full" });
+    });
+    test(`${prefix}home game combat 1024x768`, async ({ page }) => {
+      await gameShot(page, `${prefix}home-game-combat`, { width: 1024, height: 768, row: 2, effects: "full", tab: 3 });
+    });
+    test(`${prefix}home game off 1280x800`, async ({ page }) => {
+      await gameShot(page, `${prefix}home-game-off`, { width: 1280, height: 800, row: 2, effects: "off" });
+    });
+    test.describe("held by a finger", () => {
+      test.use({ hasTouch: true });
+      test(`${prefix}home game pulled to close 1280x800`, async ({ page }) => {
+        await gameShot(page, `${prefix}home-game-pulled-to-close`, { width: 1280, height: 800, row: 0, part: "close" });
+      });
+    });
+    test(`${prefix}home game older games loading 1280x800`, async ({ page }) => {
+      await gameShot(page, `${prefix}home-game-older-loading`, { scenario: "history-more-slow", width: 1280, height: 800, part: "older" });
+    });
+    // ARAM: Mayhem on a wide window: no roles, no vision or monster stats.
+    test(`${prefix}home game howling abyss 1920x1080`, async ({ page }) => {
+      await gameShot(page, `${prefix}home-game-howling-abyss`, { scenario: "howling-abyss", width: 1920, height: 1080 });
+    });
+    test(`${prefix}home game howling abyss vision 1920x1080`, async ({ page }) => {
+      await gameShot(page, `${prefix}home-game-howling-abyss-vision`, { scenario: "howling-abyss", width: 1920, height: 1080, tab: 2 });
+    });
+    for (const scenario of ["match-details-error", "match-details-gone", "match-details-unavailable", "match-details-slow"] as const) {
       test(`${prefix}home ${scenario} 1280x800`, async ({ page }) => {
         await gameShot(page, `${prefix}home-${scenario}`, { scenario, width: 1280, height: 800 });
       });
     }
+    // Someone else's game, from our backend: every stat row (healing and shielding on teammates).
     test(`${prefix}player game open 1280x800`, async ({ page }) => {
-      await openApp(page, { view: "/player/euw1/Blade%20Dancer/IRE" });
+      await gameShot(page, `${prefix}player-game-open`, { view: "/player/euw1/Blade%20Dancer/IRE", width: 1280, height: 800 });
+    });
+    test(`${prefix}player game damage 1280x800`, async ({ page }) => {
+      await gameShot(page, `${prefix}player-game-damage`, { view: "/player/euw1/Blade%20Dancer/IRE", width: 1280, height: 800, tab: 1 });
+    });
+  });
+}
+
+// Tooltips of the game's things (design/tip), hovered (or focused from the keyboard), in English
+// and French: tip-<thing>-<size>.png, fr-tip-….
+async function tipShot(
+  page: Page,
+  name: string,
+  opts: { view?: string; scenario?: ScenarioName; width: number; height: number; target: string; last?: boolean; pane?: string },
+) {
+  await openApp(page, {
+    view: opts.view ?? "/champions?id=103",
+    scenario: opts.scenario ?? "default",
+    width: opts.width,
+    height: opts.height,
+  });
+  const things = page.locator(opts.target);
+  const thing = opts.last ? things.last() : things.first();
+  await thing.evaluate((el) => el.scrollIntoView({ block: "center" }));
+  await thing.hover();
+  await page.locator(`#${opts.pane ?? "game-tip"}`).waitFor();
+  // A game thing's text can land just after its card (the mock reads Data Dragon's big files on
+  // its first call): capture the card whole.
+  if (!opts.pane) {
+    await page
+      .locator("#game-tip [class*=text_] p")
+      .first()
+      .waitFor({ timeout: 5_000 })
+      .catch(() => undefined);
+  }
+  await settle(page);
+  await page.screenshot({ path: `${OUT}/${name}-${opts.width}x${opts.height}.png` });
+}
+
+for (const lang of ["en", "fr"] as const) {
+  test.describe(lang === "fr" ? "tooltips in French" : "tooltips", () => {
+    if (lang === "fr") test.use({ locale: "fr-FR" });
+    const prefix = lang === "fr" ? "fr-tip" : "tip";
+    const THINGS = [
+      { thing: "keystone", target: "[data-testid=rune-page-view] [data-tip='rune:8112']" },
+      { thing: "shard", target: "[data-tip='shard:5008:offense']" },
+      { thing: "spell", target: "[data-widget=champion-spells] [data-tip='spell:4']" },
+      { thing: "item", target: "[data-widget=champion-items] [data-tip='item:6653']" },
+    ] as const;
+    for (const { thing, target } of THINGS) {
+      test(`${prefix} ${thing} 1280x800`, async ({ page }) => {
+        await tipShot(page, `${prefix}-${thing}`, { width: 1280, height: 800, target });
+      });
+    }
+    for (const [width, height] of [
+      [420, 800],
+      [2560, 1440],
+    ] as const) {
+      test(`${prefix} item ${width}x${height}`, async ({ page }) => {
+        await tipShot(page, `${prefix}-item`, { width, height, target: "[data-widget=champion-items] [data-tip^='item:']", last: true });
+      });
+      test(`${prefix} shard ${width}x${height}`, async ({ page }) => {
+        await tipShot(page, `${prefix}-shard`, { width, height, target: "[data-tip='shard:5010:flex']" });
+      });
+    }
+    test(`${prefix} match row item 1280x800`, async ({ page }) => {
+      await tipShot(page, `${prefix}-match-row-item`, {
+        view: "/",
+        width: 1280,
+        height: 800,
+        target: "[data-testid=match-row] [data-tip='item:6655']",
+      });
+    });
+    test(`${prefix} live spell 420x800`, async ({ page }) => {
+      await tipShot(page, `${prefix}-live-spell`, {
+        view: "/live",
+        scenario: "live",
+        width: 420,
+        height: 800,
+        target: "[data-testid=live-card] [data-tip^='spell:']",
+      });
+    });
+    // Compact cards: what the app's own things mean (hint-…, fr-hint-…).
+    const hintPrefix = lang === "fr" ? "fr-hint" : "hint";
+    const HINTS = [
+      { name: "status", view: "/", target: "[data-testid=client-status]", width: 1280 },
+      { name: "rail", view: "/", target: "nav a[href='#/tier-list']", width: 1280 },
+      // The tier list's icon-only choices: a lane, the table view.
+      {
+        name: "lane",
+        view: "/tier-list?view=shelves&role=middle",
+        target: "[data-testid=role-filter] [role=radio]:nth-of-type(3)",
+        width: 1280,
+      },
+      { name: "rank", view: "/tier-list", target: "[data-testid=rank-button]", width: 1280 },
+      { name: "tier", view: "/champions?id=103", target: "[data-testid=champion-tier]", width: 1280 },
+      { name: "option", view: "/champions?id=103", target: "[data-widget=champion-items] [data-hint]", width: 1280 },
+      { name: "import-disabled", view: "/champions?id=103", target: "[data-testid=import-spells]", width: 1280 },
+      { name: "matchup", view: "/champions?id=103", target: "[data-testid=matchups-best] li", width: 1280 },
+      { name: "column", view: "/tier-list", target: "th[data-hint]", width: 1280 },
+      { name: "tier", view: "/champions?id=103", target: "[data-testid=champion-tier]", width: 420 },
+      { name: "rail", view: "/", target: "nav a[href='#/draft']", width: 420 },
+    ] as const;
+    for (const { name, view, target, width } of HINTS) {
+      test(`${hintPrefix} ${name} ${width}x800`, async ({ page }) => {
+        await tipShot(page, `${hintPrefix}-${name}`, { view, width, height: 800, target, pane: "hint" });
+      });
+    }
+    test(`${prefix} opened game keystone from the keyboard 1280x800`, async ({ page }) => {
+      await openApp(page, { width: 1280, height: 800 });
       const row = page.locator("[data-testid=match-row] > button").first();
-      await row.click();
+      await row.focus();
+      await page.keyboard.press("Enter");
       await page.getByTestId("game-player").first().waitFor();
-      await row.evaluate((el) => el.scrollIntoView({ block: "start" }));
+      // The row, the grade column's explanation, the first player's two spells, their keystone.
+      for (let i = 0; i < 4; i++) await page.keyboard.press("Tab");
+      await page.locator("#game-tip").waitFor();
       await settle(page);
-      await page.screenshot({ path: `${OUT}/${prefix}player-game-open-1280x800.png` });
+      await page.screenshot({ path: `${OUT}/${prefix}-game-keystone-keyboard-1280x800.png` });
     });
   });
 }
@@ -481,7 +842,6 @@ test.describe("in French", () => {
     { name: "live", view: "/live", scenario: "live" },
     { name: "live-build", view: "/live?tab=build", scenario: "live" },
     { name: "champion", view: "/champions?id=103", scenario: "default" },
-    { name: "champions", view: "/champions", scenario: "default" },
     { name: "tierlist", view: "/tier-list", scenario: "default" },
     { name: "settings", view: "/settings", scenario: "default" },
     { name: "player-404", view: "/player/euw1/Nobody/404", scenario: "default" },
@@ -530,12 +890,34 @@ test.describe("in French", () => {
     await capture(page, `${OUT}/fr-draft-import-failures-1280x800.png`, false);
   });
 
+  // The longest status line: a queue Riot doesn't share, names on their way (never settles).
+  for (const [width, height] of [
+    [1280, 720],
+    [420, 800],
+  ] as const) {
+    test(`fr live filtered ${width}x${height}`, async ({ page }) => {
+      await page.setViewportSize({ width, height });
+      await page.clock.setFixedTime(new Date(FIXTURE_NOW));
+      await page.goto("/?scenario=live-filtered#/live");
+      await page.getByTestId("live-card").first().waitFor();
+      await page.waitForTimeout(400);
+      await page.screenshot({ path: `${OUT}/fr-live-filtered-${width}x${height}.png` });
+    });
+  }
+
   test("fr draft import lock-in 1280x800", async ({ page }) => {
     await openApp(page, { view: "/draft", scenario: "import-lock-in" });
     await page.evaluate((result) => window.__SCOUT_MOCK__?.emit("import", result), lockInImport);
     await page.getByTestId("toast").waitFor();
     await settle(page);
     await capture(page, `${OUT}/fr-draft-import-lock-in-1280x800.png`, false);
+  });
+
+  test("fr draft import warning 1280x800", async ({ page }) => {
+    await openApp(page, { view: "/draft", scenario: "import-warning" });
+    await page.getByTestId("import-warning").waitFor();
+    await settle(page);
+    await capture(page, `${OUT}/fr-draft-import-warning-1280x800.png`, false);
   });
 
   for (const scenario of ["champ-select", "aram-champ-select", "draft-planning"] as const) {
@@ -559,3 +941,157 @@ test.describe("in French", () => {
     await capture(page, `${OUT}/fr-champion-thresh-2560x1440.png`, false);
   });
 });
+
+// ARAM: Mayhem in English and French (`fr-…`), at 1280 and 420 px: the page, a champion's
+// augments, the champion page's tab, Draft and Live, and the fresh-server state. With
+// `augments=dev` the game's real augments (names, words, art: .cache/mayhem/augments.json) stand
+// in for the made-up ones when the file is there; the tiers and pick rates stay made up.
+const MAYHEM_SHOTS = [
+  { name: "mayhem", view: "/mayhem", scenario: "default" },
+  { name: "mayhem-champion", view: "/mayhem?champion=103", scenario: "default" },
+  { name: "mayhem-empty", view: "/mayhem", scenario: "mayhem-empty" },
+  { name: "champion-mayhem", view: "/champions?id=103&mode=mayhem", scenario: "default" },
+  { name: "draft-mayhem", view: "/draft", scenario: "mayhem-champ-select" },
+  { name: "live-mayhem", view: "/live?tab=build", scenario: "mayhem-live" },
+] as const;
+for (const lang of ["en", "fr"] as const) {
+  test.describe(lang === "fr" ? "ARAM: Mayhem in French" : "ARAM: Mayhem", () => {
+    if (lang === "fr") test.use({ locale: "fr-FR" });
+    const prefix = lang === "fr" ? "fr-" : "";
+    for (const { name, view, scenario } of MAYHEM_SHOTS) {
+      for (const [width, height] of [
+        [1280, 800],
+        [420, 800],
+      ] as const) {
+        test(`${prefix}${name} ${width}x${height}`, async ({ page }) => {
+          await page.setViewportSize({ width, height });
+          await page.clock.setFixedTime(new Date(FIXTURE_NOW));
+          await page.goto(`/?scenario=${scenario}&augments=dev#${view}`);
+          await settle(page);
+          await capture(page, `${OUT}/${prefix}${name}-${width}x${height}.png`, name !== "draft-mayhem");
+        });
+      }
+    }
+  });
+}
+
+// Mayhem's data: the question asked once on Home, and too few shared games (the page, a champion,
+// Draft's panel), at 420, 1280 and 2560 px, in English and French (`fr-…`).
+const GATHERING_SHOTS = [
+  { name: "first-start", view: "/", scenario: "first-start" },
+  { name: "mayhem-gathering", view: "/mayhem", scenario: "mayhem-gathering" },
+  { name: "mayhem-champion-gathering", view: "/mayhem?champion=103", scenario: "mayhem-gathering" },
+  { name: "draft-mayhem-gathering", view: "/draft", scenario: "mayhem-gathering" },
+] as const;
+for (const lang of ["en", "fr"] as const) {
+  test.describe(lang === "fr" ? "Mayhem data in French" : "Mayhem data", () => {
+    if (lang === "fr") test.use({ locale: "fr-FR" });
+    const prefix = lang === "fr" ? "fr-" : "";
+    for (const { name, view, scenario } of GATHERING_SHOTS) {
+      for (const [width, height] of [
+        [420, 800],
+        [1280, 800],
+        [2560, 1440],
+      ] as const) {
+        test(`${prefix}${name} ${width}x${height}`, async ({ page }) => {
+          await openApp(page, { view, scenario, width, height });
+          await capture(page, `${OUT}/${prefix}${name}-${width}x${height}.png`, width < 900 && name !== "draft-mayhem-gathering");
+        });
+      }
+    }
+  });
+}
+
+// Home after a game and its history: the game that just ended, open by itself (a win with its LP,
+// a demotion, an unknown LP, the LP on its way, ARAM), the filters (a champion, none left), older
+// games (loading, failed, the end), in English and French (`fr-…`).
+async function historyShot(page: Page, name: string, width: number, height: number, act: (page: Page) => Promise<void>) {
+  await act(page);
+  await page.mouse.move(0, 0);
+  await animationsDone(page);
+  await settle(page);
+  await page.screenshot({ path: `${OUT}/${name}-${width}x${height}.png` });
+}
+
+/** The list's end, where older games load. */
+async function toListEnd(page: Page): Promise<void> {
+  await page.getByTestId("load-more-row").evaluate((el) => el.scrollIntoView({ block: "end" }));
+}
+
+/** The history card's top, filters in view. */
+async function toFilters(page: Page): Promise<void> {
+  await page.getByTestId("queue-filter").evaluate((el) => el.scrollIntoView({ block: "start" }));
+  await page.locator("main").evaluate((main) => main.scrollBy(0, -96));
+}
+
+for (const lang of ["en", "fr"] as const) {
+  test.describe(lang === "fr" ? "after a game in French" : "after a game", () => {
+    if (lang === "fr") test.use({ locale: "fr-FR" });
+    const prefix = lang === "fr" ? "fr-" : "";
+    for (const [width, height] of [
+      [1280, 800],
+      [420, 800],
+    ] as const) {
+      for (const scenario of [
+        "post-game",
+        "post-game-demotion",
+        "post-game-lp-unknown",
+        "post-game-lp-pending",
+        "post-game-aram",
+      ] as const) {
+        // The game that just ended opens by itself in the stack, its LP and your grade on top.
+        test(`${prefix}home ${scenario} ${width}x${height}`, async ({ page }) => {
+          await openApp(page, { scenario, width, height });
+          await current(page).getByTestId("game-player").first().waitFor();
+          await settle(page);
+          await animationsDone(page);
+          await page.mouse.move(0, 0);
+          await page.screenshot({ path: `${OUT}/${prefix}home-${scenario}-${width}x${height}.png` });
+        });
+      }
+      test(`${prefix}home history filtered empty ${width}x${height}`, async ({ page }) => {
+        await historyShot(page, `${prefix}home-history-filtered-empty`, width, height, async (p) => {
+          await openApp(p, { view: "/?queue=flex", width, height });
+          await toFilters(p);
+        });
+      });
+      test(`${prefix}home history champion ${width}x${height}`, async ({ page }) => {
+        await historyShot(page, `${prefix}home-history-champion`, width, height, async (p) => {
+          await openApp(p, { scenario: "history-long", width, height });
+          await p.getByTestId("champion-filter").selectOption("103");
+          await toFilters(p);
+        });
+      });
+      test(`${prefix}home history loading more ${width}x${height}`, async ({ page }) => {
+        await historyShot(page, `${prefix}home-history-loading-more`, width, height, async (p) => {
+          await openApp(p, { scenario: "history-more-slow", width, height });
+          await toListEnd(p);
+          await p.getByTestId("load-more").click();
+        });
+      });
+      test(`${prefix}home history load failed ${width}x${height}`, async ({ page }) => {
+        await historyShot(page, `${prefix}home-history-load-failed`, width, height, async (p) => {
+          await openApp(p, { scenario: "history-more-error", width, height });
+          await toListEnd(p);
+          await p.getByTestId("load-more").click();
+          await p.getByRole("alert").waitFor();
+          await toListEnd(p);
+        });
+      });
+      test(`${prefix}home history end ${width}x${height}`, async ({ page }) => {
+        await historyShot(page, `${prefix}home-history-end`, width, height, async (p) => {
+          await openApp(p, { scenario: "history-long", width, height });
+          for (const count of [40, 47]) {
+            await toListEnd(p);
+            await p.getByTestId("load-more").click();
+            await p
+              .locator("[data-testid=match-row]")
+              .nth(count - 1)
+              .waitFor();
+          }
+          await toListEnd(p);
+        });
+      });
+    }
+  });
+}

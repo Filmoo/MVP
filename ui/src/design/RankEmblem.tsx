@@ -1,5 +1,5 @@
 import { type JSX, Show } from "solid-js";
-import { useRankEmblems } from "../data/emblems";
+import { coreArt } from "../data/core-art";
 import type { Tier } from "../data/generated/Tier";
 import styles from "./RankEmblem.module.css";
 
@@ -7,8 +7,11 @@ import styles from "./RankEmblem.module.css";
  * Emblem boxes, 4:3 like Riot's art: the crest in the middle, ornaments of higher tiers wider.
  * `xl` at 2× is exactly the core's 192 × 144 crop.
  */
-const SIZES = { sm: [48, 36], md: [64, 48], lg: [80, 60], xl: [96, 72] } as const;
+const SIZES = { xs: [32, 24], sm: [48, 36], md: [64, 48], lg: [80, 60], xl: [96, 72] } as const;
 export type EmblemSize = keyof typeof SIZES;
+
+/** Riot's emblems by tier, once the core has them (until then, MVP's crests). */
+const useRankEmblems = coreArt("rank-emblems", (art) => art.emblems.map((e) => [e.tier, e.url] as const));
 
 interface Ornaments {
   /** Crest scale: higher tiers stand taller, as in the client. */

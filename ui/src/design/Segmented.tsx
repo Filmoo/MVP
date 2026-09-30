@@ -1,13 +1,15 @@
 import { For, type JSX, Show } from "solid-js";
-import { Icon, type IconName } from "./Icon";
-import { glideEnds, glideStarts, liquid } from "./liquid/liquid";
 import styles from "./Segmented.module.css";
 import { segmentFor } from "./segmented-keys";
 
 export interface SegmentedOption<T> {
   value: T;
   label: string;
-  icon?: IconName;
+  /**
+   * A 16 px icon (`Icon`, `Glyph`, `RoleIcon`), made where it shows (options are read again on
+   * every change): alone on narrow pages, the label its name.
+   */
+  icon?: () => JSX.Element;
   /** Quiet text after the label, e.g. a role's share of games. Part of the accessible name. */
   detail?: string;
 }
@@ -24,7 +26,8 @@ export function Segmented<T extends string | number>(props: {
   onChange: (value: T) => void;
   /** Accessible name of the group ("Queue", "Role"…). */
   label: string;
-  size?: "sm" | "md";
+  /** 24, 28 or 30 px segments (`lg`: a 40 px pill, like the stats pages' tools). */
+  size?: "sm" | "md" | "lg";
   class?: string | undefined;
   testId?: string;
 }): JSX.Element {
@@ -51,14 +54,7 @@ export function Segmented<T extends string | number>(props: {
       onKeyDown={onKeyDown}
       data-testid={props.testId}
     >
-      <span
-        class={`${styles.thumb} glass-rim`}
-        aria-hidden="true"
-        ref={(el) => liquid(el, "lens")}
-        onTransitionRun={glideStarts}
-        onTransitionEnd={glideEnds}
-        onTransitionCancel={glideEnds}
-      />
+      <span class={`${styles.thumb} glass-drop`} aria-hidden="true" />
       <For each={props.options}>
         {(option, i) => {
           const checked = () => i() === selected();
@@ -73,13 +69,13 @@ export function Segmented<T extends string | number>(props: {
               class={`${styles.segment} ${option.icon ? styles.withIcon : ""}`}
               aria-checked={checked()}
               aria-label={option.detail ? `${option.label} ${option.detail}` : option.label}
-              title={option.icon ? option.label : undefined}
+              data-hint={option.icon ? option.label : undefined}
               tabIndex={checked() ? 0 : -1}
               onClick={() => {
                 if (!checked()) props.onChange(option.value);
               }}
             >
-              <Show when={option.icon}>{(icon) => <Icon name={icon()} size={16} class={styles.icon} />}</Show>
+              <Show when={option.icon}>{(icon) => <span class={styles.icon}>{icon()()}</span>}</Show>
               <span class={styles.label}>{option.label}</span>
               <Show when={option.detail}>
                 <span class={`${styles.detail} num`}>{option.detail}</span>

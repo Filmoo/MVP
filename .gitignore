@@ -15,6 +15,11 @@ apps/desktop/gen/
 ui/test-results/
 ui/playwright-report/
 ui/blob-report/
+site/test-results/
+site/playwright-report/
+apps/roadmap/web/dist/
+apps/roadmap/web/test-results/
+apps/roadmap/web/playwright-report/
 /reports/
 
 # Local caches (dev assets fetched from Data Dragon mirrors — never commit Riot assets)

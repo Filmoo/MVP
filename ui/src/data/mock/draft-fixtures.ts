@@ -96,6 +96,7 @@ const r = (
 const rankedDraft: DraftView = {
   phase: "picking",
   secondsLeft: 24,
+  phaseEndsAt: null,
   myRole: "top",
   allies: [
     { championId: C.malphite, hovering: true, role: "top", roleOdds: [], isMe: true, picking: true },
@@ -345,6 +346,7 @@ const aramWith = (damage: [number, number, number], frontline: number, cc: numbe
 export const aramDraft: DraftView = {
   phase: "finalizing",
   secondsLeft: 41,
+  phaseEndsAt: null,
   myRole: null,
   allies: [aramSlot(C.lux, true), aramSlot(C.jinx), aramSlot(C.malphite), aramSlot(C.sona), aramSlot(C.ziggs)],
   enemies: [],

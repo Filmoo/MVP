@@ -84,6 +84,21 @@ struct Timer {
     phase: String,
     #[serde(default)]
     adjusted_time_left_in_phase: i64,
+    /// When the client took this snapshot (this PC's clock).
+    #[serde(default)]
+    internal_now_in_epoch_ms: i64,
+    #[serde(default)]
+    is_infinite: bool,
+}
+
+impl Timer {
+    /// When the phase runs out: the snapshot's time plus what was left then.
+    fn ends_at(&self) -> Option<i64> {
+        (!self.is_infinite
+            && self.internal_now_in_epoch_ms > 0
+            && self.adjusted_time_left_in_phase > 0)
+            .then(|| self.internal_now_in_epoch_ms + self.adjusted_time_left_in_phase)
+    }
 }
 
 pub(crate) fn role(position: &str) -> Option<Role> {
@@ -164,9 +179,10 @@ pub fn map_session(value: &serde_json::Value) -> Option<DraftView> {
     });
     Some(DraftView {
         phase,
-        seconds_left: (session.timer.adjusted_time_left_in_phase > 0)
+        seconds_left: (!session.timer.is_infinite && session.timer.adjusted_time_left_in_phase > 0)
             .then(|| seconds(session.timer.adjusted_time_left_in_phase))
             .flatten(),
+        phase_ends_at: session.timer.ends_at(),
         my_role,
         allies: session.my_team.iter().map(ally).collect(),
         enemies: session.their_team.iter().map(enemy).collect(),
@@ -189,6 +205,8 @@ pub fn map_session(value: &serde_json::Value) -> Option<DraftView> {
         bench,
         rerolls: session.allow_rerolling.then_some(session.rerolls_remaining),
         comps: None,
+        // The session doesn't say: the draft helper reads the mode from the gameflow session.
+        mode: None,
     })
 }
 
@@ -238,6 +256,24 @@ mod tests {
         assert!(view.enemies[3].picking);
         assert_eq!(view.ally_bans, vec![777, 238]);
         assert_eq!(view.enemy_bans, vec![517, 266]);
+        assert_eq!(view.phase_ends_at, None, "no snapshot time: no deadline");
+    }
+
+    /// The real client sends its timer only when the session changes (a lock-in, a hover): the
+    /// deadline lets the UI count down in between.
+    #[test]
+    fn the_phase_deadline_comes_from_the_timer_snapshot() {
+        let mut s = ranked_session();
+        s["timer"] = json!({ "phase": "BAN_PICK", "adjustedTimeLeftInPhase": 77_697,
+                             "internalNowInEpochMs": 1_790_616_935_909_i64, "isInfinite": false,
+                             "totalTimeInPhase": 90_000 });
+        let view = map_session(&s).expect("session");
+        assert_eq!(view.phase_ends_at, Some(1_790_617_013_606));
+        assert_eq!(view.seconds_left, Some(77));
+
+        s["timer"]["isInfinite"] = json!(true);
+        let endless = map_session(&s).expect("session");
+        assert_eq!((endless.phase_ends_at, endless.seconds_left), (None, None));
     }
 
     #[test]

@@ -1,6 +1,8 @@
+import type { Page } from "@playwright/test";
 import { scenarioNames } from "../src/data/mock/scenarios";
 import { expect, FRENCH_SIZES, isFrench, openApp, SIZES, settle, test, trackErrors, VIEWS } from "./app";
 import { auditLayout } from "./layout-rules";
+import { current, openGame, rows, scrolled, stack, tabs } from "./stack";
 
 const EXPECTED_ERRORS: Record<string, RegExp> = {
   "widget-crash": /widget:recent-matches|Cannot read properties/,
@@ -39,6 +41,8 @@ for (const scenario of scenarioNames) {
 const SCENARIO_VIEWS = [
   { view: "/draft", scenario: "champ-select" },
   { view: "/draft", scenario: "import-lock-in" },
+  // After a trade: the warning's line under the buttons.
+  { view: "/draft", scenario: "import-warning" },
   { view: "/draft", scenario: "draft-no-stats" },
   { view: "/draft", scenario: "aram-champ-select" },
   { view: "/settings", scenario: "settings-custom" },
@@ -46,6 +50,8 @@ const SCENARIO_VIEWS = [
   { view: "/live", scenario: "live" },
   { view: "/live", scenario: "live-extreme" },
   { view: "/live", scenario: "live-failed" },
+  // Names waiting for the game: the longest head line (Riot doesn't share the queue).
+  { view: "/live", scenario: "live-filtered" },
   { view: "/player/euw1/Blade%20Dancer/IRE", scenario: "default" },
   { view: "/player/euw1/WWWWWWWWWWWWWWWW/WWWWW", scenario: "default" },
   { view: "/champions?id=103", scenario: "default" },
@@ -53,15 +59,25 @@ const SCENARIO_VIEWS = [
   { view: "/champions?id=412", scenario: "default" },
   { view: "/champions?id=99&queue=450", scenario: "default" },
   { view: "/tier-list?queue=450", scenario: "default" },
+  // The tier list: one lane's shelves, the table in every lane and in ARAM (no lanes, no bans).
+  { view: "/tier-list?view=shelves&role=support", scenario: "default" },
+  { view: "/tier-list?view=table&role=all", scenario: "default" },
+  { view: "/tier-list?view=table&queue=450", scenario: "default" },
+  // ARAM: Mayhem: augments by tier, a champion's per rarity, the champion page's tab, Draft.
+  { view: "/mayhem", scenario: "default" },
+  { view: "/mayhem?champion=103", scenario: "default" },
+  { view: "/champions?id=103&mode=mayhem", scenario: "default" },
+  { view: "/draft", scenario: "mayhem-champ-select" },
 ] as const;
 
 // Their other states at the extreme sizes.
 const STATE_VIEWS = [
-  { view: "/draft", scenario: "imports-off" },
   { view: "/draft", scenario: "draft-planning" },
   { view: "/draft", scenario: "draft-no-comps" },
   { view: "/live", scenario: "live-error" },
   { view: "/live", scenario: "live-scouting" },
+  { view: "/live", scenario: "live-bots" },
+  { view: "/live", scenario: "live-hidden" },
   { view: "/player/euw1/Nobody/404", scenario: "default" },
   { view: "/player/euw1/Busy/429", scenario: "default" },
   { view: "/settings", scenario: "crash-reports-on" },
@@ -70,6 +86,9 @@ const STATE_VIEWS = [
   { view: "/live", scenario: "banners" },
   { view: "/live?tab=build", scenario: "live" },
   { view: "/", scenario: "emblems" },
+  // Home's history filtered down to nothing (a link sets the filter).
+  { view: "/?queue=flex", scenario: "default" },
+  { view: "/?queue=aram&champion=103", scenario: "history-long" },
   { view: "/live", scenario: "emblems" },
   { view: "/tier-list", scenario: "stats-empty" },
   { view: "/tier-list", scenario: "stats-offline" },
@@ -77,7 +96,19 @@ const STATE_VIEWS = [
   { view: "/champions?id=103", scenario: "stats-empty" },
   { view: "/champions?id=103", scenario: "stats-offline" },
   { view: "/champions?id=904", scenario: "default" },
-  { view: "/champions", scenario: "stats-offline" },
+  { view: "/tier-list?view=table", scenario: "stats-first-patch" },
+  // ARAM: Mayhem's other states: nothing published yet, not built, offline, the longest names,
+  // a champion without shared games (Teemo), a Mayhem game's build.
+  { view: "/mayhem", scenario: "mayhem-empty" },
+  { view: "/mayhem", scenario: "mayhem-unbuilt" },
+  { view: "/mayhem", scenario: "mayhem-offline" },
+  { view: "/mayhem", scenario: "mayhem-extreme" },
+  { view: "/mayhem?champion=17", scenario: "default" },
+  { view: "/live?tab=build", scenario: "mayhem-live" },
+  // Too few shared games: how far it is, on the page, for a champion and in Draft's panel.
+  { view: "/mayhem", scenario: "mayhem-gathering" },
+  { view: "/mayhem?champion=103", scenario: "mayhem-gathering" },
+  { view: "/draft", scenario: "mayhem-gathering" },
 ] as const;
 for (const { view, scenario } of STATE_VIEWS) {
   for (const size of [SIZES[0], SIZES[3], SIZES[6]]) {
@@ -101,23 +132,45 @@ for (const { view, scenario } of SCENARIO_VIEWS) {
   }
 }
 
-// An opened match row at every size, and a grade's why over it: a popover, which the audit
-// leaves out (fixed), so it is held inside the window here.
-test("home: an opened game and a grade's why lay out at every size", async ({ page, locale }) => {
-  // Eight sizes, each settled, audited and hovered twice: more than 30 s on a busy machine.
+/**
+ * The stack of opened games: the current window inside the window, a margin around it where the
+ * page shows, laid out on each of its tabs, none of which scrolls.
+ */
+async function auditStack(page: Page, size: { name: string; width: number; height: number }): Promise<void> {
+  // Once it has risen in (its own animations only: a loading skeleton pulses for good).
+  await stack(page)
+    .locator("div")
+    .first()
+    .evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
+  const box = await current(page).boundingBox();
+  const inside = box && box.x >= 12 && box.y >= 8 && box.x + box.width <= size.width - 12 && box.y + box.height <= size.height - 8;
+  expect(inside, `${size.name}: the window inside the window, the page around it: ${JSON.stringify(box)}`).toBe(true);
+  const count = await tabs(page).count();
+  for (let at = 0; at < Math.max(1, count); at++) {
+    if (count > 0) await tabs(page).nth(at).click();
+    expect(await page.evaluate(auditLayout), `${size.name}, tab ${at}`).toEqual([]);
+    expect(await scrolled(page), `${size.name}, tab ${at}: nothing scrolls`).toEqual([]);
+  }
+  if (count > 0) await tabs(page).nth(0).click();
+}
+
+// An opened game at every size (each of its tabs, nothing scrolling), and a grade's why
+// in it: a popover, which the audit leaves out (fixed), so it is held inside the window here.
+test("home: the stack of opened games and a grade's why lay out at every size", async ({ page, locale }) => {
+  // Eight sizes, each settled, audited three times and hovered twice: more than 30 s on a busy machine.
   test.slow();
   const errors = trackErrors(page);
   await openApp(page);
-  await page.locator("[data-testid=match-row] > button").first().click();
-  await expect(page.getByTestId("game-player")).toHaveCount(10);
+  await openGame(page, 2);
   for (const size of SIZES) {
     if (isFrench(locale) && !FRENCH_SIZES.has(size.name)) continue;
     await page.mouse.move(0, 0);
     await page.setViewportSize({ width: size.width, height: size.height });
     await settle(page);
-    expect(await page.evaluate(auditLayout), `${size.name} opened`).toEqual([]);
-    for (const at of [0, 1]) {
-      await page.locator("[data-grade]").nth(at).hover();
+    await auditStack(page, size);
+    for (const at of [0, 6]) {
+      const grade = current(page).locator("[data-grade]").nth(at);
+      await grade.hover();
       const why = await page.getByTestId("grade-why").boundingBox();
       expect(why, `${size.name} why ${at}`).not.toBeNull();
       const inside = why && why.x >= 0 && why.y >= 0 && why.x + why.width <= size.width && why.y + why.height <= size.height;
@@ -127,16 +180,40 @@ test("home: an opened game and a grade's why lay out at every size", async ({ pa
   expect(errors).toEqual([]);
 });
 
-// An opened game's other states (longest names and biggest numbers, errors) at the extreme sizes.
-for (const scenario of ["extreme", "match-details-error", "match-details-gone"] as const) {
+// An opened game on Howling Abyss (no vision stats there) at every size.
+test("home: an opened game on Howling Abyss lays out at every size", async ({ page, locale }) => {
+  test.slow();
+  const errors = trackErrors(page);
+  await openApp(page, { scenario: "howling-abyss" });
+  await openGame(page, 0);
+  for (const size of SIZES) {
+    if (isFrench(locale) && !FRENCH_SIZES.has(size.name)) continue;
+    await page.setViewportSize({ width: size.width, height: size.height });
+    await settle(page);
+    await auditStack(page, size);
+  }
+  expect(errors).toEqual([]);
+});
+
+// An opened game's other states (longest names and biggest numbers, loading, errors) at the
+// extreme sizes; someone else's game (every stat row) too.
+for (const { scenario, view } of [
+  { scenario: "extreme", view: "/" },
+  { scenario: "match-details-slow", view: "/" },
+  { scenario: "match-details-error", view: "/" },
+  { scenario: "match-details-gone", view: "/" },
+  { scenario: "match-details-unavailable", view: "/" },
+  { scenario: "default", view: "/player/euw1/Blade%20Dancer/IRE" },
+] as const) {
   for (const size of [SIZES[0], SIZES[3], SIZES[6]]) {
-    test(`home/${scenario}, a game opened @ ${size.name}`, async ({ page }) => {
+    test(`${view}/${scenario}, a game opened @ ${size.name}`, async ({ page }) => {
       const errors = trackErrors(page);
-      await openApp(page, { scenario, width: size.width, height: size.height });
-      await page.locator("[data-testid=match-row] > button").first().click();
-      await expect(page.getByTestId("game").locator("[data-testid=game-player], [role=alert]").first()).toBeVisible();
-      await settle(page);
-      expect(await page.evaluate(auditLayout)).toEqual([]);
+      await openApp(page, { scenario, view, width: size.width, height: size.height });
+      await rows(page).first().click();
+      const shown = current(page).locator("[data-testid=game-player], [role=alert], [data-state=loading]");
+      await expect(shown.first()).toBeVisible();
+      if (scenario !== "match-details-slow") await settle(page);
+      await auditStack(page, size);
       expect(errors).toEqual([]);
     });
   }

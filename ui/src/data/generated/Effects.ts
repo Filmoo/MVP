@@ -4,4 +4,4 @@
  * Visual effects level. The UI keeps a copy in `localStorage` so the first frame already
  * matches; this is the lasting choice.
  */
-export type Effects = "auto" | "light" | "off";
+export type Effects = "auto" | "full" | "light" | "off";

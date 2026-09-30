@@ -1,0 +1,321 @@
+/* A tooltip: a floating card next to what it explains (a grade's why, a rune, an item…). */
+
+.tip {
+  position: fixed;
+  position-anchor: --tip;
+  position-area: bottom;
+  /* Centred under it; else over it, or to one side of it where the window ends: the side with
+     the most room first (a narrow tab bar picks the side where the card stays wide). */
+  position-try-fallbacks: flip-block, --tip-below-left, --tip-below-right, --tip-above-left, --tip-above-right;
+  position-try-order: most-width;
+  /* Gone with its anchor scrolled out of view (and taken off the page: below). */
+  position-visibility: anchors-visible;
+  inset: auto;
+  /* A gap to what it explains, and a gutter to the window's sides (it slides along to fit). */
+  margin: var(--space-4);
+  max-width: min(320px, calc(100vw - var(--space-6)));
+  padding: var(--space-6);
+  border: 0;
+  border-radius: var(--radius-4);
+  /* The picture behind stays inside the corners. */
+  overflow: hidden;
+  background: var(--bg-float);
+  backdrop-filter: var(--blur-glass);
+  box-shadow: var(--shadow-float);
+  color: var(--text-1);
+  font-size: var(--text-md);
+  pointer-events: none;
+}
+
+/* To one side of what it explains: its edge lines up with it (no gutter on that side). */
+@position-try --tip-below-left {
+  position-area: bottom span-left;
+  margin-inline-end: 0;
+}
+
+@position-try --tip-below-right {
+  position-area: bottom span-right;
+  margin-inline-start: 0;
+}
+
+@position-try --tip-above-left {
+  position-area: top span-left;
+  margin-inline-end: 0;
+}
+
+@position-try --tip-above-right {
+  position-area: top span-right;
+  margin-inline-start: 0;
+}
+
+/* Until its place has settled (Tip.tsx): never seen where it doesn't belong. */
+.tip:not([data-placed]) {
+  visibility: hidden;
+}
+
+@supports (position-visibility: anchors-valid anchors-visible) {
+  .tip {
+    position-visibility: anchors-valid anchors-visible;
+  }
+}
+
+/* The rail's pages: beside the rail, not over the next page (the tab bar keeps the default). */
+@media (min-width: 560px) {
+  .tip[data-kind="nav"] {
+    position-area: right;
+    position-try-fallbacks:
+      right span-bottom,
+      right span-top;
+  }
+}
+
+/*
+ * Glass like the app's drops (glass.css `.glass-drop`): evenly tinted, a sheen over the upper
+ * half, a smooth rim brighter along the top. Over the picture, under nothing.
+ */
+.tip::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(180deg, var(--bg-drop-sheen, var(--bg-sheen)), transparent 60%);
+  box-shadow:
+    inset 0 1px 0 var(--line-drop-lit, var(--line-specular)),
+    inset 0 0 0 1px var(--line-drop, var(--line-glass));
+}
+
+:root[data-effects="flat"] .tip::after {
+  background: none;
+}
+
+/* What the card says sits over its picture. */
+:where(.tip > *) {
+  position: relative;
+  z-index: 1;
+}
+
+/*
+ * The thing's own light behind its header: its picture (`--art`), much larger, blurred and
+ * dimmed, or without one (a stat shard, a tier, a page) a glow of its colour (`--glow`) around
+ * its icon. It fades out by the divider, so the text reads on the card's even tint. Drawn by the
+ * card itself: clipped by it, and no element of its own (nothing for layout checks to trip on).
+ */
+.tip::before {
+  --glow-x: calc(var(--space-9) + var(--space-6) + 20px);
+  --glow-y: var(--glow-x);
+  content: "";
+  position: absolute;
+  top: calc(-1 * var(--space-9));
+  inset-inline: calc(-1 * var(--space-9));
+  height: var(--glow-h, calc(var(--space-9) + var(--space-12) + var(--space-2)));
+  z-index: 0;
+  opacity: 0.3;
+  background:
+    var(--art, radial-gradient(circle var(--space-12) at var(--glow-x) var(--glow-y), var(--glow, transparent), transparent)) center / cover
+    no-repeat;
+  filter: blur(28px) saturate(140%);
+  mask-image: linear-gradient(180deg, #000 40%, transparent);
+  pointer-events: none;
+}
+
+:root[data-effects="flat"] .tip::before {
+  display: none;
+}
+
+/* ---- A plain explanation: a heading when it helps, then its lines ------------------------ */
+
+.tip:has(> .hintLine) {
+  max-width: min(280px, calc(100vw - var(--space-6)));
+  padding: var(--space-4) var(--space-5);
+}
+
+/* Its glow around the mark (20 px, at the compact padding), fading before the lines. */
+.tip:has(> .hintHead)::before {
+  --glow-x: calc(var(--space-9) + var(--space-5) + 10px);
+  --glow-y: calc(var(--space-9) + var(--space-4) + 10px);
+  --glow-h: calc(var(--space-9) * 2);
+}
+
+/* The heading, after the thing's mark when it has one (a tier's letter, a page's icon…). */
+.hintHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  color: var(--accent);
+}
+
+/* A tier's medallion (design/TierMark), at the mark's size, its shape kept. */
+.mark > [data-mark] {
+  --m: 20px;
+  --r: var(--radius-2);
+  font-size: var(--text-xs);
+}
+
+.hintTitle {
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  color: var(--text-1);
+  text-wrap: balance;
+}
+
+.hintLine {
+  font-size: var(--text-sm);
+  color: var(--text-2);
+  text-wrap: pretty;
+  /* A name in full can be one long word (a Riot ID of 22 W's): it breaks at the card's edge. */
+  overflow-wrap: anywhere;
+}
+
+.hintLine + .hintLine {
+  margin-top: var(--space-2);
+}
+
+/* A single line (a cut name in full, a label): what it explains, so it reads first. */
+.hintLine:only-child {
+  color: var(--text-1);
+}
+
+/* ---- The game's things: icon, name (and an item's cost), what it is, what it does --------- */
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+}
+
+.icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-2);
+  overflow: hidden;
+  background: var(--bg-3);
+  box-shadow: 0 0 0 1px var(--line-glass);
+}
+
+/* No picture (it didn't load): no icon. */
+.icon:empty {
+  display: none;
+}
+
+.icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.icon[data-kind="rune"],
+.icon[data-kind="shard"] {
+  border-radius: var(--radius-full);
+  background: var(--bg-1);
+}
+
+.icon[data-kind="shard"] {
+  background: var(--bg-4);
+  box-shadow: inset 0 0 0 1px currentColor;
+}
+
+.icon[data-kind="shard"] svg {
+  width: 60%;
+  height: 60%;
+}
+
+/* A tree's emblem stands on its own. */
+.icon[data-kind="tree"] {
+  background: none;
+  box-shadow: none;
+}
+
+.icon[data-kind="tree"] img {
+  object-fit: contain;
+}
+
+.titles {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+/* The name, and an item's cost on the same baseline. */
+.nameRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.name {
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  line-height: 1.3;
+}
+
+.what {
+  font-size: var(--text-sm);
+  color: var(--text-2);
+  text-wrap: balance;
+}
+
+.figure {
+  flex: none;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--warn);
+}
+
+.text {
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line-glass);
+  font-size: var(--text-sm);
+  color: var(--text-2);
+}
+
+.text p {
+  text-wrap: pretty;
+}
+
+/* The space between two paragraphs. */
+.text p:empty {
+  height: var(--space-3);
+}
+
+/* Riot's text keeps what it stressed, and the game's colours for damage and healing. */
+.text [data-tone="strong"] {
+  color: var(--text-1);
+  font-weight: var(--weight-semibold);
+}
+
+.text [data-tone="subtle"] {
+  color: var(--text-3);
+}
+
+.text [data-tone="physical"] {
+  color: var(--dmg-physical);
+}
+
+.text [data-tone="magic"] {
+  color: var(--dmg-magic);
+}
+
+.text [data-tone="true"] {
+  color: var(--dmg-true);
+}
+
+.text [data-tone="heal"] {
+  color: var(--good);
+}

@@ -3,12 +3,17 @@ import { savedLanguage } from "../../i18n";
 import type { BackendError } from "../generated/BackendError";
 import type { Bracket } from "../generated/Bracket";
 import type { ChampionPage } from "../generated/ChampionPage";
+import type { ClientError } from "../generated/ClientError";
 import type { ClientStatus } from "../generated/ClientStatus";
+import type { LpGame } from "../generated/LpGame";
+import type { MatchSummary } from "../generated/MatchSummary";
 import type { PlayerProfile } from "../generated/PlayerProfile";
+import type { PostGame } from "../generated/PostGame";
 import type { Settings } from "../generated/Settings";
 import type { TierList } from "../generated/TierList";
 import { DEFAULT_REMOTE_CONFIG } from "../remote-defaults";
 import { CommandError, type CommandName, type Commands, type EventName, type Events } from "../transport";
+import { devDescription } from "./descriptions";
 import {
   aramDraft,
   champSelectDraft,
@@ -17,11 +22,31 @@ import {
   champSelectNoStats,
   champSelectPlanning,
 } from "./draft-fixtures";
-import { rankEmblemsFixture } from "./emblem-fixtures";
-import { corruptProfile, extremeProfile, newPlayerProfile, profile } from "./fixtures";
-import { flashKept, importAnswer, importFailures } from "./import-fixtures";
-import { liveExtreme, liveFailed, liveGame, liveScouting, otherProfile, searchPlayer } from "./live-fixtures";
+import { devPositionIcons, rankEmblemsFixture } from "./emblem-fixtures";
+import { aramProfile, corruptProfile, extremeProfile, newPlayerProfile, profile } from "./fixtures";
+import { flashKept, importAnswer, importFailures, tradedWarning, warningResponses } from "./import-fixtures";
+import {
+  liveAsking,
+  liveBots,
+  liveExtreme,
+  liveFailed,
+  liveFiltered,
+  liveGame,
+  liveHidden,
+  liveScouting,
+  otherProfile,
+  searchPlayer,
+} from "./live-fixtures";
 import { detailsFrom, gradesFrom, withGrades } from "./match-fixtures";
+import {
+  emptyOverview,
+  gatheringOverview,
+  loadMayhemAugments,
+  longAugment,
+  mayhemAugments,
+  mayhemChampion,
+  mayhemOverview,
+} from "./mayhem-fixtures";
 import {
   autoAcceptKilledConfig,
   bannersConfig,
@@ -31,8 +56,26 @@ import {
   updateReady,
   upToDate,
 } from "./platform-fixtures";
-import { customSettings, defaultSettings, importsOffSettings, lockInSettings, saveSettings } from "./settings-fixtures";
-import { mockChampionPage, mockStatsIndex, mockTierList } from "./stats-fixtures";
+import {
+  aramGameProfile,
+  aramPostGame,
+  demotionLp,
+  demotionPostGame,
+  demotionProfile,
+  longHistory,
+  longProfile,
+  lpFor,
+  masteryFixture,
+  olderFrom,
+  pendingPostGame,
+  unknownLp,
+  unknownPostGame,
+  winLp,
+  winPostGame,
+  winProfile,
+} from "./progress-fixtures";
+import { autoImportSettings, customSettings, defaultSettings, saveSettings } from "./settings-fixtures";
+import { mockChampionPage, mockPreviousTierList, mockStatsIndex, mockTierList } from "./stats-fixtures";
 
 /** Published queues: anything else is "not published", like the core answers. */
 function publishedQueue(command: CommandName, queue: number): 420 | 450 {
@@ -42,6 +85,8 @@ function publishedQueue(command: CommandName, queue: number): 420 | 450 {
 
 const tierList = (args: { queue: number; bracket: Bracket }): TierList =>
   mockTierList(publishedQueue("tier_list", args.queue), args.bracket);
+const previousTierList = (args: { queue: number; bracket: Bracket }): TierList | null =>
+  args.queue === 420 || args.queue === 450 ? mockPreviousTierList(args.queue, args.bracket) : null;
 const championStats = (args: { championId: number; queue: number; bracket: Bracket }): ChampionPage =>
   mockChampionPage(args.championId, publishedQueue("champion_stats", args.queue), args.bracket);
 
@@ -77,9 +122,9 @@ export type MockResponse<T, A = undefined> =
   | { data: T; delayMs?: number }
   /** Fails; `detail` is the structured error the core would send (e.g. a `BackendError`). */
   | { error: string; detail?: unknown; delayMs?: number }
-  | { load: () => Promise<T>; delayMs?: number }
+  | { load: (args: A) => Promise<T>; delayMs?: number }
   /** Answers from the command's arguments (e.g. echoes saved settings). */
-  | { handle: (args: A) => T; delayMs?: number };
+  | { handle: (args: A) => T | Promise<T>; delayMs?: number };
 
 export interface Scenario {
   description: string;
@@ -96,11 +141,14 @@ const connectedIdle: ClientStatus = { connection: "connected", phase: "idle" };
 
 /** What the core saved last, while the page lives (a reload starts from the defaults again). */
 let savedSettings: Settings | undefined;
+/** Before the question about sharing Mayhem games is answered (`first-start`). */
+const unanswered: Settings = { ...defaultSettings, shareMayhemGames: null };
 
 /** The backend answers player pages with every game's grade. */
 const gradedSearch = (args: Commands["search_player"]["args"]) => withGrades(searchPlayer(args));
 /** The games behind Home's and the player pages' rows. */
 const details = detailsFrom([profile, otherProfile]);
+const describeFromDevCache = (args: Commands["game_description"]["args"]) => devDescription(args.kind, args.id);
 const gameError = (message: string, detail: BackendError) => ({ error: message, detail, delayMs: 200 });
 
 const base: Scenario["responses"] = {
@@ -110,8 +158,19 @@ const base: Scenario["responses"] = {
   // Your grades come after the list: the core reads each game whole from the client once.
   match_grades: { handle: gradesFrom([profile]), delayMs: 300 },
   match_details: { handle: details, delayMs: 250 },
+  // The fixture's history is its whole history (12 games): nothing further back.
+  older_matches: { data: [], delayMs: 300 },
+  // The LP MVP kept for your ranked games, your mastery; no game just ended.
+  lp_history: { data: lpFor(profile) },
+  champion_mastery: { data: masteryFixture },
+  post_game: { data: null },
+  dismiss_post_game: { data: null },
   // Riot's emblems come from the core (downloaded at run time): the preview draws MVP's crests.
   rank_emblems: { data: null },
+  // League's position icons: from the dev cache, like the core hands over its own.
+  position_icons: { handle: () => devPositionIcons() },
+  // What runes, shards, spells and items do: read from the dev cache like the core reads its own.
+  game_description: { handle: describeFromDevCache },
   draft_state: { data: null },
   // The browser preview has no core to persist settings: they last as long as the page, and the
   // effects and language choices live in localStorage.
@@ -140,12 +199,89 @@ const base: Scenario["responses"] = {
   // Published champion stats (synthetic, see stats-fixtures.ts), answered from the core's cache.
   stats_index: { data: mockStatsIndex() },
   tier_list: { handle: tierList },
+  previous_tier_list: { handle: previousTierList },
   champion_stats: { handle: championStats },
   // Champion pages import too (each takes a moment, like the real client).
   import_build: { handle: importAnswer(), delayMs: 400 },
+  // Draft's warning after the automatic import: none unless a scenario says so.
+  import_warning: { data: null },
+  // ARAM: Mayhem (made-up augments, see mayhem-fixtures.ts), from the core's cache.
+  mayhem_augments: { load: loadMayhemAugments },
+  mayhem_overview: { data: mayhemOverview },
+  mayhem_champion: { handle: (args) => mayhemChampion(args.championId) },
 };
 
+/** Mayhem's champion select: ARAM's, with the augments of each champion. */
+const mayhemDraft = { ...aramDraft, mode: "mayhem" as const };
+/** A game of ARAM: Mayhem on the loading screen: your build is ARAM's, with augments. */
+const mayhemGame = { ...liveGame, queueId: 2400, statsQueue: 450 };
+const mayhemOffline = {
+  error: "error sending request for url (http://127.0.0.1:8787/v1/mayhem/augments)",
+  detail: { kind: "network", message: "couldn't connect" } satisfies BackendError,
+};
+
+/**
+ * The client's list guesses each game's role from your line alone (its legacy lanes): here it
+ * calls five of your mid games top. Their whole games, read for the grades, say mid.
+ */
+const guessedRoles: PlayerProfile = {
+  ...profile,
+  recentMatches: profile.recentMatches.map((m, i) => (i < 5 ? { ...m, role: "top" } : m)),
+};
+
+/**
+ * The League client stopped answering (another app holds every connection it accepts): the
+ * first read of your profile fails like the core says it, the next ones answer. The error's
+ * text is the request's, as the core logs it: the page must not show it.
+ */
+function answersAfterFirstRead(): () => PlayerProfile {
+  let reads = 0;
+  return () => {
+    reads += 1;
+    if (reads > 1) return profile;
+    const unanswered = "client not reachable: error sending request for url (https://127.0.0.1:61773/lol-summoner/v1/current-summoner)";
+    throw new CommandError("current_profile", unanswered, { kind: "notAnswering" } satisfies ClientError);
+  };
+}
+
 const inGame: ClientStatus = { connection: "connected", phase: "inGame" };
+
+/** Home right after a game: `p`'s history with that game first; the stack of opened games opens on it by itself. */
+function afterGame(p: PlayerProfile, post: PostGame, lp: LpGame[] | (() => LpGame[])): Scenario["responses"] {
+  // Like the core: a game whose window was closed stays closed (while the page lives).
+  let dismissed = false;
+  return {
+    ...base,
+    current_profile: { data: p },
+    match_grades: { handle: gradesFrom([p]), delayMs: 300 },
+    match_details: { handle: detailsFrom([p]), delayMs: 250 },
+    lp_history: typeof lp === "function" ? { handle: lp } : { data: lp },
+    post_game: { handle: () => (dismissed ? null : post) },
+    dismiss_post_game: {
+      handle: () => {
+        dismissed = true;
+        return null;
+      },
+    },
+  };
+}
+
+/** The LP arrives with the summary's update: the first ask doesn't have it yet. */
+let lpAsked = 0;
+const lpOnceCounted = () => (lpAsked++ === 0 ? unknownLp : winLp);
+
+/** A history with pages further back: `older` answers them. */
+function longHistoryWith(older: MockResponse<MatchSummary[], { begIndex: number }>): Scenario["responses"] {
+  const all = { ...longProfile, recentMatches: longHistory };
+  return {
+    ...base,
+    current_profile: { data: longProfile },
+    older_matches: older,
+    match_grades: { handle: gradesFrom([all]), delayMs: 300 },
+    match_details: { handle: detailsFrom([all]), delayMs: 250 },
+    lp_history: { data: lpFor(longProfile) },
+  };
+}
 
 /** Mid-draft, with imports that work (each takes a moment, like the real client). */
 const champSelect: Scenario["responses"] = {
@@ -167,6 +303,8 @@ export const scenarios = {
       current_profile: { load: loadCapturedProfile },
       match_grades: { handle: (args) => gradesFrom([captured])(args), delayMs: 300 },
       match_details: { handle: (args) => detailsFrom([captured, otherProfile])(args), delayMs: 250 },
+      // MVP never followed these games: no LP.
+      lp_history: { data: [] },
     },
   },
   "champ-select": {
@@ -183,8 +321,18 @@ export const scenarios = {
   },
   "import-lock-in": {
     description:
-      "Imports on lock-in: you locked Malphite in with every part set to import by itself. Tests emit the import (`lockInImport`) themselves: a toast only lasts 4 s.",
-    responses: { ...champSelect, draft_state: { data: champSelectLocked }, get_settings: { data: lockInSettings } },
+      "Auto import: you locked Malphite in with every part's switch on. Tests emit the import (`lockInImport`) themselves: a toast only lasts 4 s.",
+    responses: { ...champSelect, draft_state: { data: champSelectLocked }, get_settings: { data: autoImportSettings } },
+  },
+  "import-warning": {
+    description:
+      "Auto import, then a trade: MVP imported Shen's build at your first lock-in, you're now on Malphite. Draft warns and imports for Malphite in one click (never by itself).",
+    responses: {
+      ...champSelect,
+      draft_state: { data: champSelectLocked },
+      get_settings: { data: autoImportSettings },
+      ...warningResponses(tradedWarning),
+    },
   },
   "draft-no-stats": {
     description: "Champion select before stats exist: no picks, the import buttons say why they wait.",
@@ -202,10 +350,6 @@ export const scenarios = {
     description: "ARAM: you have Lux, four champions on the bench and a reroll; ranked by the team's chance with each.",
     responses: { ...champSelect, draft_state: { data: aramDraft } },
   },
-  "imports-off": {
-    description: "Every import turned off in Settings: no import bar in Draft.",
-    responses: { ...champSelect, get_settings: { data: importsOffSettings } },
-  },
   "import-error": {
     description: "The core can't be asked (the app is still starting): the button says so.",
     responses: { ...champSelect, import_build: { error: "MVP is still starting, try again in a moment", delayMs: 200 } },
@@ -216,6 +360,15 @@ export const scenarios = {
       ...base,
       client_status: { data: { connection: "notRunning", phase: "idle" } },
       current_profile: { data: null },
+    },
+  },
+  "client-not-answering": {
+    description:
+      "The League client is up but doesn't answer (another app holds its connections): the title bar says so in amber, Home says MVP retries on its own, and your profile loads once a `client-status` says it answers again.",
+    responses: {
+      ...base,
+      client_status: { data: { connection: "notAnswering", phase: "idle" } },
+      current_profile: { handle: answersAfterFirstRead() },
     },
   },
   "slow-loading": {
@@ -249,10 +402,27 @@ export const scenarios = {
       current_profile: { data: extremeProfile },
       match_grades: { handle: gradesFrom([extremeProfile], true), delayMs: 300 },
       match_details: { handle: detailsFrom([extremeProfile], true), delayMs: 250 },
+      lp_history: { data: lpFor(extremeProfile) },
     },
   },
+  "howling-abyss": {
+    description:
+      "Your latest games are ARAM: Mayhem and ARAM: opened, they have no roles, no vision column and no vision or monster stats (nobody has any there).",
+    responses: {
+      ...base,
+      current_profile: { data: aramProfile },
+      match_grades: { handle: gradesFrom([aramProfile]), delayMs: 300 },
+      match_details: { handle: detailsFrom([aramProfile]), delayMs: 250 },
+    },
+  },
+  "roles-guessed": {
+    description:
+      "The client's list calls five of your mid games top: the main role and the roles bar follow the whole games (mid) once your grades are in.",
+    responses: { ...base, current_profile: { data: guessedRoles } },
+  },
   "match-details-slow": {
-    description: "Opening a game takes 2.5 s: a skeleton the size of the table, then the game in place.",
+    description:
+      "Opening a game takes 2.5 s: its window shows its head at once (with its grade and LP), a skeleton the size of the table, then the game in place.",
     responses: { ...base, match_details: { handle: details, delayMs: 2_500 } },
   },
   "match-details-error": {
@@ -262,6 +432,48 @@ export const scenarios = {
   "match-details-gone": {
     description: "The game isn't available anymore: says so, no retry.",
     responses: { ...base, match_details: gameError("not found", { kind: "notFound" }) },
+  },
+  "match-details-unavailable": {
+    description: "MVP's server can't open games right now (Riot unreachable from it): says so, with a retry.",
+    responses: {
+      ...base,
+      match_details: gameError("service unavailable", { kind: "unavailable", message: "the server has no Riot API key" }),
+    },
+  },
+  "post-game": {
+    description:
+      "A ranked win just ended: the stack of opened games opens on it by itself (+21 LP, your grade and what moved it); closed, it stays closed.",
+    responses: afterGame(winProfile, winPostGame, winLp),
+  },
+  "post-game-demotion": {
+    description: "A ranked loss that demoted you: −35 LP, from Emerald IV to Platinum I.",
+    responses: afterGame(demotionProfile, demotionPostGame, demotionLp),
+  },
+  "post-game-lp-unknown": {
+    description: "A ranked game MVP didn't see start: its window opens by itself, without an LP.",
+    responses: afterGame(winProfile, unknownPostGame, unknownLp),
+  },
+  "post-game-lp-pending": {
+    description:
+      "The client hasn't counted the game yet: its window says so. Tests then emit `post-game` with the LP (`winPostGame`): the window and the row follow.",
+    responses: afterGame(winProfile, pendingPostGame, lpOnceCounted),
+  },
+  "post-game-aram": {
+    description: "An ARAM game just ended: its window opens by itself, no LP, no vision or monster stats.",
+    responses: afterGame(aramGameProfile, aramPostGame, lpFor(aramGameProfile)),
+  },
+  "history-long": {
+    description:
+      "47 games: 20 on Home, the rest two pages further back (Load more, or the stack of opened games pulled past its last game); flex and ARAM among them.",
+    responses: longHistoryWith({ handle: olderFrom, delayMs: 300 }),
+  },
+  "history-more-slow": {
+    description: "Loading older games takes 2.5 s: the button says it's loading, the list doesn't move.",
+    responses: longHistoryWith({ handle: olderFrom, delayMs: 2_500 }),
+  },
+  "history-more-error": {
+    description: "Older games can't be read (the client stopped answering): the button says so and tries again.",
+    responses: longHistoryWith({ error: "League client stopped answering (HTTP 503)", delayMs: 200 }),
   },
   "settings-custom": {
     description: "Automations on (auto-accept after 4 s), app defaults changed.",
@@ -291,6 +503,27 @@ export const scenarios = {
   "live-failed": {
     description: "The backend can't be reached: the game still shows, with a retry in the head.",
     responses: { ...base, client_status: { data: inGame }, live_game: { data: liveFailed } },
+  },
+  "live-names": {
+    description:
+      "Names arriving: only you are named at first, everyone's names land 1.5 s later (Riot's live game), the cards 1.5 s after.",
+    responses: { ...base, client_status: { data: inGame }, live_game: { data: liveAsking } },
+    timeline: [
+      { afterMs: 1_500, event: "live", payload: liveScouting },
+      { afterMs: 3_000, event: "live", payload: liveGame },
+    ],
+  },
+  "live-filtered": {
+    description: "Ranked Flex: Riot doesn't share its live games, so the names wait for the game itself (after the loading screen).",
+    responses: { ...base, client_status: { data: inGame }, live_game: { data: liveFiltered } },
+  },
+  "live-bots": {
+    description: "Co-op vs AI: five bots, labelled as bots, without cards.",
+    responses: { ...base, client_status: { data: inGame }, live_game: { data: liveBots } },
+  },
+  "live-hidden": {
+    description: "Streamer mode on both sides: four hidden players, never named.",
+    responses: { ...base, client_status: { data: inGame }, live_game: { data: liveHidden } },
   },
   "live-extreme": {
     description: "Longest names, apex ranks and every tag: cards must hold.",
@@ -339,11 +572,25 @@ export const scenarios = {
   },
   "stats-empty": {
     description: "No champion stats published yet: the tier list and champion pages say so.",
-    responses: { ...base, stats_index: { data: null }, tier_list: notPublished, champion_stats: notPublished },
+    responses: {
+      ...base,
+      stats_index: { data: null },
+      tier_list: notPublished,
+      previous_tier_list: { data: null },
+      champion_stats: notPublished,
+    },
   },
   "stats-offline": {
     description: "Offline without cached stats: the stats pages show an error with a retry.",
-    responses: { ...base, stats_index: { data: null }, tier_list: offline, champion_stats: offline },
+    responses: { ...base, stats_index: { data: null }, tier_list: offline, previous_tier_list: offline, champion_stats: offline },
+  },
+  "stats-first-patch": {
+    description: "The first patch published: nothing to compare with, so no trends show.",
+    responses: {
+      ...base,
+      stats_index: { data: { ...mockStatsIndex(), patches: mockStatsIndex().patches.slice(0, 1) } },
+      previous_tier_list: { data: null },
+    },
   },
   "stats-slow": {
     description: "Stats take 2.5 s: skeletons first, then the numbers without layout jumps.",
@@ -361,6 +608,86 @@ export const scenarios = {
       tier_list: { handle: aramOnly("tier_list", tierList) },
       champion_stats: { handle: aramOnly("champion_stats", championStats) },
     },
+  },
+  "mayhem-champ-select": {
+    description: "ARAM: Mayhem: the bench ranked on ARAM's stats, each champion's most picked augments, and yours ranked per rarity.",
+    responses: { ...champSelect, draft_state: { data: mayhemDraft } },
+  },
+  "mayhem-live": {
+    description: "In an ARAM: Mayhem game: My build shows your augments per rarity, then ARAM's build.",
+    responses: { ...base, client_status: { data: inGame }, live_game: { data: mayhemGame } },
+  },
+  "mayhem-empty": {
+    description: "Mayhem on a fresh server: no tiers yet, no shared games. Every augment is listed, the page says how to help.",
+    responses: {
+      ...base,
+      mayhem_overview: { data: emptyOverview },
+      mayhem_champion: { handle: (args) => mayhemChampion(args.championId, emptyOverview) },
+    },
+  },
+  "mayhem-gathering": {
+    description:
+      "Mayhem's first days on a patch: 37 shared games. No pick rates yet anywhere (the page, a champion, Draft's panel and rows): each says they switch on once enough games are shared, and how far it is.",
+    responses: {
+      ...champSelect,
+      draft_state: { data: mayhemDraft },
+      mayhem_overview: { data: gatheringOverview },
+      mayhem_champion: { handle: (args) => mayhemChampion(args.championId, gatheringOverview) },
+    },
+  },
+  "first-start": {
+    description:
+      "The first start after installing or updating: Home asks once whether to share Mayhem games (plain words, how far each feature is, two equal answers). Answered, it goes; champion select or a game hides it.",
+    responses: {
+      ...base,
+      get_settings: { handle: () => ({ ...(savedSettings ?? unanswered), effects: loadEffects(), language: savedLanguage() }) },
+      mayhem_overview: { data: gatheringOverview },
+    },
+  },
+  "mayhem-unbuilt": {
+    description: "The server hasn't read this patch's augments yet: the Mayhem views say so.",
+    responses: {
+      ...base,
+      mayhem_augments: { data: null },
+      mayhem_champion: { error: "not built", detail: { kind: "notFound" } satisfies BackendError },
+    },
+  },
+  "mayhem-offline": {
+    description: "Offline without cached Mayhem data: an error with a retry.",
+    responses: { ...base, mayhem_augments: mayhemOffline, mayhem_overview: { data: emptyOverview }, mayhem_champion: mayhemOffline },
+  },
+  "mayhem-slow": {
+    description: "Mayhem data takes 2.5 s: skeletons first, then the augments without layout jumps.",
+    responses: {
+      ...base,
+      mayhem_augments: { data: mayhemAugments, delayMs: 2_500 },
+      mayhem_overview: { data: mayhemOverview, delayMs: 2_500 },
+      mayhem_champion: { handle: (args) => mayhemChampion(args.championId), delayMs: 2_500 },
+    },
+  },
+  "mayhem-extreme": {
+    description: "The longest augment name and description in every tier: rows must hold them.",
+    responses: {
+      ...base,
+      mayhem_augments: { data: { ...mayhemAugments, augments: [...mayhemAugments.augments, longAugment] } },
+      mayhem_overview: {
+        data: {
+          ...mayhemOverview,
+          tiers: mayhemOverview.tiers && {
+            ...mayhemOverview.tiers,
+            tiers: { ...mayhemOverview.tiers.tiers, S: [longAugment.id, ...mayhemOverview.tiers.tiers.S] },
+          },
+        },
+      },
+    },
+  },
+  "descriptions-missing": {
+    description: "The core has no texts (offline before their download): tooltips name each thing, shards in the UI's words.",
+    responses: { ...base, game_description: { data: null } },
+  },
+  "descriptions-slow": {
+    description: "Texts take 1.5 s (a first download): the tooltip shows what it knows, then the text in place.",
+    responses: { ...base, game_description: { handle: describeFromDevCache, delayMs: 1_500 } },
   },
 } satisfies Record<string, Scenario>;
 

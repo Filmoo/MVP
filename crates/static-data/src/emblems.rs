@@ -1,6 +1,5 @@
 //! Ranked emblems: Riot's own art for each tier, the League client's files as mirrored by
-//! `CommunityDragon` (acknowledged by Riot on its developer portal), downloaded once, cropped and
-//! kept on disk. Never committed: the app fetches them at run time, like Data Dragon art.
+//! `CommunityDragon` ([`crate::client`]), downloaded once, cropped and kept on disk.
 //!
 //! The client ships each emblem on a 16:9 canvas (1280×720; 2560×1440 for some tiers) with the
 //! crest in the middle. One crop window, measured on the art, frames every tier and keeps the
@@ -9,14 +8,13 @@
 use std::collections::BTreeMap;
 use std::io::Cursor;
 use std::path::PathBuf;
-use std::time::Duration;
 
 use domain::Tier;
 
 use crate::StaticDataError;
+pub use crate::client::CDRAGON;
+use crate::client::ClientFiles;
 
-/// `CommunityDragon`'s mirror of the live client's files.
-pub const CDRAGON: &str = "https://raw.communitydragon.org/latest";
 /// Where the client keeps the emblems (the folder moved once; both are tried, newest first).
 const FOLDERS: [&str; 2] = [
     "plugins/rcp-fe-lol-static-assets/global/default/ranked-emblem",
@@ -62,11 +60,7 @@ pub const fn file_name(tier: Tier) -> &'static str {
 
 /// Downloads, crops and caches the emblems.
 #[derive(Debug, Clone)]
-pub struct RankEmblems {
-    http: reqwest::Client,
-    base: String,
-    cache: PathBuf,
-}
+pub struct RankEmblems(ClientFiles);
 
 impl RankEmblems {
     /// `cache` is a directory owned by this client (e.g. `<app cache>/emblems`).
@@ -74,16 +68,7 @@ impl RankEmblems {
         base: impl Into<String>,
         cache: impl Into<PathBuf>,
     ) -> Result<Self, StaticDataError> {
-        let http = reqwest::Client::builder()
-            .use_preconfigured_tls(crate::public_tls()?)
-            .connect_timeout(Duration::from_secs(5))
-            .timeout(Duration::from_secs(30))
-            .build()?;
-        Ok(Self {
-            http,
-            base: base.into().trim_end_matches('/').to_owned(),
-            cache: cache.into().join(CACHE_DIR),
-        })
+        Ok(Self(ClientFiles::new(base, cache.into().join(CACHE_DIR))?))
     }
 
     /// Every tier's emblem (a PNG), from the cache or downloaded and cropped (then cached).
@@ -92,7 +77,7 @@ impl RankEmblems {
     pub async fn load(&self) -> BTreeMap<Tier, Vec<u8>> {
         let mut out = BTreeMap::new();
         for tier in TIERS {
-            match self.emblem(tier).await {
+            match self.0.get(&FOLDERS, file_name(tier), crop).await {
                 Ok(png) => {
                     out.insert(tier, png);
                 }
@@ -100,37 +85,6 @@ impl RankEmblems {
             }
         }
         out
-    }
-
-    async fn emblem(&self, tier: Tier) -> Result<Vec<u8>, StaticDataError> {
-        let path = self.cache.join(file_name(tier));
-        if let Ok(bytes) = tokio::fs::read(&path).await {
-            return Ok(bytes);
-        }
-        let canvas = self.download(tier).await?;
-        let png = tokio::task::spawn_blocking(move || crop(&canvas))
-            .await
-            .map_err(|error| StaticDataError::Image(error.to_string()))??;
-        tokio::fs::create_dir_all(&self.cache).await?;
-        // Write then rename: a crash mid-write never leaves a broken emblem behind.
-        let partial = path.with_extension("part");
-        tokio::fs::write(&partial, &png).await?;
-        tokio::fs::rename(&partial, &path).await?;
-        Ok(png)
-    }
-
-    async fn download(&self, tier: Tier) -> Result<Vec<u8>, StaticDataError> {
-        let mut last = None;
-        for folder in FOLDERS {
-            let url = format!("{}/{folder}/{}", self.base, file_name(tier));
-            let response = self.http.get(&url).send().await?;
-            let status = response.status();
-            if status.is_success() {
-                return Ok(response.bytes().await?.to_vec());
-            }
-            last = Some(StaticDataError::Status(status.as_u16(), url));
-        }
-        Err(last.unwrap_or(StaticDataError::NothingCached))
     }
 }
 

@@ -1,18 +1,22 @@
 //! Runs the app core next to the window and bridges it to the UI.
 
-use std::path::Path;
+use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 
 use companion::automation::CoreEvent;
 use companion::backend::{BackendClient, BackendConfig};
 use companion::crash::{self, CrashReporter};
 use companion::imports::{BuildSource, ChampionNames, Importer, NoBuilds};
+use companion::live::{GameIds, LiveConfig};
+use companion::mayhem::MayhemClient;
 use companion::remote::{self, RemoteConfigStore};
 use companion::settings::SettingsStore;
 use companion::stats::StatsClient;
 use companion::{ScoutingHandle, Services, ViewReporter};
 use domain::{
-    ClientStatus, DraftView, GameData, Language, LiveGame, RankEmblem, RankEmblems, StatsIndex,
+    ClientStatus, Description, DraftView, GameData, ImportWarning, Language, LiveGame,
+    PositionIcon, PositionIcons, RankEmblem, RankEmblems, Settings, StatsIndex,
 };
 use tauri::{AppHandle, Emitter as _, Manager as _, Runtime};
 use tokio::sync::watch;
@@ -27,7 +31,10 @@ pub struct Core {
     pub client: watch::Receiver<Option<lcu::LcuClient>>,
     pub views: ViewReporter,
     pub imports: Importer,
+    pub import_warning: watch::Receiver<Option<ImportWarning>>,
     pub matches: companion::matches::MatchInsights,
+    /// The last game's summary and the LP of your ranked games.
+    pub post_game: companion::post_game::PostGameHandle,
 }
 
 /// Game data of the current patch in the UI's language (Data Dragon locale), once loaded.
@@ -83,6 +90,82 @@ impl GameDataState {
             .as_ref()
             .map(|(_, data)| data.clone())
     }
+
+    /// `f` on whatever is loaded, without copying it.
+    fn with<T>(&self, f: impl FnOnce(&GameData) -> Option<T>) -> Option<T> {
+        let loaded = self.loaded.read().ok()?;
+        loaded.as_ref().and_then(|(_, data)| f(data))
+    }
+}
+
+/// Champion and spell ids of the loaded game data, for the names the game itself lists its
+/// players with (loading-screen scouting, when Riot's live game has none).
+struct LoadedGameIds<R: Runtime>(AppHandle<R>);
+
+impl<R: Runtime> GameIds for LoadedGameIds<R> {
+    fn champion(&self, name: &str) -> Option<u32> {
+        self.0
+            .try_state::<GameDataState>()?
+            .with(|data| data.champion(name))
+    }
+
+    fn spell(&self, name: &str) -> Option<u32> {
+        self.0
+            .try_state::<GameDataState>()?
+            .with(|data| data.spell(name))
+    }
+}
+
+/// The stat shards' names and effects of one patch and language (`CommunityDragon`, kept on
+/// disk with the patch): loaded the first time a shard is described, then kept for the session,
+/// empty when they couldn't be had (the UI names shards itself then), not tried again.
+#[derive(Debug, Default)]
+pub struct ShardTexts(tokio::sync::Mutex<Option<LoadedShards>>);
+
+#[derive(Debug)]
+struct LoadedShards {
+    version: String,
+    locale: &'static str,
+    shards: Arc<BTreeMap<u32, Description>>,
+}
+
+impl ShardTexts {
+    /// The shards of `version` in `locale`, loaded once (a download at most, on first use).
+    pub async fn get(
+        &self,
+        source: &static_data::DataDragon,
+        version: &str,
+        locale: &'static str,
+    ) -> Arc<BTreeMap<u32, Description>> {
+        let mut slot = self.0.lock().await;
+        if let Some(loaded) = slot.as_ref()
+            && loaded.version == version
+            && loaded.locale == locale
+        {
+            return Arc::clone(&loaded.shards);
+        }
+        let shards = Arc::new(source.shards(version).await.unwrap_or_else(|error| {
+            tracing::info!(%error, version, locale, "stat shard texts unavailable");
+            BTreeMap::new()
+        }));
+        *slot = Some(LoadedShards {
+            version: version.to_owned(),
+            locale,
+            shards: Arc::clone(&shards),
+        });
+        shards
+    }
+}
+
+/// Where Data Dragon's files are cached, per patch and language.
+pub fn ddragon_cache<R: Runtime>(app: &AppHandle<R>) -> Option<PathBuf> {
+    match app.path().app_cache_dir() {
+        Ok(dir) => Some(dir.join("ddragon")),
+        Err(error) => {
+            tracing::error!(%error, "no cache directory for game data");
+            None
+        }
+    }
 }
 
 /// The UI's language with `auto` resolved (the UI knows the system's): the core's own words
@@ -120,11 +203,18 @@ impl UiLanguage {
 
 /// This run's log file (`None` when it couldn't be written): see `logging`.
 #[derive(Debug)]
-pub struct LogFile(pub Option<std::path::PathBuf>);
+pub struct LogFile(pub Option<PathBuf>);
 
-/// Riot's ranked emblems, once downloaded (or read from the cache).
-#[derive(Debug, Default)]
-pub struct EmblemState(pub RwLock<Option<RankEmblems>>);
+/// Riot's art from the League client's files (the ranked emblems, the position icons), once
+/// downloaded or read from the cache.
+#[derive(Debug)]
+pub struct Art<T>(pub RwLock<Option<T>>);
+
+impl<T> Default for Art<T> {
+    fn default() -> Self {
+        Self(RwLock::new(None))
+    }
+}
 
 /// Our backend (player lookups, scouting), `None` when the client couldn't be built.
 #[derive(Debug)]
@@ -133,6 +223,36 @@ pub struct Backend(pub Option<BackendClient>);
 /// Published champion stats (disk-cached), `None` without a backend or a cache directory.
 #[derive(Debug)]
 pub struct Stats(pub Option<StatsClient>);
+
+/// ARAM: Mayhem data (disk-cached), `None` without a backend or a cache directory.
+#[derive(Debug)]
+pub struct Mayhem(pub Option<MayhemClient>);
+
+/// ARAM: Mayhem: the data client (our backend, cached under `{app cache}/mayhem`), managed for
+/// the commands, and the opt-in sharing of the player's games, started beside the core once it
+/// runs (with our backend and a cache directory only).
+fn mayhem<R: Runtime>(
+    app: &AppHandle<R>,
+    backend: Option<&BackendClient>,
+    settings: &watch::Receiver<Settings>,
+    remote: &RemoteConfigStore,
+) -> impl FnOnce(&companion::Companion) + use<R> {
+    let data = backend.and_then(|backend| match app.path().app_cache_dir() {
+        Ok(dir) => Some(MayhemClient::new(backend.clone(), dir.join("mayhem"))),
+        Err(error) => {
+            tracing::error!(%error, "no cache directory for Mayhem data");
+            None
+        }
+    });
+    app.manage(Mayhem(data.clone()));
+    let ready = backend.cloned().zip(data);
+    let (settings, remote) = (settings.clone(), remote.subscribe());
+    move |core| {
+        if let Some((backend, data)) = ready {
+            companion::mayhem::spawn_sharing(backend, data, core, settings, remote);
+        }
+    }
+}
 
 /// The stats client: our backend, cached under `{app cache}/stats`.
 fn stats_client<R: Runtime>(
@@ -240,12 +360,12 @@ pub fn start<R: Runtime>(app: &AppHandle<R>, settings: &SettingsStore) {
     let game_data = GameDataState::new(settings.get().language.data_dragon_locale());
     let wanted = game_data.wanted.subscribe();
     app.manage(game_data);
+    app.manage(ShardTexts::default());
     follow_game_data(app, wanted);
     let ui_language = UiLanguage::new(settings.get().language);
     let language = ui_language.subscribe();
     app.manage(ui_language);
-    app.manage(EmblemState::default());
-    load_rank_emblems(app);
+    load_client_art(app);
     let dir = app.path().app_config_dir().unwrap_or_else(|error| {
         tracing::error!(%error, "no config directory, using the temporary one");
         std::env::temp_dir().join(&app.config().identifier)
@@ -277,7 +397,16 @@ pub fn start<R: Runtime>(app: &AppHandle<R>, settings: &SettingsStore) {
         }
     };
     let settings = settings.subscribe();
+    let share_mayhem = mayhem(app, backend.as_ref(), &settings, &remote);
     let names = champion_names(app);
+    // The LP of your ranked games, kept with MVP's data.
+    let lp_file = match app.path().app_data_dir() {
+        Ok(dir) => Some(dir.join(companion::lp::FILE_NAME)),
+        Err(error) => {
+            tracing::error!(%error, "no data directory: LP kept for this run only");
+            None
+        }
+    };
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         // The published stats feed both the draft helper and the build imports.
@@ -292,8 +421,12 @@ pub fn start<R: Runtime>(app: &AppHandle<R>, settings: &SettingsStore) {
             builds,
             names,
             language,
+            live: LiveConfig::for_the_game(),
+            game_ids: Arc::new(LoadedGameIds(app.clone())),
+            lp_file,
         };
         let companion = companion::start_with_services(config, settings, services);
+        share_mayhem(&companion);
         app.manage(Core {
             status: companion.status.clone(),
             draft: companion.draft.clone(),
@@ -302,10 +435,14 @@ pub fn start<R: Runtime>(app: &AppHandle<R>, settings: &SettingsStore) {
             client: companion.client.clone(),
             views: companion.views.clone(),
             imports: companion.imports.clone(),
+            import_warning: companion.import_warning.clone(),
             matches: companion.matches.clone(),
+            post_game: companion.post_game.clone(),
         });
         forward(&app, companion.draft.clone(), "draft");
         forward(&app, companion.live.clone(), "live");
+        forward(&app, companion.post_game.subscribe(), "post-game");
+        forward(&app, companion.import_warning.clone(), "import-warning");
         let events_app = app.clone();
         let mut events = companion.events;
         tauri::async_runtime::spawn(async move {
@@ -382,62 +519,87 @@ fn forward<R: Runtime, T: Clone + serde::Serialize + Send + Sync + 'static>(
     });
 }
 
-/// Loads Riot's ranked emblems (downloaded once, cropped and cached) and hands them to the UI.
-fn load_rank_emblems<R: Runtime>(app: &AppHandle<R>) {
+/// Loads Riot's art from the League client's files (downloaded once, then from the cache) and
+/// hands it to the UI: the ranked emblems, then the position icons. What can't be had now is left
+/// out (the UI draws its own), and the next start tries again.
+fn load_client_art<R: Runtime>(app: &AppHandle<R>) {
     use base64::Engine as _;
+    use static_data::client::CDRAGON;
+    app.manage(Art::<RankEmblems>::default());
+    app.manage(Art::<PositionIcons>::default());
     let cache = match app.path().app_cache_dir() {
-        Ok(dir) => dir.join("emblems"),
+        Ok(dir) => dir,
         Err(error) => {
-            tracing::error!(%error, "no cache directory for ranked emblems");
+            tracing::error!(%error, "no cache directory for the client's art");
             return;
         }
     };
+    let url = |mime: &str, bytes: &[u8]| {
+        let data = base64::engine::general_purpose::STANDARD.encode(bytes);
+        format!("data:{mime};base64,{data}")
+    };
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
-        let emblems =
-            match static_data::emblems::RankEmblems::new(static_data::emblems::CDRAGON, cache) {
-                Ok(source) => source.load().await,
-                Err(error) => {
-                    tracing::warn!(%error, "ranked emblems unavailable");
-                    return;
+        match static_data::emblems::RankEmblems::new(CDRAGON, cache.join("emblems")) {
+            Ok(source) => {
+                let emblems: Vec<_> = source
+                    .load()
+                    .await
+                    .into_iter()
+                    .map(|(tier, png)| RankEmblem {
+                        tier,
+                        url: url("image/png", &png),
+                    })
+                    .collect();
+                if !emblems.is_empty() {
+                    tracing::info!(tiers = emblems.len(), "ranked emblems ready");
+                    hand_over(&app, "rank-emblems", RankEmblems { emblems });
                 }
-            };
-        if emblems.is_empty() {
-            return;
+            }
+            Err(error) => tracing::warn!(%error, "ranked emblems unavailable"),
         }
-        let emblems = RankEmblems {
-            emblems: emblems
-                .into_iter()
-                .map(|(tier, png)| RankEmblem {
-                    tier,
-                    url: format!(
-                        "data:image/png;base64,{}",
-                        base64::engine::general_purpose::STANDARD.encode(png)
-                    ),
-                })
-                .collect(),
-        };
-        tracing::info!(tiers = emblems.emblems.len(), "ranked emblems ready");
-        if let Some(state) = app.try_state::<EmblemState>()
-            && let Ok(mut slot) = state.0.write()
-        {
-            *slot = Some(emblems.clone());
-        }
-        if let Err(error) = app.emit("rank-emblems", emblems) {
-            tracing::warn!(%error, "cannot emit ranked emblems");
+        match static_data::positions::PositionIcons::new(CDRAGON, cache.join("positions")) {
+            Ok(source) => {
+                let icons: Vec<_> = source
+                    .load()
+                    .await
+                    .into_iter()
+                    .map(|(role, svg)| PositionIcon {
+                        role,
+                        url: url("image/svg+xml", &svg),
+                    })
+                    .collect();
+                if !icons.is_empty() {
+                    tracing::info!(roles = icons.len(), "position icons ready");
+                    hand_over(&app, "position-icons", PositionIcons { icons });
+                }
+            }
+            Err(error) => tracing::warn!(%error, "position icons unavailable"),
         }
     });
+}
+
+/// Keeps the client's art for the UI's next ask (`Art<T>`) and sends it now.
+fn hand_over<R: Runtime, T: Clone + serde::Serialize + Send + Sync + 'static>(
+    app: &AppHandle<R>,
+    event: &'static str,
+    art: T,
+) {
+    if let Some(state) = app.try_state::<Art<T>>()
+        && let Ok(mut slot) = state.0.write()
+    {
+        *slot = Some(art.clone());
+    }
+    if let Err(error) = app.emit(event, art) {
+        tracing::warn!(%error, event, "cannot emit the client's art");
+    }
 }
 
 /// Loads champion/item/spell data (cached per patch and locale) in the language the UI asks for,
 /// and hands it to the UI; again whenever it asks for another language.
 fn follow_game_data<R: Runtime>(app: &AppHandle<R>, mut wanted: watch::Receiver<&'static str>) {
-    let cache = match app.path().app_cache_dir() {
-        Ok(dir) => dir.join("ddragon"),
-        Err(error) => {
-            tracing::error!(%error, "no cache directory for game data");
-            return;
-        }
+    let Some(cache) = ddragon_cache(app) else {
+        return;
     };
     let app = app.clone();
     tauri::async_runtime::spawn(async move {

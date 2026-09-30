@@ -653,6 +653,7 @@ dependencies = [
  "semver",
  "serde",
  "serde_json",
+ "sha2 0.11.0",
  "stats",
  "tempfile",
  "thiserror 2.0.21",
@@ -2580,6 +2581,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.11.0",
+ "static-data",
  "tempfile",
  "time",
  "tokio",
@@ -2605,6 +2607,30 @@ dependencies = [
  "static-data",
  "thiserror 2.0.21",
  "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "mvp-roadmap"
+version = "0.2.0"
+dependencies = [
+ "axum",
+ "base64 0.23.1",
+ "form_urlencoded",
+ "http-body-util",
+ "reqwest",
+ "ring",
+ "rusqlite",
+ "rustls",
+ "rustls-platform-verifier",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.21",
+ "time",
+ "tokio",
+ "tower",
  "tracing",
  "tracing-subscriber",
 ]

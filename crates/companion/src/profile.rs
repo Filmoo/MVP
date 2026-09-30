@@ -5,7 +5,10 @@
 
 use std::collections::HashMap;
 
-use domain::{Division, MatchSummary, PlayerProfile, RankedEntry, RiotId, Role, Tier};
+use domain::{
+    ChampionMastery, ClientError, Division, MatchSummary, PlayerProfile, RankedEntry, RankedQueue,
+    RiotId, Role, Tier,
+};
 use lcu::{LcuClient, LcuError};
 use serde_json::Value;
 use stats::grade::REMAKE_MAX_SECONDS;
@@ -15,8 +18,12 @@ use crate::matches::Me;
 pub const CURRENT_SUMMONER: &str = "/lol-summoner/v1/current-summoner";
 pub const RANKED: &str = "/lol-ranked/v1/current-ranked-stats";
 pub const REGION: &str = "/riotclient/region-locale";
+/// The last 20 games (`endIndex` is inclusive: 0 to 20 would be 21).
 pub const MATCHES: &str =
-    "/lol-match-history/v1/products/lol/current-summoner/matches?begIndex=0&endIndex=20";
+    "/lol-match-history/v1/products/lol/current-summoner/matches?begIndex=0&endIndex=19";
+
+const SMITE: u32 = 11;
+const HOWLING_ABYSS: u32 = 12;
 
 fn u32_at(v: &Value, key: &str) -> u32 {
     v.get(key)
@@ -31,7 +38,13 @@ fn str_at<'a>(v: &'a Value, key: &str) -> Option<&'a str> {
 
 /// Solo/duo standing from `/lol-ranked/v1/current-ranked-stats`.
 pub fn map_ranked(stats: &Value) -> Option<RankedEntry> {
-    let solo = stats.get("queueMap")?.get("RANKED_SOLO_5x5")?;
+    map_queue(stats, RankedQueue::Solo)
+}
+
+/// The standing in one ranked queue from `/lol-ranked/v1/current-ranked-stats`; `None` when
+/// unranked there.
+pub fn map_queue(stats: &Value, queue: RankedQueue) -> Option<RankedEntry> {
+    let solo = stats.get("queueMap")?.get(queue.client_key())?;
     let tier = match str_at(solo, "tier")? {
         "IRON" => Tier::Iron,
         "BRONZE" => Tier::Bronze,
@@ -102,6 +115,30 @@ pub fn gradable(history: &Value, platform: &str) -> HashMap<String, bool> {
         .collect()
 }
 
+/// The role of the local player's line in the list, a first guess. The client's `timeline` lane
+/// is often wrong (a Kennen with Teleport or an Ezreal with Barrier "in the jungle", seen on real
+/// games): Smite says jungle, a jungle without Smite says nothing, and Howling Abyss has none.
+/// Once the whole game is read for its grade, the row takes the role worked out from all ten
+/// players (`matches::MatchInsights`), the one its grade uses.
+fn listed_role(game: &Value, me: &Value) -> Option<Role> {
+    if u32_at(game, "mapId") == HOWLING_ABYSS {
+        return None;
+    }
+    let smite = [u32_at(me, "spell1Id"), u32_at(me, "spell2Id")].contains(&SMITE);
+    if smite {
+        return Some(Role::Jungle);
+    }
+    let lane = me.get("timeline").and_then(|t| str_at(t, "lane"));
+    let role_hint = me.get("timeline").and_then(|t| str_at(t, "role"));
+    match (lane, role_hint) {
+        (Some("TOP"), _) => Some(Role::Top),
+        (Some("MIDDLE" | "MID"), _) => Some(Role::Middle),
+        (Some("BOTTOM" | "BOT"), Some("SUPPORT" | "DUO_SUPPORT")) => Some(Role::Support),
+        (Some("BOTTOM" | "BOT"), _) => Some(Role::Bottom),
+        _ => None,
+    }
+}
+
 /// Games from the client's own match history (the local player is `participants[0]`).
 pub fn map_matches(history: &Value, platform: &str) -> Vec<MatchSummary> {
     listed(history)
@@ -111,16 +148,7 @@ pub fn map_matches(history: &Value, platform: &str) -> Vec<MatchSummary> {
             let stats = me.get("stats")?;
             let duration = u32_at(game, "gameDuration");
             let started = game.get("gameCreation")?.as_i64()?;
-            let lane = me.get("timeline").and_then(|t| str_at(t, "lane"));
-            let role_hint = me.get("timeline").and_then(|t| str_at(t, "role"));
-            let role = match (lane, role_hint) {
-                (Some("TOP"), _) => Some(Role::Top),
-                (Some("JUNGLE"), _) => Some(Role::Jungle),
-                (Some("MIDDLE" | "MID"), _) => Some(Role::Middle),
-                (Some("BOTTOM" | "BOT"), Some("SUPPORT" | "DUO_SUPPORT")) => Some(Role::Support),
-                (Some("BOTTOM" | "BOT"), _) => Some(Role::Bottom),
-                _ => None,
-            };
+            let role = listed_role(game, me);
             Some(MatchSummary {
                 match_id: match_id(game, platform)?,
                 queue_id: u32_at(game, "queueId"),
@@ -143,6 +171,19 @@ pub fn map_matches(history: &Value, platform: &str) -> Vec<MatchSummary> {
             })
         })
         .collect()
+}
+
+/// How a failed read of the profile reads in the UI: no answer at all (the connection status
+/// turns `notAnswering` meanwhile, and the core asks the client again by itself), or the
+/// client's own error. The request's URL (with the client's port) never reaches the UI.
+pub fn client_error(error: &LcuError) -> ClientError {
+    if error.is_unanswered() {
+        ClientError::NotAnswering
+    } else {
+        ClientError::Failed {
+            message: error.to_string(),
+        }
+    }
 }
 
 /// Reads the whole profile. Missing pieces degrade gracefully (unranked, no games).
@@ -202,6 +243,57 @@ pub async fn read_local(client: &LcuClient) -> Result<LocalRead, LcuError> {
     })
 }
 
+/// Games listed per page of the match history ([`MATCHES`] is the first).
+pub const PAGE: u32 = 20;
+
+/// The local player's games `beg` to `end`, newest first: both indexes are inclusive (0 to 19
+/// is 20 games).
+pub fn matches_path(beg: u32, end: u32) -> String {
+    format!(
+        "/lol-match-history/v1/products/lol/current-summoner/matches?begIndex={beg}&endIndex={end}"
+    )
+}
+
+/// The platform that names match ids when a game doesn't say (`EUW1`), as [`read_local`] does.
+pub async fn platform(client: &LcuClient) -> String {
+    client
+        .get::<Value>(REGION)
+        .await
+        .ok()
+        .and_then(|r| str_at(&r, "region").map(|region| format!("{}1", region.to_uppercase())))
+        .unwrap_or_else(|| "LOCAL".to_owned())
+}
+
+/// Most mastery kept for the profile.
+const MASTERY_SHOWN: usize = 10;
+
+/// Your champions by mastery points, most first (the profile's champions card):
+/// `/lol-champion-mastery/v1/local-player/champion-mastery`, already read for the draft helper.
+pub async fn mastery(client: &LcuClient) -> Result<Vec<ChampionMastery>, LcuError> {
+    let value: Value = client.get(crate::draft::MASTERY).await?;
+    Ok(top_mastery(&value))
+}
+
+/// The client's mastery list → the most points first, at most [`MASTERY_SHOWN`].
+pub fn top_mastery(value: &Value) -> Vec<ChampionMastery> {
+    let mut list: Vec<ChampionMastery> = crate::draft::map_mastery(value)
+        .into_iter()
+        .map(|(champion_id, m)| ChampionMastery {
+            champion_id,
+            level: m.level,
+            points: m.points,
+        })
+        .collect();
+    list.sort_by(|a, b| {
+        b.points
+            .cmp(&a.points)
+            .then(b.level.cmp(&a.level))
+            .then(a.champion_id.cmp(&b.champion_id))
+    });
+    list.truncate(MASTERY_SHOWN);
+    list
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -252,6 +344,61 @@ mod tests {
         );
     }
 
+    /// Lines seen in a real client's list (2026-09-28): the lane is a guess the spells overrule.
+    #[test]
+    fn roles_the_client_guesses_wrong_are_left_out() {
+        let line = |map: u32, spells: [u32; 2], lane: &str, role: &str| {
+            json!({ "games": { "games": [{ "gameId": 1, "queueId": 420, "mapId": map, "gameCreation": 0,
+                "gameDuration": 1800, "participants": [{ "championId": 85, "spell1Id": spells[0],
+                "spell2Id": spells[1], "stats": {}, "timeline": { "lane": lane, "role": role } }] }] } })
+        };
+        let role = |h: Value| map_matches(&h, "EUW1")[0].role;
+        assert_eq!(
+            role(line(11, [4, 12], "JUNGLE", "NONE")),
+            None,
+            "Flash + Teleport isn't a jungler"
+        );
+        assert_eq!(
+            role(line(11, [4, 21], "JUNGLE", "NONE")),
+            None,
+            "neither is Flash + Barrier"
+        );
+        assert_eq!(
+            role(line(11, [11, 4], "NONE", "NONE")),
+            Some(Role::Jungle),
+            "Smite is"
+        );
+        assert_eq!(
+            role(line(12, [4, 32], "TOP", "SUPPORT")),
+            None,
+            "ARAM: Mayhem has no roles"
+        );
+        assert_eq!(role(line(11, [4, 14], "TOP", "SOLO")), Some(Role::Top));
+        assert_eq!(
+            role(line(11, [4, 7], "BOTTOM", "SUPPORT")),
+            Some(Role::Support)
+        );
+        assert_eq!(
+            role(line(11, [4, 21], "BOTTOM", "CARRY")),
+            Some(Role::Bottom)
+        );
+    }
+
+    /// An answer, even an error, isn't "not answering": the client's own words go on.
+    #[test]
+    fn an_error_answer_keeps_its_words() {
+        let busy = LcuError::Http {
+            method: reqwest::Method::GET,
+            path: CURRENT_SUMMONER.to_owned(),
+            status: reqwest::StatusCode::SERVICE_UNAVAILABLE,
+            message: "busy".to_owned(),
+        };
+        match client_error(&busy) {
+            ClientError::Failed { message } => assert!(message.contains("HTTP 503"), "{message}"),
+            ClientError::NotAnswering => panic!("the client answered"),
+        }
+    }
+
     #[test]
     fn match_ids_follow_the_games_platform() {
         let history = json!({ "games": { "games": [
@@ -275,5 +422,46 @@ mod tests {
             "Arena: no two teams of five"
         );
         assert_eq!(worth.get("EUW1_3"), Some(&false), "a remake");
+    }
+
+    #[test]
+    fn maps_each_ranked_queue() {
+        let stats = json!({ "queueMap": {
+            "RANKED_SOLO_5x5": { "tier": "GOLD", "division": "I", "leaguePoints": 80, "wins": 10, "losses": 8 },
+            "RANKED_FLEX_SR": { "tier": "SILVER", "division": "III", "leaguePoints": 12, "wins": 3, "losses": 1 }
+        } });
+        let flex = map_queue(&stats, RankedQueue::Flex).expect("flex");
+        assert_eq!(
+            (flex.tier, flex.division, flex.league_points, flex.wins),
+            (Tier::Silver, Some(Division::III), 12, 3)
+        );
+        assert_eq!(map_ranked(&stats).map(|s| s.tier), Some(Tier::Gold));
+        assert!(map_queue(&json!({ "queueMap": {} }), RankedQueue::Flex).is_none());
+    }
+
+    #[test]
+    fn pages_of_the_history_count_both_ends() {
+        assert_eq!(
+            matches_path(20, 39),
+            "/lol-match-history/v1/products/lol/current-summoner/matches?begIndex=20&endIndex=39"
+        );
+        assert!(MATCHES.ends_with(&format!("endIndex={}", PAGE - 1)));
+    }
+
+    #[test]
+    fn mastery_most_points_first() {
+        let list = top_mastery(&json!([
+            { "championId": 54, "championLevel": 9, "championPoints": 245_800 },
+            { "championId": 103, "championLevel": 12, "championPoints": 412_300 },
+            { "championId": 0, "championLevel": 5, "championPoints": 1 },
+            { "championId": 7, "championLevel": 0, "championPoints": 0 }
+        ]));
+        let ids: Vec<u32> = list.iter().map(|m| m.champion_id).collect();
+        assert_eq!(ids, [103, 54], "no champion 0, nothing without mastery");
+        assert_eq!((list[0].level, list[0].points), (12, 412_300));
+        let many: Vec<Value> = (1..=15)
+            .map(|id| json!({ "championId": id, "championLevel": 5, "championPoints": id * 1000 }))
+            .collect();
+        assert_eq!(top_mastery(&Value::Array(many)).len(), MASTERY_SHOWN);
     }
 }

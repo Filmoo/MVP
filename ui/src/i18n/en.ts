@@ -33,8 +33,6 @@ export const en = {
     runeN: (id: number) => `Rune ${id}`,
     runeTreeN: (id: number) => `Rune tree ${id}`,
     profileIcon: "Profile icon",
-    /** `Name: what it does` (tooltips); French puts a no-break space before the colon. */
-    colon: (label: string, text: string) => `${label}: ${text}`,
     /** `812 games`, `1.9M games`. */
     games: (n: number) => `${games(n)} ${plural(n, "game", "games")}`,
     lp: (lp: number) => `${lp} LP`,
@@ -102,9 +100,18 @@ export const en = {
     480: "Swiftplay",
     490: "Quickplay",
     700: "Clash",
+    720: "ARAM Clash",
+    870: "Co-op vs AI",
+    880: "Co-op vs AI",
+    890: "Co-op vs AI",
     900: "ARURF",
     1700: "Arena",
+    1750: "Arena",
     1900: "URF",
+    2400: "ARAM: Mayhem",
+    4210: "Doom Bots",
+    4310: "Classic",
+    4320: "Classic Co-op vs AI",
     custom: "Custom",
   },
 
@@ -115,7 +122,6 @@ export const en = {
     home: { label: "Home", short: "Home" },
     draft: { label: "Draft", short: "Draft" },
     live: { label: "Live game", short: "Live" },
-    champions: { label: "Champions", short: "Champs" },
     tierList: { label: "Tier list", short: "Tiers" },
     settings: { label: "Settings", short: "Settings" },
   },
@@ -125,6 +131,7 @@ export const en = {
       connected: "League client connected",
       connecting: "Connecting to League…",
       notRunning: "Waiting for League client",
+      notAnswering: "League client not responding",
     },
     minimize: "Minimize",
     maximize: "Maximize",
@@ -161,6 +168,11 @@ export const en = {
 
   home: {
     loadFailed: "Couldn't load your profile",
+    /** The League client is up but doesn't answer (the core asks it again by itself): a wait, not an error. */
+    notAnswering: {
+      text: "It may be busy. MVP keeps trying: your profile appears as soon as it answers.",
+      retry: "Retry now",
+    },
     waiting: {
       title: "Waiting for the League client",
       text: "Start League of Legends: your profile, live games and champion select help appear here automatically.",
@@ -181,6 +193,8 @@ export const en = {
       averageGame: "Average game",
     },
     roleShare: (games: number, of: number) => `${games} of ${of}`,
+    /** The LP graph in the ranked pane, for screen readers and on hover: its games and their sum. */
+    lpTrend: (games: number, total: string) => `${total} over your last ${games} ranked games MVP followed`,
   },
 
   matches: {
@@ -189,6 +203,30 @@ export const en = {
     perfectKda: "Perfect KDA",
     perMinute: (value: string) => `${value} / min`,
     empty: { title: "No recent games", text: "Finish a game and it shows up here, with your stats and build." },
+    /** LP won or lost in a ranked game: `+19 LP`, `−17 LP`. */
+    lp: (signed: string) => `${signed} LP`,
+    filters: {
+      queue: "Queue",
+      queues: { all: "All", solo: "Solo", flex: "Flex", aram: "ARAM", other: "Other" },
+      champion: "Champion",
+      allChampions: "All champions",
+      /** A champion in the filter's list, with the games loaded on it: `Ahri · 3`. */
+      championGames: (name: string, games: number) => `${name} · ${games}`,
+      clear: "Clear filters",
+      none: {
+        title: "No games match these filters",
+        text: (games: number, more: boolean) =>
+          more
+            ? `None of the ${games} games loaded so far. Load more to look further back.`
+            : `None of your last ${plural(games, "game", `${games} games`)}.`,
+      },
+    },
+    more: {
+      load: "Load more games",
+      loading: "Loading older games…",
+      failed: "Couldn't load older games",
+      end: "No older games",
+    },
   },
 
   /** MVP's grade of a game, on each match row (what moved it is in the views' words, `gradeWhy`). */
@@ -207,6 +245,9 @@ export const en = {
     empty: { title: "No stats yet", text: "Play a few games to see your form." },
     roles: "Roles",
     remakes: (n: number) => `${n} ${plural(n, "remake", "remakes")} not counted`,
+    mastery: "Mastery",
+    /** On a champion's mastery badge: `Ahri · mastery level 12 · 412,300 points`. */
+    masteryTitle: (champion: string, level: number, points: string) => `${champion} · mastery level ${level} · ${points} points`,
   },
 };
 

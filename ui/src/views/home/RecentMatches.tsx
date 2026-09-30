@@ -1,34 +1,51 @@
-import { createResource, createSignal, For, type JSX, lazy, Show, Suspense } from "solid-js";
+import { type Accessor, createEffect, createSignal, For, type JSX, lazy, Show, Suspense, untrack } from "solid-js";
 import { useData } from "../../data/context";
+import type { GradedMatch } from "../../data/generated/GradedMatch";
+import type { LpGame } from "../../data/generated/LpGame";
 import type { MatchGrade } from "../../data/generated/MatchGrade";
 import type { MatchSummary } from "../../data/generated/MatchSummary";
 import type { RiotId } from "../../data/generated/RiotId";
 import { Card } from "../../design/Card";
 import { ChampionIcon, ItemIcon } from "../../design/GameIcon";
-import { EmptyState, Skeleton } from "../../design/States";
+import { EmptyState } from "../../design/States";
 import { t } from "../../i18n";
 import { groupByDay } from "../../lib/days";
-import { duration, kda, kdaRatio, perMinute, queueName, REMAKE_MAX_SECONDS, timeAgo } from "../../lib/format";
+import { duration, kda, kdaRatio, perMinute, queueName, REMAKE_MAX_SECONDS, signedPoints, timeAgo } from "../../lib/format";
 import { GradeChip } from "./GradeChip";
 import styles from "./RecentMatches.module.css";
+import type { More } from "./stack";
 
 const ITEM_SLOTS = 6;
 
-/** What an opened row and a grade's why need (`MatchDetails.tsx`), loaded on first use. */
-type Details = Pick<typeof import("./MatchDetails"), "MatchDetails" | "hint">;
+/** What the stack of opened games and a grade's why need (`GameStack.tsx`), loaded on first use. */
+type Details = Pick<typeof import("./GameStack"), "GameStack" | "hint">;
 let load: () => Promise<Details>;
 let loading: Promise<Details> | undefined;
 
-/**
- * Where that code comes from: the app hands in the player page's chunk, which carries it (with
- * the views' words; see App.tsx). A chunk of its own, imported from here, would split the chunks
- * it shares with the first screen and weigh on the app's first load.
- */
+/** Where that code comes from: the app hands in its loader (with the views' words; see App.tsx). */
 export function provideDetails(from: () => Promise<Details>): void {
   load = from;
 }
-const chunk = () => (loading ??= load());
-const Details = lazy(() => chunk().then((m) => ({ default: m.MatchDetails })));
+export const chunk = () => (loading ??= load());
+const Stack = lazy(() => chunk().then((m) => ({ default: m.GameStack })));
+
+/** The game that just ended (Home, from the core's summary until closed or the next game). */
+export interface LastGame {
+  matchId: string;
+  /** The client hasn't counted its LP yet. */
+  lpPending: boolean;
+  /** Its window opened by itself and was closed, or had no need to (the stack was open): once is enough. */
+  seen: () => void;
+}
+
+/** Older games of a history (Home): what there is to load, and loading them. */
+export interface OlderGames {
+  state: () => More;
+  load: () => void;
+}
+
+/** Games whose window opened by itself, this session: once per game. */
+const autoOpened = new Set<string>();
 
 /** DPM-style KDA coloring: perfect, great ≥ 5, good ≥ 3, poor < 1.5. */
 function kdaBand(value: number | null): string {
@@ -42,10 +59,10 @@ function kdaBand(value: number | null): string {
 function MatchRow(props: {
   match: MatchSummary;
   grade: MatchGrade | null;
+  /** The LP it was worth (your ranked games MVP followed). */
+  lp?: LpGame | undefined;
   open: boolean;
-  focus: RiotId | undefined;
-  onToggle: (row: HTMLElement) => void;
-  onClose: () => void;
+  onOpen: () => void;
 }): JSX.Element {
   const m = () => props.match;
   const remake = () => m().durationSeconds <= REMAKE_MAX_SECONDS;
@@ -62,12 +79,22 @@ function MatchRow(props: {
         id={`match-${m().matchId}`}
         class={`${styles.row} ${styles[outcome()]} glass-pill`}
         data-glass
+        aria-haspopup="dialog"
         aria-expanded={props.open}
-        onClick={(e) => props.onToggle(e.currentTarget)}
+        onClick={() => props.onOpen()}
       >
         <ChampionIcon championId={m().championId} size={40} />
         <span class={styles.outcome}>
-          <span class={styles.result}>{t().matches.outcome[outcome()]}</span>
+          <span class={styles.result}>
+            {t().matches.outcome[outcome()]}
+            <Show when={props.lp}>
+              {(lp) => (
+                <span class={`${styles.lp} num`} data-lp={Math.sign(lp().delta)}>
+                  {t().matches.lp(signedPoints(lp().delta, 0))}
+                </span>
+              )}
+            </Show>
+          </span>
           <span class={styles.sub}>
             {champion()} · {queueName(m().queueId)}
           </span>
@@ -107,14 +134,36 @@ function MatchRow(props: {
           <span class={styles.ago}>{timeAgo(m().endedAt)}</span>
         </span>
       </button>
-      <Show when={props.open}>
-        {/* Its height is the table's: nothing moves when the game arrives. */}
-        <Suspense fallback={<Skeleton height="540px" />}>
-          <Details matchId={m().matchId} focus={props.focus} onClose={props.onClose} />
-        </Suspense>
-      </Show>
     </li>
   );
+}
+
+/** The grades (and roles) of your own games, by match id, once the core has read them. */
+export type LateGrades = Accessor<ReadonlyMap<string, GradedMatch> | undefined>;
+
+/**
+ * Your own games come without their grades (a grade needs the whole game): the core reads them
+ * from the client after the list, once, and answers each game's grade with the role you played
+ * there (the list only guesses it). Other players' games come graded: nothing to ask.
+ *
+ * Each game of `matches` is asked for once (a new list from the core asks again for its games
+ * without a grade), and the answers add up: games coming and going (filters, older pages) never
+ * blank the chips already there.
+ */
+export function createLateGrades(matches: Accessor<readonly MatchSummary[]>): LateGrades {
+  const { transport } = useData();
+  const [late, setLate] = createSignal<ReadonlyMap<string, GradedMatch>>();
+  const asked = new WeakSet<MatchSummary>();
+  createEffect(() => {
+    const wanted = matches().filter((m) => !m.grade && m.durationSeconds > REMAKE_MAX_SECONDS && !asked.has(m));
+    if (wanted.length === 0) return;
+    for (const m of wanted) asked.add(m);
+    void transport.call("match_grades", { matchIds: wanted.map((m) => m.matchId) }).then(
+      (list) => setLate((before) => new Map([...(before ?? []), ...list.map((g) => [g.matchId, g] as const)])),
+      () => setLate((before) => before ?? new Map()),
+    );
+  });
+  return late;
 }
 
 function DayRecord(props: { matches: readonly MatchSummary[] }): JSX.Element {
@@ -134,31 +183,44 @@ export function RecentMatches(props: {
   matches: readonly MatchSummary[];
   /** The player whose games these are: their line is marked in an opened game. */
   focus?: RiotId | undefined;
+  /** Your own games' grades, read after the list (`createLateGrades`): their chips wait empty meanwhile. */
+  late?: LateGrades | undefined;
+  /** The LP each game was worth, when known (your ranked games). */
+  lp?: ((matchId: string) => LpGame | undefined) | undefined;
+  /** The game that just ended: its window opens by itself, once. */
+  lastGame?: LastGame | undefined;
+  /** Older games: the stack loads them when pulled past its last game. */
+  more?: OlderGames | undefined;
+  /** Above the list: the history's filters. */
+  filters?: JSX.Element;
+  /** Instead of the empty state: when filters leave no game. */
+  empty?: JSX.Element;
+  /** Under the list: loading older games. */
+  footer?: JSX.Element;
 }): JSX.Element {
-  const { transport } = useData();
   const hasMatches = () => props.matches.length > 0;
-  // One game open at a time; a second click, or Escape, closes it.
-  const [open, setOpen] = createSignal<string>();
-  // Your own games come without their grades (a grade needs the whole game): the core reads them
-  // from the client after the list, once. Their chips wait empty meanwhile.
-  const [late] = createResource(
-    () => {
-      const ids = props.matches.filter((m) => !m.grade && m.durationSeconds > REMAKE_MAX_SECONDS).map((m) => m.matchId);
-      return ids.length > 0 && ids;
-    },
-    (matchIds) =>
-      transport.call("match_grades", { matchIds }).then(
-        (list) => new Map(list.map((g) => [g.matchId, g.grade])),
-        () => new Map<string, MatchGrade | null>(),
-      ),
-  );
-  const gradeOf = (m: MatchSummary) => m.grade ?? (late.state === "ready" ? late().get(m.matchId) : null) ?? null;
-
-  const toggle = (id: string, row: HTMLElement) => {
-    // The clicked row stays where it is when a game above it closes.
-    const before = row.getBoundingClientRect().top;
-    setOpen((current) => (current === id ? undefined : id));
-    row.closest("main")?.scrollBy(0, row.getBoundingClientRect().top - before);
+  // A row opens the stack of opened games on its game (GameStack.tsx): the list's games, in order.
+  const [open, setOpen] = createSignal<{ match: MatchSummary; auto: boolean }>();
+  const gradeOf = (m: MatchSummary) => m.grade ?? props.late?.()?.get(m.matchId)?.grade ?? null;
+  // The game that just ended opens by itself once it is in the list, once; when the stack is open
+  // already the game is simply on top of it.
+  createEffect(() => {
+    const last = props.lastGame;
+    if (!last || autoOpened.has(last.matchId)) return;
+    const match = props.matches.find((m) => m.matchId === last.matchId);
+    if (!match) return;
+    autoOpened.add(last.matchId);
+    if (untrack(open)) last.seen();
+    else setOpen({ match, auto: true });
+  });
+  // The next champion select stops it: the core no longer has that game to show.
+  createEffect(() => {
+    if (!props.lastGame && untrack(open)?.auto) setOpen(undefined);
+  });
+  const closed = () => {
+    const was = open();
+    setOpen(undefined);
+    if (was?.auto) props.lastGame?.seen();
   };
   // A grade's why shows while it's hovered, or its row has the keyboard focus: the chunk follows
   // the list's pointer and focus events.
@@ -170,8 +232,12 @@ export function RecentMatches(props: {
   const hint = (e: Event) => void chunk().then((m) => m.hint(e, find));
 
   return (
-    <Card title={t().matches.title} flush={hasMatches()}>
-      <Show when={hasMatches()} fallback={<EmptyState icon="history" title={t().matches.empty.title} text={t().matches.empty.text} />}>
+    <Card title={t().matches.title} flush={hasMatches() || !!props.filters}>
+      {props.filters}
+      <Show
+        when={hasMatches()}
+        fallback={props.empty ?? <EmptyState icon="history" title={t().matches.empty.title} text={t().matches.empty.text} />}
+      >
         <ol class={styles.list} onPointerOver={hint} onPointerOut={hint} onFocusIn={hint} onFocusOut={hint}>
           <For each={groupByDay(props.matches, (m) => m.endedAt)}>
             {(day) => (
@@ -186,10 +252,9 @@ export function RecentMatches(props: {
                       <MatchRow
                         match={match}
                         grade={gradeOf(match)}
-                        open={open() === match.matchId}
-                        focus={props.focus}
-                        onToggle={(row) => toggle(match.matchId, row)}
-                        onClose={() => setOpen(undefined)}
+                        lp={props.lp?.(match.matchId)}
+                        open={open()?.match.matchId === match.matchId}
+                        onOpen={() => setOpen({ match, auto: false })}
                       />
                     )}
                   </For>
@@ -198,7 +263,25 @@ export function RecentMatches(props: {
             )}
           </For>
         </ol>
+        <Show when={open()} keyed>
+          {(opened) => (
+            // Nothing to see while its code loads, but the page says it is loading (tests wait).
+            <Suspense fallback={<div data-state="loading" hidden />}>
+              <Stack
+                games={() => props.matches}
+                start={opened.match}
+                focus={props.focus}
+                grade={gradeOf}
+                lp={props.lp}
+                lpPending={(id) => props.lastGame?.matchId === id && props.lastGame.lpPending}
+                more={props.more}
+                onClosed={closed}
+              />
+            </Suspense>
+          )}
+        </Show>
       </Show>
+      {props.footer}
     </Card>
   );
 }

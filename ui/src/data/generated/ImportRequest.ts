@@ -21,4 +21,10 @@ queue: number | null,
  * Rank bracket of the stats (the champion page's choice); `None`: the player's (Settings),
  * Emerald+ when that one has no build yet.
  */
-bracket: Bracket | null, parts: Array<ImportPart>, };
+bracket: Bracket | null, parts: Array<ImportPart>, 
+/**
+ * For the current champion select (Draft, the automatic import): once it has ended (the
+ * game is starting), nothing is imported and every part says so
+ * ([`SkipReason::ChampSelectEnded`]). A champion page's import isn't (it's for any game).
+ */
+champSelect: boolean, };

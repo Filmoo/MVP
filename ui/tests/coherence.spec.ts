@@ -1,9 +1,10 @@
 // Brings the window.__SCOUT_MOCK__ declaration into scope.
 import type {} from "../src/data/mock";
-import { lockInImport } from "../src/data/mock/import-fixtures";
+import { lockInImport, tradedWarning } from "../src/data/mock/import-fixtures";
 import { scenarioNames } from "../src/data/mock/scenarios";
 import { animationsDone, expect, openApp, test, VIEWS } from "./app";
 import { auditTokens } from "./coherence-rules";
+import { aim, current, notches, rows, stack, tabs } from "./stack";
 
 for (const view of VIEWS) {
   test(`${view} only uses design tokens`, async ({ page }) => {
@@ -35,7 +36,7 @@ for (const scenario of ["champ-select", "aram-champ-select", "draft-planning"] a
   });
 }
 
-for (const scenario of ["import-lock-in", "draft-no-stats", "aram-champ-select"] as const) {
+for (const scenario of ["import-lock-in", "import-warning", "draft-no-stats", "aram-champ-select"] as const) {
   test(`/draft/${scenario} only uses design tokens`, async ({ page }) => {
     await openApp(page, { view: "/draft", scenario });
     if (scenario === "import-lock-in") {
@@ -47,6 +48,14 @@ for (const scenario of ["import-lock-in", "draft-no-stats", "aram-champ-select"]
     expect(await page.evaluate(auditTokens)).toEqual([]);
   });
 }
+
+test("the warning's toast and its one click only use design tokens", async ({ page }) => {
+  await openApp(page, { scenario: "import-warning" });
+  await page.evaluate((warning) => window.__SCOUT_MOCK__?.emit("import-warning", warning), tradedWarning);
+  await page.getByTestId("toast-action").waitFor();
+  await animationsDone(page);
+  expect(await page.evaluate(auditTokens)).toEqual([]);
+});
 
 test("the import bar only uses design tokens in every state", async ({ page, t }) => {
   // Done and warn (the Flash note), then failed and skipped.
@@ -71,6 +80,8 @@ for (const { view, scenario } of [
   { view: "/live", scenario: "live" },
   { view: "/live", scenario: "live-extreme" },
   { view: "/live", scenario: "live-failed" },
+  { view: "/live", scenario: "live-filtered" },
+  { view: "/live", scenario: "live-bots" },
   { view: "/player/euw1/Blade%20Dancer/IRE", scenario: "default" },
   { view: "/player/euw1/Busy/429", scenario: "default" },
   { view: "/player/euw1/Nobody/404", scenario: "default" },
@@ -83,10 +94,25 @@ for (const { view, scenario } of [
   { view: "/tier-list?queue=450", scenario: "default" },
   { view: "/tier-list", scenario: "stats-empty" },
   { view: "/tier-list", scenario: "stats-offline" },
+  { view: "/tier-list?view=table", scenario: "default" },
+  { view: "/tier-list?view=table&queue=450", scenario: "default" },
+  { view: "/tier-list?view=table", scenario: "stats-first-patch" },
   { view: "/__harness?show=build-summary", scenario: "default" },
+  // ARAM: Mayhem: its page and states, a champion's augments, the champion page's tab, a game.
+  { view: "/mayhem", scenario: "default" },
+  { view: "/mayhem", scenario: "mayhem-empty" },
+  { view: "/mayhem", scenario: "mayhem-offline" },
+  { view: "/mayhem", scenario: "mayhem-unbuilt" },
+  { view: "/mayhem?champion=103", scenario: "default" },
+  { view: "/champions?id=103&mode=mayhem", scenario: "default" },
+  { view: "/live?tab=build", scenario: "mayhem-live" },
+  { view: "/draft", scenario: "mayhem-champ-select" },
 ] as const) {
   test(`${view}/${scenario} only uses design tokens`, async ({ page }) => {
     await openApp(page, { view, scenario });
+    // A page opened on ARAM switches its queue control as it loads: audit the colours it
+    // settles on, not one caught halfway through the transition (seen on a busy machine).
+    await animationsDone(page);
     expect(await page.evaluate(auditTokens)).toEqual([]);
   });
 }
@@ -107,6 +133,40 @@ test("stats pages after switching (all rows, a role, duos, another rune page) on
   // Segments and pills glide to their new colors: audit the settled ones.
   await animationsDone(page);
   expect(await page.evaluate(auditTokens), "champion page").toEqual([]);
+  // The table in every lane (a champion once per lane, trends), a row hovered; the rank menu.
+  await openApp(page, { view: "/tier-list?view=table&role=all" });
+  await page.getByTestId("tier-row").first().hover();
+  await animationsDone(page);
+  expect(await page.evaluate(auditTokens), "tier table").toEqual([]);
+  await page.getByTestId("rank-button").click();
+  await animationsDone(page);
+  expect(await page.evaluate(auditTokens), "rank menu").toEqual([]);
+  // The full meta map.
+  await openApp(page, { view: "/tier-list?view=shelves&role=middle" });
+  await page.getByTestId("open-map").click();
+  await page.getByTestId("map-point").first().waitFor();
+  await animationsDone(page);
+  expect(await page.evaluate(auditTokens), "meta map").toEqual([]);
+});
+
+test("the tier list's skeleton only uses design tokens", async ({ page }) => {
+  await page.goto("/?scenario=stats-slow#/tier-list");
+  await page.locator("main [data-state=loading]").first().waitFor();
+  expect(await page.evaluate(auditTokens)).toEqual([]);
+});
+
+test("the history's filters, older games and their failure only use design tokens", async ({ page, t }) => {
+  await openApp(page, { scenario: "history-more-error" });
+  await page.getByTestId("champion-filter").selectOption("103");
+  await page.getByTestId("queue-filter").getByRole("radio", { name: t.matches.filters.queues.flex }).click();
+  await expect(page.getByText(t.matches.filters.none.title)).toBeVisible();
+  await page.mouse.move(0, 0);
+  await animationsDone(page);
+  expect(await page.evaluate(auditTokens), "filtered to nothing").toEqual([]);
+  await page.getByRole("button", { name: t.matches.filters.clear }).click();
+  await page.getByTestId("load-more").click();
+  await expect(page.getByRole("alert").filter({ hasText: t.matches.more.failed })).toBeVisible();
+  expect(await page.evaluate(auditTokens), "older games failed").toEqual([]);
 });
 
 test("live cards while scouting only use design tokens", async ({ page }) => {
@@ -169,18 +229,86 @@ for (const scenario of [
   });
 }
 
-// An opened match row (its game, or why it can't show) with a grade's why over it.
-for (const scenario of ["default", "extreme", "match-details-error"] as const) {
-  test(`home/${scenario}: an opened game and a grade's why only use design tokens`, async ({ page }) => {
-    await openApp(page, { scenario });
-    await page.locator("[data-testid=match-row] > button").first().click();
-    await expect(page.getByTestId("game").locator("[data-testid=game-player], [role=alert]").first()).toBeVisible();
-    await page.locator("[data-grade]").nth(1).hover();
+// The settings search: rows marked where they matched, About alone, nothing found.
+test("/settings searched only uses design tokens", async ({ page }) => {
+  await openApp(page, { view: "/settings" });
+  for (const query of ["windows", "logs", "zzzz"]) {
+    await page.getByTestId("settings-search").fill(query);
+    await page.mouse.move(0, 0);
+    await animationsDone(page);
+    expect(await page.evaluate(auditTokens), query).toEqual([]);
+  }
+});
+
+// The stack of opened games (a game's window, or why it can't show) with a grade's why over it, a
+// player's link hovered, then its end-of-game stats with a row hovered, a neighbour's edge hovered,
+// then the newest game pulled on with the hint showing (always drawn, see-through until a pull:
+// audited with the rest).
+for (const { scenario, view } of [
+  { scenario: "default", view: "/" },
+  { scenario: "extreme", view: "/" },
+  { scenario: "howling-abyss", view: "/" },
+  { scenario: "match-details-error", view: "/" },
+  { scenario: "match-details-slow", view: "/" },
+  { scenario: "default", view: "/player/euw1/Blade%20Dancer/IRE" },
+] as const) {
+  test(`${view}/${scenario}: the stack of opened games and a grade's why only use design tokens`, async ({ page }) => {
+    await openApp(page, { scenario, view });
+    await rows(page).nth(1).click();
+    await expect(current(page).locator("[data-testid=game-player], [role=alert], [data-state=loading]").first()).toBeVisible();
+    await animationsDone(page);
+    expect(await page.evaluate(auditTokens), "opened").toEqual([]);
+    if ((await current(page).getByTestId("game-player").count()) === 0) return;
+    await current(page).locator("[data-grade]").nth(1).hover();
     await expect(page.getByTestId("grade-why")).toBeVisible();
     await animationsDone(page);
-    expect(await page.evaluate(auditTokens)).toEqual([]);
+    expect(await page.evaluate(auditTokens), "a grade's why").toEqual([]);
+    await current(page).locator("[data-widget=match-details]").getByRole("link").first().hover();
+    for (const at of [1, 2, 3]) {
+      await tabs(page).nth(at).click();
+      await current(page).getByTestId("game-stats").locator("tbody tr").nth(2).hover();
+      await animationsDone(page);
+      expect(await page.evaluate(auditTokens), `its stats, tab ${at}`).toEqual([]);
+    }
+    await stack(page).locator("[data-peek=older]").hover();
+    await animationsDone(page);
+    expect(await page.evaluate(auditTokens), "a neighbour's edge").toEqual([]);
+    await current(page).focus();
+    await page.keyboard.press("Home");
+    await animationsDone(page);
+    await aim(page);
+    await notches(page, 1, -100);
+    await expect(stack(page)).toHaveAttribute("data-pulling", "wheel");
+    expect(await page.evaluate(auditTokens), "pulled").toEqual([]);
   });
 }
+
+// The tooltips of the game's things (design/tip): each kind of card, the item's with coloured text.
+test("tooltips only use design tokens (a keystone, a shard, a spell, an item)", async ({ page }) => {
+  await openApp(page, { view: "/champions?id=103" });
+  for (const target of [
+    "[data-tip='rune:8112']",
+    "[data-tip='shard:5008:offense']",
+    "[data-widget=champion-spells] [data-tip='spell:4']",
+    "[data-widget=champion-items] [data-tip='item:6653']",
+  ]) {
+    await page.mouse.move(0, 0);
+    const thing = page.locator(target).first();
+    await thing.scrollIntoViewIfNeeded();
+    await thing.hover();
+    await expect(page.locator("#game-tip")).toBeVisible();
+    expect(await page.evaluate(auditTokens), target).toEqual([]);
+  }
+  // The compact card: a heading and lines (the tier), lines only (a build option's numbers).
+  for (const target of ["[data-testid=champion-tier]", "[data-widget=champion-spells] [data-hint]"]) {
+    await page.mouse.move(0, 0);
+    const thing = page.locator(target).first();
+    await thing.scrollIntoViewIfNeeded();
+    await thing.hover();
+    await expect(page.locator("#hint")).toBeVisible();
+    expect(await page.evaluate(auditTokens), target).toEqual([]);
+  }
+});
 
 test("every view has exactly one page heading", async ({ page }) => {
   for (const view of VIEWS) {

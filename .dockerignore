@@ -1,9 +1,16 @@
-# Docker build context = repository root (apps/backend/Dockerfile). Keep it to Rust sources.
+# Docker build context = repository root (apps/*/Dockerfile). Keep it to what the images build.
 .git
 target
 node_modules
 **/node_modules
 ui
+# The roadmap's web UI builds with the app's design tokens (apps/roadmap/Dockerfile).
+!ui/package.json
+!ui/tsconfig.base.json
+!ui/src/design/tokens.css
+!ui/src/design/glass.css
+apps/roadmap/web/dist
+apps/roadmap/web/test-results
 reports
 .cache
 .claude

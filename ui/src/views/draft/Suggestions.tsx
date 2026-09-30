@@ -10,6 +10,7 @@ import { EmptyState } from "../../design/States";
 import { t } from "../../i18n";
 import { decimal, percent, percentOf100, signedPoints, timeAgo } from "../../lib/format";
 import { bracketName } from "../../lib/stats";
+import { TopAugments } from "../mayhem/parts";
 import styles from "./Suggestions.module.css";
 import { bySize, Segments, WEAK, WhyTerms } from "./Why";
 
@@ -63,6 +64,8 @@ function Row(props: {
   expanded: boolean;
   /** ARAM: the champion you have now. */
   yours?: number | undefined;
+  /** ARAM: Mayhem: the champion's most picked augments show under its line. */
+  mayhem?: boolean;
   onSelect: () => void;
 }): JSX.Element {
   const { gameData } = useData();
@@ -72,7 +75,7 @@ function Row(props: {
     <li class={`${styles.item} ${props.selected ? styles.selected : ""}`}>
       <button
         type="button"
-        class={`${styles.row} ${props.s.tier > 0 ? styles.lower : ""}`}
+        class={`${styles.row} ${props.s.tier > 0 ? styles.lower : ""} ${props.mayhem ? styles.augmented : ""}`}
         data-glass
         aria-pressed={props.selected}
         onClick={() => props.onSelect()}
@@ -83,7 +86,7 @@ function Row(props: {
           <span class={styles.name}>{name(props.s.championId)}</span>
           <Show when={yourLine(props.s, props.yours)}>
             {(line) => (
-              <span class={`${styles.mine} num`} title={masteryTitle(props.s)}>
+              <span class={`${styles.mine} num`} data-hint={masteryTitle(props.s)}>
                 {line()}
               </span>
             )}
@@ -101,6 +104,11 @@ function Row(props: {
             )}
           </For>
         </span>
+        <Show when={props.mayhem}>
+          <span class={styles.augments}>
+            <TopAugments championId={props.s.championId} name={name(props.s.championId)} />
+          </span>
+        </Show>
         <span class={styles.delta} aria-hidden="true" data-free-style>
           <span
             class={`${styles.deltaFill} ${props.s.gain >= 0 ? styles.deltaUp : styles.deltaDown}`}
@@ -173,7 +181,12 @@ export function Suggestions(props: {
       actions={
         <Show when={props.draft.team}>
           {(team) => (
-            <span class={`${styles.teamNow} num`} title={t().draft.teamNow(percentOf100(team().percent))}>
+            <span
+              class={`${styles.teamNow} num`}
+              data-hint={t().draft.teamNow(percentOf100(team().percent))}
+              // biome-ignore lint/a11y/noNoninteractiveTabindex: its explanation (design/tip) shows on keyboard focus too
+              tabIndex={0}
+            >
               {t().draft.ifPicked}
             </span>
           )}
@@ -196,6 +209,7 @@ export function Suggestions(props: {
                         selected={props.selected === s.championId}
                         expanded={props.expanded === s.championId}
                         yours={yours()}
+                        mayhem={props.draft.mode === "mayhem"}
                         onSelect={() => props.onSelect(s.championId)}
                       />
                     )}

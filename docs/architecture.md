@@ -10,6 +10,7 @@ flowchart LR
     Cache[("Disk cache<br/>game data per patch")]
   end
   DD["Riot Data Dragon<br/>(names, icons)"]
+  CD["CommunityDragon<br/>(game files mirror)"]
   subgraph Server["Our backend (VPS, Docker behind Caddy/HTTPS)"]
     Api["API · apps/backend (mvp-backend)<br/>player lookups + scouting, updates,<br/>remote config, crash reports"]
     Data[("Data dir (volume)<br/>releases.json · config.json<br/>reports/ · cache snapshot")]
@@ -21,10 +22,13 @@ flowchart LR
 
   UI <-- "Tauri IPC: commands + events" --> Core
   Core <-- "pinned-root TLS, loopback only" --> LCU
-  Core -. "later: in-game view" .-> Game
+  Core -- "player list, once per game<br/>(names when Riot has none)" --> Game
   Core --> Cache
   Core -- "versions + JSON" --> DD
   UI -- "icons (img)" --> DD
+  Core -- "ranked emblems, position icons,<br/>once (then its cache)" --> CD
+  UI -- "augment icons (img)" --> CD
+  Api -- "Mayhem augments,<br/>once per game version" --> CD
   Api <-- "RIOT_API_KEY" --> Riot
   Crawler --> Riot --> Crawler
   Crawler --> Agg --> Files
@@ -46,7 +50,11 @@ flowchart LR
   (Tauri IPC in the app, scripted mock scenarios in a browser, HTTP later for a web version).
   The mock only ships in browser builds (`pnpm dev`, `build:preview` for the UI tests, into
   `ui/dist-preview`); the desktop build (`pnpm build` = `vite build --mode app`, into `ui/dist`,
-  the one the bundle budgets measure) leaves it out with the widget harness.
+  the one the bundle budgets measure) leaves it out with the widget harness. Both builds shrink
+  the same code (`ui/vite.config.ts`): short CSS module class names, lazy views' preload lists
+  without the startup files, constant classes set once (Solid's `@once`, written at build time),
+  and everything the first screen loads in one chunk (code-splitting group `app`, Rolldown's
+  `$initial` tag; none of its modules may await at top level, lazy chunks import from it).
 - **Light next to League.** No overlay, no injection, no polling loops in the UI; the webview can
   be closed while the core keeps following the client from the tray. Budgets and an idle-work
   test guard this in CI, plus a real-app memory/CPU check on Windows.
@@ -64,23 +72,34 @@ TypeScript types); failures answer `ApiError` `{ error, message, retryAfter? }`.
 | `GET /health` | `Health` `{ ok, version, riotKey }` |
 | `GET /v1/players/{platform}/{gameName}/{tagLine}` | `PlayerProfile` · 400 bad platform · 404 · 429 + `retryAfter` · 503 without key |
 | `POST /v1/players/batch` `{ platform, players: RiotId[] }` (≤ 10; older apps: `puuids`) | `ScoutCard[]` for loading-screen scouting |
+| `GET /v1/live/{platform}/{gameName}/{tagLine}?gameId=` | `ActiveGame`: the game that player is in as Riot shows it (Spectator-V5: streamer-mode players anonymous), with the visible players' cards · 404 `notFound` / `filtered` |
 | `GET /v1/matches/{platform}/{matchId}` | `MatchDetails` (both teams, every player's grade) from the match cache · 400 bad platform or id · 404 |
 | `GET /v1/stats/index` | `StatsIndex` (published patches, `current`) · ETag, `max-age=300` |
 | `GET /v1/stats/{patch}/{queue}/{file…}` | published stats files (below) · ETag/304, `max-age=3600` · 404 when absent |
 | `GET /v1/updates/{target}/{arch}/{version}?channel=` | 204 or the Tauri updater manifest (staged rollout, channels, blocked releases) |
 | `GET /v1/config?version=&channel=` | `RemoteConfig` (feature flags, kill switches, min version, banners) · `ETag`/304 |
 | `POST /v1/reports` | opt-in `CrashReport`, scrubbed of personal data, kept 30 days |
+| `GET /v1/mayhem/tiers` | `MayhemTiers`: the owner's augment tiers (`mayhem-tiers.json`; empty without it) · ETag, `no-cache` |
+| `GET /v1/mayhem/augments` | `AugmentCatalog`: ARAM: Mayhem's augments, English and French · ETag, `max-age=3600` · 404 until built |
+| `POST /v1/mayhem/games` | opt-in `MayhemUpload` → `MayhemUploadAnswer` `{ accepted, duplicates }` · 400 · 413 over 64 KB · 429 |
+| `GET /v1/mayhem/stats?patch=` | `MayhemStats`: pick counts of a patch's shared games (default: the newest) · ETag, `max-age=300` · 404 without games |
 | `GET /metrics` | Prometheus text (admin address or bearer token) |
 
 Scouting batches name players by **Riot ID**: the League client's PUUIDs are not our API key's
 (Riot encrypts PUUIDs per key), so the server resolves each Riot ID with account-v1 (cached a
 day) and builds the card from our key's PUUID. Cards carry the account's Riot ID next to that
 PUUID and positive/neutral tags only (OTP, main role, hot streak, veteran); players nobody
-knows get no card. Caches in memory with request coalescing: profiles and cards 2 min,
-accounts 1 day, compacted match documents forever (LRU-bounded: the 28 participant fields the
-profile, the grade and match details read, keystone and rune trees only, kept as JSON text);
-accounts and matches are snapshotted to the data dir on shutdown (snapshot format 2: an older
-snapshot is ignored, its matches lack what grades need). Lookups share one rate limiter per
+knows get no card. Live games (`/v1/live`, Spectator-V5) are asked with the local player's own
+Riot ID and kept an hour under each visible player's PUUID, never served for another `gameId`:
+everyone else in that game costs no Riot call, and the accounts Riot showed go to the account
+cache for the batch that may follow; cards not built within 5 s are left to that batch
+(`cardsComplete: false`) while their lookups carry on. Caches in memory with request
+coalescing: profiles and cards 2 min,
+accounts 1 day, compacted match documents forever (LRU-bounded to 12,000: the 45 participant
+fields the profile, the grade and match details with their end-of-game stats read, keystone and
+rune trees only, kept as JSON text, under 11 KB a game);
+accounts and matches are snapshotted to the data dir on shutdown (snapshot format 3: an older
+snapshot is ignored, its matches lack the end-of-game stats). Lookups share one rate limiter per
 routing value; a 429 is reported to the caller rather than waited out when Riot asks for more
 than 5 s.
 
@@ -95,11 +114,27 @@ Platform services (`apps/backend/src/ops.rs` and siblings) sit next to the Riot 
 - **Reports:** opt-in only, scrubbed (Riot IDs, PUUIDs, user names in paths, e-mails,
   credentials, IPs), per-install rate limited, daily JSONL files pruned after 30 days,
   erasable per install id (`mvp-backend reports forget`).
+- **ARAM: Mayhem:** the owner's tiers file (validated, reloaded on change), the augment catalog
+  built from the game's files, opt-in shared games counted into pick rates. Below, "ARAM: Mayhem".
 - **Hardening:** every request gets an id, a span and metrics; `/v1/*` is rate limited per
   `X-MVP-Install` (else IP) with 429 + `Retry-After`; body limits and a 45 s timeout; JSON logs
   in production; graceful shutdown.
 
 Run, deploy, data dir layout and privacy: `apps/backend/README.md`.
+
+## League client status (`lcu::connector`, `ClientStatus`)
+`connection` is `notRunning` (no lockfile), `connecting` (handshake), `connected` (REST answers,
+events subscribed) or `notAnswering`: the event socket is up but requests get no answer (seen on
+a real client whose every connection another app held; the WebSocket stayed up and MVP said
+"connected" while each request failed). Every `LcuClient` request reports whether it got an
+answer (any HTTP status is one); a transport failure anywhere in the core flips the state to
+`notAnswering` (the phase stays: events still flow), the next answer flips it back. While it
+lasts, one cheap `GET /lol-gameflow/v1/gameflow-phase` asks again after the poll interval (2 s),
+then twice as long each time up to 30 s; nothing is polled while the client answers. UI: the
+title bar says "League client not responding" with an amber dot; Home's profile error says the
+client isn't answering and MVP retries (`current_profile` rejects with `ClientError`
+`notAnswering`, never the request's URL), and the profile reloads by itself once the status turns
+`connected` again. Mock: `MockLcu::stop_answering`/`answer_again`, scenario `client-not-answering`.
 
 ## Backend client (`companion::backend`)
 The app reaches the backend **from the core**, never from the webview: the UI calls Tauri commands
@@ -108,8 +143,10 @@ HTTPS request.
 - **Base URL**: `MVP_BACKEND_URL` at **build time** (`MVP_BACKEND_URL=https://api… pnpm build:exe`);
   without it, `http://127.0.0.1:8787` (a local `pnpm backend`). **Debug builds** also read
   `MVP_BACKEND_URL` at run time, to point a dev app anywhere without rebuilding:
-  `MVP_BACKEND_URL=http://127.0.0.1:8787 pnpm app`. The CSP's `connect-src` lists the local origin;
-  add the production origin there once it exists (only needed if the webview ever calls it directly).
+  `MVP_BACKEND_URL=http://127.0.0.1:8787 pnpm app`. CI's Windows build and the release take it
+  from the repository variable `MVP_BACKEND_URL` (`https://api.mvpgg.com` for MVP; unset in a
+  fork, whose builds then look for a local backend). The CSP's `connect-src` keeps the local origin
+  only: the webview never calls the backend, the core does.
 - **Install id**: a random 128-bit hex id in `install-id` next to `settings.json`, sent as
   `X-MVP-Install` on every request, the update check included (anonymous; lets the server
   rate-limit per install, stage rollouts and erase an install's crash reports). Settings shows it
@@ -164,16 +201,45 @@ All three run in the core, so they work with the window closed; the UI only show
 
 ## Loading-screen scouting (`companion::live`)
 When the phase reaches Loading or InGame the core reads `GET /lol-gameflow/v1/session` once per
-game (both teams: PUUID, Riot ID, champion, position; spells from `playerChampionSelections`),
-publishes a `LiveGame` (our team first), then asks `POST /v1/players/batch` for the visible
-players **by Riot ID** and fills the cards in place (`live` event), matching each card back to
-its seat by Riot ID (case-insensitive: the server answers with the account's own spelling).
-The client's PUUIDs stay in the core (they identify the local player and pair spells): our
-backend's API key can't read them. Streamer-mode players (`nameVisibilityType: HIDDEN`) are
-dropped before anything else: no Riot ID, no PUUID, no lookup; players without a Riot ID (bots)
-aren't looked up either. Champion select is never read for identities. The game ending clears
-the view; a failed batch is shown in the page head with a retry (`retry_scouting`). The remote
-config's `scouting` flag turns lookups off (the teams still show, without cards).
+game (both teams: champion, position, the client's PUUIDs; spells from
+`playerChampionSelections`) and publishes a `LiveGame` (our team first). The session names
+nobody but the local player (2026-09: no `gameName`/`tagLine`, bots not listed in custom
+games; the local player's Riot ID comes from `current-summoner`), so `LiveGame.names` says
+where the others' names are, and the core fills them in, publishing each step (`live` event):
+1. **Riot's live game** (`names: asking`): `GET /v1/live/{platform}/{me}?gameId=` with the
+   local player's own Riot ID, asked once more after 8 s if Riot doesn't list the game yet
+   (`LiveConfig.riot_retry`). The answer names every visible player, keeps streamer-mode ones
+   anonymous, marks bots, and brings the visible players' cards.
+2. **The game itself** (`names: waiting { filtered }`) when Riot has none (no backend, not
+   listed, `filtered` for Ranked Flex and Arena, an error): `companion::live::GameClient` reads
+   `GET https://127.0.0.1:2999/liveclientdata/allgamedata` (the League client's root; debug
+   builds: `SCOUT_GAME_CLIENT`) every 2 s (every 10 s after 90 s) until it lists the players,
+   which it does once the loading screen is over (≈ 23 s after `InProgress` on the real
+   client), then never again. The task is aborted with the game, so nothing asks outside one.
+   Meanwhile the local player's own card is asked for at once (it needs no one else's name).
+   Players it can't name reliably (streamer mode: a missing or partial Riot ID, a champion's
+   name, a name shared by several players) are hidden; champions and spells are read from
+   their Data Dragon keys (`rawChampionName`, `rawDisplayName`) through `GameIds` (the loaded
+   game data).
+Both lists are matched to seats by side (where the list names the local player, else the way
+round more champions match, else the session's first team is blue) then champion, a champion
+twice on one side in order (`live::seats`); players the session didn't list (bots) get seats of
+their own; a seat already hidden stays hidden and the local player keeps their own name. Then
+`POST /v1/players/batch` asks **by Riot ID** for the cards still missing (none when Riot's
+answer brought them all) and fills them in place, matching each card back to its seat by Riot
+ID (case-insensitive: the server answers with the account's own spelling). The client's PUUIDs
+stay in the core (they identify the local player and pair spells): our backend's API key can't
+read them. Champion select is never read for identities. The game ending clears the view; a
+failed batch is shown in the page head with a retry (`retry_scouting`: names already in are
+kept, only the cards are asked again). The remote config's `scouting` flag turns our server's
+lookups off (Riot's live game and the cards): the names still come from the game, without
+cards. UI: the page head says where the names are in a slot that is always there (so the head
+never wraps and the teams never move when the line changes): `Looking players up…`, or that
+the names come after the loading screen, plainly saying when Riot doesn't share the queue. Seats
+show a name placeholder until theirs arrives, pulsing while it is asked for and still while the
+game hasn't loaded (a minute or two); bots read "AI bot" with their champion, streamer-mode
+players "Hidden player" with their lane; a visible player's Riot ID links to their player page
+(`#/player/{platform}/{gameName}/{tagLine}`, as the search opens it).
 
 ## Match insights (`stats::grade`, `companion::matches`, `ui/src/views/home`)
 Every finished game in a match history gets a grade, and a match row opens on the whole game.
@@ -205,28 +271,234 @@ Every finished game in a match history gets a grade, and a match row opens on th
   profile answered: the match list asks `match_grades { matchIds }` for its rows without one and
   the core answers from its cache or reads what's missing; the next `current_profile` fills them
   from the cache. A game the client doesn't return is asked again later, never a finished game
-  twice. LCU roles (`timeline.lane/role`) are fixed up: the Smite holder jungles, of the bottom
-  pair the one with fewer lane minions supports, duplicates are dropped, the last free role goes
-  to the last unknown player; ARAM has none.
+  twice.
+- **Roles of your games** (`companion::matches::roles`): the client's `timeline.lane/role` is
+  Riot's legacy guess (real games: a mid Kennen called TOP, an Ezreal "in the jungle" without
+  Smite, a roaming support called MIDDLE), and a wrong role grades against another role's
+  references. Each Summoner's Rift team gets one of each role: the most likely of all 120
+  assignments, the product per player of the champion's role share (the published ranked
+  `champions.json`, Emerald+, of the index at hand — nothing is requested just for roles — each
+  champion's games shrunk toward a built-in prior of usual roles with 50 pseudo-games; the prior
+  alone without stats, equal shares for a champion it doesn't know, 1 % floor), the client's
+  lane as weak evidence (×3 the lane it names, ×2 the jungle and both bottom roles, ×1.5 the
+  bottom role it names), lane minions and monsters per minute (laners ≥ 4, supports ≤ 2.5,
+  junglers ≥ 3 monsters; ×e⁻¹ per one short or over) and a support item (×20). Smite is a rule:
+  with Smite on the team the jungler holds it. Howling Abyss has no roles. The match list's rows
+  guess from your line alone (`profile::listed_role`) until the whole game is read: then
+  `match_grades` answers each game's role with its grade (`GradedMatch.role`) and the next
+  `current_profile` carries it, so the rows, "Main role" and the roles bar agree with the grades.
 - **Match details**: `match_details { matchId }` → `MatchDetails`: both teams (blue first, lanes
   in order), each player's Riot ID (none when hidden: `nameVisibilityType: HIDDEN` in the client,
-  no name in Match-V5), champion and level, role, K/D/A, CS, gold, damage to champions, vision,
-  items and trinket, spells, keystone and secondary tree, grade, `isMe`. Your listed games come
-  from the client (the same read as their grades, cached); any other game from
-  `GET /v1/matches/{platform}/{matchId}` (the backend's match cache); failures aren't cached.
-- **UI**: a match row is a button (`aria-expanded`) with the grade chip (`GradeChip`, the tier
-  list's grade colours) over the place or MVP/ACE. Click, Enter or Space opens the game under it,
-  one at a time; a second click or Escape closes it and gives the focus back; when a game above
-  closes, the page scrolls so the clicked row stays put. The game's code rides in the player
-  page's chunk (`provideDetails` in App.tsx: a chunk of its own would split the chunks it shares
-  with the first screen), loaded on first use with the views' words; meanwhile a skeleton of the
-  table's exact height (540 px, fixed line heights). Hovering a grade, or focusing its row from
-  the keyboard, shows its why: a popover anchored to the chip in CSS (`anchor-name`,
-  `position-try-fallbacks`), gone on leave, Escape or a click. The page owner's line is marked.
-  Grades never show in Draft or on the Live cards. Mock: `data/mock/match-fixtures.ts` (a seeded
-  whole game per row, graded by a TS port of the formula), scenarios `match-details-slow`,
-  `match-details-error`, `match-details-gone` and `extreme`; `mock-lcu` serves whole games
-  (`mock_lcu::history`, one player in streamer mode).
+  no name in Match-V5), champion and level, role, K/D/A, CS, gold, damage to champions, vision
+  (no column on Howling Abyss — ARAM, ARAM: Mayhem… `lib/queues.ts` — or whenever everyone's is
+  0), items and trinket, spells, keystone and secondary tree, grade, `isMe`, and the end-of-game
+  stats (`EndOfGameStats`: the League client's post-game Stats tab — largest spree and multikill,
+  first blood, damage to champions by type, to turrets and objectives, taken and self-mitigated,
+  healing, healing and shielding on teammates, wards placed and destroyed, control wards, gold
+  spent, minions, monsters, crowd control, turrets and inhibitors; each `None` when the source
+  doesn't carry it, read by `EndOfGameStats::read` from Riot's names, alike in Match-V5 and the
+  client's `participants[].stats`; a server that doesn't send them yet parses as all `None`).
+  Your listed games come from the client (the same read as their grades, cached); any other game
+  from `GET /v1/matches/{platform}/{matchId}` (the backend's match cache: 45 participant fields
+  compacted, under 11 KB a game, 12,000 kept); failures aren't cached.
+- **UI, the rows**: a match row is a button (`aria-haspopup="dialog"`, `aria-expanded` while its
+  game is open) with the grade chip (`GradeChip`, the tier list's grade colours) over the place or
+  MVP/ACE. Hovering a grade, or focusing its row from the keyboard, shows its why: the app's
+  tooltip ("Tooltips" below) anchored to the chip, gone on leave, Escape or a click. Grades never
+  show in Draft or on the Live cards.
+- **UI, the stack of opened games** (`GameStack.tsx`, `GameWindow.tsx`, `stack.ts`; decisions.md
+  "Opened games are a stack of windows" and "Game windows: tabs, the wheel changes window, the page
+  recedes"): click, Enter or Space on a row opens a native modal `<dialog>` (`showModal`: the page
+  behind is inert; labelled by the current game's title, "Victory · Ranked Solo") holding one
+  window per game of the list the row is in (its filters applied), newest on top. The dialog is the
+  whole window: its own box around the stack's cell is "outside", a press and release there closes
+  it. **The page recedes** while it is open: the app's shell (`[data-ambient-host]`, matched with
+  `:has()` on the open dialog from the stack's CSS) is scaled to 0.94 and dimmed to 55 % in one
+  transition of `scale` and `opacity` (at once with reduced motion), in every effects level; the
+  dialog, in the top layer, isn't touched. The cell floats in the middle with a margin all around
+  (`--content-max` wide and 680 px plus the bands tall at most), where the page shows; the current
+  window fills it but for a band at its top and bottom (`--peek`) where its neighbours' edges show
+  `--gap` away; the cell clips them vertically, never with a mask (a mask would hide the page from
+  the glass). A click on a neighbour's edge goes there (the pointer brings it a little closer, a
+  hover says which game). **Only the current window and its neighbours are built**, each asking
+  for its game (`match_details`) as it is built, kept while the stack is open. A neighbour is a
+  window behind: 3 % narrower (`scale`, it grows to full width as it glides in), its rim quieter,
+  its glass under a veil (`--bg-scrim`), its game unseen (its edge is clean glass) until it
+  arrives. Each window is liquid glass (`liquid(el, "sheet")` on a layer inside it, tinted
+  `--bg-sheet`: the page bent along its rim, lightly frosted in its middle, where its lights and
+  shapes still come through, faintly; its shadow on a layer of its own); without it (Light, Off) a
+  90 % solid layer, `--bg-sheet-flat`, its rim lit all around. Its head comes from the row at once:
+  result and queue (the title), the LP (`+21 LP` like the row, the standing after, Promoted/Demoted;
+  "Counting LP…" while the client counts the game that just ended), champion, role, length and
+  when, the close button; then the grade of the player whose games these are (chip, score, MVP/ACE
+  or "2nd of 10") with the facts that moved it (not on a window under 640 px tall), and its
+  **tabs** (`Segmented`): Scoreboard, Damage, Vision & gold, Combat (no tabs for a game without
+  end-of-game stats; the tab chosen stays from game to game). **Nothing scrolls in a window**: its
+  body is a size container (`game-window`) whose height the tables' lines share (`cqh`). The
+  **scoreboard** (`MatchTable`, DPM as inspiration): per player the level on the portrait, spells,
+  keystone and tree, the Riot ID (a link to `playerPath`, which closes the stack and navigates;
+  hidden players and bots plain text), K / D / A with the ratio and the kill participation under it
+  (clamped to 100 %), damage with a bar on the game's top (on the second line: the numbers share a
+  line), gold, CS and vision each with its pace (no vision on Howling Abyss), items and trinket, the
+  grade (focusable, its why a tooltip on hover or focus); the runes, spells and items say what they
+  do, the KDA and grade headings what they mean. Its lines are 44 px at most (540 px in all, the
+  skeleton's height); under 450 px of room they keep one line of text (no captions, bars, spells,
+  runes or level; a 24 px portrait). Its columns give way as the window narrows (gold and vision
+  go, then the items, then the damage, then the CS). The **stats tabs** (`MatchStats.tsx`,
+  `STAT_TABS`: the League client's groups two by two; a row no player has is left out — Howling
+  Abyss has no vision —): groups of rows, the ten players as columns with champion heads on their
+  team's colour, the page owner's column marked, each row's top value marked, lines of 28 px at
+  most sharing the height; under 1024 px wide the table turns around (a row per player, the tab's
+  leading stats as columns, each group's first then its second…, as many as fit). Meanwhile a
+  skeleton of the tables' height; errors in place with a retry when it helps.
+  **Moving** (`stack.ts`, pure and unit-tested): the wheel only changes window. A gesture (wheel
+  events < `GESTURE_GAP_MS` apart) whose deltas add up to `WHEEL_MOVE` (50 px: a notch, a short
+  swipe) moves one game, down to the older one, up to the newer; the rest of it (more notches, a
+  touchpad's inertia) is swallowed (`preventDefault` on every wheel event but a zoom's), and the
+  wheel rests `SETTLE_MS` (400 ms) while the stack glides, pause or not (a page busy drawing hands
+  a spin's last notches over late). Deltas shrinking twice in a row (momentum) add nothing, merged
+  notches (200 then 100) count. Between games nothing pulls; past the ends the gesture pulls the
+  stack along (`rubber`: it follows with resistance, into the track's `translate`) under a hint of
+  what more would do ("Keep scrolling to close", "… to load older games", "No older games") whose
+  bar fills up; past the newest game `WHEEL_CLOSE` (360 px, four notches) closes the stack; past
+  the last game loaded `WHEEL_LOAD` (200 px) loads the history's next page (the list's "load more",
+  Home only) and moves on to it once it is in ("Loading older games…", or the failure: pull
+  again); at the history's end the stack only gives; after `RELEASE_MS` without a wheel event a
+  pull springs back. A finger drags the stack along (`touchmove` not passive only to hold the
+  page) and moves on `TOUCH_MOVE` (100 px) or closes on `TOUCH_CLOSE` (140 px) when lifted. Keys,
+  heard first (capturing): ↑/↓ and PageUp/PageDown move between games from anywhere in the window,
+  the tabs included (↓ at the last game loaded loads older ones; ↑ at the newest does nothing;
+  held down, a key never loads); Home and End go to the newest and the oldest game loaded; ←/→
+  change the tab (the tabs keep their arrows, Home and End). Reduced motion: the stack and the page
+  jump, pulls don't move it, the hint and thresholds work. **Closing**: Escape (a tooltip showing
+  first: design/tip closes it alone), a click around the windows, the close button, a player's
+  link, the pull past the newest game; the page comes back as the windows leave; the focus goes
+  back to the row of the game shown last (the current window has it meanwhile, Tab stays in it).
+  The stack rises in and leaves by `transform`, the windows' glass, content and shadow fade by
+  `opacity` (never a window: its glass would lose the page), and nothing runs once it is still
+  (the perf suite measures it open after a move, and closed). The code rides in the player page's
+  chunk (`provideDetails` in App.tsx: a chunk of its own weighed 1.5 KB more, its own copies of
+  shared modules), loaded on first use with the views' words. Mock: `data/mock/match-fixtures.ts`
+  (a seeded whole game per row, graded by a TS port of the formula, end-of-game stats from a stream
+  of their own: your games without the teammate rows, as the client's match history, others' with
+  every row), scenarios `match-details-slow`, `match-details-error`, `match-details-gone`,
+  `match-details-unavailable`, `howling-abyss`, `extreme`, `history-long` (pulling past the last
+  game loaded), `history-more-slow` and `history-more-error`; `mock-lcu` serves whole games
+  (`mock_lcu::history`, one player in streamer mode, the end-of-game stats in the client's shape).
+
+## After a game and over time (`companion::post_game`, `companion::lp`, `ui/src/views/home`)
+Home opens the game that just ended by itself, shows the LP each ranked game was worth, pages further
+back through the history with filters, and shows your mastery. Your own data only, from your client.
+- **Following a game** (`post_game::PostGames`, fed by the core's loop): when a game loads
+  (Loading/InGame) the core reads the gameflow session once for the game id and queue and, in
+  ranked solo/duo (420) and flex (440), the standing before it
+  (`/lol-ranked/v1/current-ranked-stats`, kept as `pending` on disk so a restart mid-game still
+  counts it). When the phase leaves the game, a task reads the whole game
+  (`/lol-match-history/v1/games/{id}`, the read that grades it, kept by `MatchInsights`: the list
+  then shows its grade and it opens at once) and the standing again until the client has counted
+  the game (its wins + losses one more): at once, when the client's ranked-stats event arrives
+  (the connector subscribes to it), else after 2, 3, 5, 8, 13, 20, 30 and 45 s; then nothing until
+  the next game. A remake has no LP to wait for; a standing counted twice, or unranked on one side,
+  leaves the LP unknown (never guessed).
+- **`PostGame`** (`post_game` command, `post-game` event): result, your line (grade with its
+  facts), your lane opponent (your role on the other team; without roles, as in ARAM, the enemy
+  whose share of their team's damage is closest to yours; none when not exactly one; the UI no
+  longer shows it: the scoreboard has both lines), the LP once counted (`lpPending` meanwhile).
+  Hidden when the player closes its window (`dismiss_post_game`: never shown again) or at the next
+  champion select or game.
+- **LP** (`lp::LpStore`, `lp_history`): `LpGame { gameId, queue, at, before, after, delta,
+  ladder }` newest first, at most 100 per queue, in `lp-history.json` in the app's data folder
+  (atomic writes; an unreadable file is set aside). `delta` is the difference of the two
+  standings on one ladder: 100 LP per division, a tier 400, the apex tiers (Master up) plain LP
+  from 2800 (Master 0 LP = Diamond I 100 LP), so promotions and demotions count across divisions;
+  `ladder` is the standing after, for graphs. Two standings the player saw: no MMR, no estimate.
+- **Older games** (`older_matches { begIndex }`): the client's list from `begIndex` to
+  `begIndex + 19` (both ends inclusive: 0–19 is 20 games), graded and opened like the first page
+  (`MatchInsights::older` adds them to the listed games). A shorter page is the history's end.
+- **Mastery** (`champion_mastery`): `/lol-champion-mastery/v1/local-player/champion-mastery` (read
+  for the draft helper already), most points first, ten at most. The backend doesn't expose
+  mastery: player pages show none.
+- **UI**: the game that just ended opens by itself in the stack of opened games ("Match insights"
+  above), on Home once your history lists it (`RecentMatches` `lastGame`, from `Home.tsx`), once per
+  game this session: closed any way, it is dismissed for good (`dismiss_post_game`); the next
+  champion select (the core hides the summary) closes it if it is still open; a stack already open
+  just has the game on top (its summary dismissed, nothing moves). Its window's head shows the LP
+  the summary brings (before `lp_history` has it), "Counting LP…" while `lpPending`, and your grade
+  with its facts. The autopilot already brings the window Home after a game, and never away from a
+  page the player opened. Match rows carry `+19 LP`
+  / `−17 LP` (`RecentMatches` `lp`). `MatchHistory.tsx` filters by queue (All / Solo / Flex /
+  ARAM with Clash and Mayhem / Other) and champion among the games loaded (links can set them:
+  `#/?queue=flex&champion=103`), and loads older games (Home only); rows shown ask for their
+  grades, each once per list the core sent (no flash while filtering). The ranked pane draws the
+  solo/duo LP over the tracked games (`LpTrend`, one ladder), the champions card your top five
+  masteries. Mock: `data/mock/progress-fixtures.ts`, scenarios `post-game`, `post-game-demotion`,
+  `post-game-lp-unknown`, `post-game-lp-pending`, `post-game-aram`, `history-long`,
+  `history-more-slow`, `history-more-error`; `mock-lcu` pages its list and ends each cycle's game
+  in the history, the standing counting it a moment later.
+
+## Tooltips (`ui/src/design/tip`, `static_data::descriptions`)
+Every hover explains what it is in a designed card, never the system's plain `title` box (a test
+checks no view has one). Runes, stat shards, summoner spells and items say what they do, in the
+UI's language, wherever their icons show: champion pages (and Live's *My build*, the same cards),
+match rows, opened games, Live's cards. Everything else gets a compact card:
+- **`data-hint="…"`** (lines split on `\n`, a heading in `data-hint-title`): the words the
+  component already computes, e.g. a build option's `812 wins in 1,530 games` and pick count in
+  one card, a matchup row's record and what its effect means, a disabled import button's reason,
+  a tier-list column's definition, the grade column's formula, a cut name in full.
+- **Ideas the app explains** (`data-tip="tier:S"`, `nav:draft`, `status:connected`): a tier's
+  meaning, what each page of the rail holds, what the client's status means for MVP; their words
+  are in the lazy catalogue (`t().tip`), so first-screen components only carry the short key.
+- **Keyboard**: a hint shows when its element, or a control inside it (a tier-list column's sort
+  button, a matchup's link), gets the keyboard focus. Explanations of numbers and definitions are
+  focusable (`tabindex="0"`, with a reasoned lint suppression); hints that only restore a cut
+  label (names) or name what a column already says (an opened game's level and damage), and
+  those inside another control (a suggestion's mastery line), are hover-only: an opened game
+  would otherwise double its tab stops.
+  An icon button's hint that repeats its `aria-label` isn't read twice (no `aria-describedby`).
+- **Hover intent**: a card shows after 200 ms of hovering, at once when another one showed
+  within 400 ms (the pointer moves along a list), and immediately on keyboard focus.
+- Things covered by a stretched link (a tier-list row) lift their badge over it; a click on the
+  badge still opens the row.
+- **Texts from the core, when asked**: `game_description { kind, id }` → `Description`, in the
+  loaded `GameData`'s patch and language (so it reads like the names beside it); never with the
+  names (`GameData` no longer carries the runes' short texts). Data Dragon's own texts, read from
+  the patch's cached files: runes' `longDesc` (their `shortDesc` when the long one has values only
+  the game fills in, `@f1@`), spells' `description` and `cooldownBurn`, items' `description`
+  (their `plaintext` when it shows nothing). Stat shards aren't in Data Dragon: their names and
+  effects come from the League client's `perks.json` as `CommunityDragon` mirrors it (the patch's
+  folder, else `latest`), downloaded the first time a shard is described and kept as
+  `shards.json` beside the patch's files; the core keeps them for the session (`ShardTexts`: a
+  failed download isn't tried again before a restart) and the UI falls back to its own words
+  (`t().shards`). Items, runes and spells are read from disk per request (one file, a few ms, off
+  the async threads): nothing stays in memory.
+- **Riot's markup never reaches the page**: `static_data::rich_text` turns it into lines of text
+  spans, each with a tone (`strong`: stats' values, passives' and actives' names; `subtle`: rules
+  and flavour; `physical`, `magic`, `true`, `heal`: the game's colours); every tag is dropped,
+  entities decoded, whitespace collapsed, an empty line between paragraphs, `<li>` bulleted. The
+  UI only writes text nodes. The browser mock has a port (`data/mock/descriptions.ts`); both are
+  held to the cases in `fixtures/rich-text-cases.json` (cargo test and vitest).
+- **One tooltip layer** (`design/tip/Tip.tsx`), the grade's why included: a `popover="auto"` in
+  the top layer (no card clips it), anchored in CSS (`anchor-name` on the element, `position-area:
+  bottom`, flipping above near the window's bottom, sliding along the edge to stay 8 px inside,
+  hidden with its anchor), `aria-describedby` on what it explains; gone on leave, when the focus
+  moves on, on Escape (only the tooltip: an opened game under it stays) or a click. It is drawn in
+  `#root` beside the shell, not under the backdrop's panes (no backdrop render).
+- **The card** (owner, 2026-09-28): the thing's icon, its name (an item's cost beside it) and what
+  it is (*Keystone · Domination*, *Summoner spell · 300 s cooldown*, *Stat shard · Offense*), then
+  its full text; behind it the thing's own picture, much larger, blurred and dimmed, fading out
+  before the text (a shard: a glow in its stat's colour, `--shard-tone`); glass like the app's
+  drops (`.glass-drop`: an even tint, a sheen over the upper half, a rim lit along the top).
+- **At rest it costs nothing**: icons only carry `data-tip="item:3031"` (a shard adds its row:
+  `shard:5008:offense`) and a `tabindex` where they aren't inside another control (a match row
+  keeps one tab stop; unchosen runes and shards are hover-only). One set of document listeners
+  (`follow.ts`, startup) forwards pointer and focus events once one reached a `data-tip` or
+  `data-hint` element; the tooltip's code rides in the player page's chunk (like an opened
+  game's) and loads then, with the views' words. A text is asked once per thing and game data;
+  the card waits for it within the hover's 200 ms (the core answers in a few ms), else shows and
+  fills in.
+- Mock: the dev cache (Data Dragon's files, and CommunityDragon's perks for the fixtures' patch:
+  `scripts/fetch-dev-assets.mjs`), read like the core does; scenarios `descriptions-missing` and
+  `descriptions-slow`; the cards side by side: `#/__harness?show=game-tips`.
 
 ## Search (title bar)
 Champions match locally and instantly (fuzzy: prefix, word, initials, subsequence); a Riot ID
@@ -236,9 +508,18 @@ when it is pressed. Lookups are shared with the player page (2 min in memory, fa
 Recent searches (max 8) and the region live in `localStorage`.
 
 ## Stats pages (`ui/src/views/tierlist`, `ui/src/views/champions`)
-The Tier list and Champions pages read the published stats through the core only (`stats_index`,
-`tier_list`, `champion_stats`, event `stats-index`; see `transport.ts`); failures carry a
-`BackendError` and read as "nothing published yet" (empty state) or an error with a retry.
+The Tier list and champion pages read the published stats through the core only (`stats_index`,
+`tier_list`, `previous_tier_list`, `champion_stats`, event `stats-index`; see `transport.ts`);
+failures carry a `BackendError` and read as "nothing published yet" (empty state) or an error
+with a retry.
+- **One hub for tiers and builds**: the nav has Tiers, no champion list. A champion anywhere (the
+  tier list, Ctrl+K search, matchups, Draft) opens its page, `#/champions?id=…`, and the nav keeps
+  Tiers lit there (`Route.also` in `app/router.ts`). `/champions` without an id goes to the tier
+  list with the link's filters (`location.replace`). The page's way back returns to the tier list
+  in the same scope (the filters and the view are shared and remembered). Both pages have the
+  same head and tabs row (`StatsHead`, `QueueTabs` with the rank at its end on a champion page,
+  `RankPicker`, `SearchField` in `views/stats/common.tsx`); the ARAM: Mayhem page ("Tier list ·
+  Augments") has them too, in the tier list's place, and is lit under Tiers as well.
 - **Scope**: queue (420 ranked solo · 450 ARAM), rank bracket and the tier-list role filter are
   remembered in `localStorage["mvp.stats-filters.v1"]` (`lib/stats-filters.ts`) and shared by both
   pages. Links can set them: `#/tier-list?queue=450&role=middle`; on a champion page `role` picks the
@@ -250,25 +531,69 @@ The Tier list and Champions pages read the published stats through the core only
   filter never blanks the page), drops answers to older keys and never triggers the app's
   Suspense. The `stats-index` event bumps a version in every request key: pages refetch when a new
   publication lands. No timers, no polling.
-- **Tier list**: rows ranked by score within the role shown (a divider opens each tier), sortable
-  columns (`aria-sort`), 50 rows then "Show all" (keeps the DOM small), each row a link to the
-  champion in that role; win rate is the shrunk one with its games, a footnote explains score and
-  grades.
+- **Tier list** (`views/tierlist`): a compact header, then one of two views.
+  - **Header**: the queue as tabs with a line under the one shown: Ranked Solo, ARAM, then
+    ARAM: Mayhem, which opens the Mayhem page (on a champion page, its Mayhem tab; `MayhemTab`);
+    then one row of 40 px pills: lanes as icon buttons (All, then League's own position icons,
+    `RoleIcon`; the one chosen on a neutral drop of glass, in white: colours on this page are the
+    tiers' and win rates'; each named by a tooltip); the rank as a button with the bracket's
+    emblem opening a grid of the brackets published for the queue (native popover, anchored in
+    CSS; it opens with the rank shown focused, arrows choose without closing it, a click or Enter
+    on a rank, Escape or a click outside close it and the focus goes back to the button); a
+    champion filter (fuzzy; the list keeps its order and its sort, Enter opens the best match;
+    faces are named while it filters); the view switch at the row's end (a `Segmented`). No region
+    or patch picker: the patch, games and last update are text on the title's line.
+  - **Two views**, remembered with the table's sort in `localStorage["mvp.tier-view.v1"]`
+    (`lib/tier-view.ts`; a link can pick one, `#/tier-list?view=table`). **Shelves** (default): a
+    podium of the top three (the first taller; gold, silver, bronze; the champion's art), a mini
+    meta map, then a shelf per tier (medallion, size, average win rate) with the champions as
+    faces, strongest first; a glass card glides from face to face with the numbers and their
+    trends. A face under the pointer lights its dot on the map and the reverse. **Table**: rank,
+    champion, lane (icon and the share of the champion's games played there; with one lane, its
+    share alone, "Share"), tier, win rate (the change since the previous patch after it, under it
+    below 640 px), pick, ban, games in full; every header sorts (again: the other way;
+    `aria-sort`), 44 px rows, 50 rows then "Show all"; under 800 px no games, under 640 px rank,
+    champion, lane icon, tier and win rate. With every lane shown, a champion is a face or a row
+    per lane it is played in.
+  - **The full meta map** (`MapDialog.tsx`, a chunk loaded when first opened) opens from the mini
+    map (a bar on pages under 900 px): a modal `<dialog>` (focus kept inside, Escape or the close
+    button, the focus back on the mini map). Strength (score) up, popularity (pick rate, log scale)
+    across, tier bands (`lib/meta-map.ts`, shared with the mini map: popularity from the least to
+    the most picked, at least 8× across, ARAM's 4×, so close pick rates spread out), each tier's
+    medallion in a column of its own beside its band (the mini map: its letter down the left
+    edge); faces pushed apart where they would overlap, sideways, each kept inside its tier's band
+    (`placeOnMap`), dots when every lane shows, always in their tier's colour; one name tag for the
+    point lit (with its lane when every lane shows), kept inside the plot. No wider than the page
+    (`--content-max`) on very wide windows.
+  - **Trends**: `previous_tier_list` answers the tier list of the patch before the current one,
+    same queue and bracket (`DataSet::previous`; the disk cache keeps the current and the previous
+    patch), or `null` when there is none: then nothing shows. The change in points shows after the
+    table's win rates (the arrow in the win or loss colour, the points quiet; a dot when unchanged)
+    and in the hover card (win, pick and ban rate, "since the last patch").
+  - **Without stats** (offline, nothing published): why, in the header where the lanes were
+    (`NoStatsNotice`: one line, the penguin when nothing is published, else an alert with Try
+    again ending it when asking again can help), then every champion by Data Dragon class,
+    filtered as you type, built a slice at a time (`NoStats.tsx`, `lib/progressive.ts`). While
+    the list loads: the shown view's skeleton (the podium and shelves, or the table's rows).
+  - **Medallions** (`design/TierMark.tsx`): S a gem, A a shield, B a tile, C a coin, D a ring, CSS
+    shapes in the tier colours, wherever a tier shows (shelves, table, hover card, the map's bands,
+    the champion page's hero, the Mayhem page's tier headings with their own hint). Widgets:
+    `tier-shelves`, `tier-table`, `tier-no-stats`.
 - **Champion page**: hero (art, role tabs with their share of the champion's games, tier, win/pick/ban
   rates with their counts, patch), then for the chosen role: the full rune page (both trees, the
   chosen runes lit in the tree's color, shards; the next most played pages one click away), spells,
   skill max order and first points (keycaps), items (starting, core in order, boots, 4th/5th/6th),
   every option with win rate, games and pick share; matchups best/worst by the shrunk effect `d`
   (lane, vs jungler, duos; rows open the other champion). ARAM: no roles, no bans, no matchups.
-  `/champions` without an id is a searchable grid with each champion's tier, built a slice at a
-  time (`lib/progressive.ts`: 40 tiles with the view, 40 more whenever the page is idle, again
-  from the start when a filter changes; `aria-busy` meanwhile): switching to it doesn't wait for
-  ~170 tiles, the first screen shows at once.
 - **Runes** come from `GameData.runes` (Data Dragon `runesReforged.json`, cached with the patch;
   icons under `artBase/img/…`). Stat shards (5001–5013) aren't in Data Dragon: `lib/runes.ts` names
-  them and `design/RuneIcon.tsx` draws them as glyphs (no Riot art).
-- **Controls**: `design/Segmented.tsx` is the radio group used for every filter and tab (one tab
-  stop, arrow keys, Home/End; the selection is a separate thumb element).
+  them and `design/RuneIcon.tsx` draws them as glyphs (no Riot art); their tooltips use the League
+  client's own words when the core has them ("Tooltips" below).
+- **Controls**: `design/Segmented.tsx` is the radio group for the pages' other filters and tabs
+  (one tab stop, arrow keys, Home/End; the selection is a separate thumb element; `lg` is a 40 px
+  pill: the tier list's view switch, Mayhem's rarity). Not every choice should look like a pill:
+  the stats pages' queue tabs, rank menu and lanes are the same pattern drawn by their caller
+  (`design/Radios.tsx`).
 - **For later**: `views/champions/BuildSummary.tsx` (keystone + secondary tree, spells, max order,
   core items) is ready for the Live page (the local player's champion and role, the game's queue);
   an "Import" action (rune page, item set: HANDOFF job 5) belongs in the Runes card header, next to
@@ -283,8 +608,8 @@ The Tier list and Champions pages read the published stats through the core only
   Master+; files saved before it load with the default) is whose games the stats count: the draft
   helper, its compositions and build imports switch to it at once; the stats pages start from it.
 - **Automations** run in the core (`companion::automation`), so they work with the window closed:
-  auto-accept (opt-in, delayed, once per ready check, see policy.md), build imports on lock-in
-  (opt-in per part, see "Build imports" below) and the `Autopilot`, which
+  auto-accept (opt-in, delayed, once per ready check, see policy.md), the automatic build import
+  at the first lock-in (opt-in per part, see "Build imports" below) and the `Autopilot`, which
   turns gameflow phases into window intents: focus in champ select, Draft → Live → Home as the game
   goes. The UI reports every view it shows (`view_changed`), so a page the player opened is never
   switched away from.
@@ -292,11 +617,24 @@ The Tier list and Champions pages read the published stats through the core only
   webview and, with *close to tray*, the app stays in the tray. A `navigate` event moves the UI; a
   window created for an intent opens directly on its view. *Launch at startup* uses
   tauri-plugin-autostart and starts in the tray (`--autostart`).
+- **Search** (the Settings page's field; `views/settings/search.ts`, pure and unit-tested): every
+  word typed must be found in a setting (its card's title counts for all its rows), folded like
+  the title bar's champion search (`lib/fuzzy`: case, accents, punctuation). Best is as typed at
+  a word's start (words run together too, "autoaccept"; plurals find the singular); only when a
+  word is found nowhere so do matches inside a word, left-out letters (`matchScore`) and one typo
+  (two from 8 letters) count. Words of one or two letters count only alone. Besides the words on
+  screen, a setting is found by what players call it (`settings.search.keywords`, per language)
+  and its control's labels (Emerald+, Light, Open log folder). A setting and the ones nested under
+  it show together; About's sections are its rows; only About found takes the settings' column.
+  The page hides what isn't found (cards stay mounted: nothing resets) and marks what is
+  (`design/Marked`); nothing found says so, with Clear search. Ctrl+F focuses the field on this
+  page only (Ctrl+K stays the title bar's), Escape empties it then leaves it; the query lives
+  with the page. No timers: it all runs on input.
 
 ## Languages (`ui/src/i18n`)
 English and French, for every word the player reads (views, states, toasts, tooltips,
-`aria-label`s). Riot's own names (champions, items, spells, runes) come from Data Dragon in the
-same language.
+`aria-label`s). Riot's own names (champions, items, spells, runes) and what they do (tooltips)
+come from Data Dragon in the same language (stat shards: the League client's own words).
 - **Catalogues**: `en.ts` + `en-views.ts` are the source, nested objects of strings and small
   functions for anything carrying a value (plurals, agreement, French elision `d’Ahri`), always
   whole sentences. `fr.ts` + `fr-views.ts` have exactly their shapes (`satisfies`): a missing or
@@ -346,12 +684,15 @@ the compositor (transform/opacity, GPU filters).
 
 **Optics** (`liquid/optics.ts`, pure, unit-tested): a glass pane floats above the page (its
 `elevation`), seen from above. Its top is flat and curves down to its flat underside across a
-bezel (a squircle profile for panes, a parabola for drops, a circle for card edges). The view ray
+bezel (a parabola for panes and drops, a circle for card edges). The view ray
 refracts where the surface slopes (Snell's law, index 1.5), crosses the glass, refracts again
 leaving the underside and crosses the gap of air to the page, landing further inside: what is
-under the rim is pulled inward and squeezed, and a parabolic drop magnifies evenly like a loupe
-(≈ ×1.3 floating 0.6 of its radius up). Most of the visible bend comes from the gap (a sheet
-lying on the page bends ~10 px at most; floating 10–12 px up, the rim bends 10–40 px). Past a
+under the rim is pulled inward and squeezed. Most of the visible bend comes from the gap (a
+sheet lying on the page bends ~10 px at most; floating 14–20 px up, a pane's rim bends 12–21 px).
+The profile matters more than the strength: a squircle (flat, then a vertical edge) puts nearly
+all of its bend in the rim's last pixels, 20–28 px between two neighbouring rows at these
+heights, which cuts what is behind into bands (the owner saw lines); a parabola spreads it, at
+most ~2.5 px from one row to the next (`optics.test.ts` keeps panes under 3). Past a
 grazing angle the underside would reflect everything back (total internal reflection): capped so
 the rim's last pixel stays finite. The rim reflects more at grazing angles (Fresnel, Schlick).
 The curves are sampled into small tables shared by the two layers below, so they bend light alike.
@@ -374,23 +715,33 @@ functions) → the glass' tint → rim light.
 - **Tint**: declared once in the element's CSS (`--lg-tint: <token>` with
   `background: var(--lg-fill, <token>)`); while the lens runs, liquid.ts sets `--lg-fill:
   transparent` and the filter paints that tint scaled by blue. Text-heavy panes (search, toasts)
-  keep a deep middle for reading; `--bg-clear` panes over art let the art through.
+  keep a frosted middle for reading; `--bg-clear` panes over art let the art through. The middle's
+  frost and the tint follow the thickness eased by a gamma (`THICKNESS_EASE` 2.2): a steep rim is
+  almost full thickness a few pixels in, and taken as is the glass would turn frosted and dark at
+  once. Every rim keeps a 1 px pre-blur (0.5 on clear panes): the band right at the rim mirrors
+  what is behind it, and razor-sharp it shows text upside down, which reads as a bug.
 - **Rim light** comes from the same map: red/green are the outward normal scaled by steepness,
   so a colour matrix gives `normal · light` (light from the top left, a third of it on the far
-  rim), sharpened with a gamma and added on top. The CSS `glass-rim` ring stays as the crisp edge.
+  rim), sharpened with a gamma, cut to the rim zone (× 1 − thickness: none where the glass is
+  full thickness, or its last few percent drew the map slices' edges as lines) and added on top.
+  The CSS `glass-rim` ring stays as the crisp edge.
 - The optical outline rounds corners at least as much as the bezel is wide (smooth normals, no
   crease along the corner diagonal); a drop is a stadium.
-- Kinds (`LIQUID`): `bar` (title bar: a 10 px lower rim; content scrolling under it stretches
-  along that rim, the rest is frosted), `dock` (the rail and the floating tab bar: 12 px rims,
-  frosted middle), `panel` (search results, toasts: 12 px rims matching their corners, frosted
-  middle), `clear` (rank pane and champion tier over art: a wide 20 px bent rim, corners
-  `--radius-5` to match, a light frost in the middle for their captions), `lens` (rail selection,
-  segment thumbs, held switches: a loupe, tinted with light so a choice reads lit, never as a
-  hole). No colour split over the page (over text it reads as fringing).
-- **Icons and text stay crisp**: a drop sits *behind* the labels of the rail and of segmented
-  controls at rest, and lifts over them (magnifying what it passes) only while it glides
-  (`data-moving`, from the WAAPI glide or the thumb's `transform` transition). A held switch's
-  knob swells into a drop over the track.
+- Kinds (`LIQUID`): `bar` (title bar: a 14 px lower rim bending strongly; content scrolling
+  under it stretches along that rim, the rest is lightly frosted, 4 px), `dock` (the rail and the
+  floating tab bar: 12 px rims, 6 px frost in the middle), `panel` (search results, toasts: 14 px
+  rims, 6 px frost in the middle), `sheet` (opened games' windows: a panel's bend, 2 px at the rim
+  and 10 px in the middle, saturated 1.25 under a 75 % tint: the receded page's lights and shapes
+  come through, faintly), `clear` (rank pane and champion tier over art: a wide 20 px bent rim, corners
+  `--radius-5` to match, a light frost in the middle for their captions), `lens` (the glass lab's
+  drop only). The app's small glass on controls (rail selection, segmented and
+  choice thumbs, a held switch's knob) isn't lensed: it is the CSS drop (`design/glass.css`
+  `.glass-drop`), an even light tint with a sheen over its upper half and a 1 px inset-shadow rim
+  brighter along the top, moving with its control without any backdrop filter. No colour split
+  over the page (over text it reads as fringing).
+- **Icons and text stay crisp**: a drop always sits *behind* the labels of the rail and of
+  segmented controls, gliding or not, and nothing scales while it glides (the rail's move is a
+  translate only). A held switch's knob swells into a drop over the track.
 - Nothing that carries a lens has an outer box-shadow: Chromium shifts the SVG filter by the
   shadow's reach. Shadows sit on a wrapper; the glass is a layer inside (tested).
 - The page scrolls **under** the title bar (`main` spans both rows, padding-top = bar height),
@@ -419,7 +770,7 @@ fixed, `z-index: -1`, `aria-hidden`, `data-free-style`), drawn **on demand only*
   PUUIDs, IP addresses, user folders). The UI copies it (clipboard API, else a text area and
   `execCommand`). "Open log folder" (`open_logs`) opens the folder in Explorer.
 
-## Ranked emblems (`static_data::emblems`, `ui/src/design/RankEmblem.tsx`)
+## Ranked emblems and position icons (`static_data::{client,emblems,positions}`, `ui/src/design`)
 - **Riot's art, at run time**: at start the desktop core loads the ten tier emblems
   (`RankEmblems::load`): from its cache (`<app cache>/emblems/v1/emblem-<tier>.png`), else from
   `CommunityDragon`'s mirror of the League client files (`…/rcp-fe-lol-static-assets/global/default/
@@ -429,7 +780,15 @@ fixed, `z-index: -1`, `aria-hidden`, `data-free-style`), drawn **on demand only*
   80 × 60 on a 2× screen), then cached. A tier that fails is left out; offline, the cache serves.
   Bump `CACHE_DIR` to fetch again (new art or another window).
 - The UI gets them as data URLs (`rank_emblems` command, `rank-emblems` event when they arrive;
-  `ui/src/data/emblems.ts` asks once per session). The app's CSP already allows `data:` images.
+  `ui/src/data/core-art.ts` asks once per session). The app's CSP already allows `data:` images.
+- **League's position icons**, next: the five lanes' icons from the same mirror
+  (`PositionIcons::load`: `…/global/default/svg/position-{top,jungle,middle,bottom,utility}.svg`,
+  cached in `<app cache>/positions/v1/`), the drawing alone (the client's file links a stylesheet;
+  anything but a small SVG is refused). The UI (`position_icons`, `position-icons`) draws them as a
+  CSS mask in the text's colour (`RoleIcon`: the tier list's lanes, table, shelves and map, the
+  champion page's role tabs), MVP's own line drawings until then (offline on a first start). Both
+  loaders share `static_data::client::ClientFiles` (the cache, else the first folder that has the
+  file, shaped off the async threads, written then renamed); the log says "position icons ready".
 - **`RankEmblem`** (`tier | "unranked"`, `sm` 48 × 36 · `md` 64 × 48 (Live cards) · `lg` 80 × 60 ·
   `xl` 96 × 72 (Home; the core's 192 × 144 at 2×)) shows Riot's art when it has it, else MVP's
   crest in the same box (`data-emblem="riot" | "crest"`), so nothing moves when the art arrives.
@@ -440,16 +799,24 @@ fixed, `z-index: -1`, `aria-hidden`, `data-free-style`), drawn **on demand only*
   tokens (`--rank-<tier>`). No rank: an empty slot, not a dimmed Iron.
 - Mock scenarios: none by default (the crest shows), `?scenario=emblems` stands in stylized
   emblems (no Riot art in the repository). Dev lab: `#/__harness?show=emblems` (every tier,
-  crest and art, at every size).
+  crest and art, at every size). Position icons: the dev cache's copies
+  (`scripts/fetch-dev-assets.mjs`), none without them; the tests stand in squares.
 
 ## Build imports (`companion::imports`)
 MVP writes a champion's build into the League client: its own rune page, its item set for the
 champion, the summoner spells (policy: docs/policy.md, "Build imports"). The UI asks with
-`import_build { request: ImportRequest { championId, role, queue, parts } }` and gets an
-`ImportResult`, one outcome per part: `saved { name }`, `spellsSet { spellIds, changed, flash }`,
-`skipped { reason }` or `failed { reason }` (structured; the UI words them in
-`ui/src/lib/imports.ts`). The lock-in automation sends the same result as an `import` event
-(`automatic: true`): a toast anywhere, and the Draft bar's buttons.
+`import_build { request: ImportRequest { championId, role, queue, bracket, parts, champSelect } }`
+and gets an `ImportResult`, one outcome per part: `saved { name }`,
+`spellsSet { spellIds, changed, flash }`, `skipped { reason }` or `failed { reason }` (structured;
+the UI words them in `ui/src/lib/imports.ts`). The buttons (Runes, Item set, Spells) are always
+there, in Draft's import bar and on champion pages. The automatic import sends the same result
+as an `import` event (`automatic: true`): a toast anywhere, and the Draft bar's buttons.
+- **`champSelect`**: Draft's clicks and the automatic import are for the current champion select;
+  if it has ended when the import runs (the core left `ChampSelect`, the session is gone, or its
+  timer says `GAME_STARTING`; checked before anything is read, after the build is looked up and
+  before each part), every part is `skipped { champSelectEnded }` and nothing is tried. Seen on
+  a real client: a click as the game started said "No build for this champion and role".
+  Champion pages send `false` (their build is for any game).
 - **Builds** come from a `BuildSource` trait: `build(champion, role, queue, bracket) ->
   Option<BuildStats>` (`role: None` = the most played role; queue 420 for every Summoner's Rift
   mode, 450 for ARAM, from the gameflow session's `gameData.queue.mapId` when the request has
@@ -473,12 +840,39 @@ champion, the summoner spells (policy: docs/policy.md, "Build imports"). The UI 
   the setting (D/F), else the key Flash sat on in most of the client's recent Summoner's Rift and
   ARAM games, else where it is now, else F with a `guessed` note; `keptOnYourKey` when the build
   lists it on the other key, `notInBuild` without Flash. Already set: no write.
-- **On lock-in** (`LockIn`, fed with every champion select session the core loop sees): a lock is
-  the local player's completed pick action (or no pick action at all, as in ARAM) with a
-  champion. `LockTracker` handles each locked champion once per champion select; a new champion
-  (trade, ARAM swap) aborts the previous import and starts its own. The parts set to "on
-  lock-in" run in one task. Spells locked with 7 s or less left in a phase before finalization
-  wait for the next session event with time on the clock (the next turn, or finalization).
+- **Auto import, once** (`imports::lock_in`, fed with every champion select session the core
+  loop sees): Settings → Imports has one "Auto import" switch per part (`Settings.autoImportRunes`,
+  `autoImportItemSet`, `autoImportSpells`, all off by default). A lock is the local player's
+  completed pick action (or no pick action at all, as in ARAM, where the first champion given is
+  the lock) with a champion, and its role (`assignedPosition`; an empty one in a session sent
+  again keeps the role known so far). At the **first** lock of a champion select the parts
+  switched on (and not paused by the server) run in one task. MVP never imports again by itself
+  in that champion select.
+- **The warning**: `LockTracker` remembers, per part imported by itself, the lock MVP last
+  imported it for. When the player's lock changes afterwards (a trade, an ARAM reroll or bench
+  swap, a role swap), the parts not for the new lock become the `ImportWarning { builtFor, now,
+  parts }` (only parts whose switch is still on), published on `Companion.import_warning`: the
+  desktop forwards it as the `import-warning` event and answers `import_warning`. The automatic
+  import still running for the old lock is aborted (Ahri's spells never land on Lux), deferred
+  spells too. Draft shows the warning in its import bar ("MVP's build is for Ahri Mid, you're now
+  on Lux" + "Import for Lux"), a toast with the same one click shows elsewhere in the app. Every
+  import (`Importer::reporting`: a click, the warning's click, the automatic one) reaches the
+  tracker: an import of a part for the lock the player has now takes it off the warning, whatever
+  its outcome (the player asked and was told how it went); an import for another champion (a
+  champion page) never raises one. Only a change of lock does: MVP never reads the player's
+  pages, sets or spells to compare, so what they change themselves never warns. Trading back to
+  what the build is for clears it; so does the end of champion select.
+- Spells of a first lock with 7 s or less left in a phase before finalization wait for the next
+  session event with time on the clock (the next turn, or finalization).
+- **Settings files up to 0.2** had a mode per part (`importRunes: "off" | "oneClick" |
+  "onLockIn"`): they load in place (`alias` + a lenient reader in `domain::settings`): "on
+  lock-in" turns the part's switch on, the others leave it off, nothing else changes, and the
+  next save writes the new keys.
+- **Draft's bar keeps its results for the champion select** (`draftImports` in
+  `ui/src/lib/imports.ts`, reset when the client status leaves champion select): a session the
+  client sends again after an import (seen on a real client after a spells change), a view that
+  briefly has no champion or position, or Draft closing and opening again keep them; another
+  champion or role starts afresh.
 
 ## Window backdrop (`ui/src/design/backdrop`)
 The ambient light behind the shell is one WebGL 1 canvas (first child of `[data-ambient-host]`,
@@ -500,13 +894,16 @@ rest: no rAF loop, no timers (the perf suite asserts 0 renders over 3 s, and a m
   difference from `--bg-0`, so dark areas and text backgrounds stay as they were. Cards add a
   crisp 1 px rim of light in CSS (`.glass-rim`).
 - **Levels** (`Settings.effects`, owned by the core; a copy in localStorage `mvp.effects` so the
-  first frame matches; shown on `<html data-effects>`; Settings → App → Visual effects): `auto`
-  ("Full", default) → `shader`, falling back to `css` when WebGL is missing, the first frame takes
-  more than 8 ms GPU included (software rendering, weak GPU), or the context is lost (back to
-  `shader` when restored); `prefers-reduced-transparency` → `css`; `prefers-reduced-motion` keeps
-  the shader but skips glides. `light` → `css`, static gradients and plain blur. `off` → `flat`:
-  `--bg-0` only, no blur, opaque floating panels. `data-effects-fallback` says why a fallback
-  happened (Settings words it).
+  first frame matches; shown on `<html data-effects>`; Settings → App → Visual effects): `full` →
+  `shader`, falling back to `css` when WebGL is missing, the first frame takes more than 8 ms GPU
+  included (software rendering, weak GPU), or the context is lost (back to `shader` when
+  restored). `auto` (default, never offered as such) is `full` for everyone, Windows'
+  "Transparency effects" switch included (owner, 2026-09-30: it is off on many PCs for reasons of
+  its own); Settings shows it as Full. Reduced motion is followed live (a media query `change`
+  event, no restart, nothing polls).
+  `prefers-reduced-motion` keeps the shader but skips glides. `light` → `css`, static gradients
+  and plain blur. `off` → `flat`: `--bg-0` only, no blur, opaque floating panels.
+  `data-effects-fallback` says why a fallback happened (Settings words it).
 - **Tests**: headless Chromium renders with SwiftShader, which the speed probe rightly rejects, so
   `tests/app.ts` sets `window.__MVP_TRUST_WEBGL__` to keep the shader in every suite
   (`webgl: "probe" | "missing"` exercises the fallbacks, `tests/backdrop.spec.ts`, which also
@@ -645,19 +1042,105 @@ enemy's `role`/`roleOdds` (≥ 5 %).
   *Pick*; on narrow windows the panel is stacked last and opens on *Teams* (rows explain
   themselves inline).
 
+## ARAM: Mayhem (`static_data::mayhem`, `apps/backend/src/mayhem.rs`, `companion::mayhem`)
+Queue 2400 (custom games 3270), game mode `KIWI`. Riot keeps these games off Match-V5, so the
+numbers come from the owner (tiers) and from players who opt in (pick counts), **never a win
+rate** (policy.md, "ARAM: Mayhem augments"; decisions.md).
+
+- **Augment catalog** (`static_data::mayhem`, run by the backend): from `CommunityDragon`'s
+  mirror of the game files: `content-metadata.json` (the game version), the pool
+  (`augment-lists.json`, mode `KIWI`: 223 augments on 16.19), each augment's rarity, icon and
+  names (`cherry-augments.json`, `default` and `fr_fr`), and its short description (the augment
+  definitions in `game/maps/modespecificdata/kiwi.bin.json` and the game's English and French
+  string tables, ~33 MB each, read as a stream). Values from the definitions: a level range reads
+  `20–80`, a stat scaling shows its base, a melee value its ranged one (`150 (100 ranged)`),
+  multipliers, breakpoints, sums, products and other calculations (by name or by the file's
+  FNV-1a hash of it) are worked out, a quest's goal is its first milestone; what only the game
+  knows in play reads "some", the champion's own ability "your ability". A generic ability icon
+  takes the same augment's Arena icon when it has one. Built into `mayhem/augments.json` once per
+  game version and builder `REVISION` (checked at start and every 6 h, `MAYHEM_CATALOG=0` to
+  stop; `mvp-backend mayhem augments [--force]`); the sources stay on disk only for the version
+  being built.
+- **Tiers** (`mayhem-tiers.json`, the owner's, apps/backend/README.md): watched like `config.json`
+  (a broken file stops the service at start; a broken edit keeps the previous version). Refused:
+  unknown keys, an augment twice (within or across tiers), a bad patch, date or note. The order
+  inside a tier is the rank: `MayhemTiers::of(id)` → (tier, rank from 1).
+- **Shared games** (`POST /v1/mayhem/games`): 1–20 games, each 10 players on 10 different
+  champions with ≤ 6 distinct augments and ≤ 6 items, a SHA-256 game hash, a patch not newer than
+  the catalog's; body ≤ 64 KB; per install 10 at once, then 30 an hour. A game counts once
+  (hashes in memory, rebuilt from the files at start); it is appended to
+  `mayhem/games/{patch}.jsonl` (arrival time, platform, the game: no install id, no IP) and added
+  to the patch's tallies in memory: games, champion games, augment picks overall and per
+  champion, final items per champion (once per game). `GET /v1/mayhem/stats` renders them at most
+  once a minute while games arrive. Metrics: `mvp_mayhem_games_total{outcome}`.
+- **In the app** (`MayhemClient`): the three files through the backend client, on disk with their
+  ETags (`{app cache}/mayhem/v1/{augments,tiers,stats}.json` + `.etag`); a copy older than its
+  freshness (augments 1 h, tiers and stats 5 min) answers at once and is revalidated in the
+  background; after a failure the held copy stands 30 s before the next try. Only when something
+  asks, never on a timer.
+
+| Command | Answer |
+| --- | --- |
+| `mayhem_augments { language }` | `MayhemAugments \| null`: names and descriptions in the UI's language (English where French is missing), icons' full URLs; `null` while the server hasn't built them |
+| `mayhem_overview` | `MayhemOverview`: the tiers and every augment's pick count over all champions (`null` parts when unpublished or offline without a copy) |
+| `mayhem_champion { championId }` | `MayhemChampion`: its priorities per rarity, most picked augments (10), most common final items (12), its games and `minGames` |
+
+- **Priorities** (`companion::mayhem::champion`): per rarity (each offer round is one rarity),
+  the tiered augments by tier, then the owner's rank; once the champion has 30 shared games
+  (`MIN_GAMES`) its pick rate comes with every entry and the untiered augments its players pick
+  follow, most picked first. At most 8 per rarity; nothing without a tier or a pick signal.
+- **Sharing** (`companion::mayhem::share`, started beside the core by the shell with
+  `spawn_sharing`, on the core's client and status; only while
+  `Settings.shareMayhemGames` and the remote `features.mayhemSharing` are on): a scan 10 s after
+  a game reaches the end-of-game screen and again when it leaves it, 10 s after the client
+  connects, and once when the switch is turned on. Until the whole history has been read once
+  since the switch was turned on (`historyRead` in `{app cache}/mayhem/shared.json`), a scan
+  pages back through it (`HISTORY_PAGES` pages of 20, to the first short page); after that it
+  reads the last 20 listed games (`/lol-match-history/…/matches`). Then
+  `GET /lol-match-history/v1/games/{gameId}` for each Mayhem game (queue 2400 or 3270, over 5
+  minutes) not shared yet: champion, `playerAugment1`–`6` and `item0`–`5` of the ten players,
+  uploads of 20 per platform, newest first. One request every `SPACING` (300 ms), and none while
+  a game is being played (`updates::in_game`): the scan stops and the next one goes on. The
+  hashes sent (the last 500) keep a game from going twice; a game the server refuses isn't sent
+  again, one a network failure or a busy server kept goes at the next scan.
+- **Enough data**: `mayhem_overview.progress` (`companion::mayhem::progress`): the page's pick
+  rates from `PAGE_GAMES` (100) shared games, a champion's own from `MIN_GAMES` (30). Below, the
+  views show a bar (`parts.tsx` `Meter`) instead of numbers. `Settings.shareMayhemGames` is
+  `null` until the question on Home (`views/mayhem/Question.tsx`, lazy, from `app/Banners`) is
+  answered.
+- **Draft**: the gameflow session's queue or mode makes `DraftView.mode` `"mayhem"`; the bench is
+  ranked as in ARAM, the side panel opens on *Augments* (the selected pick's priorities, else
+  yours, one rarity at a time) and each row shows that champion's three most picked augments,
+  the first named, once it has 30 shared games. Pick rates, most picked augments and common
+  items show nowhere below that sample.
+- **UI** (`ui/src/views/mayhem`): `/mayhem` (its own lazy chunk, opened from the Tier list's
+  queue tabs, "ARAM: Mayhem"): every augment by tier and rarity with "S · 1" badges and pick
+  rates, and a champion filter (`?champion=`) with that champion's priorities, most picked
+  augments and common items. `parts.tsx` holds what the other views share: the champion page's
+  Mayhem tab (`/champions?id=…&mode=mayhem`, then ARAM's build labelled as ARAM data), Draft's
+  *Augments* tab and rows, Live's "My build" in a Mayhem game. Hovers are the app's tooltip cards
+  (`data-hint`, "Tooltips"): an augment row says what it does (also on keyboard focus), `S · 2`
+  and the page's tier headings what MVP's tiers are (the headings wear the tier list's medallions
+  with this hint of their own: the tier list's medallion explains a win-rate tier). Mock
+  scenarios `mayhem-*`
+  (`empty`, `unbuilt`, `offline`, `slow`, `extreme`, `champ-select`, `live`); `?augments=dev`
+  (dev server and screenshots only) shows the real catalog from `.cache/mayhem`.
+- **mock-lcu** `--mayhem`: champion selects and games of queue 2400; the newest listed game is a
+  Mayhem game with augments in every mode.
+
 ## Crates
 | Crate | Role |
 | --- | --- |
 | `domain` | UI-facing types (serde + ts-rs) |
 | `lcu` | League client: discovery, pinned TLS, REST, WAMP events, connector lifecycle |
 | `mock-lcu` | fake League client for tests and development (match history with whole games) |
-| `companion` | Tauri-free core: client status, champ select → `DraftView` (+ draft helper), loading screen → `LiveGame`, settings, automations, build imports, your games' grades and details, backend client, stats download + disk cache, remote config, crash reports, update policy |
+| `companion` | Tauri-free core: client status, champ select → `DraftView` (+ draft helper), loading screen → `LiveGame`, settings, automations, build imports, your games' grades and details, backend client, stats download + disk cache, ARAM: Mayhem data and opt-in sharing, remote config, crash reports, update policy |
 | `scrub` | removes personal data (Riot IDs, PUUIDs, user names in paths, e-mails, credentials, IPs) from crash reports, in the app and on the server |
-| `static-data` | Data Dragon download (champions, items, spells, rune trees) + per-patch cache + offline fallback |
+| `static-data` | Data Dragon download (champions, items, spells, rune trees) + per-patch cache + offline fallback; what each rune, shard, spell and item does (Riot's markup to safe text), ranked emblems and League's position icons; ARAM: Mayhem's augment catalog from the game files (run by the backend) |
 | `stats` | statistics, the draft model and the per-game grade |
 | `aggregate` | stats pipeline core: Match-V5 → facts → mergeable aggregates → published JSON |
 | `riot-api` | Riot Web API client for the backend (rate limits, retries) |
 | `players` | Riot data → `PlayerProfile` / `ScoutCard` / `MatchDetails` and grades (behind a `RiotSource` trait the backend caches) |
 | `apps/desktop` | Tauri shell: window, tray, commands, event bridge |
-| `apps/backend` | `mvp-backend` HTTP service: player lookups, scouting, match details, published stats files (key server-side), app updates, remote config, crash reports, admin CLI |
+| `apps/backend` | `mvp-backend` HTTP service: player lookups, scouting, match details, published stats files (key server-side), ARAM: Mayhem (tiers, augments, shared games), app updates, remote config, crash reports, admin CLI |
 | `apps/crawler` | `mvp-crawler`: crawl (Riot API → SQLite) and publish (→ `stats/v1/…`) |

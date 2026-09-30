@@ -1,0 +1,312 @@
+<!doctype html>
+<!-- Home (French). Its twin is /index.html: keep both in step (site/README.md). -->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src https://api.github.com; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<title>MVP · un compagnon gratuit pour League of Legends sur Windows</title>
+<meta name="description" content="MVP est une petite application gratuite et open source pour League of Legends sur Windows&nbsp;: des choix expliqués en sélection des champions, les builds en un clic, les joueurs de votre partie sur l’écran de chargement et une note pour chaque partie.">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f3ecdd">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1b1a20">
+<link rel="canonical" href="https://mvpgg.com/fr/">
+<link rel="alternate" hreflang="en" href="https://mvpgg.com/">
+<link rel="alternate" hreflang="fr" href="https://mvpgg.com/fr/">
+<link rel="alternate" hreflang="x-default" href="https://mvpgg.com/">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/assets/icon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/assets/icon-256.png">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="MVP">
+<meta property="og:title" content="MVP · un compagnon gratuit pour League of Legends sur Windows">
+<meta property="og:description" content="MVP est une petite application gratuite et open source pour League of Legends sur Windows&nbsp;: des choix expliqués en sélection des champions, les builds en un clic, les joueurs de votre partie sur l’écran de chargement et une note pour chaque partie.">
+<meta property="og:url" content="https://mvpgg.com/fr/">
+<meta property="og:locale" content="fr_FR">
+<meta property="og:locale:alternate" content="en_GB">
+<link rel="preload" href="/assets/fonts/fraunces.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/assets/fonts/caveat.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/assets/site.css">
+<noscript><link rel="stylesheet" href="/assets/noscript.css"></noscript>
+<link rel="modulepreload" href="/assets/releases.js">
+<link rel="modulepreload" href="/assets/markdown.js">
+<script type="module" src="/assets/site.js"></script>
+</head>
+<body data-page="home">
+<a class="skip" href="#main">Aller au contenu</a>
+
+<svg class="defs" aria-hidden="true" focusable="false">
+  <filter id="rough" x="-10%" y="-10%" width="120%" height="120%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="4" result="n"/>
+    <feDisplacementMap in="SourceGraphic" in2="n" scale="3" xChannelSelector="R" yChannelSelector="G"/>
+  </filter>
+  <filter id="rough-wm" x="-5%" y="-10%" width="110%" height="120%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="2" seed="9" result="n"/>
+    <feDisplacementMap in="SourceGraphic" in2="n" scale="12" xChannelSelector="R" yChannelSelector="G"/>
+  </filter>
+  <filter id="ink" x="-10%" y="-10%" width="120%" height="120%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.75" numOctaves="2" seed="3" result="g"/>
+    <feColorMatrix in="g" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -14 10.6" result="dry"/>
+    <feComposite in="SourceGraphic" in2="dry" operator="in"/>
+  </filter>
+  <filter id="wash" x="-8%" y="-20%" width="116%" height="140%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="3" seed="12" result="n"/>
+    <feDisplacementMap in="SourceGraphic" in2="n" scale="8" xChannelSelector="R" yChannelSelector="G"/>
+  </filter>
+  <filter id="deckle" x="-3%" y="-3%" width="106%" height="106%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.07" numOctaves="3" seed="7" result="n"/>
+    <feDisplacementMap in="SourceGraphic" in2="n" scale="7" xChannelSelector="R" yChannelSelector="G"/>
+  </filter>
+  <linearGradient id="pg-bib" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#ffd494" stop-opacity="0.9"/>
+    <stop offset="0.42" stop-color="#ffd494" stop-opacity="0"/>
+  </linearGradient>
+</svg>
+
+<header class="top wrap">
+  <a class="brand" href="/fr/">
+    <svg class="wordmark" viewBox="-14 -46 376 196" aria-hidden="true" focusable="false">
+      <g filter="url(#rough-wm)">
+        <path class="wm-letters" d="M10 88 V42 A29 29 0 0 1 68 42 V88 M68 42 A29 29 0 0 1 126 42 V88"/>
+        <ellipse class="wm-ripple" cx="194" cy="100" rx="37" ry="10"/>
+        <path class="wm-v" d="M-40 0 L0 18 L40 0 L0 95 Z" transform="translate(194 2)"/>
+        <path class="wm-letters" d="M265 12 V132 M265 50 A40 40 0 1 0 345 50 A40 40 0 1 0 265 50"/>
+        <path class="wm-crown" d="M-17 12 V-9 L-9 -1 L0 -14 L9 -1 L17 -9 V12 Z" transform="translate(194 -26) scale(1.3)"/>
+      </g>
+    </svg>
+    <span class="visually-hidden">MVP, accueil</span>
+  </a>
+  <nav class="nav" aria-label="Principal">
+    <a href="#download">Télécharger</a>
+    <a href="/fr/versions/">Versions</a>
+    <a href="https://github.com/Filmoo/MVP">GitHub</a>
+  </nav>
+  <nav class="lang" aria-label="Langue">
+    <a href="/" hreflang="en" lang="en" aria-label="English">EN</a>
+    <a href="/fr/" hreflang="fr" lang="fr" aria-current="page" aria-label="Français">FR</a>
+  </nav>
+</header>
+
+<main id="main">
+  <section class="hero wrap" aria-labelledby="title">
+    <div>
+      <p class="eyebrow hand">gratuit et open source · pour Windows</p>
+      <h1 id="title">Un compagnon League qui montre <span class="circled">ses calculs<svg viewBox="0 0 220 90" preserveAspectRatio="none" aria-hidden="true" focusable="false"><path class="draw d2" pathLength="1" filter="url(#rough)" d="M30 60 C 8 42 40 11 112 9 C 180 7 214 25 208 47 C 202 70 140 83 96 81 C 48 79 9 67 15 45 C 19 30 50 18 86 14"/></svg></span>.</h1>
+      <p class="lead">MVP est une petite application gratuite pour Windows qui suit votre client League depuis la zone de notification&nbsp;: des choix pour votre rôle en sélection des champions, chacun avec ses raisons&#8239;; votre build en un clic&#8239;; les joueurs de votre partie sur l’écran de chargement&#8239;; une note pour chaque partie, avec ce qui l’explique.</p>
+      <div class="cta">
+        <a class="btn btn-big" href="#download"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3.5 V15 M7 10.5 L12 15.5 L17 10.5 M4.5 17.5 V20.5 H19.5 V17.5"/></svg>Télécharger pour Windows</a>
+        <a class="more" href="/fr/versions/">Voir les nouveautés</a>
+      </div>
+      <p class="cta-note hand">sans compte · sans pub · sans pistage</p>
+    </div>
+    <figure class="hero-art">
+      <svg class="penguin hello" viewBox="0 0 200 250" role="img" aria-labelledby="penguin-title">
+        <title id="penguin-title">Le totem de MVP&nbsp;: un manchot empereur avec une petite couronne</title>
+        <g class="ink-in">
+          <ellipse class="pg-ripple" cx="100" cy="233" rx="70" ry="12" filter="url(#wash)"/>
+          <path class="pg-ripple-far" filter="url(#rough)" d="M22 240 C 44 254 156 254 178 240"/>
+        </g>
+        <g class="pg-all">
+          <g filter="url(#rough)">
+            <g class="ink-in d2">
+              <path class="pg-back" filter="url(#ink)" d="M100 14 C121 14 137 30 137 53 C137 68 133 80 130 90 C148 106 161 134 161 166 C161 204 134 230 100 230 C66 230 39 204 39 166 C39 134 52 106 70 90 C67 80 63 68 63 53 C63 30 79 14 100 14 Z"/>
+              <path class="pg-light" d="M79 23 C71 29 67 39 67 50"/>
+              <path class="pg-front" d="M73 97 L100 109 L127 97 C145 118 151 150 148 178 C145 206 126 224 100 224 C74 224 55 206 52 178 C49 150 55 118 73 97 Z"/>
+              <path class="pg-shade" d="M127 97 C145 118 151 150 148 178 C145 206 126 224 100 224 C118 214 132 196 135 170 C138 146 136 118 127 97 Z"/>
+              <path class="pg-bib" d="M73 97 L100 109 L127 97 C145 118 151 150 148 178 C145 206 126 224 100 224 C74 224 55 206 52 178 C49 150 55 118 73 97 Z"/>
+              <path class="pg-gold" d="M70 56 C65 66 65 80 71 90 C73 93 75 95 77 97 C77 87 78 77 81 68 C82 62 77 57 70 56 Z M130 56 C135 66 135 80 129 90 C127 93 125 95 123 97 C123 87 122 77 119 68 C118 62 123 57 130 56 Z"/>
+              <path class="pg-beak" d="M92.5 59 C95 57 105 57 107.5 59 L101.2 78.5 C100.6 80.2 99.4 80.2 98.8 78.5 Z"/>
+              <path class="pg-back" d="M55 110 C39 128 30 157 28 189 C27.5 195 32.5 196 35.5 190 C43 173 49.5 153 57 136 Z M145 110 C161 128 170 157 172 189 C172.5 195 167.5 196 164.5 190 C157 173 150.5 153 143 136 Z"/>
+              <path class="pg-light" d="M49 124 C40 141 35 160 34 179"/>
+              <path class="pg-feet" d="M72 230 C72 225 96 225 96 230 C96 234 72 234 72 230 Z M104 230 C104 225 128 225 128 230 C128 234 104 234 104 230 Z"/>
+            </g>
+            <path class="pg-rim draw" pathLength="1" d="M100 14 C121 14 137 30 137 53 C137 68 133 80 130 90 C148 106 161 134 161 166 C161 204 134 230 100 230 C66 230 39 204 39 166 C39 134 52 106 70 90 C67 80 63 68 63 53 C63 30 79 14 100 14 Z"/>
+            <path class="pg-rim ink-in d2" d="M55 110 C39 128 30 157 28 189 C27.5 195 32.5 196 35.5 190 C43 173 49.5 153 57 136 Z M145 110 C161 128 170 157 172 189 C172.5 195 167.5 196 164.5 190 C157 173 150.5 153 143 136 Z"/>
+          </g>
+          <g class="ink-in d2">
+            <g class="pg-eyes">
+              <circle class="pg-eye" cx="87" cy="47" r="6.2"/>
+              <circle class="pg-eye" cx="113" cy="47" r="6.2"/>
+              <circle class="pg-pupil" cx="88" cy="48" r="3"/>
+              <circle class="pg-pupil" cx="114" cy="48" r="3"/>
+              <circle class="pg-glint" cx="89.2" cy="46.6" r="1.1"/>
+              <circle class="pg-glint" cx="115.2" cy="46.6" r="1.1"/>
+            </g>
+          </g>
+          <path class="pg-crown ink-in d3" filter="url(#rough)" d="M-17 12 V-9 L-9 -1 L0 -14 L9 -1 L17 -9 V12 Z" transform="translate(120 12) rotate(14) scale(0.95)"/>
+        </g>
+      </svg>
+      <figcaption class="hero-note hand">notre totem&nbsp;: un manchot empereur (pas un pingouin&#8239;!)<svg class="arrow" viewBox="0 0 60 44" aria-hidden="true" focusable="false"><g filter="url(#rough)"><path class="draw d3" pathLength="1" d="M4 8 C 22 2 44 10 52 34"/><path class="draw d4" pathLength="1" d="M43 30 L52 35 L55 24"/></g></svg></figcaption>
+    </figure>
+  </section>
+
+  <section class="section wrap" aria-labelledby="what">
+    <h2 id="what" class="brush">Ce que fait MVP</h2>
+    <ul class="features">
+      <li class="feature paper">
+        <h3><svg class="doodle" viewBox="0 0 48 48" aria-hidden="true" focusable="false"><g filter="url(#rough)"><path class="w" d="M6 7 H31 V17 H6 Z"/><path class="s" d="M9 12 H28 M9 24 H24 M9 36 H19"/><path class="gs" d="M38 5 L40.6 10.4 L46.5 11.2 L42.2 15.3 L43.2 21.1 L38 18.3 L32.8 21.1 L33.8 15.3 L29.5 11.2 L35.4 10.4 Z"/></g></svg>Sélection des champions</h3>
+        <p>Des choix pour votre rôle, en partant des champions que vous jouez, classés avec les chiffres qui les justifient. Uniquement des statistiques&nbsp;: rien n’est choisi à votre place.</p>
+      </li>
+      <li class="feature paper">
+        <h3><svg class="doodle" viewBox="0 0 48 48" aria-hidden="true" focusable="false"><g filter="url(#rough)"><path class="w" d="M10 35 H38 V40 H10 Z"/><path class="s" d="M14 22 V5 H28 L35 12 V24 M28 5 V12 H35 M24 16 V33 M18 27 L24 33 L30 27 M8 31 V41 H40 V31"/></g></svg>Builds en un clic</h3>
+        <p>Runes, set d’objets et sorts d’invocateur écrits dans votre client, en un clic ou au verrouillage si vous l’activez. Vos propres pages et sets ne sont jamais modifiés.</p>
+      </li>
+      <li class="feature paper">
+        <h3><svg class="doodle" viewBox="0 0 48 48" aria-hidden="true" focusable="false"><g filter="url(#rough)"><circle class="w" cx="14" cy="32" r="7"/><circle class="w" cx="34" cy="32" r="7"/><circle class="s" cx="14" cy="32" r="8"/><circle class="s" cx="34" cy="32" r="8"/><path class="s" d="M21 29 H27 M7 26 L11 11 H17 L20 25 M41 26 L37 11 H31 L28 25"/></g></svg>Écran de chargement</h3>
+        <p>Rang, champions les plus joués et résultats récents de chaque joueur que la partie affiche. Les joueurs en mode streamer restent masqués.</p>
+      </li>
+      <li class="feature paper">
+        <h3><svg class="doodle" viewBox="0 0 48 48" aria-hidden="true" focusable="false"><g filter="url(#rough)"><circle class="w" cx="22" cy="27" r="12"/><path class="s" d="M24 12 C 11 11 5 21 7 30 C 9 40 21 44 30 40 C 38 36 39 24 34 17 C 31 13 26 11 19 13 M16 34 L22 19 L28 34 M18.5 28.5 H25.5 M40 5 V13 M36 9 H44"/></g></svg>Profils et notes</h3>
+        <p>Cherchez n’importe quel Riot ID. Chaque partie d’un historique reçoit une note de S+ à C, avec les deux ou trois faits qui l’expliquent.</p>
+      </li>
+      <li class="feature paper">
+        <h3><svg class="doodle" viewBox="0 0 48 48" aria-hidden="true" focusable="false"><g filter="url(#rough)"><path class="w" d="M10 42 V30 H17 V42 Z M20.5 42 V20 H27.5 V42 Z M31 42 V26 H38 V42 Z"/><path class="s" d="M6 42 H42 M10 42 V30 H17 V42 M20.5 42 V20 H27.5 V42 M31 42 V26 H38 V42"/><path class="gs" d="M19.5 15 L21 8 L24 11.6 L27 8 L28.5 15 Z"/></g></svg>Tier list et champions</h3>
+        <p>Statistiques classées et ARAM à partir d’Émeraude, par patch&nbsp;: tiers, builds, runes, ordre des compétences et matchups.</p>
+      </li>
+      <li class="feature paper">
+        <h3><svg class="doodle" viewBox="0 0 48 48" aria-hidden="true" focusable="false"><g filter="url(#rough)"><circle class="w" cx="24" cy="24" r="9"/><path class="s" d="M24 5 V43 M7.5 14.5 L40.5 33.5 M7.5 33.5 L40.5 14.5 M19 8 L24 12 L29 8 M19 40 L24 36 L29 40 M8 21 L14 20 L12 14 M40 27 L34 28 L36 34 M8 27 L14 28 L12 34 M40 21 L34 20 L36 14"/></g></svg>ARAM</h3>
+        <p>Votre champion et ceux du banc, classés selon les chances de votre équipe, avec leurs raisons. Les builds ARAM servent aussi en ARAM du chaos.</p>
+      </li>
+      <li class="feature paper">
+        <h3><svg class="doodle" viewBox="0 0 48 48" aria-hidden="true" focusable="false"><g filter="url(#rough)"><path class="w" d="M24 6 C 17 17 11 24 11 31 A13 13 0 0 0 37 31 C 37 24 31 17 24 6 Z"/><path class="s" d="M24 6 C 17 17 11 24 11 31 A13 13 0 0 0 37 31 C 37 24 31 17 24 6 Z M17 31 A7 7 0 0 0 22 38"/></g></svg>Du verre, en deux langues</h3>
+        <p>Une interface en verre liquide qui courbe la lumière derrière elle, en français et en anglais.</p>
+      </li>
+      <li class="feature paper">
+        <h3><svg class="doodle" viewBox="0 0 48 48" aria-hidden="true" focusable="false"><g filter="url(#rough)"><path class="w" d="M27 9 A16 16 0 1 0 40 34 A13 13 0 1 1 27 9 Z"/><path class="s" d="M27 9 A16 16 0 1 0 40 34 A13 13 0 1 1 27 9 Z M34 8 H41 L34 15 H41"/></g></svg>Discret, dans la zone de notification</h3>
+        <p>MVP suit le client même fenêtre fermée. L’acceptation automatique est là si vous la voulez, désactivée par défaut.</p>
+      </li>
+    </ul>
+  </section>
+
+  <section id="download" class="section wrap" aria-labelledby="get">
+    <h2 id="get" class="brush">Télécharger</h2>
+    <div class="get">
+      <div>
+        <div class="ticket paper states" data-states="download" aria-live="polite">
+          <div data-state="loading" class="on">
+            <div class="sketch" aria-hidden="true"><span></span><span class="tall"></span><span></span><span></span><span></span></div>
+            <p class="visually-hidden">On demande la dernière version à GitHub…</p>
+          </div>
+          <div data-state="static">
+            <h3>MVP pour Windows</h3>
+            <p>L’installateur de chaque version est sur GitHub, avec ses notes.</p>
+            <a class="btn btn-big" href="https://github.com/Filmoo/MVP/releases">Versions sur GitHub</a>
+          </div>
+          <div data-state="ready">
+            <div class="ticket-head">
+              <h3>MVP pour Windows</h3>
+              <span class="stamp" data-field="tag">v0.0.0</span>
+            </div>
+            <a class="btn btn-big" data-link="download" href="https://github.com/Filmoo/MVP/releases"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3.5 V15 M7 10.5 L12 15.5 L17 10.5 M4.5 17.5 V20.5 H19.5 V17.5"/></svg>Télécharger pour Windows</a>
+            <p class="file"><span data-field="file">MVP_0.0.0_x64-setup.exe</span> · <span class="num" data-field="size">0,0 Mo</span> · <time data-field="date">1 janvier 2026</time></p>
+            <p class="small">Windows 10 et 11, 64 bits. S’installe pour votre compte seulement, sans droits d’administrateur. Une fois installé, MVP se met à jour tout seul, jamais pendant une partie.</p>
+            <p class="small"><a data-link="release" href="https://github.com/Filmoo/MVP/releases">Tous les fichiers de cette version sur GitHub</a></p>
+            <p class="digest" data-field="digest"></p>
+          </div>
+          <div data-state="none">
+            <div class="state-row">
+              <svg class="penguin waiting penguin-small" viewBox="0 0 200 250" aria-hidden="true" focusable="false">
+                <ellipse class="pg-ripple" cx="100" cy="233" rx="70" ry="12" filter="url(#wash)"/>
+                <g filter="url(#rough)">
+                  <path class="pg-back" d="M100 14 C121 14 137 30 137 53 C137 68 133 80 130 90 C148 106 161 134 161 166 C161 204 134 230 100 230 C66 230 39 204 39 166 C39 134 52 106 70 90 C67 80 63 68 63 53 C63 30 79 14 100 14 Z"/>
+                  <path class="pg-front" d="M73 97 L100 109 L127 97 C145 118 151 150 148 178 C145 206 126 224 100 224 C74 224 55 206 52 178 C49 150 55 118 73 97 Z"/>
+                  <path class="pg-bib" d="M73 97 L100 109 L127 97 C145 118 151 150 148 178 C145 206 126 224 100 224 C74 224 55 206 52 178 C49 150 55 118 73 97 Z"/>
+                  <path class="pg-gold" d="M70 56 C65 66 65 80 71 90 C73 93 75 95 77 97 C77 87 78 77 81 68 C82 62 77 57 70 56 Z M130 56 C135 66 135 80 129 90 C127 93 125 95 123 97 C123 87 122 77 119 68 C118 62 123 57 130 56 Z"/>
+                  <path class="pg-beak" d="M92.5 59 C95 57 105 57 107.5 59 L101.2 78.5 C100.6 80.2 99.4 80.2 98.8 78.5 Z"/>
+                  <path class="pg-back" d="M55 110 C39 128 30 157 28 189 C27.5 195 32.5 196 35.5 190 C43 173 49.5 153 57 136 Z M145 110 C161 128 170 157 172 189 C172.5 195 167.5 196 164.5 190 C157 173 150.5 153 143 136 Z"/>
+                  <path class="pg-feet" d="M72 230 C72 225 96 225 96 230 C96 234 72 234 72 230 Z M104 230 C104 225 128 225 128 230 C128 234 104 234 104 230 Z"/>
+                  <path class="pg-rim" d="M100 14 C121 14 137 30 137 53 C137 68 133 80 130 90 C148 106 161 134 161 166 C161 204 134 230 100 230 C66 230 39 204 39 166 C39 134 52 106 70 90 C67 80 63 68 63 53 C63 30 79 14 100 14 Z M55 110 C39 128 30 157 28 189 C27.5 195 32.5 196 35.5 190 C43 173 49.5 153 57 136 Z M145 110 C161 128 170 157 172 189 C172.5 195 167.5 196 164.5 190 C157 173 150.5 153 143 136 Z"/>
+                </g>
+                <circle class="pg-eye" cx="87" cy="47" r="6.2"/><circle class="pg-eye" cx="113" cy="47" r="6.2"/>
+                <circle class="pg-pupil" cx="88" cy="48" r="3"/><circle class="pg-pupil" cx="114" cy="48" r="3"/>
+                <circle class="pg-mark-dot" cx="152" cy="24" r="3"/><circle class="pg-mark-dot" cx="163" cy="15" r="3.8"/><circle class="pg-mark-dot" cx="176" cy="6" r="4.6"/>
+              </svg>
+              <div>
+                <h3>Première version bientôt</h3>
+                <p>MVP n’est pas encore sorti. Pour être prévenu de la première version, suivez le projet sur GitHub (Watch → Custom → Releases).</p>
+                <p data-field="preview" hidden>Une préversion est sur la page <a href="/fr/versions/">Versions</a>.</p>
+                <a class="btn btn-ghost" href="https://github.com/Filmoo/MVP">MVP sur GitHub</a>
+              </div>
+            </div>
+          </div>
+          <div data-state="error">
+            <h3>GitHub n’a pas répondu</h3>
+            <p>Impossible d’afficher la dernière version ici&nbsp;: GitHub limite peut-être le nombre de demandes. Les installateurs sont sur GitHub.</p>
+            <a class="btn btn-ghost" href="https://github.com/Filmoo/MVP/releases">Versions sur GitHub</a>
+          </div>
+        </div>
+        <div class="asides">
+          <div class="sticky paper">
+            <span class="hand">Si Windows vous prévient</span>
+            <p>Windows peut afficher «&nbsp;Windows a protégé votre ordinateur&nbsp;»&nbsp;: l’installateur n’est pas encore signé. Choisissez <strong>Informations complémentaires</strong>, puis <strong>Exécuter quand même</strong>.</p>
+          </div>
+          <p class="os-note hand">Sur macOS ou Linux&#8239;? MVP n’existe que pour Windows, pour l’instant.</p>
+        </div>
+      </div>
+
+      <article class="notebook paper" aria-labelledby="latest">
+        <h3 id="latest">Nouveautés</h3>
+        <div class="states" data-states="notes">
+          <div data-state="loading" class="on">
+            <div class="sketch" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
+          </div>
+          <div data-state="static">
+            <p>Ce qu’apporte chaque version est sur la page <a href="/fr/versions/">Versions</a>.</p>
+          </div>
+          <div data-state="ready">
+            <p class="meta hand">Version <span data-field="version">0.0.0</span> · <time data-field="date">1 janvier 2026</time></p>
+            <div class="md clamp" data-field="notes"></div>
+            <p data-field="empty" hidden>Pas de notes pour cette version.</p>
+            <a class="more" href="/fr/versions/">Toutes les versions</a>
+          </div>
+          <div data-state="none">
+            <p class="pinned hand">Rien d’épinglé pour l’instant&nbsp;: les notes de chaque version viendront ici, à commencer par la première.</p>
+          </div>
+          <div data-state="error">
+            <p>Impossible de charger les notes. Elles sont aussi sur <a href="https://github.com/Filmoo/MVP/releases">GitHub</a>.</p>
+          </div>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <div class="pair wrap section">
+    <section aria-labelledby="wont">
+      <h2 id="wont" class="brush">Ce qu’il ne fera pas</h2>
+      <ul class="wont">
+        <li><strong>Nommer les joueurs que le jeu masque</strong>&nbsp;: vos coéquipiers en sélection classée, les joueurs en mode streamer.</li>
+        <li><strong>Chronométrer les sorts ennemis</strong>, estimer votre MMR ou vous conseiller d’esquiver.</li>
+        <li><strong>Tourner dans votre partie</strong>&nbsp;: pas d’overlay, rien d’injecté.</li>
+        <li><strong>Demander un compte</strong>, afficher des pubs ou vous pister.</li>
+      </ul>
+    </section>
+    <section class="letter" aria-labelledby="open">
+      <h2 id="open" class="brush">Open source</h2>
+      <p>MVP est un logiciel libre&nbsp;: son code est public sur GitHub sous licence GNU AGPL-3.0, vous pouvez donc le lire, le compiler et le modifier. Un bug, une idée&#8239;? Ouvrez une issue.</p>
+      <ul class="links">
+        <li><a href="https://github.com/Filmoo/MVP">Code source</a></li>
+        <li><a href="https://github.com/Filmoo/MVP/issues">Issues</a></li>
+        <li><a href="https://github.com/Filmoo/MVP/releases">Releases</a></li>
+        <li><a href="https://github.com/Filmoo/MVP/blob/main/LICENSE">Licence</a></li>
+      </ul>
+    </section>
+  </div>
+</main>
+
+<footer class="foot wrap">
+  <nav aria-label="Site">
+    <ul>
+      <li><a href="/fr/">Accueil</a></li>
+      <li><a href="/fr/versions/">Versions</a></li>
+      <li><a href="/fr/confidentialite/">Confidentialité</a></li>
+      <li><a href="/fr/conditions/">Conditions</a></li>
+      <li><a href="https://github.com/Filmoo/MVP">GitHub</a></li>
+    </ul>
+  </nav>
+  <p class="free">MVP est un logiciel libre sous licence <a href="https://github.com/Filmoo/MVP/blob/main/LICENSE">GNU AGPL-3.0</a>.</p>
+  <p class="legal">MVP n’est pas approuvé par Riot Games et ne reflète pas les opinions de Riot Games ni de quiconque officiellement impliqué dans la production ou la gestion des propriétés de Riot Games. Riot Games et toutes les propriétés associées sont des marques commerciales ou des marques déposées de Riot Games, Inc.</p>
+  <p class="sign hand">dessiné à l’encre, construit en Rust</p>
+</footer>
+</body>
+</html>

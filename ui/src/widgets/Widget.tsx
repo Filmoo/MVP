@@ -9,8 +9,9 @@ import { markWidgetMounted } from "../lib/perf";
  * - a crash inside renders an error card for this widget only;
  * - mount time is recorded for the perf budget tests (`widget:<name>`).
  *
- * `hideable`: the layout may hide this widget on some sizes because its content is shown another
- * way there; the layout tests then accept it hidden (never squeezed).
+ * `hideable`: the view may hide this widget (on some sizes because its content is shown another
+ * way there, or when a search leaves it out); the layout tests then accept it hidden (never
+ * squeezed).
  */
 export function Widget(props: { name: string; class?: string | undefined; hideable?: boolean; children: JSX.Element }): JSX.Element {
   const startedAt = performance.now();

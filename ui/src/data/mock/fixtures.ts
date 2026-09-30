@@ -186,6 +186,43 @@ export const profile: PlayerProfile = {
   recentMatches: matchesFromSeeds(seeds),
 };
 
+/** Your latest games on Howling Abyss (ARAM: Mayhem, then ARAM), before two ranked ones. */
+export const aramProfile: PlayerProfile = {
+  ...profile,
+  recentMatches: matchesFromSeeds(
+    [
+      {
+        hoursAgo: 0.6,
+        queueId: 2400,
+        championId: 99,
+        role: null,
+        win: true,
+        kills: 11,
+        deaths: 5,
+        assists: 34,
+        creepScore: 38,
+        durationSeconds: 1_134,
+        items: [6655, 3020, 3157, 4645, 3089],
+      },
+      {
+        hoursAgo: 1.1,
+        queueId: 450,
+        championId: 222,
+        role: null,
+        win: false,
+        kills: 14,
+        deaths: 9,
+        assists: 18,
+        creepScore: 71,
+        durationSeconds: 1_052,
+        items: [3031, 3006, 3094, 3036],
+      },
+      ...seeds.slice(0, 2),
+    ],
+    "EUW1_75103",
+  ),
+};
+
 export const newPlayerProfile: PlayerProfile = {
   riotId: { gameName: "FreshStart", tagLine: "1234" },
   region: "EUW",

@@ -1,10 +1,14 @@
-.card {
-  min-width: 0;
-}
-
+/*
+ * The tier list as a table (TierTable.tsx): compact rows, every header a sort. Every cell rule is
+ * scoped to `.table` (a bare `th`/`td` in a CSS module styles every table of the app).
+ */
 .wrap {
-  container: tierlist / inline-size;
-  padding: 0 var(--space-4);
+  container: tiertable / inline-size;
+  position: relative;
+  padding: var(--space-2) var(--space-4) var(--space-4);
+  border-radius: var(--radius-4);
+  background: linear-gradient(180deg, var(--bg-sheen), transparent 120px), var(--bg-card);
+  box-shadow: var(--shadow-glass);
 }
 
 .table {
@@ -14,34 +18,61 @@
   border-spacing: 0;
 }
 
-/* Column widths: numbers spread over the width, the champion takes what is left. */
+/*
+ * Column widths: the champion takes what is left. Each fits its header in French too, sort arrow
+ * included (glyph, label and arrow: "% victoires" is the longest).
+ */
 .cRank {
   width: 48px;
 }
+.cLane {
+  width: 96px;
+}
 .cTier {
-  width: 9%;
+  width: 64px;
 }
 .cWr {
-  width: 15%;
+  width: 132px;
 }
-.cPick,
-.cBan,
-.cScore {
-  width: 12%;
+.cRate {
+  width: 92px;
+}
+.cGames {
+  width: 104px;
 }
 
-th {
-  padding: var(--space-3) var(--space-4) var(--space-4);
+.table th,
+.table td {
+  padding: var(--space-2) var(--space-4);
   text-align: right;
+  white-space: nowrap;
+}
+
+/* The header row stays under the title bar while the rows scroll by. */
+.table th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding-top: var(--space-4);
+  padding-bottom: var(--space-3);
+  background: var(--bg-float);
+  backdrop-filter: var(--blur-glass);
+  box-shadow: inset 0 -1px 0 var(--line-1);
   font-size: var(--text-xs);
   font-weight: var(--weight-semibold);
-  color: var(--text-3);
-  text-transform: uppercase;
   letter-spacing: 0.06em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  border-bottom: 1px solid var(--line-1);
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.table th.rank,
+.table th.champion,
+.table th.lane {
+  text-align: left;
+}
+
+.table th.tier {
+  text-align: center;
 }
 
 .sort {
@@ -49,6 +80,8 @@ th {
   align-items: center;
   gap: var(--space-1);
   max-width: 100%;
+  /* Headers with a glyph and without it sit on one line. */
+  vertical-align: middle;
   padding: 0;
   border: 0;
   background: transparent;
@@ -56,6 +89,7 @@ th {
   font: inherit;
   letter-spacing: inherit;
   text-transform: inherit;
+  white-space: nowrap;
   cursor: pointer;
 }
 
@@ -64,12 +98,28 @@ th {
   color: var(--text-1);
 }
 
+.headGlyph {
+  flex: none;
+  margin-right: var(--space-1);
+}
+
+/* The lane column's header, when its word no longer fits (narrow). */
+.laneGlyph {
+  display: none;
+  flex: none;
+}
+
 .arrow {
   flex: none;
   opacity: 0;
   transition:
     opacity var(--dur-1) var(--ease),
-    transform var(--dur-2) var(--ease);
+    scale var(--dur-2) var(--ease);
+}
+
+/* Numbers end at the column's edge: their header's arrow goes before the words. */
+:where(.wr, .pick, .ban, .games) .arrow {
+  order: -1;
 }
 
 .sorted .arrow {
@@ -80,64 +130,26 @@ th {
   opacity: 0.5;
 }
 
+/* Flipped, not turned: mid-way, a turning arrow is wider than its place. */
 .flip {
-  transform: rotate(180deg);
+  scale: 1 -1;
 }
 
-td {
-  padding: var(--space-3) var(--space-4);
-  text-align: right;
-  font-size: var(--text-md);
-  color: var(--text-2);
-  white-space: nowrap;
-}
-
-/* In tier order, a quiet divider opens each tier: its grade in the tier color and its size. */
-.group td {
-  padding: var(--space-6) var(--space-4) var(--space-2);
-  text-align: left;
-  border-bottom: 1px solid var(--line-1);
-}
-
-.group:first-child td {
-  padding-top: var(--space-4);
-}
-
-.groupLine {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  font-size: var(--text-xs);
-  font-weight: var(--weight-semibold);
-  color: var(--text-3);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-.groupSize {
-  font-weight: var(--weight-regular);
-  letter-spacing: 0;
-}
-
-.toneS {
-  color: var(--tier-s);
-}
-.toneA {
-  color: var(--tier-a);
-}
-.toneB {
-  color: var(--tier-b);
-}
-.toneC {
-  color: var(--tier-c);
-}
-.toneD {
-  color: var(--text-2);
-}
-
-/* The champion link covers the whole row. */
+/* ——— Rows: compact and sober; the link covers the row ——— */
 .row {
   position: relative;
+}
+
+.row td {
+  height: 44px;
+  font-size: var(--text-md);
+  color: var(--text-2);
+  box-shadow: inset 0 -1px 0 var(--line-1);
+  transition: background-color var(--dur-1) var(--ease);
+}
+
+.row:last-child td {
+  box-shadow: none;
 }
 
 .row:hover td {
@@ -152,26 +164,31 @@ td {
   border-radius: 0 var(--radius-3) var(--radius-3) 0;
 }
 
-.rank {
-  text-align: left;
-}
-
 td.rank {
+  text-align: left;
   font-size: var(--text-sm);
   color: var(--text-3);
 }
 
-.champion {
+td.champion {
   text-align: left;
 }
 
+/* A block of inline content (icon, name): a long name ends in an ellipsis. */
 .link {
-  display: flex;
-  align-items: center;
-  gap: var(--space-5);
-  min-width: 0;
-  color: inherit;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  color: var(--text-1);
   text-decoration: none;
+}
+
+.link > :first-child {
+  display: inline-block;
+  margin-right: var(--space-5);
+  vertical-align: middle;
 }
 
 .link::after {
@@ -190,58 +207,82 @@ td.rank {
   outline-offset: -2px;
 }
 
-.names {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.name {
-  font-size: var(--text-base);
-  font-weight: var(--weight-semibold);
-  color: var(--text-1);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.sub {
+td.lane {
+  text-align: left;
   font-size: var(--text-sm);
-  color: var(--text-3);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.tier {
+/* Shares end on one edge: 100%, 70%, 13% line up. */
+.share {
+  display: inline-block;
+  min-width: 4ch;
+  text-align: right;
+}
+
+.laneIcon {
+  display: inline-block;
+  margin-right: var(--space-3);
+  vertical-align: -3px;
+  color: var(--text-2);
+}
+
+/* Over the row's link, so hovering them explains them (design/tip); a click still opens the
+   champion (TierTable forwards it to the link). */
+.table td.lane[data-hint],
+.table td.tier > * {
+  position: relative;
+  z-index: 1;
+  cursor: pointer;
+}
+
+.table td.tier > * {
+  vertical-align: middle;
+}
+
+/* Centred under its header's word (the arrow after it takes 16 px): room on the right. */
+.table td.tier {
+  padding-right: var(--space-8);
   text-align: center;
 }
 
-.value {
+td.wr {
   font-size: var(--text-base);
   font-weight: var(--weight-semibold);
-  color: var(--text-1);
+  line-height: 1.2;
 }
 
-.wr .value,
-.wr .sub {
-  display: block;
+/* The change since the previous patch, after the win rate (under it on narrow tables), in a slot
+   of its own: the rates stay aligned whatever the change reads. */
+td.wr > span {
+  display: inline-flex;
+  min-width: var(--space-10);
+  margin-left: var(--space-3);
 }
 
-td.score {
-  font-weight: var(--weight-semibold);
-}
-
-.up {
+.wrap [data-wr="win"] {
   color: var(--win);
 }
 
-.down {
+.wrap [data-wr="loss"] {
   color: var(--loss);
 }
 
-/* ARAM has no bans: no column. */
-.noBans .ban {
+.wrap [data-wr="even"] {
+  color: var(--text-2);
+}
+
+td.pick,
+td.ban {
+  color: var(--text-2);
+}
+
+td.games {
+  color: var(--text-3);
+}
+
+/* ARAM: no lanes, no bans. */
+.aram .lane,
+.aram .ban {
   display: none;
 }
 
@@ -250,73 +291,101 @@ td.score {
   justify-content: center;
   margin-top: var(--space-3);
   padding: var(--space-4) var(--space-6) var(--space-2);
-  border-top: 1px solid var(--line-1);
+  box-shadow: inset 0 1px 0 var(--line-1);
 }
 
-.moreButton {
-  height: 32px;
-  padding: 0 var(--space-6);
-  border: 1px solid var(--line-2);
-  border-radius: var(--radius-3);
-  background: var(--bg-3);
-  color: var(--text-1);
-  font-size: var(--text-md);
-  font-weight: var(--weight-medium);
-  cursor: pointer;
-  transition: background-color var(--dur-1) var(--ease);
+/* ——— Wide: the numbers spread out, the champion keeps a third ——— */
+@container tiertable (min-width: 1100px) {
+  .cChampion {
+    width: 30%;
+  }
+  .cWr,
+  .cRate,
+  .cGames {
+    width: auto;
+  }
+  /* ARAM has no lanes or bans: its numbers keep together, the champion takes the rest. */
+  .aram .cChampion {
+    width: auto;
+  }
+  .aram .cWr,
+  .aram .cRate,
+  .aram .cGames {
+    width: 140px;
+  }
+  /* A long way from a name to its numbers: every other row lit, to follow it. */
+  .aram .row:nth-child(even):not(:hover) td {
+    background: var(--bg-sheen);
+  }
 }
 
-.moreButton:hover {
-  background: var(--bg-4);
+/* ——— Medium: no games, tighter numbers ——— */
+@container tiertable (max-width: 799px) {
+  .games {
+    display: none;
+  }
+  .cLane {
+    width: 80px;
+  }
+  .cWr {
+    width: 112px;
+  }
+  .cRate {
+    width: 76px;
+  }
+  .headGlyph {
+    display: none;
+  }
 }
 
-/* Medium: tighter numbers. */
-@container tierlist (max-width: 719px) {
+/* ——— Narrow: rank, champion, lane (its icon), tier and win rate ——— */
+@container tiertable (max-width: 639px) {
+  .pick,
+  .ban {
+    display: none;
+  }
+  .cRank {
+    width: 36px;
+  }
+  .cLane {
+    width: 40px;
+  }
+  .cTier {
+    width: 56px;
+  }
   .cWr {
     width: 104px;
   }
-  .cPick,
-  .cBan,
-  .cScore {
-    width: 72px;
-  }
-  .cTier {
-    width: 52px;
-  }
-  .link {
-    gap: var(--space-4);
-  }
-}
-
-/* Narrow: rank, champion, tier, win rate and pick rate; ban rate and score step aside. */
-@container tierlist (max-width: 519px) {
-  .ban,
-  .score {
-    display: none;
-  }
-  /* "#" and its sort arrow: 24 px of content. */
-  .cRank {
-    width: 32px;
-  }
-  .cTier {
-    width: 44px;
-  }
-  .cWr {
-    width: 88px;
-  }
-  /* Room for the longest header with its arrow (French « Choix »). */
-  .cPick {
-    width: 64px;
-  }
-  th,
-  td {
+  .table th,
+  .table td {
     padding-left: var(--space-2);
     padding-right: var(--space-2);
   }
-  .link {
-    gap: var(--space-3);
+  .table td.tier {
+    padding-right: var(--space-7);
   }
-  .name {
+  /* The lane says itself with its icon; its header too (the word would not fit). One lane
+     shown: no column (its share is the champion page's). */
+  .share,
+  .laneWord,
+  .oneLane .lane {
+    display: none;
+  }
+  .laneGlyph {
+    display: block;
+  }
+  .laneIcon {
+    margin-right: 0;
+  }
+  .link {
     font-size: var(--text-md);
+  }
+  .link > :first-child {
+    margin-right: var(--space-4);
+  }
+  td.wr > span {
+    display: flex;
+    justify-content: flex-end;
+    margin-left: 0;
   }
 }
