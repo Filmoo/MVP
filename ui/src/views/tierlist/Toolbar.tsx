@@ -4,11 +4,13 @@ import type { StatsIndex } from "../../data/generated/StatsIndex";
 import { Glyph, type GlyphName, glyphPath } from "../../design/Glyph";
 import { Icon, iconPath, LineIcon } from "../../design/Icon";
 import { liquid } from "../../design/liquid/liquid";
+import { PenguinArt } from "../../design/PenguinArt";
 import { Radios } from "../../design/Radios";
 import { t } from "../../i18n";
 import { timeAgo } from "../../lib/format";
+import { backendError } from "../../lib/players";
 import { ROLE_ICON, ROLE_TONE, ROLES, roleLabel } from "../../lib/roles";
-import { patchName } from "../../lib/stats";
+import { patchName, statsErrorWords } from "../../lib/stats";
 import { filters, type RoleFilter, setFilter } from "../../lib/stats-filters";
 import { setTierView, TIER_VIEWS, type TierView, tierView } from "../../lib/tier-view";
 import styles from "./Toolbar.module.css";
@@ -109,6 +111,38 @@ export function LaneButtons(): JSX.Element {
         </span>
       )}
     </Radios>
+  );
+}
+
+/**
+ * Why there are no stats, under the tools, where the lanes were: every champion shows by class
+ * meanwhile. Nothing published is said with the penguin; a failure is an alert, with "Try again"
+ * ending the sentence when asking again can help.
+ */
+export function NoStatsNotice(props: { error: unknown; onRetry: () => void }): JSX.Element {
+  const words = () => statsErrorWords(backendError(props.error));
+  return (
+    <div class={styles.notice} role={words().empty ? "status" : "alert"} data-testid="no-stats">
+      <Show
+        when={words().empty}
+        fallback={
+          <span class={styles.noticeIcon}>
+            <Icon name="alert" size={16} />
+          </span>
+        }
+      >
+        <PenguinArt size={32} />
+      </Show>
+      <p class={styles.noticeText}>
+        {t().tierList.noStats(words().title)}
+        <Show when={words().retry}>
+          {" "}
+          <button type="button" class={styles.retry} onClick={() => props.onRetry()}>
+            {t().common.tryAgain}
+          </button>
+        </Show>
+      </p>
+    </div>
   );
 }
 

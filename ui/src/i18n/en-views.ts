@@ -369,6 +369,8 @@ export const enViews = {
     views: { label: "View", shelves: "Shelves", table: "Table" },
     filter: "Filter champions",
     noMatch: "No champion matches the filter",
+    /** Why every champion shows by class: `reason` is why stats are missing (`Can't reach MVP's servers`). */
+    noStats: (reason: string) => `${reason}. Champions are grouped by class until tiers and pick rates are available.`,
     /** A tier's size, or a lane's: `18 champions`. */
     champions: (n: number) => `${integer(n)} ${plural(n, "champion", "champions")}`,
     /** A tier's mean win rate: `avg 52.8%`. */

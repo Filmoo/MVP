@@ -245,10 +245,13 @@ test("stats not published yet: the pages say so, champions still show", async ({
   await openApp(page, { view: "/champions?id=103", scenario: "stats-empty" });
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Ahri");
   await expect(page.locator("main")).toContainText(t.stats.errors.notFound.title);
-  // The tier list still leads to every champion (by class, no lanes to filter).
+  // The tier list still leads to every champion (by class, no lanes to filter); why, in its header.
   await openApp(page, { view: "/tier-list", scenario: "stats-empty" });
   expect(await page.getByTestId("champion-tile").count(), "the list needs no stats").toBeGreaterThan(160);
   await expect(page.getByTestId("role-filter")).toHaveCount(0);
+  const notice = page.getByTestId("no-stats");
+  await expect(notice).toHaveAttribute("role", "status");
+  await expect(notice).toContainText(t.tierList.noStats(t.stats.errors.notFound.title));
   await expect(page.getByRole("button", { name: t.common.tryAgain }), "asking again can't help").toHaveCount(0);
   expect(errors).toEqual([]);
 });
@@ -256,10 +259,13 @@ test("stats not published yet: the pages say so, champions still show", async ({
 test("stats offline on the tier list: every champion by class, why, and a retry that asks again", async ({ page, t }) => {
   const errors = trackErrors(page);
   await openApp(page, { view: "/tier-list", scenario: "stats-offline" });
+  // Why, in the header where the lanes were: one line, the retry ending it.
   const alert = page.getByRole("alert");
-  await expect(alert).toContainText(t.stats.errors.network.title);
+  await expect(alert).toHaveAttribute("data-testid", "no-stats");
+  await expect(alert).toContainText(t.tierList.noStats(t.stats.errors.network.title));
   await expect(page.getByTestId("role-filter")).toHaveCount(0);
   await expect(page.getByTestId("view-switch")).toHaveCount(0);
+  await expect(page.getByTestId("rank-button"), "the rank can still change").toBeVisible();
   const heads = await page.locator("[data-widget=tier-no-stats] h2").evaluateAll((els) => els.map((el) => el.firstChild?.textContent));
   expect(heads).toEqual(["Assassin", "Fighter", "Mage", "Marksman", "Support", "Tank"].map((tag) => t.classes[tag]));
   const tiles = page.getByTestId("champion-tile");

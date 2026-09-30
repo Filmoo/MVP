@@ -377,6 +377,7 @@ export const frViews = {
     views: { label: "Affichage", shelves: "Étagères", table: "Tableau" },
     filter: "Filtrer les champions",
     noMatch: "Aucun champion ne correspond au filtre",
+    noStats: (reason: string) => `${reason}. Les champions sont groupés par classe en attendant les tiers et les taux de sélection.`,
     champions: (n: number) => `${integer(n)} ${plural(n, "champion", "champions")}`,
     average: (pct: string) => `moy. ${pct}`,
     tileLabel: (name: string, role: string | undefined, winRate: string) =>

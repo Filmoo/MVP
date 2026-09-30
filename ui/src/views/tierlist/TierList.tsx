@@ -10,15 +10,15 @@ import { t } from "../../i18n";
 import { createQuery } from "../../lib/query";
 import { matchingEntries, rankEntries, trendsOf } from "../../lib/stats";
 import { ARAM, filters, type RoleFilter } from "../../lib/stats-filters";
-import { parseView, setTierView, tierView } from "../../lib/tier-view";
+import { parseView, setTierView, type TierView, tierView } from "../../lib/tier-view";
 import { Widget } from "../../widgets/Widget";
 import page from "../page.module.css";
-import { QueueTabs, RankPicker, StatsProblem, useLinkFilters, useStatsIndex } from "../stats/common";
+import { QueueTabs, RankPicker, useLinkFilters, useStatsIndex } from "../stats/common";
 import { NoStatsChampions } from "./NoStats";
 import { championLink, Shelves } from "./Shelves";
 import styles from "./TierList.module.css";
 import { TierTable } from "./TierTable";
-import { ChampionFilter, DataLine, LaneButtons, TierTitle, ViewSwitch } from "./Toolbar";
+import { ChampionFilter, DataLine, LaneButtons, NoStatsNotice, TierTitle, ViewSwitch } from "./Toolbar";
 
 // The full meta map loads when first opened.
 const MapDialog = lazy(() => import("./MapDialog"));
@@ -53,11 +53,14 @@ function useTierData() {
   };
 }
 
-/** Same boxes as the shelves, so nothing jumps when they land. */
-function ShelvesSkeleton(): JSX.Element {
+/** Shelves: the podium's row, then shelves. The table: its header, then rows. */
+const SKELETONS = { shelves: ["168px", "108px", "108px", "108px"], table: ["28px", ...Array<string>(9).fill("36px")] };
+
+/** Same boxes as the view shown, so nothing jumps when it lands. */
+function ViewSkeleton(props: { view: TierView }): JSX.Element {
   return (
-    <div class={styles.skeleton} aria-busy="true">
-      <For each={[0, 1, 2, 3]}>{() => <Skeleton height="112px" />}</For>
+    <div class={styles.skeleton} data-view={props.view} aria-busy="true">
+      <For each={SKELETONS[props.view]}>{(height) => <Skeleton height={height} />}</For>
     </div>
   );
 }
@@ -119,9 +122,11 @@ export default function TierListView(): JSX.Element {
         <RankPicker index={data.index()} />
         <ChampionFilter value={query()} onInput={setQuery} onEnter={openBest} />
       </div>
+      <Show when={failed() !== undefined}>
+        <NoStatsNotice error={failed()} onRetry={data.list.refetch} />
+      </Show>
       <Switch>
         <Match when={failed() !== undefined}>
-          <StatsProblem error={failed()} onRetry={data.list.refetch} />
           <Widget name="tier-no-stats">
             <NoStatsChampions query={query()} />
           </Widget>
@@ -151,7 +156,7 @@ export default function TierListView(): JSX.Element {
           </Widget>
         </Match>
         <Match when={true}>
-          <ShelvesSkeleton />
+          <ViewSkeleton view={tierView()} />
         </Match>
       </Switch>
       <Show when={data.list.data() && data.ranked().length > 0}>

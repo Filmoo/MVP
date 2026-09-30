@@ -219,6 +219,51 @@
   border-color: var(--accent);
 }
 
+/* ——— Without stats: why, as tall as the tools, the sign on its first line ——— */
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  min-height: var(--space-10);
+  font-size: var(--text-md);
+  color: var(--text-2);
+}
+
+.noticeIcon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--space-9);
+  height: var(--space-9);
+  border-radius: var(--radius-full);
+  background: var(--loss-soft);
+  color: var(--loss);
+}
+
+.noticeText {
+  flex: 1;
+  min-width: 0;
+  /* The sentence starts level with the sign's middle. */
+  padding-top: var(--space-3);
+  text-wrap: pretty;
+}
+
+.retry {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-1);
+  font: inherit;
+  font-weight: var(--weight-semibold);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.retry:hover {
+  color: var(--accent-strong);
+}
+
 /* Narrow pages: the views say themselves with their icon only. */
 @container page (max-width: 639px) {
   .viewLabel {

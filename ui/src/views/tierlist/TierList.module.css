@@ -43,6 +43,15 @@
   gap: var(--space-4);
 }
 
+/* The table's: its rows inside the table's glass. */
+.skeleton[data-view="table"] {
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-6) var(--space-6);
+  border-radius: var(--radius-4);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-glass);
+}
+
 .note {
   max-width: 880px;
   font-size: var(--text-sm);
