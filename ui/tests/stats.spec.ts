@@ -259,6 +259,18 @@ test.describe("one hub for tiers and builds", () => {
     await expect(segment(page, "role-filter", t.roles.jungle)).toHaveAttribute("aria-checked", "true");
     await expect(rankButton(page)).toContainText(t.brackets.diamondPlus);
   });
+
+  test("ARAM: Mayhem's page is lit under Tiers, its queue tabs where the tier list has them", async ({ page, t }) => {
+    await openApp(page, { view: "/tier-list" });
+    const top = async () => (await page.getByTestId("queue-switch").boundingBox())?.y ?? Number.NaN;
+    const onTierList = await top();
+    await queue(page, t.queues[2400]).click();
+    await expect(page).toHaveURL(/#\/mayhem$/);
+    await settle(page);
+    const nav = page.getByRole("navigation", { name: t.nav.main });
+    await expect(nav.getByRole("link", { name: t.nav.tierList.label })).toHaveAttribute("aria-current", "page");
+    expect(Math.abs((await top()) - onTierList), "the tabs don't move").toBeLessThanOrEqual(1);
+  });
 });
 
 test("queue tabs: one tab stop, arrow keys move the choice; the last one is ARAM: Mayhem's page", async ({ page, t }) => {

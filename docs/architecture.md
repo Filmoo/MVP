@@ -430,7 +430,8 @@ with a retry.
   Tiers lit there (`Route.also` in `app/router.ts`). `/champions` without an id goes to the tier
   list with the link's filters (`location.replace`). The page's way back returns to the tier list
   in the same scope (the filters and the view are shared and remembered). Both pages have the
-  same queue tabs and rank menu (`QueueTabs`, `RankPicker` in `views/stats/common.tsx`).
+  same queue tabs and rank menu (`QueueTabs`, `RankPicker` in `views/stats/common.tsx`); the
+  ARAM: Mayhem page has the tabs too, in the tier list's place, and is lit under Tiers as well.
 - **Scope**: queue (420 ranked solo · 450 ARAM), rank bracket and the tier-list role filter are
   remembered in `localStorage["mvp.stats-filters.v1"]` (`lib/stats-filters.ts`) and shared by both
   pages. Links can set them: `#/tier-list?queue=450&role=middle`; on a champion page `role` picks the
@@ -443,13 +444,15 @@ with a retry.
   Suspense. The `stats-index` event bumps a version in every request key: pages refetch when a new
   publication lands. No timers, no polling.
 - **Tier list** (`views/tierlist`): a compact header, then one of two views.
-  - **Header**: the queue as tabs with a line under the one shown (room for more, ARAM: Mayhem
-    one day); lanes as a row of icon buttons (All, Top, Jungle, Mid, Bot, Support; the one chosen
-    on a glass drop in its role's colour, each with a tooltip: its name, how many champions it
-    ranks); the rank as a button with the bracket's emblem opening a grid of the brackets published
-    for the queue (native popover, anchored in CSS; Escape, a click outside or a choice closes
-    it); a champion filter (fuzzy, best match first, Enter opens the first; the sort waits). No
-    region or patch picker: the patch, games and last update are text on the title's line.
+  - **Header**: the queue as tabs with a line under the one shown: Ranked Solo, ARAM, then
+    ARAM: Mayhem, which opens the Mayhem page (on a champion page, its Mayhem tab; `MayhemTab`);
+    lanes as a row of icon buttons (All, Top, Jungle, Mid, Bot, Support; the one chosen on a glass
+    drop in its role's colour, each named by a tooltip); the rank as a button with the bracket's
+    emblem opening a grid of the brackets published for the queue (native popover, anchored in
+    CSS; it opens with the rank shown focused, arrows choose without closing it, a click or Enter
+    on a rank, Escape or a click outside close it and the focus goes back to the button); a
+    champion filter (fuzzy, best match first, Enter opens the first; the sort waits). No region
+    or patch picker: the patch, games and last update are text on the title's line.
   - **Two views**, remembered with the table's sort in `localStorage["mvp.tier-view.v1"]`
     (`lib/tier-view.ts`; a link can pick one, `#/tier-list?view=table`). **Shelves** (default): a
     podium of the top three (the first taller; gold, silver, bronze; the champion's art), a mini
@@ -464,19 +467,24 @@ with a retry.
   - **The full meta map** (`MapDialog.tsx`, a chunk loaded when first opened) opens from the mini
     map (a bar on pages under 900 px): a modal `<dialog>` (focus kept inside, Escape or the close
     button, the focus back on the mini map). Strength (score) up, popularity (pick rate, log scale)
-    across, tier bands; faces pushed apart where they would overlap, dots when every lane shows,
+    across, tier bands (`lib/meta-map.ts`, shared with the mini map: popularity from the least to
+    the most picked, at least 8× across so ARAM's close pick rates spread out); faces pushed apart
+    where they would overlap, dots when every lane shows,
     always in their tier's colour (the lane colours match the tiers': one meaning per page); one
     name tag for the point lit (with its lane when every lane shows), kept inside the plot.
   - **Trends**: `previous_tier_list` answers the tier list of the patch before the current one,
     same queue and bracket (`DataSet::previous`; the disk cache keeps the current and the previous
     patch), or `null` when there is none: then nothing shows. The change in points shows under the
     table's win rates and in the hover card (win and pick rate, "since the last patch").
-  - **Without stats** (offline, nothing published): why (with Try again when that can help), then
-    every champion by Data Dragon class, filtered as you type, built a slice at a time
-    (`NoStats.tsx`, `lib/progressive.ts`).
+  - **Without stats** (offline, nothing published): why, in the header where the lanes were
+    (`NoStatsNotice`: one line, the penguin when nothing is published, else an alert with Try
+    again ending it when asking again can help), then every champion by Data Dragon class,
+    filtered as you type, built a slice at a time (`NoStats.tsx`, `lib/progressive.ts`). While
+    the list loads: the shown view's skeleton (the podium and shelves, or the table's rows).
   - **Medallions** (`design/TierMark.tsx`): S a gem, A a shield, B a tile, C a coin, D a ring, CSS
     shapes in the tier colours, wherever a tier shows (shelves, table, hover card, the map's bands,
-    the champion page's hero). Widgets: `tier-shelves`, `tier-table`, `tier-no-stats`.
+    the champion page's hero, the Mayhem page's tier headings with their own hint). Widgets:
+    `tier-shelves`, `tier-table`, `tier-no-stats`.
 - **Champion page**: hero (art, role tabs with their share of the champion's games, tier, win/pick/ban
   rates with their counts, patch), then for the chosen role: the full rune page (both trees, the
   chosen runes lit in the tree's color, shards; the next most played pages one click away), spells,
@@ -994,8 +1002,9 @@ rate** (policy.md, "ARAM: Mayhem augments"; decisions.md).
   Mayhem tab (`/champions?id=…&mode=mayhem`, then ARAM's build labelled as ARAM data), Draft's
   *Augments* tab and rows, Live's "My build" in a Mayhem game. Hovers are the app's tooltip cards
   (`data-hint`, "Tooltips"): an augment row says what it does (also on keyboard focus), `S · 2`
-  and the page's tier marks what MVP's tiers are (their own mark: the stats pages' grade badge
-  explains a win-rate tier). Mock scenarios `mayhem-*`
+  and the page's tier headings what MVP's tiers are (the headings wear the tier list's medallions
+  with this hint of their own: the tier list's medallion explains a win-rate tier). Mock
+  scenarios `mayhem-*`
   (`empty`, `unbuilt`, `offline`, `slow`, `extreme`, `champ-select`, `live`); `?augments=dev`
   (dev server and screenshots only) shows the real catalog from `.cache/mayhem`.
 - **mock-lcu** `--mayhem`: champion selects and games of queue 2400; the newest listed game is a

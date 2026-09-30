@@ -555,7 +555,7 @@ export const frViews = {
       home: "Votre profil, votre rang et vos dernières parties, chacune avec sa note.",
       draft: "La sélection des champions\u00A0: les choix que les stats favorisent pour votre rôle, et pourquoi.",
       live: "Votre partie en cours\u00A0: le rang et la forme de chaque joueur, et votre build.",
-      tierList: "Les champions classés selon leurs victoires dans chaque rôle sur ce patch.",
+      tierList: "Les champions classés selon leurs victoires dans chaque rôle sur ce patch, et le build de chacun.",
       settings: "Automatisations, import de builds, langue, effets visuels et mises à jour.",
     },
     status: {

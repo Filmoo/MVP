@@ -50,10 +50,12 @@ session hit the usage limit five times.
 - An installed MVP in the tray made newer dev builds hand over and quit (known issue 2 below).
 
 **In progress, on branches not merged yet**
-- `worktree-agent-aac82646dd1131931`: the Tier list hub (Shelves with the top-3 podium and a mini
-  meta map, a DPM-like sortable Table, compact lane icons, a rank dropdown with emblems, tier
-  medallions, League-like Jungle and Support icons, the penguin). Stopped with 4 files
-  uncommitted.
+- `feature/tier-list-hub`: the Tier list hub, finished (2026-09-30): one hub for tiers and builds,
+  Shelves (top-3 podium, a shelf per tier, a mini meta map opening full screen) and a DPM-like
+  sortable Table, compact lane icons, a rank dropdown with emblems, ARAM: Mayhem as the third
+  queue tab, tier medallions (Mayhem's headings too), League-like Jungle and Support icons, the
+  penguin, the no-stats notice in the header. Merged with `release/0.3` at 375b7bd. Over the JS
+  budget (decisions.md, "Tiers and builds, one hub": the owner's call before it merges).
 - `worktree-agent-a81fa7b74de5da1fc`: the opened game as a glass sheet (a long scroll, Escape or a
   click outside closes it), clickable Riot IDs, the end-of-game stats table. Stopped with 1 file
   uncommitted.

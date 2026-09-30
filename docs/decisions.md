@@ -312,18 +312,22 @@ every column sorts. Calls:
 - **One hub**: no Champions entry in the nav; `/champions` without an id is the tier list (the
   link's filters kept); a champion anywhere opens its build page, Tiers stays lit there, and the
   way back returns to the same queue, rank, lane and view.
-- **A compact header**: queue tabs (room for ARAM: Mayhem), lanes as a row of icon buttons with
-  tooltips (the vertical role rail of the first drafts is gone), the rank as a button with its
-  emblem opening a grid of the published brackets, a champion filter. The patch is text; no
-  region list, no patch picker.
+- **A compact header**: queue tabs (Ranked Solo, ARAM, then ARAM: Mayhem, which opens the Mayhem
+  page: the same tabs there, in the same place, so the three read as one hub), lanes as a row of
+  icon buttons with tooltips (the vertical role rail of the first drafts is gone), the rank as a
+  button with its emblem opening a grid of the published brackets, a champion filter. The patch
+  is text; no region list, no patch picker. Without stats, why sits in the header where the lanes
+  were (one line: the penguin when nothing is published, an alert with Try again otherwise), and
+  every champion shows by class below, as the champion list did.
 - **Two views, remembered**: Shelves (default: podium, mini meta map, a shelf per tier, a glass
   card with the numbers) and Table (every header sorts, again the other way; essential columns
   on narrow windows). "All roles" shows a champion once per lane it's played in.
 - **The meta map**: small next to the podium (a bar on narrow pages), full screen on a click as a
   modal dialog; its code loads then.
-- **Medallions** for tiers (S gem, A shield, B tile, C coin, D ring), **Jungle and Support icons**
-  redrawn to read like League's positions (a thorned claw, a winged crest; our own drawings),
-  **the penguin** waiting for the client, when nothing is published, and in About.
+- **Medallions** for tiers (S gem, A shield, B tile, C coin, D ring), the Mayhem page's tier
+  headings included (with their own hint: those tiers are made by hand), **Jungle and Support
+  icons** redrawn to read like League's positions (three talons from one root, a winged crest; our
+  own drawings), **the penguin** waiting for the client, when nothing is published, and in About.
 - **Trends** only where data allows: the previous patch's published list (kept on disk with the
   current one); nothing shows on a first patch.
 - **Budget** (Claude, for the owner to decide): the hub costs ~10.4 KB of gzipped JS, all in

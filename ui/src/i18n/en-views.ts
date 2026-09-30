@@ -563,7 +563,7 @@ export const enViews = {
       home: "Your profile, rank and recent games, each with its grade.",
       draft: "Champion select: the picks the stats favour for your role, and why.",
       live: "The game you're in: every player's rank and form, and your build.",
-      tierList: "Champions ranked by how they win in each role this patch.",
+      tierList: "Champions ranked by how they win in each role this patch, and each one's build.",
       settings: "Automations, build imports, language, visual effects and updates.",
     },
     /** What the League client's status in the title bar means for MVP. */
