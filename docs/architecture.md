@@ -92,10 +92,11 @@ everyone else in that game costs no Riot call, and the accounts Riot showed go t
 cache for the batch that may follow; cards not built within 5 s are left to that batch
 (`cardsComplete: false`) while their lookups carry on. Caches in memory with request
 coalescing: profiles and cards 2 min,
-accounts 1 day, compacted match documents forever (LRU-bounded: the 28 participant fields the
-profile, the grade and match details read, keystone and rune trees only, kept as JSON text);
-accounts and matches are snapshotted to the data dir on shutdown (snapshot format 2: an older
-snapshot is ignored, its matches lack what grades need). Lookups share one rate limiter per
+accounts 1 day, compacted match documents forever (LRU-bounded to 12,000: the 45 participant
+fields the profile, the grade and match details with their end-of-game stats read, keystone and
+rune trees only, kept as JSON text, under 11 KB a game);
+accounts and matches are snapshotted to the data dir on shutdown (snapshot format 3: an older
+snapshot is ignored, its matches lack the end-of-game stats). Lookups share one rate limiter per
 routing value; a 429 is reported to the caller rather than waited out when Riot asks for more
 than 5 s.
 
@@ -287,26 +288,100 @@ Every finished game in a match history gets a grade, and a match row opens on th
   in order), each player's Riot ID (none when hidden: `nameVisibilityType: HIDDEN` in the client,
   no name in Match-V5), champion and level, role, K/D/A, CS, gold, damage to champions, vision
   (no column on Howling Abyss — ARAM, ARAM: Mayhem… `lib/queues.ts` — or whenever everyone's is
-  0), items and trinket, spells, keystone and secondary tree, grade, `isMe`. Your listed games come
-  from the client (the same read as their grades, cached); any other game from
-  `GET /v1/matches/{platform}/{matchId}` (the backend's match cache); failures aren't cached.
-- **UI**: a match row is a button (`aria-expanded`) with the grade chip (`GradeChip`, the tier
-  list's grade colours) over the place or MVP/ACE. Click, Enter or Space opens the game under it,
-  one at a time; a second click or Escape closes it and gives the focus back; when a game above
-  closes, the page scrolls so the clicked row stays put. The game's code rides in the player
-  page's chunk (`provideDetails` in App.tsx: a chunk of its own would split the chunks it shares
-  with the first screen), loaded on first use with the views' words; meanwhile a skeleton of the
-  table's exact height (540 px, fixed line heights). Hovering a grade, or focusing its row from
-  the keyboard, shows its why: the app's tooltip ("Tooltips" below) anchored to the chip, gone on
-  leave, Escape or a click. The page owner's line is marked.
-  Grades never show in Draft or on the Live cards. Mock: `data/mock/match-fixtures.ts` (a seeded
-  whole game per row, graded by a TS port of the formula), scenarios `match-details-slow`,
-  `match-details-error`, `match-details-gone` and `extreme`; `mock-lcu` serves whole games
-  (`mock_lcu::history`, one player in streamer mode).
+  0), items and trinket, spells, keystone and secondary tree, grade, `isMe`, and the end-of-game
+  stats (`EndOfGameStats`: the League client's post-game Stats tab — largest spree and multikill,
+  first blood, damage to champions by type, to turrets and objectives, taken and self-mitigated,
+  healing, healing and shielding on teammates, wards placed and destroyed, control wards, gold
+  spent, minions, monsters, crowd control, turrets and inhibitors; each `None` when the source
+  doesn't carry it, read by `EndOfGameStats::read` from Riot's names, alike in Match-V5 and the
+  client's `participants[].stats`; a server that doesn't send them yet parses as all `None`).
+  Your listed games come from the client (the same read as their grades, cached); any other game
+  from `GET /v1/matches/{platform}/{matchId}` (the backend's match cache: 45 participant fields
+  compacted, under 11 KB a game, 12,000 kept); failures aren't cached.
+- **UI, the rows**: a match row is a button (`aria-haspopup="dialog"`, `aria-expanded` while its
+  game is open) with the grade chip (`GradeChip`, the tier list's grade colours) over the place or
+  MVP/ACE. Hovering a grade, or focusing its row from the keyboard, shows its why: the app's
+  tooltip ("Tooltips" below) anchored to the chip, gone on leave, Escape or a click. Grades never
+  show in Draft or on the Live cards.
+- **UI, the stack of opened games** (`GameStack.tsx`, `GameWindow.tsx`, `stack.ts`; decisions.md
+  "Opened games are a stack of windows"): click, Enter or Space on a row opens a native modal
+  `<dialog>` (`showModal`: the page behind is inert; labelled by the current game's title,
+  "Victory · Ranked Solo") holding one window per game of the list the row is in (its filters
+  applied), newest on top. The dialog is the whole window: its own box (the title bar, the rail,
+  the margins) is "outside", a press and release there closes it; `::backdrop` dims the page with
+  `--bg-scrim` (40 %: the page stays seen around the stack and through its glass). The current
+  window fills the page's column beside the rail and under the title bar (`--content-max` wide at
+  most) but for a band at its top and bottom (`--peek`) where its neighbours' edges show `--gap`
+  away; the stack's cell clips them vertically (never over the title bar), never with a mask (a
+  mask would hide the page from the glass). A click on a neighbour's edge goes there (the pointer
+  brings it a little closer, a hover says which game). **Only the current window and its
+  neighbours are built**, each asking for its game (`match_details`) as it is built, kept while
+  the stack is open. A neighbour is a window behind: 3 % narrower (`scale`, it grows to full width
+  as it glides in), its rim quieter, its glass under a veil (`--bg-scrim`), its game unseen (its
+  edge is clean glass) until it arrives. Each window is liquid glass (`liquid(el, "sheet")` on a
+  layer inside it, tinted `--bg-float`: the page bent along its rim, frosted deep in its middle,
+  so the history's rows show as light, not as ghost rows or win/loss stripes along the rim; its
+  shadow on a layer of its own). Its head comes from the row at once: result and queue (the title), the LP (`+21 LP` like
+  the row, the standing after, Promoted/Demoted; "Counting LP…" while the client counts the game
+  that just ended), champion, role, length and when, the close button; then the grade of the player
+  whose games these are (chip, score, MVP/ACE or "2nd of 10") with the facts that moved it, and
+  "Scoreboard | Details" (`Segmented`; the view chosen stays from game to game; no tabs for a game
+  without end-of-game stats; a window 1000 px tall or more shows both, the stats under the
+  scoreboard with their title, and builds the stats of the current game only). The **scoreboard**
+  (`MatchTable`, DPM as inspiration): per player the level on the portrait, spells, keystone and
+  tree, the Riot ID (a link to `playerPath`, which closes the stack and navigates; hidden players
+  and bots plain text), K / D / A with the ratio and the kill participation under it (clamped to
+  100 %), damage with a bar on the game's top (on the second line: the numbers share a line), gold,
+  CS and vision each with its pace (no vision on Howling Abyss), items and trinket, the grade
+  (focusable, its why a tooltip on hover or focus); the runes, spells and items say what they do,
+  the KDA and grade headings what they mean. Its columns give way as the window narrows (gold and
+  vision go and the items wrap, then the items go, then the damage, then the CS). The **details**
+  (`MatchStats.tsx`: groups of rows, the ten players as columns with champion heads on their team's
+  colour, the page owner's column marked, each row's top value marked, a row no player has left
+  out — Howling Abyss has no vision —, a sticky label column and sideways scrolling to your column
+  on narrow windows; in a wide window the well lets the glass show). Meanwhile a skeleton of the scoreboard's exact height (540 px); errors in
+  place with a retry when it helps.
+  **Moving** (`stack.ts`, pure and unit-tested): the current game scrolls first. Past its end or
+  its top, wheel deltas pull the stack along (`rubber`: it follows with resistance, into the
+  track's `translate`) under a hint of what more would do ("Keep scrolling for an older game", "…
+  for a newer game", "… to close", "… to load older games", "No older games") whose bar fills up;
+  at `WHEEL_MOVE` (200 px, two notches) the stack glides to the next game on a spring, past the
+  newest game's top `WHEEL_CLOSE` (360 px, four notches) closes it; after `RELEASE_MS` without a
+  wheel event it springs back. Only deliberate scrolls pull: a wheel gesture (events <
+  `GESTURE_GAP_MS` apart) that scrolled the game stops at the edge, events shrinking twice in a row
+  (momentum) add nothing, merged notches (200 then 100) count. A gesture that moved the stack is
+  spent: the rest of it is swallowed (`preventDefault`; a pull takes its events from its first
+  one on, as Chromium lets the rest of a wheel sequence be cancelled only when its first event
+  was), and the wheel rests `SETTLE_MS` (400 ms) while the stack glides, pause or not (a page busy
+  drawing hands a spin's last notches over late), so the game it brought arrives at its top and
+  stays there. Going up, a game arrives at its end (the stack
+  reads like one long page); the keyboard goes on in it. Past the last game loaded a pull (or ↓ at
+  its end) loads the history's next page (the list's "load more", Home only) and moves on to it
+  once it is in; "Loading older games…" (or the failure: pull again) shows meanwhile; at the
+  history's end the stack only gives. Over the window's head or around it the wheel still scrolls
+  the game. A finger dragging past an edge pulls too (`touchPull`, `touchmove` not passive only to
+  hold the page while it pulls): `TOUCH_MOVE` (100 px) or `TOUCH_CLOSE` (140 px) on release. Keys:
+  ↑/↓, PageUp/PageDown and Space scroll the game, and at its edge a fresh press moves on (held
+  down, a key stops there); Home and End go to the newest and the oldest game loaded; the tabs keep
+  their arrows, Home and End. Reduced motion: the stack jumps, pulls don't move it, the hint and
+  thresholds work. **Closing**: Escape (a tooltip showing first: design/tip closes it alone), a
+  click around the windows, the close button, a player's link, the pull past the newest game; the
+  focus goes back to the row of the game shown last (Tab stays in the current window meanwhile).
+  The stack rises in and leaves by `transform`, the windows' glass, content and shadow fade by
+  `opacity` (never a window: its glass would lose the page), and nothing runs once it is still
+  (the perf suite measures it open after a move, and closed). The code rides in the player page's
+  chunk (`provideDetails` in App.tsx: a chunk of its own weighed 1.5 KB more, its own copies of
+  shared modules), loaded on first use with the views' words. Mock: `data/mock/match-fixtures.ts`
+  (a seeded whole game per row, graded by a TS port of the formula, end-of-game stats from a stream
+  of their own: your games without the teammate rows, as the client's match history, others' with
+  every row), scenarios `match-details-slow`, `match-details-error`, `match-details-gone`,
+  `match-details-unavailable`, `howling-abyss`, `extreme`, `history-long` (pulling past the last
+  game loaded), `history-more-slow` and `history-more-error`; `mock-lcu` serves whole games
+  (`mock_lcu::history`, one player in streamer mode, the end-of-game stats in the client's shape).
 
 ## After a game and over time (`companion::post_game`, `companion::lp`, `ui/src/views/home`)
-Home sums up the game that just ended, shows the LP each ranked game was worth, pages further back
-through the history with filters, and shows your mastery. Your own data only, from your client.
+Home opens the game that just ended by itself, shows the LP each ranked game was worth, pages further
+back through the history with filters, and shows your mastery. Your own data only, from your client.
 - **Following a game** (`post_game::PostGames`, fed by the core's loop): when a game loads
   (Loading/InGame) the core reads the gameflow session once for the game id and queue and, in
   ranked solo/duo (420) and flex (440), the standing before it
@@ -320,9 +395,10 @@ through the history with filters, and shows your mastery. Your own data only, fr
   leaves the LP unknown (never guessed).
 - **`PostGame`** (`post_game` command, `post-game` event): result, your line (grade with its
   facts), your lane opponent (your role on the other team; without roles, as in ARAM, the enemy
-  whose share of their team's damage is closest to yours; none when not exactly one), the LP once
-  counted (`lpPending` meanwhile). Hidden when the player closes it (`dismiss_post_game`: never
-  shown again) or at the next champion select or game.
+  whose share of their team's damage is closest to yours; none when not exactly one; the UI no
+  longer shows it: the scoreboard has both lines), the LP once counted (`lpPending` meanwhile).
+  Hidden when the player closes its window (`dismiss_post_game`: never shown again) or at the next
+  champion select or game.
 - **LP** (`lp::LpStore`, `lp_history`): `LpGame { gameId, queue, at, before, after, delta,
   ladder }` newest first, at most 100 per queue, in `lp-history.json` in the app's data folder
   (atomic writes; an unreadable file is set aside). `delta` is the difference of the two
@@ -335,10 +411,14 @@ through the history with filters, and shows your mastery. Your own data only, fr
 - **Mastery** (`champion_mastery`): `/lol-champion-mastery/v1/local-player/champion-mastery` (read
   for the draft helper already), most points first, ten at most. The backend doesn't expose
   mastery: player pages show none.
-- **UI**: the post-game card tops Home (`PostGame.tsx`, lazy: it rides in the player page's chunk
-  with an opened game's code, loaded only when there is a game to sum up; `<Widget name="post-game">`);
-  the autopilot already brings the window Home after a game, and never away from a page the
-  player opened. The opponent's name links to their page unless hidden. Match rows carry `+19 LP`
+- **UI**: the game that just ended opens by itself in the stack of opened games ("Match insights"
+  above), on Home once your history lists it (`RecentMatches` `lastGame`, from `Home.tsx`), once per
+  game this session: closed any way, it is dismissed for good (`dismiss_post_game`); the next
+  champion select (the core hides the summary) closes it if it is still open; a stack already open
+  just has the game on top (its summary dismissed, nothing moves). Its window's head shows the LP
+  the summary brings (before `lp_history` has it), "Counting LP…" while `lpPending`, and your grade
+  with its facts. The autopilot already brings the window Home after a game, and never away from a
+  page the player opened. Match rows carry `+19 LP`
   / `−17 LP` (`RecentMatches` `lp`). `MatchHistory.tsx` filters by queue (All / Solo / Flex /
   ARAM with Clash and Mayhem / Other) and champion among the games loaded (links can set them:
   `#/?queue=flex&champion=103`), and loads older games (Home only); rows shown ask for their
@@ -604,7 +684,8 @@ functions) → the glass' tint → rim light.
 - Kinds (`LIQUID`): `bar` (title bar: a 14 px lower rim bending strongly; content scrolling
   under it stretches along that rim, the rest is lightly frosted, 4 px), `dock` (the rail and the
   floating tab bar: 12 px rims, 6 px frost in the middle), `panel` (search results, toasts: 14 px
-  rims, 6 px frost in the middle), `clear` (rank pane and champion tier over art: a wide 20 px bent rim, corners
+  rims, 6 px frost in the middle), `sheet` (opened games' windows: a panel's bend, 3 px at the rim
+  and 16 px in the middle, not saturated, over the history's coloured rows), `clear` (rank pane and champion tier over art: a wide 20 px bent rim, corners
   `--radius-5` to match, a light frost in the middle for their captions), `lens` (the glass lab's
   drop only). The app's small glass on controls (rail selection, segmented and
   choice thumbs, a held switch's knob) isn't lensed: it is the CSS drop (`design/glass.css`

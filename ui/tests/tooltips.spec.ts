@@ -63,12 +63,14 @@ test("tooltips: keyboard focus in an opened game shows them, Escape closes only 
   const row = rows(page).first();
   await row.focus();
   await page.keyboard.press("Enter");
-  const game = page.getByTestId("game");
+  const game = page.locator("[data-testid=game-window][data-current]");
   await expect(game.getByTestId("game-player")).toHaveCount(10);
 
-  // After the row: the grade column's explanation, then the first player's spells, keystone and
-  // tree, then their items.
+  // From the game: the KDA column's explanation, the grade column's, then the first player's
+  // spells, keystone and tree, then their items.
   const focused = page.locator(":focus");
+  await page.keyboard.press("Tab");
+  await expect(focused).toHaveAttribute("data-hint", t.matchDetails.columns.kdaHint);
   await page.keyboard.press("Tab");
   await expect(focused).toHaveAttribute("data-hint", t.matchDetails.note);
   // The column already says "Grade": the card starts with how a grade is made.
@@ -280,8 +282,9 @@ test("no view uses a native title tooltip", async ({ page }) => {
   ] as const) {
     await openApp(page, { view, scenario });
     if (view.startsWith("/player") || view === "/") {
+      // The stack of opened games: the game's window and its neighbour below, both built.
       await rows(page).first().click();
-      await expect(page.getByTestId("game-player")).toHaveCount(10);
+      await expect(page.getByTestId("game-player")).toHaveCount(20);
     }
     const titled = await page.evaluate(() => [...document.querySelectorAll("#root [title]")].map((el) => el.outerHTML.slice(0, 120)));
     expect(titled, view).toEqual([]);

@@ -20,8 +20,8 @@ use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
 use domain::{
-    BackendError, Bracket, GradedMatch, MatchDetails, MatchGrade, MatchPlayer, MatchSummary,
-    MatchTeam, PlayerProfile, RiotId, Role,
+    BackendError, Bracket, EndOfGameStats, GradedMatch, MatchDetails, MatchGrade, MatchPlayer,
+    MatchSummary, MatchTeam, PlayerProfile, RiotId, Role,
 };
 use lcu::{LcuClient, LcuError};
 use serde_json::Value;
@@ -167,6 +167,17 @@ fn match_player(
         keystone: nonzero(stats, "perk0"),
         secondary_tree: nonzero(stats, "perkSubStyle"),
         grade,
+        // The client's end-of-game numbers (what it doesn't send stays `None`: its match
+        // history may not count the healing and shielding done to teammates).
+        stats: EndOfGameStats::read(
+            |key| {
+                stats
+                    .get(key)
+                    .and_then(Value::as_u64)
+                    .and_then(|n| u32::try_from(n).ok())
+            },
+            |key| stats.get(key).and_then(Value::as_bool),
+        ),
     }
 }
 
@@ -659,6 +670,28 @@ mod tests {
         assert_eq!(mine[0].spells, vec![14, 4]);
         assert!(mine[0].grade.is_some());
         assert!(mine[0].keystone.is_some() && mine[0].trinket.is_some());
+        // The end-of-game numbers the client keeps: the damage by type adds up to the total;
+        // what its match history doesn't count stays unknown, never a made-up zero.
+        let stats = &mine[0].stats;
+        let by_type = [
+            stats.physical_damage_to_champions,
+            stats.magic_damage_to_champions,
+            stats.true_damage_to_champions,
+        ];
+        assert_eq!(
+            by_type.iter().map(|d| d.unwrap_or(0)).sum::<u32>(),
+            mine[0].damage_to_champions
+        );
+        assert!(stats.gold_spent.is_some() && stats.crowd_control_seconds.is_some());
+        assert_eq!(stats.healing_on_teammates, None);
+        assert_eq!(stats.shielding_on_teammates, None);
+        let first_bloods = details
+            .teams
+            .iter()
+            .flat_map(|t| &t.players)
+            .filter(|p| p.stats.first_blood == Some(true))
+            .count();
+        assert_eq!(first_bloods, 1);
         // Streamer mode stays hidden, whatever the client carries.
         let hidden = &red.players[1];
         assert!(hidden.hidden && hidden.riot_id.is_none());

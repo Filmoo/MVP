@@ -109,6 +109,45 @@ for (const view of ["/tier-list", "/champions?id=103", "/champions"]) {
   });
 }
 
+// The stack of opened games (three windows of glass, the whole game, its stats table), once it has
+// risen in and after it moved on to the next game: as quiet as the page under it; closed, too.
+test("idle with a game open: no scripts, layouts or style work", async ({ page }) => {
+  await openApp(page, { freezeClock: false });
+  await page.locator("[data-testid=match-row] > button").nth(1).click();
+  const current = page.locator("[data-testid=game-window][data-current]");
+  await current.getByTestId("game-tabs").getByRole("radio").nth(1).click();
+  await expect(current.getByTestId("game-stats")).toBeVisible();
+  // On to the oldest game (none below it then).
+  await current.getByTestId("game-body").focus();
+  await page.keyboard.press("End");
+  await expect(page.locator("[data-testid=game-window][data-place=older]")).toHaveCount(0);
+  await settle(page);
+  await page.waitForTimeout(800);
+  const measure = async () => {
+    const cdp = await cdpFor(page);
+    const before = await metrics(cdp);
+    await page.waitForTimeout(3_000);
+    const after = await metrics(cdp);
+    await cdp.detach();
+    return {
+      scriptMs: ((after.ScriptDuration ?? 0) - (before.ScriptDuration ?? 0)) * 1_000,
+      layouts: (after.LayoutCount ?? 0) - (before.LayoutCount ?? 0),
+      styleRecalcs: (after.RecalcStyleCount ?? 0) - (before.RecalcStyleCount ?? 0),
+    };
+  };
+  const open = await measure();
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("game-stack")).toHaveCount(0);
+  await page.waitForTimeout(800);
+  const closed = await measure();
+  results.idleGame = { open, closed };
+  for (const [state, idle] of Object.entries({ open, closed })) {
+    expect(idle.scriptMs, `${state}: script ms`).toBeLessThanOrEqual(budgets.idle.scriptMs);
+    expect(idle.layouts, `${state}: layouts`).toBeLessThanOrEqual(budgets.idle.layouts);
+    expect(idle.styleRecalcs, `${state}: style recalcs`).toBeLessThanOrEqual(budgets.idle.styleRecalcs);
+  }
+});
+
 test("switching views is instant and memory stays small", async ({ page }) => {
   await openApp(page, { freezeClock: false });
   const switches: Record<string, number> = {};

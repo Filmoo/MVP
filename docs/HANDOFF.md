@@ -54,9 +54,12 @@ session hit the usage limit five times.
   meta map, a DPM-like sortable Table, compact lane icons, a rank dropdown with emblems, tier
   medallions, League-like Jungle and Support icons, the penguin). Stopped with 4 files
   uncommitted.
-- `worktree-agent-a81fa7b74de5da1fc`: the opened game as a glass sheet (a long scroll, Escape or a
-  click outside closes it), clickable Riot IDs, the end-of-game stats table. Stopped with 1 file
-  uncommitted.
+- `feature/game-windows` (2026-09-30): opened games as a stack of windows you scroll between, the
+  game that just ended opening by itself instead of Home's card, a DPM-like scoreboard with
+  "Scoreboard | Details" (decisions.md "Opened games are a stack of windows"). It carries the
+  sheet's branch (`worktree-agent-a81fa7b74de5da1fc`, merged into it) and `release/0.3`. Over the
+  JS budget: 140.8 / 136 KB in all (the sheet merged onto main was 139.3 already, the stack
+  +1.5), startup 41.0 / 46 KB: raise the budget in its own commit, or trim.
 - `worktree-agent-af4bb73c493248211`: one more commit (50eae94, the roadmap's design review) to
   merge; keep main's `FeatureSheet.tsx`, `playwright.config.ts` and `roadmap.spec.ts` (b4ef9a8).
 
@@ -138,6 +141,8 @@ check the latest run before building on it.
    mastery work), so startup code no longer splits when a lazy chunk imports part of it. Lazy
    chunks import from the entry chunk: `main.tsx` must not await at its top level (a module paused
    there makes them wait forever: a blank page).
+   *(2026-09-29, the opened game's sheet)* Startup JS 40.6 / 46 KB, startup CSS 9.5 / 12 KB,
+   total JS 130.5 / 131 KB (126.1 before the sheet): 0.5 KB left in all.
 9. Production Riot key: register the product (policy.md lists the endpoints to declare); a dev
    key crawls ~2k games a day.
 
@@ -149,6 +154,38 @@ check the latest run before building on it.
 - The updater's `requireSignedVersion` once signatures carry the version (job 6).
 - Later, by the owner's earlier calls: an in-game overlay (the architecture is ready for it, not
   wanted yet); no ban suggestions, no AI picks.
+
+**Planned for the next version** (owner, 2026-09-29: "after game graphs and animation to show how
+each of those evolved, a heatmap etc. … very cool visualization, will be for a next version. Just
+keep it in planned.") Not started; an opened game's window (job 10) is where it goes: a tab of its own beside
+"Scoreboard | Details".
+- **What:** how the game went, animated and scrubbable along its minutes: gold, XP, CS and
+  damage to champions of each player over time (lines, the page owner's in front), the teams'
+  gold difference (the classic area above and under zero, objectives — dragons, heralds, barons,
+  towers, inhibitors — marked on it), and the map: kills and deaths as a heatmap on Summoner's
+  Rift (per player or team), each player's positions minute by minute (a trail, played back),
+  wards placed. Same rules as the rest: statistics only, the game's own numbers, finished games
+  only (never during a game), hidden players stay hidden, "very cool" but idle at rest and within
+  budget (a canvas drawn on demand, like the backdrop; nothing moves unless played or pointed at).
+- **Data:** Riot's timeline of the game. Anyone's game: Match-V5's timeline
+  (`GET /lol/match/v5/matches/{matchId}/timeline`, already declared: the crawler reads it): one
+  frame a minute with every participant's `totalGold`, `xp`, `level`, `minionsKilled` +
+  `jungleMinionsKilled`, `damageStats`, `position {x, y}`, and the events between frames
+  (`CHAMPION_KILL` with killer, victim, assists and position; `WARD_PLACED`/`WARD_KILL`,
+  `BUILDING_KILL`, `ELITE_MONSTER_KILL`, `ITEM_PURCHASED`, `LEVEL_UP`, `SKILL_LEVEL_UP`). The
+  backend serves it compacted and cached like the match (a new route
+  `GET /v1/matches/{platform}/{matchId}/timeline`: frames trimmed to the fields drawn, events to
+  the kinds drawn; a raw timeline weighs hundreds of KB and even compacted it won't fit 12,000
+  times in memory like matches: a smaller cache, or on disk). Your own games: the League client's
+  `GET /lol-match-history/v1/game-timelines/{gameId}` (the same frames and events in the client's
+  shape, `participantId`s matched with the game's `participantIdentities`), read once when the
+  graphs are first opened, kept for the session like the whole game; else the backend's.
+- **Declare** (riot-application.md, marked planned): the LCU read
+  `GET /lol-match-history/v1/game-timelines/{gameId}`; Match-V5's timeline for opened games too
+  (today it only feeds the aggregate statistics).
+- **Check first:** what the client's timeline carries for hidden (streamer-mode) players (their
+  positions and kills are fine to draw, anonymously; never a name), how big a Match-V5 timeline is
+  compacted, and the bundle (a charting library is out: draw with the existing canvas/SVG code).
 
 ## State
 Everything below is merged on `release/0.3` and green on
@@ -268,22 +305,46 @@ Everything below is merged on `release/0.3` and green on
 10. *(built, against mock-lcu and a fake backend only)*
    **Match insights** (architecture.md "Match insights", policy.md "Per-game grades"): a grade per
    finished game (`stats::grade`: S+ to C, score out of 10, place, MVP/ACE, the facts that moved
-   it) on every match row, its why on hover or keyboard focus, and a row opens on the whole game
-   (both teams, Riot IDs with hidden players kept hidden, KDA, CS, gold, damage bars, vision,
-   items, spells, runes, every grade; the page owner's line marked). Your games are graded by the
+   it) on every match row, its why on hover or keyboard focus, and a row opens the whole game
+   *(2026-09-30)* in a stack of windows of liquid glass over the page, one per game of the list,
+   that you scroll between (decisions.md "Opened games are a stack of windows"; `GameStack.tsx`,
+   `GameWindow.tsx`, `stack.ts`): each window's head says the game, its LP and the page owner's
+   grade with what moved it; its scoreboard both teams (Riot IDs with hidden players kept hidden,
+   each named player a link to their page, level, spells and runes, K/D/A with the kill
+   participation, damage bars, gold, CS and vision with their pace, items, every grade and its
+   why; the page owner's line marked); its details the end-of-game stats (the client's post-game
+   Stats tab: `domain::EndOfGameStats`), under the scoreboard on a window 1000 px tall or more.
+   Past a game's end the stack moves on to the next one, past the
+   newest game's top it closes, past the last game loaded it loads older ones; it also closes on
+   Escape, a click around it, its close button or a link. The game that just ended opens by
+   itself, once (Home's card is gone). Your games are graded by the
    core from `GET /lol-match-history/v1/games/{gameId}` (each read once, after the profile);
    others' by the backend, which also answers `GET /v1/matches/{platform}/{matchId}`. Left:
+   - on the owner's machine: the stack's feel with a real mouse wheel and a precision touchpad
+     (`WHEEL_MOVE` 200 px ≈ two notches to move on, `WHEEL_CLOSE` 360 px ≈ four to close,
+     `RELEASE_MS`, `GESTURE_GAP_MS` in `stack.ts`; WebView2's deltas per notch aren't measured
+     yet): that a spin reaching a game's end never moves on by itself, that the rest of a gesture
+     that moved on never scrolls the next game (Chromium lets a wheel sequence be cancelled only
+     from its first event: a pull takes its events), a touch screen if there is one, and the
+     glass frame times while the stack glides on a 1440p window (three windows of the biggest
+     lens of the app; the neighbours are clipped to their edges);
+   - the backend's match snapshot is format 3 and its cache holds 12,000 matches (was 20,000: a
+     compacted match doubled with its end-of-game stats, under 11 KB); the first start after the
+     upgrade begins with an empty match cache;
    - *(owner, 2026-09-28: kept)* the gray area (policy.md): grades of all ten players in an
      opened game, the letters, the score, MVP/ACE;
    - calibrate the references and cut-offs on crawled games (`crates/stats/src/grade.rs`: role
      shares, kill-participation offsets, scales; each role should average 5, S+ should be rare);
-   - the backend's match snapshot moved to format 2: the first start after the upgrade begins
-     with an empty match cache (older snapshots are ignored);
    - Match-V5 and streamer mode: we treat a participant without `riotIdGameName` as hidden; check
      what Riot sends for hidden players today (policy.md "Re-identify Streamer Mode players");
    - bundle: the grade chip and the rows' wiring cost the first screen +0.9 KB gzip, the game and
      the why (in the player page's chunk) and their words +4.7 KB; the budgets were raised for it
-     with the owner's OK (46 KB startup, 125 KB total).
+     with the owner's OK (46 KB startup, 125 KB total). *(2026-09-29)* The sheet, the scroll to
+     close, the links and the stats table (still in the player page's chunk: a chunk of their own
+     weighed 1.5 KB more) and their words cost +4.4 KB: 130.5 / 131 KB total (main 126.1 before
+     it), 0.5 KB left; startup unchanged (40.6 / 46 KB). *(2026-09-30)* Merged onto main (with
+     ARAM: Mayhem) the sheet made 139.3 KB in all, over the 136 KB budget; the stack of windows
+     adds 1.5 KB: 140.8 / 136 KB, startup 41.0 / 46 KB (the owner's call).
 
 9. *(built, against mock-lcu and synthetic stats only)* **Draft insights** (architecture.md "Stats
    pipeline" and "Stats in the app"): the crawler keeps each game's length and every player's
@@ -425,20 +486,37 @@ Match insights (Home after a few games; a player page with the backend running):
   `spell1Id`/`spell2Id`, `timeline.lane`/`role` (only evidence: each team's roles are worked out
   from the champions' role shares, Smite, lane minions and support items; compare with the player
   page's Match-V5 `teamPosition` for the same games), `gameDuration` in seconds, `platformId`.
-- **Opened games:** yours open instantly the second time (cached); someone else's (player page)
-  come from the backend; a streamer-mode player shows "Hidden player" in both; your line (or the
-  page owner's) is marked; Escape closes and the row keeps the focus.
+- **Opened games:** a stack of windows of glass over the page (the page bent at each rim, seen
+  around it), the neighbours' edges at its top and bottom; yours open instantly the second time
+  (cached); someone else's (player page) come from the backend; a streamer-mode player shows
+  "Hidden player" in both and isn't a link; your line (or the page owner's) is marked, your grade
+  and the LP head each window; a name opens that player's page (the stack closes). Scrolling on
+  past a game's end moves to the next game ("Keep scrolling for an older game", two notches),
+  past its top back up, past the newest game's top closes (four notches), past the last game
+  loaded loads older ones (Home) and moves on to them; a touchpad flick's inertia never moves on.
+  ↑/↓, PageUp/PageDown and Space scroll then move on; Home/End go to the ends. Escape, a click
+  beside the windows and the close button close it; the focus goes back to the row of the game
+  shown last.
+- **End-of-game stats** (a window's Details, `EndOfGameStats`): compare with the client's own
+  post-game Stats tab for the same game (spree, multikill, first blood, damage by type, to
+  turrets and objectives, taken and mitigated, healing, wards, gold spent, minions, monsters,
+  crowd control, turrets, inhibitors). **Check whether the client's `participants[].stats` carry
+  `totalHealsOnTeammates` and `totalDamageShieldedOnTeammates`** (Match-V5's names; the legacy
+  shape we know has neither): read when present, else those two rows are left out of your games
+  (player pages have them from Match-V5). Also `visionWardsBoughtInGame` (control wards),
+  `timeCCingOthers`, `turretKills`/`inhibitorKills` and `firstBloodKill` in the client's shape.
 - **Grades look right:** the MVP is the best of the winners, an obviously bad game gets a C, a
   support with high vision isn't punished for low CS, and the why's facts match the end screen.
 
 After a game (Home; the logs say "LP of the game", "game not in the history yet", "the client
 didn't count the game in time"):
-- **Post-game summary:** a ranked game ends → the window comes Home (autopilot) and the card tops
-  it within seconds of the end screen: result, grade and its facts, your numbers against your
-  lane opponent (check the roles: the opponent must be your role on the other team), then the LP
-  when the client counts it (check `/lol-ranked/v1/current-ranked-stats` fires its event after a
-  game; else the LP comes from the retries within two minutes). Close it: it doesn't come back;
-  the next champion select hides it too. ARAM: the closest share of damage, no LP.
+- **The game that just ended:** a ranked game ends → the window comes Home (autopilot) and the
+  game opens by itself in the stack within seconds of the end screen: result, your grade and its
+  facts, "Counting LP…", then the LP when the client counts it (check
+  `/lol-ranked/v1/current-ranked-stats` fires its event after a game; else the LP comes from the
+  retries within two minutes). Close it: it doesn't come back; the
+  next champion select closes it. With the stack already open on another game, nothing jumps (the
+  new game is on top). ARAM: no LP.
 - **LP:** compare MVP's `+19 LP` with the client's end screen over a few games, a promotion and a
   demotion included (MVP counts 100 LP per division: a demotion to 75 LP shows the ladder
   difference, not the client's "−20"); `lp-history.json` in `%APPDATA%\gg.mvp.companion`; a

@@ -1,9 +1,4 @@
-/* An opened game (layout: MatchTable.module.css) and a grade's why. */
-
-.game {
-  position: relative;
-  border-radius: var(--radius-3);
-}
+/* The whole game in an opened game's sheet (layout: MatchTable.module.css) and a grade's why. */
 
 .champ {
   display: flex;
@@ -60,6 +55,20 @@
   font-weight: var(--weight-medium);
 }
 
+/* A named player opens their page: the name reads as a name until pointed at. */
+.link {
+  text-decoration: none;
+  cursor: pointer;
+  border-radius: var(--radius-1);
+}
+
+.link:hover {
+  color: var(--accent-strong);
+  text-decoration: underline;
+  text-decoration-color: var(--accent);
+  text-underline-offset: 3px;
+}
+
 .tag {
   color: var(--text-3);
   font-weight: var(--weight-regular);
@@ -88,10 +97,13 @@
   color: var(--loss);
 }
 
-/* Damage to champions against the game's best. */
+/*
+ * Damage to champions against the game's best, on the second line: the cell is as tall as its
+ * neighbours' (a number and a caption), so the numbers share a line across the row.
+ */
 .bar {
   height: 4px;
-  margin-top: var(--space-1);
+  margin-block: var(--space-3);
   border-radius: var(--radius-full);
   background: var(--bg-4);
   overflow: hidden;
@@ -115,10 +127,16 @@
   gap: var(--space-1);
 }
 
+/* The trinket, a step apart from the six items. */
+.items > :last-child {
+  margin-left: var(--space-2);
+}
+
 .grade {
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  border-radius: var(--radius-2);
 }
 
 .score {

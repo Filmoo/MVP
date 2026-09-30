@@ -32,12 +32,36 @@ export const enViews = {
     network: { title: "Can't reach MVP's servers", text: "Check your internet connection, then try again." },
   },
 
-  /** A match row opened: the whole game. */
+  /** A match row opened: the whole game, in a window of the stack of opened games. */
   matchDetails: {
-    columns: { damage: "Damage", gold: "Gold", cs: "CS", vision: "Vision", grade: "Grade" },
+    columns: {
+      damage: "Damage",
+      gold: "Gold",
+      cs: "CS",
+      vision: "Vision",
+      grade: "Grade",
+      /** What the KDA column says under each K / D / A (its heading's hint). */
+      kdaHint:
+        "Kills / deaths / assists, then the KDA ratio and the kill participation: the share of the team's kills the player took part in.",
+    },
+    /** Kill participation, under the K / D / A: `62% KP`. */
+    kp: (pct: string) => `${pct} KP`,
     /** A champion's level at the end of the game. */
     level: (n: number) => `Level ${n}`,
     damageTitle: (damage: string) => `${damage} damage to champions`,
+    /** The window's two views of the game. */
+    tabs: { label: "Show", scoreboard: "Scoreboard", details: "Details" },
+    /** After a grade's score: `8.4 / 10`. */
+    outOf: "/ 10",
+    /** A grade's place among the ten, after its score: `2nd of 10`. */
+    placeOf: (place: string) => `${place} of 10`,
+    /** A ranked game's LP beside its result (the change itself reads like a row's: `+21 LP`). */
+    lp: {
+      promoted: "Promoted",
+      demoted: "Demoted",
+      /** The game that just ended: the client hasn't counted it yet. */
+      pending: "Counting LP…",
+    },
     /** Why a game can't open (unreachable servers and rate limits read like the other lookups'). */
     errors: {
       title: "Couldn't open this game",
@@ -45,6 +69,69 @@ export const enViews = {
       unavailable: "MVP's server can't open games right now. Try again in a moment.",
     },
     note: "Each grade compares the player with the other nine of this game (kill participation, KDA, damage, vision and objectives, CS and gold against the lane opponent), weighted by role. It rates one game, not a player.",
+    /** When the game ended: `Today, 21:34`, `12 Sep, 09:05` (`day` from `dayLabel`). */
+    playedAt: (day: string, hours: number, minutes: number) =>
+      `${day}, ${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`,
+    close: "Close",
+    /**
+     * The stack of opened games: what going on past a window's edge does, said while the stack is
+     * pulled (and while older games load, or failed to).
+     */
+    stack: {
+      newer: "Keep scrolling for a newer game",
+      older: "Keep scrolling for an older game",
+      close: "Keep scrolling to close",
+      load: "Keep scrolling to load older games",
+      failed: "Couldn't load older games. Keep scrolling to try again.",
+      /** A player's page: its games are all the stack has. */
+      endHere: "No older games on this page",
+    },
+    /** The neighbours peeking at the stack's edges, on hover (a click goes there). */
+    peek: { newer: "Newer game", older: "Older game" },
+    /** The raw end-of-game numbers, like the League client's post-game Stats tab. */
+    stats: {
+      title: "End-of-game stats",
+      groups: {
+        combat: "Combat",
+        damageDealt: "Damage dealt",
+        damageTaken: "Damage taken and healing",
+        vision: "Vision",
+        income: "Income",
+        objectives: "Objectives",
+      },
+      rows: {
+        kda: "KDA",
+        largestKillingSpree: "Largest killing spree",
+        largestMultiKill: "Largest multikill",
+        firstBlood: "First blood",
+        crowdControl: "Crowd control on enemies",
+        toChampions: "To champions",
+        physical: "Physical",
+        magic: "Magic",
+        trueDamage: "True",
+        toTurrets: "To turrets",
+        toObjectives: "To objectives",
+        taken: "Damage taken",
+        selfMitigated: "Self-mitigated",
+        healing: "Healing",
+        healingOnTeammates: "Healing on teammates",
+        shieldingOnTeammates: "Shielding on teammates",
+        visionScore: "Vision score",
+        wardsPlaced: "Wards placed",
+        wardsDestroyed: "Wards destroyed",
+        controlWards: "Control wards bought",
+        goldEarned: "Gold earned",
+        goldSpent: "Gold spent",
+        minions: "Minions killed",
+        monsters: "Monsters killed",
+        turrets: "Turrets destroyed",
+        inhibitors: "Inhibitors destroyed",
+      },
+      /** Seconds of crowd control: `42 s`. */
+      seconds: (value: string) => `${value} s`,
+      /** First blood's mark, for screen readers. */
+      yes: "Yes",
+    },
   },
 
   /** Why a game got its grade (hover or focus a match row's grade). */
@@ -64,30 +151,6 @@ export const enViews = {
       visionShare: (pct: string) => `${pct} of the team's vision score`,
       csLead: (diff: string) => `${diff} CS vs the lane opponent`,
       goldLead: (diff: string) => `${diff} gold vs the lane opponent`,
-    },
-  },
-
-  /** The game that just ended, at the top of Home until closed or the next game. */
-  postGame: {
-    title: "Your last game",
-    close: "Close this summary",
-    /** After the score: `7.4 / 10`. */
-    outOf: "/ 10",
-    why: "What moved your grade",
-    remake: "A remake: no grade, and the game doesn't count.",
-    you: "You",
-    laneOpponent: "Lane opponent",
-    /** In a mode without roles (ARAM): the enemy whose share of damage was closest to yours. */
-    closestDamage: "Closest damage share",
-    noOpponent: "No lane opponent to compare with in this game.",
-    rows: { kda: "KDA", cs: "CS", damage: "Damage", gold: "Gold", vision: "Vision" },
-    lp: {
-      promoted: "Promoted",
-      demoted: "Demoted",
-      /** Ranked: the client hasn't counted the game yet. */
-      pending: "Counting the LP of this game…",
-      /** Ranked, but MVP didn't see the standing before or after it. */
-      unknown: "LP not tracked for this game",
     },
   },
 

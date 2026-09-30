@@ -231,9 +231,9 @@ function answersAfterFirstRead(): () => PlayerProfile {
 
 const inGame: ClientStatus = { connection: "connected", phase: "inGame" };
 
-/** Home right after a game: `p`'s history with that game first, its summary on top. */
+/** Home right after a game: `p`'s history with that game first; the stack of opened games opens on it by itself. */
 function afterGame(p: PlayerProfile, post: PostGame, lp: LpGame[] | (() => LpGame[])): Scenario["responses"] {
-  // Like the core: a summary closed stays closed (while the page lives).
+  // Like the core: a game whose window was closed stays closed (while the page lives).
   let dismissed = false;
   return {
     ...base,
@@ -391,7 +391,8 @@ export const scenarios = {
     },
   },
   "howling-abyss": {
-    description: "Your latest games are ARAM: Mayhem and ARAM: opened, they have no roles and no vision column (0 for everyone there).",
+    description:
+      "Your latest games are ARAM: Mayhem and ARAM: opened, they have no roles, no vision column and no vision or monster stats (nobody has any there).",
     responses: {
       ...base,
       current_profile: { data: aramProfile },
@@ -405,7 +406,8 @@ export const scenarios = {
     responses: { ...base, current_profile: { data: guessedRoles } },
   },
   "match-details-slow": {
-    description: "Opening a game takes 2.5 s: a skeleton the size of the table, then the game in place.",
+    description:
+      "Opening a game takes 2.5 s: its window shows its head at once (with its grade and LP), a skeleton the size of the table, then the game in place.",
     responses: { ...base, match_details: { handle: details, delayMs: 2_500 } },
   },
   "match-details-error": {
@@ -416,8 +418,16 @@ export const scenarios = {
     description: "The game isn't available anymore: says so, no retry.",
     responses: { ...base, match_details: gameError("not found", { kind: "notFound" }) },
   },
+  "match-details-unavailable": {
+    description: "MVP's server can't open games right now (Riot unreachable from it): says so, with a retry.",
+    responses: {
+      ...base,
+      match_details: gameError("service unavailable", { kind: "unavailable", message: "the server has no Riot API key" }),
+    },
+  },
   "post-game": {
-    description: "A ranked win just ended: its summary tops Home (grade and why, you against your lane opponent), +21 LP.",
+    description:
+      "A ranked win just ended: the stack of opened games opens on it by itself (+21 LP, your grade and what moved it); closed, it stays closed.",
     responses: afterGame(winProfile, winPostGame, winLp),
   },
   "post-game-demotion": {
@@ -425,20 +435,21 @@ export const scenarios = {
     responses: afterGame(demotionProfile, demotionPostGame, demotionLp),
   },
   "post-game-lp-unknown": {
-    description: "A ranked game MVP didn't see start: its summary says the LP isn't known.",
+    description: "A ranked game MVP didn't see start: its window opens by itself, without an LP.",
     responses: afterGame(winProfile, unknownPostGame, unknownLp),
   },
   "post-game-lp-pending": {
     description:
-      "The client hasn't counted the game yet: the summary says so. Tests then emit `post-game` with the LP (`winPostGame`): the summary and the row follow.",
+      "The client hasn't counted the game yet: its window says so. Tests then emit `post-game` with the LP (`winPostGame`): the window and the row follow.",
     responses: afterGame(winProfile, pendingPostGame, lpOnceCounted),
   },
   "post-game-aram": {
-    description: "An ARAM game just ended: no LP, you against the enemy whose share of damage was closest to yours.",
+    description: "An ARAM game just ended: its window opens by itself, no LP, no vision or monster stats.",
     responses: afterGame(aramGameProfile, aramPostGame, lpFor(aramGameProfile)),
   },
   "history-long": {
-    description: "47 games: 20 on Home, the rest two pages further back (Load more); flex and ARAM among them.",
+    description:
+      "47 games: 20 on Home, the rest two pages further back (Load more, or the stack of opened games pulled past its last game); flex and ARAM among them.",
     responses: longHistoryWith({ handle: olderFrom, delayMs: 300 }),
   },
   "history-more-slow": {

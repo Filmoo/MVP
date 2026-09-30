@@ -5,6 +5,7 @@
  */
 
 import { onHowlingAbyss } from "../../lib/queues";
+import type { EndOfGameStats } from "../generated/EndOfGameStats";
 import type { GradedMatch } from "../generated/GradedMatch";
 import type { GradeFactorKind } from "../generated/GradeFactorKind";
 import type { GradeLetter } from "../generated/GradeLetter";
@@ -201,15 +202,104 @@ function riotId(text: string): RiotId {
   return { gameName, tagLine };
 }
 
-/** The whole game behind `match`, `owner`'s row; `extreme` fills every slot with the longest names and biggest numbers. */
-export function gameFor(match: MatchSummary, owner: RiotId, extreme = false): MatchDetails {
+/**
+ * End-of-game numbers by role: damage to champions that is physical and magic (the rest is
+ * true damage), the share of the damage to objectives dealt to turrets; per minute: healing,
+ * healing and shielding on teammates, wards placed and destroyed; control wards bought; seconds
+ * of crowd control per 30 minutes.
+ */
+const END: Record<Role, number[]> = {
+  top: [0.6, 0.3, 0.7, 120, 0, 0, 0.32, 0.08, 1, 25],
+  jungle: [0.55, 0.35, 0.15, 150, 6, 0, 0.56, 0.2, 3, 30],
+  middle: [0.15, 0.8, 0.6, 60, 0, 0, 0.36, 0.12, 1, 20],
+  bottom: [0.85, 0.05, 0.7, 90, 0, 0, 0.32, 0.08, 1, 8],
+  support: [0.2, 0.7, 0.5, 250, 180, 220, 1.2, 0.32, 5, 45],
+};
+
+/**
+ * Every player's end-of-game stats, from the scoreboard's numbers (a random stream of their own:
+ * the games and grades stay as they were). The League client's match history (your games) has
+ * no healing or shielding on teammates: `null` there, like the core answers.
+ */
+function endOfGame(match: MatchSummary, seats: Array<{ seat: Seat; role: Role }>, client: boolean): EndOfGameStats[] {
+  const next = random(`${match.matchId}/stats`);
+  const minutes = match.durationSeconds / 60;
+  const aram = onHowlingAbyss(match.queueId);
+  const some = (per: number) => Math.round(per * minutes * (0.7 + next() * 0.6));
+  const scorers = seats.flatMap((s, i) => (s.seat.kills > 0 ? [i] : []));
+  const firstBlood = scorers[Math.floor(next() * scorers.length)];
+  return seats.map(({ seat, role }, i) => {
+    const [physical = 0, magic = 0, turrets = 0, heal = 0, healMates = 0, shieldMates = 0, placed = 0, destroyed = 0, control = 0, cc = 0] =
+      END[role];
+    const dealt = [Math.round(seat.damage * physical), Math.round(seat.damage * magic)] as const;
+    const taken = Math.round(seat.taken * 0.64);
+    const monsters = aram ? 0 : Math.round(seat.cs * (role === "jungle" ? 0.85 : 0.04));
+    return {
+      largestKillingSpree: Math.min(seat.kills, 2 + Math.floor(next() * 4)),
+      largestMultiKill: seat.kills === 0 ? 0 : seat.kills < 5 ? 1 : 1 + Math.floor(next() * 4),
+      firstBlood: i === firstBlood,
+      physicalDamageToChampions: dealt[0],
+      magicDamageToChampions: dealt[1],
+      trueDamageToChampions: seat.damage - dealt[0] - dealt[1],
+      damageToTurrets: Math.round(seat.objectives * turrets),
+      damageToObjectives: seat.objectives,
+      damageTaken: taken,
+      damageSelfMitigated: seat.taken - taken,
+      healing: some(heal),
+      healingOnTeammates: client ? null : some(healMates),
+      shieldingOnTeammates: client ? null : some(shieldMates),
+      wardsPlaced: aram ? 0 : some(placed),
+      wardsDestroyed: aram ? 0 : some(destroyed),
+      controlWards: aram ? 0 : Math.round(control * (0.6 + next() * 0.8)),
+      goldSpent: Math.round(seat.gold * 0.93),
+      minions: seat.cs - monsters,
+      monsters,
+      crowdControlSeconds: Math.round((cc * minutes * (0.7 + next() * 0.6)) / 30),
+      turretsDestroyed: seat.win ? Math.floor(next() * 3) : Math.floor(next() * 1.4),
+      inhibitorsDestroyed: seat.win && role === "bottom" ? 1 : 0,
+    };
+  });
+}
+
+/** Nobody's end-of-game stats (before the whole game is made). */
+const NO_STATS: EndOfGameStats = {
+  largestKillingSpree: null,
+  largestMultiKill: null,
+  firstBlood: null,
+  physicalDamageToChampions: null,
+  magicDamageToChampions: null,
+  trueDamageToChampions: null,
+  damageToTurrets: null,
+  damageToObjectives: null,
+  damageTaken: null,
+  damageSelfMitigated: null,
+  healing: null,
+  healingOnTeammates: null,
+  shieldingOnTeammates: null,
+  wardsPlaced: null,
+  wardsDestroyed: null,
+  controlWards: null,
+  goldSpent: null,
+  minions: null,
+  monsters: null,
+  crowdControlSeconds: null,
+  turretsDestroyed: null,
+  inhibitorsDestroyed: null,
+};
+
+/**
+ * The whole game behind `match`, `owner`'s row; `extreme` fills every slot with the longest names
+ * and biggest numbers. `client`: one of your games, as the League client answers it (its match
+ * history has no healing or shielding on teammates); else as our backend does (Match-V5).
+ */
+export function gameFor(match: MatchSummary, owner: RiotId, extreme = false, client = true): MatchDetails {
   const next = random(match.matchId);
   // Howling Abyss (ARAM, ARAM: Mayhem): no roles, no wards (everyone's vision score is 0).
   const aram = onHowlingAbyss(match.queueId);
   const minutes = match.durationSeconds / 60;
   const ownerRole: Role = match.role ?? "middle";
   const names = [...NAMES].sort(() => next() - 0.5);
-  const lines: Array<{ seat: Seat; player: MatchPlayer }> = [];
+  const lines: Array<{ seat: Seat; player: MatchPlayer; role: Role }> = [];
   for (const team of [100, 200]) {
     const won = team === 100 ? match.win : !match.win;
     for (const role of ROLES) {
@@ -240,9 +330,13 @@ export function gameFor(match: MatchSummary, owner: RiotId, extreme = false): Ma
       const items = mine ? match.items : ITEMS[role].slice(0, extreme ? 6 : 3 + Math.floor(minutes / 12));
       lines.push({
         seat,
+        role,
         player: {
+          // The longest names; the owner's own (the others' tag differs), so their line is theirs.
           riotId: extreme
-            ? { gameName: "WWWWWWWWWWWWWWWW", tagLine: "WWWWW" }
+            ? mine
+              ? owner
+              : { gameName: "WWWWWWWWWWWWWWWW", tagLine: "WWWWM" }
             : mine
               ? owner
               : hidden
@@ -266,6 +360,7 @@ export function gameFor(match: MatchSummary, owner: RiotId, extreme = false): Ma
           keystone: RUNES[role][0],
           secondaryTree: RUNES[role][1],
           grade: null,
+          stats: NO_STATS,
         },
       });
     }
@@ -274,9 +369,11 @@ export function gameFor(match: MatchSummary, owner: RiotId, extreme = false): Ma
     lines.map((l) => l.seat),
     match.durationSeconds,
   );
+  const stats = endOfGame(match, lines, client);
   lines.forEach((line, i) => {
     // A row that came with its grade (a captured profile's, from the backend) keeps it.
     line.player.grade = (line.player.isMe ? match.grade : null) ?? grades?.[i] ?? null;
+    line.player.stats = stats[i] ?? NO_STATS;
   });
   return {
     matchId: match.matchId,
@@ -294,20 +391,23 @@ export function gameFor(match: MatchSummary, owner: RiotId, extreme = false): Ma
 const ownerLine = (game: MatchDetails) => game.teams.flatMap((t) => t.players).find((p) => p.isMe);
 const ownerGrade = (game: MatchDetails) => ownerLine(game)?.grade ?? null;
 
-function lookup(profiles: readonly PlayerProfile[], matchId: string): { match: MatchSummary; owner: RiotId } | undefined {
-  for (const p of profiles) {
+function lookup(profiles: readonly PlayerProfile[], matchId: string): { match: MatchSummary; owner: RiotId; yours: boolean } | undefined {
+  for (const [i, p] of profiles.entries()) {
     const match = p.recentMatches.find((m) => m.matchId === matchId);
-    if (match) return { match, owner: p.riotId };
+    if (match) return { match, owner: p.riotId, yours: i === 0 };
   }
   return undefined;
 }
 
-/** `match_details` answering for the games of `profiles`. */
+/**
+ * `match_details` answering for the games of `profiles`: the first one's are yours (the League
+ * client's), the others' come from our backend.
+ */
 export function detailsFrom(profiles: readonly PlayerProfile[], extreme = false): (args: { matchId: string }) => MatchDetails {
   return ({ matchId }) => {
     const found = lookup(profiles, matchId);
     if (!found) throw new CommandError("match_details", "not found", { kind: "notFound" });
-    return gameFor(found.match, found.owner, extreme);
+    return gameFor(found.match, found.owner, extreme, found.yours);
   };
 }
 

@@ -1,4 +1,4 @@
-import { type Accessor, createEffect, createSignal, For, type JSX, lazy, Show, Suspense } from "solid-js";
+import { type Accessor, createEffect, createSignal, For, type JSX, lazy, Show, Suspense, untrack } from "solid-js";
 import { useData } from "../../data/context";
 import type { GradedMatch } from "../../data/generated/GradedMatch";
 import type { LpGame } from "../../data/generated/LpGame";
@@ -7,33 +7,45 @@ import type { MatchSummary } from "../../data/generated/MatchSummary";
 import type { RiotId } from "../../data/generated/RiotId";
 import { Card } from "../../design/Card";
 import { ChampionIcon, ItemIcon } from "../../design/GameIcon";
-import { EmptyState, Skeleton } from "../../design/States";
+import { EmptyState } from "../../design/States";
 import { t } from "../../i18n";
 import { groupByDay } from "../../lib/days";
 import { duration, kda, kdaRatio, perMinute, queueName, REMAKE_MAX_SECONDS, signedPoints, timeAgo } from "../../lib/format";
 import { GradeChip } from "./GradeChip";
 import styles from "./RecentMatches.module.css";
+import type { More } from "./stack";
 
 const ITEM_SLOTS = 6;
 
-/**
- * What an opened row, a grade's why and the last game's summary need (`MatchDetails.tsx`,
- * `PostGame.tsx`), loaded on first use.
- */
-type Details = Pick<typeof import("./MatchDetails") & typeof import("./PostGame"), "MatchDetails" | "hint" | "PostGameCard">;
+/** What the stack of opened games and a grade's why need (`GameStack.tsx`), loaded on first use. */
+type Details = Pick<typeof import("./GameStack"), "GameStack" | "hint">;
 let load: () => Promise<Details>;
 let loading: Promise<Details> | undefined;
 
-/**
- * Where that code comes from: the app hands in the player page's chunk, which carries it (with
- * the views' words; see App.tsx). A chunk of its own, imported from here, would split the chunks
- * it shares with the first screen and weigh on the app's first load.
- */
+/** Where that code comes from: the app hands in its loader (with the views' words; see App.tsx). */
 export function provideDetails(from: () => Promise<Details>): void {
   load = from;
 }
 export const chunk = () => (loading ??= load());
-const Details = lazy(() => chunk().then((m) => ({ default: m.MatchDetails })));
+const Stack = lazy(() => chunk().then((m) => ({ default: m.GameStack })));
+
+/** The game that just ended (Home, from the core's summary until closed or the next game). */
+export interface LastGame {
+  matchId: string;
+  /** The client hasn't counted its LP yet. */
+  lpPending: boolean;
+  /** Its window opened by itself and was closed, or had no need to (the stack was open): once is enough. */
+  seen: () => void;
+}
+
+/** Older games of a history (Home): what there is to load, and loading them. */
+export interface OlderGames {
+  state: () => More;
+  load: () => void;
+}
+
+/** Games whose window opened by itself, this session: once per game. */
+const autoOpened = new Set<string>();
 
 /** DPM-style KDA coloring: perfect, great ≥ 5, good ≥ 3, poor < 1.5. */
 function kdaBand(value: number | null): string {
@@ -50,9 +62,7 @@ function MatchRow(props: {
   /** The LP it was worth (your ranked games MVP followed). */
   lp?: LpGame | undefined;
   open: boolean;
-  focus: RiotId | undefined;
-  onToggle: (row: HTMLElement) => void;
-  onClose: () => void;
+  onOpen: () => void;
 }): JSX.Element {
   const m = () => props.match;
   const remake = () => m().durationSeconds <= REMAKE_MAX_SECONDS;
@@ -69,8 +79,9 @@ function MatchRow(props: {
         id={`match-${m().matchId}`}
         class={`${styles.row} ${styles[outcome()]} glass-pill`}
         data-glass
+        aria-haspopup="dialog"
         aria-expanded={props.open}
-        onClick={(e) => props.onToggle(e.currentTarget)}
+        onClick={() => props.onOpen()}
       >
         <ChampionIcon championId={m().championId} size={40} />
         <span class={styles.outcome}>
@@ -123,12 +134,6 @@ function MatchRow(props: {
           <span class={styles.ago}>{timeAgo(m().endedAt)}</span>
         </span>
       </button>
-      <Show when={props.open}>
-        {/* Its height is the table's: nothing moves when the game arrives. */}
-        <Suspense fallback={<Skeleton height="540px" />}>
-          <Details matchId={m().matchId} focus={props.focus} onClose={props.onClose} />
-        </Suspense>
-      </Show>
     </li>
   );
 }
@@ -182,6 +187,10 @@ export function RecentMatches(props: {
   late?: LateGrades | undefined;
   /** The LP each game was worth, when known (your ranked games). */
   lp?: ((matchId: string) => LpGame | undefined) | undefined;
+  /** The game that just ended: its window opens by itself, once. */
+  lastGame?: LastGame | undefined;
+  /** Older games: the stack loads them when pulled past its last game. */
+  more?: OlderGames | undefined;
   /** Above the list: the history's filters. */
   filters?: JSX.Element;
   /** Instead of the empty state: when filters leave no game. */
@@ -190,15 +199,28 @@ export function RecentMatches(props: {
   footer?: JSX.Element;
 }): JSX.Element {
   const hasMatches = () => props.matches.length > 0;
-  // One game open at a time; a second click, or Escape, closes it.
-  const [open, setOpen] = createSignal<string>();
+  // A row opens the stack of opened games on its game (GameStack.tsx): the list's games, in order.
+  const [open, setOpen] = createSignal<{ match: MatchSummary; auto: boolean }>();
   const gradeOf = (m: MatchSummary) => m.grade ?? props.late?.()?.get(m.matchId)?.grade ?? null;
-
-  const toggle = (id: string, row: HTMLElement) => {
-    // The clicked row stays where it is when a game above it closes.
-    const before = row.getBoundingClientRect().top;
-    setOpen((current) => (current === id ? undefined : id));
-    row.closest("main")?.scrollBy(0, row.getBoundingClientRect().top - before);
+  // The game that just ended opens by itself once it is in the list, once; when the stack is open
+  // already the game is simply on top of it.
+  createEffect(() => {
+    const last = props.lastGame;
+    if (!last || autoOpened.has(last.matchId)) return;
+    const match = props.matches.find((m) => m.matchId === last.matchId);
+    if (!match) return;
+    autoOpened.add(last.matchId);
+    if (untrack(open)) last.seen();
+    else setOpen({ match, auto: true });
+  });
+  // The next champion select stops it: the core no longer has that game to show.
+  createEffect(() => {
+    if (!props.lastGame && untrack(open)?.auto) setOpen(undefined);
+  });
+  const closed = () => {
+    const was = open();
+    setOpen(undefined);
+    if (was?.auto) props.lastGame?.seen();
   };
   // A grade's why shows while it's hovered, or its row has the keyboard focus: the chunk follows
   // the list's pointer and focus events.
@@ -231,10 +253,8 @@ export function RecentMatches(props: {
                         match={match}
                         grade={gradeOf(match)}
                         lp={props.lp?.(match.matchId)}
-                        open={open() === match.matchId}
-                        focus={props.focus}
-                        onToggle={(row) => toggle(match.matchId, row)}
-                        onClose={() => setOpen(undefined)}
+                        open={open()?.match.matchId === match.matchId}
+                        onOpen={() => setOpen({ match, auto: false })}
                       />
                     )}
                   </For>
@@ -243,6 +263,23 @@ export function RecentMatches(props: {
             )}
           </For>
         </ol>
+        <Show when={open()} keyed>
+          {(opened) => (
+            // Nothing to see while its code loads, but the page says it is loading (tests wait).
+            <Suspense fallback={<div data-state="loading" hidden />}>
+              <Stack
+                games={() => props.matches}
+                start={opened.match}
+                focus={props.focus}
+                grade={gradeOf}
+                lp={props.lp}
+                lpPending={(id) => props.lastGame?.matchId === id && props.lastGame.lpPending}
+                more={props.more}
+                onClosed={closed}
+              />
+            </Suspense>
+          )}
+        </Show>
       </Show>
       {props.footer}
     </Card>

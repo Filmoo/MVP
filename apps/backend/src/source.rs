@@ -18,8 +18,9 @@ use crate::cache::Cache;
 
 const ACCOUNT_TTL: Duration = Duration::from_secs(24 * 60 * 60);
 const ACCOUNTS_MAX: usize = 50_000;
-/// Compacted matches weigh ~5 KB as text: 20,000 of them stay around 100 MB.
-const MATCHES_MAX: usize = 20_000;
+/// Compacted matches weigh under 11 KB as text (their end-of-game stats doubled them; a test
+/// checks it on a whole game): 12,000 of them stay around 130 MB.
+const MATCHES_MAX: usize = 12_000;
 
 #[derive(Debug)]
 pub struct CachedRiot {
@@ -49,9 +50,9 @@ const MATCH_INFO_FIELDS: [&str; 4] = [
     "gameStartTimestamp",
     "queueId",
 ];
-/// What a player's history, the grades and the match details read, for every participant.
-/// `perks` is rebuilt with the keystone and the secondary tree only.
-const PARTICIPANT_FIELDS: [&str; 28] = [
+/// What a player's history, the grades and the match details (their end-of-game stats included)
+/// read, for every participant. `perks` is rebuilt with the keystone and the secondary tree only.
+const PARTICIPANT_FIELDS: [&str; 45] = [
     "puuid",
     "riotIdGameName",
     "riotIdTagline",
@@ -80,6 +81,24 @@ const PARTICIPANT_FIELDS: [&str; 28] = [
     "item4",
     "item5",
     "item6",
+    // The end-of-game stats (`domain::EndOfGameStats`).
+    "largestKillingSpree",
+    "largestMultiKill",
+    "firstBloodKill",
+    "physicalDamageDealtToChampions",
+    "magicDamageDealtToChampions",
+    "trueDamageDealtToChampions",
+    "damageDealtToTurrets",
+    "totalHeal",
+    "totalHealsOnTeammates",
+    "totalDamageShieldedOnTeammates",
+    "wardsPlaced",
+    "wardsKilled",
+    "visionWardsBoughtInGame",
+    "goldSpent",
+    "timeCCingOthers",
+    "turretKills",
+    "inhibitorKills",
 ];
 
 fn pick(from: &Value, fields: &[&str]) -> Map<String, Value> {
@@ -271,7 +290,7 @@ mod tests {
               "selections": [{ "perk": 8112, "var1": 1200 }, { "perk": 8139 }] },
             { "description": "subStyle", "style": 8200, "selections": [{ "perk": 8233 }] }
         ] });
-        let me = json!({
+        let mut me = json!({
             "puuid": "me", "riotIdGameName": "Fillmo", "riotIdTagline": "7272",
             "teamId": 100, "championId": 103, "champLevel": 17, "teamPosition": "MIDDLE",
             "win": true, "kills": 9, "deaths": 2, "assists": 11, "totalMinionsKilled": 211,
@@ -282,21 +301,54 @@ mod tests {
             "item0": 6655, "item1": 3020, "item6": 3340,
             "challenges": { "kda": 10 }, "perks": perks
         });
+        // The end-of-game stats (one `json!` would be too deep for the macro).
+        let end_of_game = json!({
+            "largestKillingSpree": 5, "largestMultiKill": 2, "firstBloodKill": true,
+            "physicalDamageDealtToChampions": 2_000, "magicDamageDealtToChampions": 27_500,
+            "trueDamageDealtToChampions": 1_500, "damageDealtToTurrets": 3_100, "totalHeal": 1_900,
+            "totalHealsOnTeammates": 0, "totalDamageShieldedOnTeammates": 0, "wardsPlaced": 9,
+            "wardsKilled": 2, "visionWardsBoughtInGame": 1, "goldSpent": 13_450,
+            "timeCCingOthers": 17, "turretKills": 2, "inhibitorKills": 1
+        });
+        if let (Some(me), Value::Object(more)) = (me.as_object_mut(), end_of_game) {
+            me.extend(more);
+        }
         let game = json!({
             "metadata": { "matchId": "EUW1_1", "participants": ["me"], "dataVersion": "2" },
             "info": {
                 "gameDuration": 1742, "gameEndTimestamp": 1_790_000_000_000_i64, "queueId": 420,
-                "gameMode": "CLASSIC", "teams": [{ "teamId": 100 }], "participants": [me]
+                "gameMode": "CLASSIC", "teams": [{ "teamId": 100 }], "participants": [me.clone()]
             }
         });
+        // Ten such players with Riot's 78-character PUUIDs: what the cache's bound counts on.
+        let mut ten = game.clone();
+        ten["info"]["participants"] = (0..10)
+            .map(|i| {
+                let mut player = me.clone();
+                player["puuid"] = json!(format!("{i:0>78}"));
+                player
+            })
+            .collect();
+        let size = compact_match(&ten).to_string().len();
+        assert!(size < 11_000, "{size} bytes: see MATCHES_MAX");
         let small = compact_match(&game);
         assert_eq!(
             players::match_summary(&small, "me"),
             players::match_summary(&game, "me")
         );
+        let details = players::match_details(&small);
+        assert_eq!(details, players::match_details(&game));
+        // The end-of-game stats are kept too.
+        let stats = details
+            .map(|d| d.teams[0].players[0].stats.clone())
+            .unwrap_or_default();
         assert_eq!(
-            players::match_details(&small),
-            players::match_details(&game)
+            (
+                stats.crowd_control_seconds,
+                stats.turrets_destroyed,
+                stats.healing_on_teammates
+            ),
+            (Some(17), Some(2), Some(0))
         );
         assert!(small.pointer("/info/participants/0/challenges").is_none());
         assert!(small.pointer("/info/teams").is_none());

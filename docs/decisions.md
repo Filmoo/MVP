@@ -242,6 +242,43 @@ summoner hovered + description". Design calls:
   by build savings on the same code (shorter CSS module class names, preload lists without the
   startup files, constant classes set once): 128.6 KB of 131 in all, 43.7 of 46 at startup.
 
+## 2026-09-29 — An opened game is a sheet of glass (owner asked, Claude designed)
+Owner: "On DPM, in history, you click on a game and it opens. I'd prefer having an in window match
+preview, with the glass effect. I want to have a scroll to close … after a big enough scroll.
+Should be very intuitive. Can be closed with escape and a click elsewhere. Summoners id should be
+clickable. I also want a detail of the game with raw table that shows stats given at the end of
+the game in client. Only nice information, but complete enough. Keep it sober." Calls:
+- **A modal sheet over the page, not a row that unfolds**: the native `<dialog>` (the page behind
+  inert, focus kept inside and given back to the row), beside the rail, as tall as the window
+  allows (edge to edge over the page's column up to 1359 px), in the "panel" liquid glass (the
+  page bent at the rim, frosted and tinted in the middle: a card's lighter tint let the page's
+  numbers show between the tables' columns). Its head (result, queue, champion, duration, when)
+  shows at once from the row, the game when it lands. Its hovers are the app's tooltips.
+- **Scroll to close, deliberate only**: past the end (or the top) the sheet follows the extra
+  scroll with a rubber band's resistance under "Keep scrolling to close", whose bar fills up;
+  four wheel notches (360 px) close it, flying out the way it was pulled; less springs back half
+  a second after the wheel stops. A gesture that scrolled the game to its edge never pulls (a
+  fast spin, a flick) and momentum never adds up (events shrinking twice in a row), so reading to
+  the end never closes by accident. A finger dragged 140 px past the edge closes on release.
+  Reduced motion: no rubber band, the hint and the thresholds stay.
+- **Riot IDs are links** to the player's page, the search's route (the sheet closes first);
+  hidden players and bots stay plain text, never looked up.
+- **The raw stats, like the client's Stats tab, sober**: 26 rows in six groups (combat, damage
+  dealt with the damage by type under "To champions", damage taken and healing, vision, income,
+  objectives), the ten players as columns with their champions as heads on their team's colour
+  (blue won, rose lost, like the teams above), your column (or the page owner's) tinted, each
+  row's top value the only one in full white and bold. A row nobody has is left out (Howling
+  Abyss: no vision, no monsters; the League client's match history has no healing or shielding
+  on teammates), never a row of zeros. Left out as noise: total damage dealt (minions), largest
+  critical strike, the time spent living.
+- **Budget**: the sheet (with its gestures), the links, the table and their words cost 4.4 KB of
+  JS (still in the player page's chunk: a chunk of its own weighed 1.5 KB more): 130.5 KB of the
+  131 KB total once the first screen became one chunk (126.1 before the sheet), within the
+  budget with 0.5 KB left; startup unchanged.
+- **Planned, not built**: the game over time (graphs of gold, XP, CS and damage, the teams' gold
+  difference, a kill/death heatmap and positions, animated): HANDOFF "Planned for the next
+  version".
+
 ## 2026-09-29 — A private roadmap at dev.mvpgg.com (owner asked, Claude built)
 Owner: a todo list on our server, only for the repo's admins (the owner and Claude), each feature with
 a way to accept, create and remove, Claude proposing as it works, split by versions; "a cool
@@ -300,7 +337,6 @@ nothing to crawl. Offered editorial tiers or opt-in sharing, the owner took both
   0.1 KB, chunking 0.3 KB. The total budget went 131 → 136 KB in its own commit when it merged
   (startup unchanged at 40.8 of 46 KB).
 
-
 ## 2026-09-28 — A server, open source and contributions (owner)
 - **A small server after all**: player search and scouting need the Riot key at request time, and
   the key may never be in the app. OVHcloud VPS-2 (4 vCores, 8 GB, ~€11/month with VAT and the
@@ -318,3 +354,41 @@ nothing to crawl. Offered editorial tiers or opt-in sharing, the owner took both
   releases, the update-signing key behind the `release` environment's approval, and the server
   runs only release tags of `main` (`mvp-deploy`). `scripts/check-secrets.mjs` (in `check.mjs`)
   refuses keys and tokens, Riot's included.
+
+## 2026-09-30 — Opened games are a stack of windows (owner asked, Claude designed)
+Owner: "It should be a proper window, that takes the whole window but still have previous
+background behind (with glass of course). I want to be able to scroll between those windows. It
+almost becomes a list of opened windows, even though I want it to be more window-like, taking
+almost all of the main layout." And on Home's "Your last game" card: "I don't like the little
+unusable bubble for last game in MVP. I want it to be the same as when you click a game." (DPM's
+post-game scoreboard shared as inspiration, not to copy.) Calls:
+- **One window of glass per game, stacked in the history's order** (newest on top) in a modal
+  dialog over the page: the current window takes the page's column beside the rail and under the
+  title bar but for a thin band at its top and bottom, where its neighbours' edges peek, windows
+  behind it (narrower, veiled, their game unseen until it arrives; a click on an edge goes there).
+  A "sheet" of liquid glass (a panel's bend, frosted deeper and not saturated: the design review
+  saw the history's win/loss marks as stripes along the rim, its rows as ghosts) bends the page at
+  every rim; the scrim went 60 → 40 % so the page stays seen around the stack and through it.
+- **Scrolling carries you from game to game**: a game scrolls first; going on past its end is a
+  deliberate pull (the sheet's rules: a gesture that scrolled the game stops at its edge, momentum
+  never adds up) under a hint saying what it does; two notches glide on to the next game on a
+  spring, and the rest of that gesture is swallowed, so a game always arrives at its top (going
+  up, at its end: the stack reads like one long page). Past the newest game's top, four notches
+  close (as before); past the last game loaded, the history's next page loads and the stack moves
+  on to it; at the history's very end it only gives. The keyboard does the same (↑/↓,
+  PageUp/PageDown, Space: the game, then the next one; Home/End: the ends of the stack).
+- **Only what is seen is built**: the current window and its two neighbours, their games asked for
+  as they are built and kept while the stack is open; nothing runs when it is still.
+- **The game that just ended opens by itself**, once, instead of Home's card: its window's head
+  says what the card said (the LP it was worth, your grade and what moved it); closed, it's gone
+  for good; the next champion select stops it. The lane-opponent comparison is left out: the
+  scoreboard shows both lines. The core's LP tracking and the rows' LP stay.
+- **A scoreboard after DPM's, MVP's own**: the level on the portrait, spells, keystone and tree,
+  the Riot ID (a link), K / D / A with the ratio and the kill participation, damage with a bar,
+  gold, CS and vision each with its pace, items and trinket, MVP's grade and its why. The League
+  client's end-of-game numbers are a tab away: "Scoreboard | Details" keeps each view to one window
+  on most screens, and the view chosen stays from game to game; a window 1000 px tall or more (the
+  review found a QHD window half empty) shows both, the stats under the scoreboard.
+- **Budget, over**: the sheet merged onto main (with ARAM: Mayhem) was already 139.3 KB of JS in
+  all, over the 136 KB budget; the stack adds 1.5 KB (140.8 KB; startup 41.0 of 46 KB). Not raised:
+  the owner's call (raise it in its own commit, or trim elsewhere).
