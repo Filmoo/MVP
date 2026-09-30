@@ -11,12 +11,16 @@
 //!   kept on disk with their `ETag`s (`{app cache}/mayhem/v1/…`) so they answer offline; a copy
 //!   older than its freshness (augments 1 h, tiers and stats 5 min) is answered at once and
 //!   revalidated in the background. Never on a timer: only when something asks.
-//! - **Sharing** ([`share`], opt-in: `Settings.shareMayhemGames`, off by default, and the
-//!   remote config's `mayhemSharing` flag): when a game ends, and once when the switch is turned
-//!   on, the core reads the player's recent games from their League client
-//!   (`/lol-match-history/…/matches`, then `/lol-match-history/v1/games/{gameId}` for each
-//!   Mayhem game not shared yet) and sends each game's champions, augments and final items with
-//!   a one-way hash of its id. No names, PUUIDs, summoner ids or wins leave the app.
+//! - **Sharing** ([`share`], opt-in: `Settings.shareMayhemGames`, off until the player says yes,
+//!   and the remote config's `mayhemSharing` flag): when a game ends, the core reads the
+//!   player's recent games from their League client (`/lol-match-history/…/matches`, then
+//!   `/lol-match-history/v1/games/{gameId}` for each Mayhem game not shared yet) and sends each
+//!   game's champions, augments and final items with a one-way hash of its id; once when the
+//!   switch is turned on, every page of the history (up to [`HISTORY_PAGES`]). No names, PUUIDs,
+//!   summoner ids or wins leave the app.
+//! - **Enough data** ([`progress`]): the pick rates over all champions show from [`PAGE_GAMES`]
+//!   shared games of the patch, a champion's own (priorities, most picked, common items) from
+//!   [`MIN_GAMES`] of its games; below, the views say how far it is.
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fmt;
@@ -28,12 +32,13 @@ use std::time::Duration;
 use domain::{
     AugmentCatalog, AugmentInfo, AugmentPriorities, AugmentPriority, AugmentRarity, AugmentTier,
     BackendError, ClientConnection, ClientStatus, GameflowPhase, Language, MAYHEM_GAME_MODE,
-    MAYHEM_QUEUE, MayhemAugments, MayhemChampion, MayhemGame, MayhemOverview, MayhemPlayer,
-    MayhemPopularity, MayhemStats, MayhemTiers, MayhemUpload, PickCount, RemoteConfig, Settings,
+    MayhemAugments, MayhemChampion, MayhemGame, MayhemOverview, MayhemPlayer, MayhemPopularity,
+    MayhemProgress, MayhemStats, MayhemTiers, MayhemUpload, PickCount, RemoteConfig, Settings,
     is_mayhem_queue,
 };
 use lcu::LcuClient;
 use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest as _, Sha256};
 use tokio::sync::{Mutex as AsyncMutex, watch};
@@ -42,8 +47,15 @@ use tokio::time::Instant;
 use crate::backend::{BackendClient, FileAnswer, ReportRefused};
 use crate::stats::disk::Disk;
 
-/// Games a champion needs before its pick rates order the augments of a tier.
+/// Games a champion needs before its pick rates show (with its priorities, most picked augments
+/// and common items).
 pub const MIN_GAMES: u32 = 30;
+/// Shared games of the patch before the pick rates over all champions show (the Mayhem page).
+pub const PAGE_GAMES: u32 = 100;
+/// Pages of 20 games read back through the history when sharing is turned on (500 games).
+pub const HISTORY_PAGES: u32 = 25;
+/// Between two requests to the League client while sharing.
+pub const SPACING: Duration = Duration::from_millis(300);
 /// Augments listed per rarity for a champion.
 pub const PER_RARITY: usize = 8;
 /// A champion's most picked augments and most common items shown.
@@ -80,9 +92,9 @@ fn str_at<'a>(v: &'a Value, key: &str) -> Option<&'a str> {
         .filter(|s| !s.is_empty())
 }
 
-/// A game of ARAM: Mayhem from matchmaking (custom games aren't shared: anything goes there).
-fn matchmade_mayhem(game: &Value) -> bool {
-    u32_at(game, "queueId") == MAYHEM_QUEUE
+/// A game of ARAM: Mayhem, matchmade or custom: its queue says so.
+fn mayhem_game(game: &Value) -> bool {
+    is_mayhem_queue(u32_at(game, "queueId"))
 }
 
 /// The hash a game is shared under: SHA-256 of the platform and the game id. One-way (the game
@@ -100,14 +112,14 @@ pub fn game_key(platform: &str, game_id: u64) -> String {
     hex
 }
 
-/// The listed games worth sharing: matchmade Mayhem, not a remake. (game id, platform, key)
+/// The listed games worth sharing: Mayhem, not a remake. (game id, platform, key)
 pub fn listed_mayhem(history: &Value, platform: &str) -> Vec<(u64, String, String)> {
     history
         .pointer("/games/games")
         .and_then(Value::as_array)
         .into_iter()
         .flatten()
-        .filter(|g| matchmade_mayhem(g) && u64_at(g, "gameDuration") > REMAKE_SECONDS)
+        .filter(|g| mayhem_game(g) && u64_at(g, "gameDuration") > REMAKE_SECONDS)
         .filter_map(|g| {
             let id = g.get("gameId")?.as_u64()?;
             let platform = str_at(g, "platformId")
@@ -126,11 +138,12 @@ fn patch_of(version: &str) -> Option<String> {
     (numeric(major) && numeric(minor)).then(|| format!("{major}.{minor}"))
 }
 
-/// A whole game (`/lol-match-history/v1/games/{gameId}`) as it is shared: its hash, patch and
-/// every player's champion, augments and final items. Identities and results are never read.
-/// `None` when it isn't a full matchmade Mayhem game with augments.
+/// A whole game (`/lol-match-history/v1/games/{gameId}`) as it is shared: its hash, patch (its
+/// own: an older game counts under its patch) and every player's champion, augments and final
+/// items. Identities and results are never read. `None` when it isn't a full Mayhem game of ten
+/// champions with augments.
 pub fn shared_game(game: &Value, platform: &str) -> Option<MayhemGame> {
-    if !matchmade_mayhem(game) || u64_at(game, "gameDuration") <= REMAKE_SECONDS {
+    if !mayhem_game(game) || u64_at(game, "gameDuration") <= REMAKE_SECONDS {
         return None;
     }
     let id = game.get("gameId")?.as_u64()?;
@@ -143,17 +156,22 @@ pub fn shared_game(game: &Value, platform: &str) -> Option<MayhemGame> {
         .map(|p| {
             let stats = p.get("stats").unwrap_or(&Value::Null);
             let nonzero = |key: String| Some(u32_at(stats, &key)).filter(|&id| id != 0);
+            let mut augments: Vec<u32> = (1..=6)
+                .filter_map(|i| nonzero(format!("playerAugment{i}")))
+                .collect();
+            // Each counts once per player (the server refuses one twice).
+            let mut seen = HashSet::new();
+            augments.retain(|a| seen.insert(*a));
             MayhemPlayer {
                 champion: u32_at(p, "championId"),
-                augments: (1..=6)
-                    .filter_map(|i| nonzero(format!("playerAugment{i}")))
-                    .collect(),
+                augments,
                 // The trinket (`item6`) isn't a build choice.
                 items: (0..6).filter_map(|i| nonzero(format!("item{i}"))).collect(),
             }
         })
         .collect();
-    let full = players.len() == 10 && players.iter().all(|p| p.champion != 0);
+    let champions: HashSet<u32> = players.iter().map(|p| p.champion).collect();
+    let full = players.len() == 10 && champions.len() == 10 && !champions.contains(&0);
     let augmented = players.iter().any(|p| !p.augments.is_empty());
     (full && augmented).then(|| MayhemGame {
         game: game_key(platform, id),
@@ -292,6 +310,20 @@ fn popularity(stats: &MayhemStats) -> MayhemPopularity {
         players: stats.players,
         updated_at: stats.updated_at,
         augments: stats.augments.clone(),
+    }
+}
+
+/// How far the shared games (`None`: none yet) are from switching each feature on: the pick
+/// rates over all champions at [`PAGE_GAMES`], each champion's own at [`MIN_GAMES`] of its games.
+pub fn progress(stats: Option<&MayhemStats>) -> MayhemProgress {
+    let ready = stats.map_or(0, |s| {
+        s.champions.iter().filter(|c| c.g >= MIN_GAMES).count()
+    });
+    MayhemProgress {
+        games: stats.map_or(0, |s| s.games),
+        games_needed: PAGE_GAMES,
+        champions_ready: u32::try_from(ready).unwrap_or(u32::MAX),
+        champion_games_needed: MIN_GAMES,
     }
 }
 
@@ -562,20 +594,22 @@ impl MayhemClient {
         Ok(self.catalog().await?.map(|c| localized(&c, language)))
     }
 
-    /// The tiers and every augment's pick count; a part that can't be had is `None`.
+    /// The tiers, every augment's pick count and how far the features are from switching on; a
+    /// part that can't be had is `None`.
     pub async fn overview(&self) -> MayhemOverview {
         let (tiers, stats) = tokio::join!(self.tiers(), self.stats());
+        let stats = stats
+            .inspect_err(|error| tracing::info!(%error, "Mayhem stats unavailable"))
+            .ok()
+            .flatten();
         MayhemOverview {
             tiers: tiers
                 .inspect_err(|error| tracing::info!(%error, "Mayhem tiers unavailable"))
                 .ok()
                 .flatten()
                 .map(|t| MayhemTiers::clone(&t)),
-            popularity: stats
-                .inspect_err(|error| tracing::info!(%error, "Mayhem stats unavailable"))
-                .ok()
-                .flatten()
-                .map(|s| popularity(&s)),
+            popularity: stats.as_deref().map(popularity),
+            progress: progress(stats.as_deref()),
         }
     }
 
@@ -597,20 +631,25 @@ impl MayhemClient {
 
 // ---- Sharing ------------------------------------------------------------------------------------
 
-/// The games already shared (their hashes, oldest first), kept on disk.
-#[derive(Debug, Default)]
+/// The games already shared (their hashes, oldest first), and whether the whole history was read
+/// since sharing was turned on; kept on disk.
+#[derive(Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct Record {
+    #[serde(skip)]
     path: PathBuf,
     keys: VecDeque<String>,
+    #[serde(default)]
+    history_read: bool,
 }
 
 impl Record {
     fn load(path: PathBuf) -> Self {
-        let keys = std::fs::read(&path)
+        let saved = std::fs::read(&path)
             .ok()
-            .and_then(|bytes| serde_json::from_slice::<VecDeque<String>>(&bytes).ok())
+            .and_then(|bytes| serde_json::from_slice::<Self>(&bytes).ok())
             .unwrap_or_default();
-        Self { path, keys }
+        Self { path, ..saved }
     }
 
     fn has(&self, key: &str) -> bool {
@@ -626,7 +665,11 @@ impl Record {
         while self.keys.len() > RECORD_MAX {
             self.keys.pop_front();
         }
-        let saved = serde_json::to_vec(&self.keys)
+        self.save();
+    }
+
+    fn save(&self) {
+        let saved = serde_json::to_vec(self)
             .map_err(std::io::Error::other)
             .and_then(|bytes| {
                 if let Some(dir) = self.path.parent() {
@@ -651,6 +694,8 @@ pub struct Sharing {
     pub mayhem: MayhemClient,
     /// How long after a game ends (or the client connects) its history is read: [`AFTER_GAME`].
     pub after_game: Duration,
+    /// Between two requests to the League client: [`SPACING`].
+    pub spacing: Duration,
 }
 
 /// Starts sharing the player's Mayhem games ([`share`]) beside the core: its League client and
@@ -671,17 +716,19 @@ pub fn spawn_sharing(
         backend,
         mayhem: data,
         after_game: AFTER_GAME,
+        spacing: SPACING,
     }));
 }
 
 fn allowed(settings: &Settings, remote: &RemoteConfig) -> bool {
-    settings.share_mayhem_games && remote.features.mayhem_sharing
+    settings.shares_mayhem_games() && remote.features.mayhem_sharing
 }
 
 /// Shares the player's new Mayhem games (see the module docs): after each game (and when it
 /// leaves the end-of-game screen, in case the history wasn't ready), when the League client
-/// connects (games played without MVP), and once when the switch is turned on. Runs until the
-/// settings' sender is gone. Nothing at all while the switch is off: every scan checks it first.
+/// connects (games played without MVP), and when the switch is turned on (the whole history,
+/// until it has been read to its end). Runs until the settings' sender is gone. Nothing at all
+/// while the switch is off: every scan checks it first.
 pub async fn share(mut s: Sharing) {
     let mut record = Record::load(s.mayhem.record_path());
     let mut was_on = allowed(
@@ -698,7 +745,10 @@ pub async fn share(mut s: Sharing) {
                 }
                 let on = allowed(&s.settings.borrow_and_update(), &s.remote.borrow());
                 if on && !was_on {
-                    // Just turned on: the recent games (again when the client connects, if it isn't).
+                    // Just turned on: every game the client lists (the games played while it was
+                    // off too), now or when the client connects.
+                    record.history_read = false;
+                    record.save();
                     scan(&s, &mut record).await;
                 }
                 was_on = on;
@@ -728,21 +778,35 @@ pub async fn share(mut s: Sharing) {
     }
 }
 
-/// Reads the recent games and shares the Mayhem ones not shared yet (at most 20).
-async fn scan(s: &Sharing, record: &mut Record) {
-    if !allowed(&s.settings.borrow(), &s.remote.borrow()) {
-        return;
+/// Sharing is on and nothing is being played (champion select, a game): the client may be asked.
+fn may_ask(s: &Sharing) -> bool {
+    allowed(&s.settings.borrow(), &s.remote.borrow())
+        && !crate::updates::in_game(s.status.borrow().phase)
+}
+
+/// Waits its turn before the next request to the League client: [`Sharing::spacing`] after the
+/// one before, then [`may_ask`].
+async fn turn(s: &Sharing, first: &mut bool) -> bool {
+    if !std::mem::take(first) {
+        tokio::time::sleep(s.spacing).await;
     }
+    may_ask(s)
+}
+
+/// Games per upload (the server takes 20 at most).
+const PER_UPLOAD: usize = 20;
+
+/// Reads the player's games and shares the Mayhem ones not shared yet: the whole history (every
+/// page back to its end, [`HISTORY_PAGES`] at most) until it has been read once since sharing was
+/// turned on, else the last 20 games. One request at a time, spaced; it stops as soon as a game
+/// is being played or something fails (no retries: the next scan goes on).
+async fn scan(s: &Sharing, record: &mut Record) {
     let Some(client) = s.client.borrow().clone() else {
         return;
     };
-    let history = match client.get::<Value>(crate::profile::MATCHES).await {
-        Ok(history) => history,
-        Err(error) => {
-            tracing::info!(%error, "Mayhem sharing: match history unavailable");
-            return;
-        }
-    };
+    if !may_ask(s) {
+        return;
+    }
     // Each listed game names its platform; the client's region is for one that doesn't.
     let platform = client
         .get::<Value>(crate::profile::REGION)
@@ -751,36 +815,91 @@ async fn scan(s: &Sharing, record: &mut Record) {
         .and_then(|r| str_at(&r, "region").and_then(crate::live::platform_for_region))
         .unwrap_or("euw1")
         .to_ascii_uppercase();
-    let fresh: Vec<(u64, String, String)> = listed_mayhem(&history, &platform)
-        .into_iter()
-        .filter(|(_, _, key)| !record.has(key))
-        .collect();
-    if fresh.is_empty() {
-        return;
+    let pages = if record.history_read {
+        1
+    } else {
+        HISTORY_PAGES
+    };
+    let page = crate::profile::PAGE;
+    let mut first = true;
+    let mut whole = true;
+    let mut fresh: Vec<(u64, String, String)> = Vec::new();
+    for at in 0..pages {
+        if !turn(s, &mut first).await {
+            whole = false;
+            break;
+        }
+        let path = crate::profile::matches_path(at * page, at * page + page - 1);
+        let history = match client.get::<Value>(&path).await {
+            Ok(history) => history,
+            Err(error) => {
+                tracing::info!(%error, "Mayhem sharing: match history unavailable");
+                whole = false;
+                break;
+            }
+        };
+        for game in listed_mayhem(&history, &platform) {
+            // A game listed on two pages (one ended meanwhile) counts once.
+            if !record.has(&game.2) && fresh.iter().all(|f| f.2 != game.2) {
+                fresh.push(game);
+            }
+        }
+        // A short page is the history's end.
+        let listed = history
+            .pointer("/games/games")
+            .and_then(Value::as_array)
+            .map_or(0, Vec::len);
+        if u32::try_from(listed).unwrap_or(u32::MAX) < page {
+            break;
+        }
     }
-    // One upload per platform (a player's games are all on theirs).
-    let mut by_platform: HashMap<String, (Vec<MayhemGame>, Vec<String>)> = HashMap::new();
+    // Each game read once, newest first; batches per platform, in that order.
+    let mut batches: Vec<(String, Vec<MayhemGame>, Vec<String>)> = Vec::new();
     let mut unshareable = Vec::new();
     for (id, platform, key) in fresh {
-        match client
-            .get::<Value>(&crate::matches::game_path(id))
-            .await
-            .ok()
-            .and_then(|game| shared_game(&game, &platform))
-        {
-            Some(game) => {
-                let entry = by_platform.entry(platform).or_default();
-                entry.1.push(key);
-                entry.0.push(game);
+        if !turn(s, &mut first).await {
+            whole = false;
+            break;
+        }
+        let game = match client.get::<Value>(&crate::matches::game_path(id)).await {
+            Ok(game) => game,
+            Err(error) => {
+                tracing::info!(%error, "Mayhem sharing: a game unavailable");
+                whole = false;
+                break;
             }
+        };
+        let Some(game) = shared_game(&game, &platform) else {
             // Read, but nothing to share (no augments, a player missing): never again.
-            None => unshareable.push(key),
+            unshareable.push(key);
+            continue;
+        };
+        match batches.last_mut() {
+            Some((p, games, keys)) if *p == platform && games.len() < PER_UPLOAD => {
+                games.push(game);
+                keys.push(key);
+            }
+            _ => batches.push((platform, vec![game], vec![key])),
         }
     }
     if !unshareable.is_empty() {
         record.add(unshareable);
     }
-    for (platform, (games, keys)) in by_platform {
+    let sent = send(s, record, batches).await;
+    if whole && sent && !record.history_read {
+        record.history_read = true;
+        record.save();
+    }
+}
+
+/// Uploads `batches` (platform, games, their keys) in order: a game counted or refused is never
+/// sent again; one the server can't take now (busy, offline) stops it, for the next scan.
+async fn send(
+    s: &Sharing,
+    record: &mut Record,
+    batches: Vec<(String, Vec<MayhemGame>, Vec<String>)>,
+) -> bool {
+    for (platform, games, keys) in batches {
         let upload = MayhemUpload { platform, games };
         match s.backend.upload_mayhem(&upload).await {
             Ok(answer) => {
@@ -797,9 +916,11 @@ async fn scan(s: &Sharing, record: &mut Record) {
             }
             Err(ReportRefused::Later(error)) => {
                 tracing::info!(%error, "Mayhem games not shared, next time");
+                return false;
             }
         }
     }
+    true
 }
 
 #[cfg(test)]
@@ -832,6 +953,7 @@ mod tests {
             version: "16.19.1".into(),
             patch: "16.19".into(),
             built_at: 0,
+            revision: 0,
             augments: vec![
                 augment(1, AugmentRarity::Silver),
                 augment(2, AugmentRarity::Silver),
@@ -1009,13 +1131,54 @@ mod tests {
             "a remake"
         );
         assert!(
-            shared_game(&whole_game(3270, 1200), "EUW1").is_none(),
-            "a custom game"
+            shared_game(&whole_game(3270, 1200), "EUW1").is_some(),
+            "a custom game of Mayhem: its queue says so"
         );
         assert!(
             shared_game(&whole_game(450, 1200), "EUW1").is_none(),
             "plain ARAM"
         );
+        let mut older = whole_game(2400, 1200);
+        older["gameVersion"] = json!("16.17.700.1");
+        assert_eq!(
+            shared_game(&older, "EUW1").unwrap().patch,
+            "16.17",
+            "an older game counts under its patch"
+        );
+        // The server refuses a whole upload for one bad game: none goes out.
+        let mut twice = whole_game(2400, 1200);
+        twice["participants"][1]["championId"] = json!(100);
+        assert!(shared_game(&twice, "EUW1").is_none(), "a champion twice");
+        let mut again = whole_game(2400, 1200);
+        again["participants"][0]["stats"]["playerAugment3"] = json!(2137);
+        assert_eq!(
+            shared_game(&again, "EUW1").unwrap().players[0].augments,
+            vec![2137, 1028],
+            "an augment counts once"
+        );
+    }
+
+    #[test]
+    fn progress_counts_games_and_champions_with_enough() {
+        let none = progress(None);
+        assert_eq!(
+            (
+                none.games,
+                none.games_needed,
+                none.champions_ready,
+                none.champion_games_needed
+            ),
+            (0, PAGE_GAMES, 0, MIN_GAMES)
+        );
+        let mut shared = stats(MIN_GAMES, &[]);
+        shared.champions.push(MayhemChampionStats {
+            id: 222,
+            g: MIN_GAMES - 1,
+            augments: Vec::new(),
+            items: Vec::new(),
+        });
+        let some = progress(Some(&shared));
+        assert_eq!((some.games, some.champions_ready), (100, 1));
     }
 
     #[test]
@@ -1033,7 +1196,7 @@ mod tests {
     }
 
     #[test]
-    fn lists_matchmade_mayhem_games_and_reads_the_mode() {
+    fn lists_mayhem_games_and_reads_the_mode() {
         let history = json!({ "games": { "games": [
             { "gameId": 1, "queueId": 2400, "gameDuration": 1100, "platformId": "EUW1" },
             { "gameId": 2, "queueId": 2400, "gameDuration": 100 },
@@ -1043,7 +1206,7 @@ mod tests {
         ] } });
         let listed = listed_mayhem(&history, "EUN1");
         let ids: Vec<(u64, &str)> = listed.iter().map(|(id, p, _)| (*id, p.as_str())).collect();
-        assert_eq!(ids, [(1, "EUW1"), (5, "EUN1")]);
+        assert_eq!(ids, [(1, "EUW1"), (4, "EUN1"), (5, "EUN1")]);
         assert!(is_mayhem_session(
             &json!({ "gameData": { "queue": { "id": 2400, "mapId": 12 } } })
         ));
@@ -1070,7 +1233,14 @@ mod tests {
         record.add(["k600".to_owned()]);
         assert_eq!(record.keys.len(), RECORD_MAX);
         assert!(!record.has("k0") && record.has("k504"));
-        let again = Record::load(path);
+        assert!(!record.history_read, "a new record reads the whole history");
+        record.history_read = true;
+        record.save();
+        let again = Record::load(path.clone());
         assert_eq!(again.keys.len(), RECORD_MAX);
+        assert!(again.history_read);
+        // A record of an older version (a list of keys): read the history again.
+        std::fs::write(&path, br#"["k1","k2"]"#).unwrap();
+        assert!(!Record::load(path).history_read);
     }
 }

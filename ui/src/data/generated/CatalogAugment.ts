@@ -14,7 +14,7 @@ id: number, rarity: AugmentRarity,
 icon: string, name: LocalizedText, 
 /**
  * The game's short description, plain text (line breaks kept); empty when it couldn't be
- * read. Values the game computes in play are left out; `[Ability]` stands for the
- * champion's ability an augment changes.
+ * read. Values the game computes in play read "some"; "your ability" is the champion's
+ * ability an augment changes (the game names it in play).
  */
 description: LocalizedText, };

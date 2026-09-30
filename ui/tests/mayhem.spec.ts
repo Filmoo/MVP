@@ -72,9 +72,39 @@ test.describe("ARAM: Mayhem page", () => {
   test("nothing published yet: every augment listed, and how to help", async ({ page, t }) => {
     await openApp(page, { view: "/mayhem", scenario: "mayhem-empty" });
     await expect(page.getByTestId("mayhem-no-tiers")).toContainText(t.mayhem.noTiers.title);
-    await expect(page.getByTestId("mayhem-no-shared")).toContainText(t.mayhem.noShared.title);
-    await page.getByTestId("mayhem-no-shared").getByRole("link", { name: t.mayhem.noShared.link }).click();
+    const gathering = page.getByTestId("mayhem-gathering");
+    await expect(gathering).toContainText(t.mayhem.gathering.title);
+    await expect(gathering.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "0");
+    await gathering.getByRole("link", { name: t.settings.stats.shareMayhem.title }).click();
     await expect(page).toHaveURL(/#\/settings$/);
+  });
+
+  test("too few shared games: how far it is instead of pick rates, on the page and for a champion", async ({ page, t }) => {
+    const errors = trackErrors(page);
+    await openApp(page, { view: "/mayhem", scenario: "mayhem-gathering" });
+    const gathering = page.getByTestId("mayhem-gathering");
+    await expect(gathering).toContainText(t.mayhem.gathering.page(100));
+    const bar = gathering.getByRole("progressbar");
+    await expect(bar).toHaveAttribute("aria-valuenow", "37");
+    await expect(bar).toHaveAttribute("aria-valuemax", "100");
+    await expect(gathering).toContainText(t.mayhem.gathering.count(37, 100));
+    // No noisy numbers: 37 games show no pick rate, the tiers still order the augments.
+    const cards = (await augments(page).allInnerTexts()).join("\n");
+    expect(cards).not.toContain(t.mayhem.picked("").trim());
+    await expect(augments(page).first()).toContainText(t.tierList.rankN(1));
+    // A champion with a few games: its meter, no pick rates, no most picked augments or items.
+    await openApp(page, { view: "/mayhem?champion=103", scenario: "mayhem-gathering" });
+    const champion = page.getByTestId("mayhem-champion");
+    await expect(champion.getByTestId("mayhem-meter")).toContainText(t.mayhem.gathering.champion("Ahri", 30));
+    await expect(champion.getByRole("progressbar")).toHaveAttribute("aria-valuemax", "30");
+    await expect(champion).toContainText(t.mayhem.order.byTier);
+    await expect(champion).not.toContainText(t.mayhem.mostPicked);
+    await expect(champion).not.toContainText(t.mayhem.pickedBy("", "Ahri").split(" ").slice(-2).join(" "));
+    // Enough games (the default): no meter, the numbers.
+    await openApp(page, { view: "/mayhem?champion=103" });
+    await expect(page.getByTestId("mayhem-champion")).toContainText(t.mayhem.mostPicked);
+    await expect(page.getByTestId("mayhem-meter")).toHaveCount(0);
+    expect(errors).toEqual([]);
   });
 
   test("not built yet, or offline: said so, with a retry when it can help", async ({ page, t }) => {
@@ -145,6 +175,14 @@ test.describe("ARAM: Mayhem elsewhere", () => {
     expect(errors).toEqual([]);
   });
 
+  test("draft in Mayhem with too few games: the panel says how far it is, no row shows picks", async ({ page, t }) => {
+    await openApp(page, { view: "/draft", scenario: "mayhem-gathering", width: 1280, height: 800 });
+    const panel = page.locator("[data-widget=draft-why] [data-testid=mayhem-champion]");
+    await expect(panel.getByRole("progressbar")).toBeVisible();
+    await expect(panel.getByRole("link", { name: t.settings.stats.shareMayhem.title }), "no way out of champion select").toHaveCount(0);
+    await expect(page.getByTestId("top-augments")).toHaveCount(0);
+  });
+
   test("plain ARAM has no augments", async ({ page, t }) => {
     await openApp(page, { view: "/draft", scenario: "aram-champ-select" });
     await expect(page.getByTestId("top-augments")).toHaveCount(0);
@@ -179,5 +217,74 @@ test.describe("ARAM: Mayhem elsewhere", () => {
     await page.getByTestId("settings-search").fill("augments");
     await expect(toggle).toBeVisible();
     await expect(page.locator("[data-widget=settings-app]")).toBeHidden();
+  });
+});
+
+test.describe("The question about sharing Mayhem games", () => {
+  /** The answer saved last (`undefined`: none). */
+  const saved = (page: Page) =>
+    page.evaluate(
+      () =>
+        (
+          window.__SCOUT_MOCK__?.log.filter((l) => l.command === "update_settings").at(-1)?.args as
+            | { settings: { shareMayhemGames: boolean | null } }
+            | undefined
+        )?.settings.shareMayhemGames,
+    );
+  const setPhase = (page: Page, phase: string) =>
+    page.evaluate((p) => window.__SCOUT_MOCK__?.emit("client-status", { connection: "connected", phase: p as "idle" }), phase);
+
+  test("asked on Home in plain words, with how far each feature is; yes shares, and it goes", async ({ page, t }) => {
+    const errors = trackErrors(page);
+    await openApp(page, { scenario: "first-start" });
+    const question = page.getByTestId("share-question");
+    await expect(question.getByRole("heading", { name: t.mayhem.question.title })).toBeVisible();
+    await expect(question).toContainText(t.mayhem.question.data);
+    const bars = question.getByRole("progressbar");
+    await expect(bars).toHaveCount(2);
+    await expect(bars.first()).toHaveAttribute("aria-valuenow", "37");
+    await expect(question).toContainText(t.mayhem.gathering.count(37, 100));
+    await expect(bars.nth(1)).toHaveAttribute("aria-valuenow", "4");
+    // Two equal answers: the same kind of button, as wide.
+    const yes = question.getByRole("button", { name: t.mayhem.question.yes });
+    const no = question.getByRole("button", { name: t.mayhem.question.no });
+    expect(await yes.getAttribute("class")).toBe(await no.getAttribute("class"));
+    const [a, b] = [await yes.boundingBox(), await no.boundingBox()];
+    expect(Math.abs((a?.width ?? 0) - (b?.width ?? 1))).toBeLessThan(1);
+    // It doesn't block the app: Home is there under it.
+    await expect(page.locator("[data-widget=profile-header]")).toBeVisible();
+    // Never in champion select or a game.
+    await setPhase(page, "champSelect");
+    await expect(question).toHaveCount(0);
+    await setPhase(page, "inGame");
+    await expect(question).toHaveCount(0);
+    await setPhase(page, "idle");
+    await yes.click();
+    await expect(question).toHaveCount(0);
+    expect(await saved(page)).toBe(true);
+    await expect(page.getByTestId("toast")).toContainText(t.mayhem.question.thanks);
+    // Settings has the answer, to change it there.
+    await page.getByRole("link", { name: t.nav.settings.label }).click();
+    await expect(page.getByTestId("setting-share-mayhem")).toHaveAttribute("aria-checked", "true");
+    expect(errors).toEqual([]);
+  });
+
+  test("not now keeps sharing off, and it isn't asked again", async ({ page, t }) => {
+    await openApp(page, { scenario: "first-start" });
+    await page.getByTestId("share-question").getByRole("button", { name: t.mayhem.question.no }).click();
+    await expect(page.getByTestId("share-question")).toHaveCount(0);
+    expect(await saved(page)).toBe(false);
+    await page.getByRole("link", { name: t.nav.settings.label }).click();
+    await expect(page.getByTestId("setting-share-mayhem")).toHaveAttribute("aria-checked", "false");
+    await page.getByRole("link", { name: t.nav.home.label }).click();
+    await expect(page.locator("[data-widget=profile-header]")).toBeVisible();
+    await expect(page.getByTestId("share-question")).toHaveCount(0);
+  });
+
+  test("on Home only, and never once answered", async ({ page }) => {
+    await openApp(page, { scenario: "first-start", view: "/tier-list" });
+    await expect(page.getByTestId("share-question")).toHaveCount(0);
+    await openApp(page);
+    await expect(page.getByTestId("share-question")).toHaveCount(0);
   });
 });

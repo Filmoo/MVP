@@ -1053,10 +1053,14 @@ rate** (policy.md, "ARAM: Mayhem augments"; decisions.md).
   names (`cherry-augments.json`, `default` and `fr_fr`), and its short description (the augment
   definitions in `game/maps/modespecificdata/kiwi.bin.json` and the game's English and French
   string tables, ~33 MB each, read as a stream). Values from the definitions: a level range reads
-  `20–80`, a stat scaling shows its base, what only the game knows in play reads `…`, the
-  champion's own ability `[Ability]`. Built into `mayhem/augments.json` once per game version
-  (checked at start and every 6 h, `MAYHEM_CATALOG=0` to stop; `mvp-backend mayhem augments
-  [--force]`); the sources stay on disk only for the version being built.
+  `20–80`, a stat scaling shows its base, a melee value its ranged one (`150 (100 ranged)`),
+  multipliers, breakpoints, sums, products and other calculations (by name or by the file's
+  FNV-1a hash of it) are worked out, a quest's goal is its first milestone; what only the game
+  knows in play reads "some", the champion's own ability "your ability". A generic ability icon
+  takes the same augment's Arena icon when it has one. Built into `mayhem/augments.json` once per
+  game version and builder `REVISION` (checked at start and every 6 h, `MAYHEM_CATALOG=0` to
+  stop; `mvp-backend mayhem augments [--force]`); the sources stay on disk only for the version
+  being built.
 - **Tiers** (`mayhem-tiers.json`, the owner's, apps/backend/README.md): watched like `config.json`
   (a broken file stops the service at start; a broken edit keeps the previous version). Refused:
   unknown keys, an augment twice (within or across tiers), a bad patch, date or note. The order
@@ -1089,12 +1093,21 @@ rate** (policy.md, "ARAM: Mayhem augments"; decisions.md).
   `spawn_sharing`, on the core's client and status; only while
   `Settings.shareMayhemGames` and the remote `features.mayhemSharing` are on): a scan 10 s after
   a game reaches the end-of-game screen and again when it leaves it, 10 s after the client
-  connects, and once when the switch is turned on. It reads the last 20 listed games
-  (`/lol-match-history/…/matches`), then `GET /lol-match-history/v1/games/{gameId}` for each
-  matchmade Mayhem game (queue 2400, over 5 minutes) not shared yet: champion,
-  `playerAugment1`–`6` and `item0`–`5` of the ten players, one upload per platform. The hashes
-  sent (the last 500, `{app cache}/mayhem/shared.json`) keep a game from going twice; a game the
-  server refuses isn't sent again, one a network failure kept goes at the next scan.
+  connects, and once when the switch is turned on. Until the whole history has been read once
+  since the switch was turned on (`historyRead` in `{app cache}/mayhem/shared.json`), a scan
+  pages back through it (`HISTORY_PAGES` pages of 20, to the first short page); after that it
+  reads the last 20 listed games (`/lol-match-history/…/matches`). Then
+  `GET /lol-match-history/v1/games/{gameId}` for each Mayhem game (queue 2400 or 3270, over 5
+  minutes) not shared yet: champion, `playerAugment1`–`6` and `item0`–`5` of the ten players,
+  uploads of 20 per platform, newest first. One request every `SPACING` (300 ms), and none while
+  a game is being played (`updates::in_game`): the scan stops and the next one goes on. The
+  hashes sent (the last 500) keep a game from going twice; a game the server refuses isn't sent
+  again, one a network failure or a busy server kept goes at the next scan.
+- **Enough data**: `mayhem_overview.progress` (`companion::mayhem::progress`): the page's pick
+  rates from `PAGE_GAMES` (100) shared games, a champion's own from `MIN_GAMES` (30). Below, the
+  views show a bar (`parts.tsx` `Meter`) instead of numbers. `Settings.shareMayhemGames` is
+  `null` until the question on Home (`views/mayhem/Question.tsx`, lazy, from `app/Banners`) is
+  answered.
 - **Draft**: the gameflow session's queue or mode makes `DraftView.mode` `"mayhem"`; the bench is
   ranked as in ARAM, the side panel opens on *Augments* (the selected pick's priorities, else
   yours, one rarity at a time) and each row shows that champion's three most picked augments,

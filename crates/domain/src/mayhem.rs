@@ -50,6 +50,10 @@ pub struct AugmentCatalog {
     /// Unix epoch milliseconds.
     #[ts(type = "number")]
     pub built_at: i64,
+    /// What the builder made of the files (`static_data::mayhem::REVISION`): an older one is
+    /// built again, even of the same game version.
+    #[serde(default)]
+    pub revision: u32,
     /// By id.
     pub augments: Vec<CatalogAugment>,
 }
@@ -66,8 +70,8 @@ pub struct CatalogAugment {
     pub icon: String,
     pub name: LocalizedText,
     /// The game's short description, plain text (line breaks kept); empty when it couldn't be
-    /// read. Values the game computes in play are left out; `[Ability]` stands for the
-    /// champion's ability an augment changes.
+    /// read. Values the game computes in play read "some"; "your ability" is the champion's
+    /// ability an augment changes (the game names it in play).
     pub description: LocalizedText,
 }
 
@@ -269,6 +273,22 @@ pub struct MayhemChampionStats {
 pub struct MayhemOverview {
     pub tiers: Option<MayhemTiers>,
     pub popularity: Option<MayhemPopularity>,
+    pub progress: MayhemProgress,
+}
+
+/// How far the shared games of the current patch are from switching each feature on (nothing
+/// shared yet: zeros). Below it the views show how far, never the numbers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct MayhemProgress {
+    /// Shared games, and how many the pick rates over all champions need (the Mayhem page).
+    pub games: u32,
+    pub games_needed: u32,
+    /// Champions with enough shared games for their own pick rates, most picked augments and
+    /// common items, and how many games each needs.
+    pub champions_ready: u32,
+    pub champion_games_needed: u32,
 }
 
 /// Every augment's pick count over all champions.

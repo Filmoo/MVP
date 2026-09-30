@@ -38,7 +38,15 @@ import {
   searchPlayer,
 } from "./live-fixtures";
 import { detailsFrom, gradesFrom, withGrades } from "./match-fixtures";
-import { emptyOverview, loadMayhemAugments, longAugment, mayhemAugments, mayhemChampion, mayhemOverview } from "./mayhem-fixtures";
+import {
+  emptyOverview,
+  gatheringOverview,
+  loadMayhemAugments,
+  longAugment,
+  mayhemAugments,
+  mayhemChampion,
+  mayhemOverview,
+} from "./mayhem-fixtures";
 import {
   autoAcceptKilledConfig,
   bannersConfig,
@@ -133,6 +141,8 @@ const connectedIdle: ClientStatus = { connection: "connected", phase: "idle" };
 
 /** What the core saved last, while the page lives (a reload starts from the defaults again). */
 let savedSettings: Settings | undefined;
+/** Before the question about sharing Mayhem games is answered (`first-start`). */
+const unanswered: Settings = { ...defaultSettings, shareMayhemGames: null };
 
 /** The backend answers player pages with every game's grade. */
 const gradedSearch = (args: Commands["search_player"]["args"]) => withGrades(searchPlayer(args));
@@ -613,6 +623,25 @@ export const scenarios = {
       ...base,
       mayhem_overview: { data: emptyOverview },
       mayhem_champion: { handle: (args) => mayhemChampion(args.championId, emptyOverview) },
+    },
+  },
+  "mayhem-gathering": {
+    description:
+      "Mayhem's first days on a patch: 37 shared games. No pick rates yet anywhere (the page, a champion, Draft's panel and rows): each says they switch on once enough games are shared, and how far it is.",
+    responses: {
+      ...champSelect,
+      draft_state: { data: mayhemDraft },
+      mayhem_overview: { data: gatheringOverview },
+      mayhem_champion: { handle: (args) => mayhemChampion(args.championId, gatheringOverview) },
+    },
+  },
+  "first-start": {
+    description:
+      "The first start after installing or updating: Home asks once whether to share Mayhem games (plain words, how far each feature is, two equal answers). Answered, it goes; champion select or a game hides it.",
+    responses: {
+      ...base,
+      get_settings: { handle: () => ({ ...(savedSettings ?? unanswered), effects: loadEffects(), language: savedLanguage() }) },
+      mayhem_overview: { data: gatheringOverview },
     },
   },
   "mayhem-unbuilt": {

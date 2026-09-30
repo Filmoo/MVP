@@ -154,6 +154,15 @@ export const mayhemTiers: MayhemTiers = {
 /** How often each augment was taken, from its id (deterministic). */
 const picks = (id: number, salt: number) => ((id * 37 + salt * 101) % 97) + (id % 5) * 11;
 
+const MIN_GAMES = 30;
+/** How far the shared games are from each feature (`companion::mayhem::progress`). */
+const progress = (games: number, championsReady: number) => ({
+  games,
+  gamesNeeded: 100,
+  championsReady,
+  championGamesNeeded: MIN_GAMES,
+});
+
 /** Shared games of this patch: every augment's pick count over all champions. */
 export const mayhemOverview: MayhemOverview = {
   tiers: mayhemTiers,
@@ -164,12 +173,24 @@ export const mayhemOverview: MayhemOverview = {
     updatedAt: FIXTURE_NOW - 2 * 3_600_000,
     augments: mayhemAugments.augments.map((a) => ({ id: a.id, n: picks(a.id, 3) * 9 })).sort((a, b) => b.n - a.n || a.id - b.id),
   },
+  progress: progress(1_284, 118),
 };
 
 /** Nothing published yet: a new patch or a fresh server. */
-export const emptyOverview: MayhemOverview = { tiers: null, popularity: null };
+export const emptyOverview: MayhemOverview = { tiers: null, popularity: null, progress: progress(0, 0) };
 
-const MIN_GAMES = 30;
+/** The first days of a patch: 37 games shared, too few for pick rates; 4 champions have enough. */
+export const gatheringOverview: MayhemOverview = {
+  tiers: mayhemTiers,
+  popularity: mayhemOverview.popularity && {
+    ...mayhemOverview.popularity,
+    games: 37,
+    players: 370,
+    augments: mayhemOverview.popularity.augments.map((p) => ({ id: p.id, n: Math.round(p.n / 35) })),
+  },
+  progress: progress(37, 4),
+};
+
 const PER_RARITY = 8;
 const TIER_ORDER: AugmentTier[] = ["S", "A", "B", "C"];
 
@@ -187,9 +208,9 @@ export function championGames(championId: number): number {
   return championId % 3 === 0 ? 12 : 40 + (championId % 50);
 }
 
-/** One champion in Mayhem, ranked like the core ranks it. */
+/** One champion in Mayhem, ranked like the core ranks it (its games in proportion to the overview's). */
 export function mayhemChampion(championId: number, overview: MayhemOverview = mayhemOverview): MayhemChampion {
-  const games = overview.popularity ? championGames(championId) : 0;
+  const games = Math.round((championGames(championId) * overview.progress.games) / 1_284);
   const byRate = games >= MIN_GAMES;
   // Up to about half of its games each, a few augments not at all.
   const share = (id: number) => Math.max(0, ((id * 37 + championId * 11) % 64) - 12) / 100;

@@ -975,6 +975,33 @@ for (const lang of ["en", "fr"] as const) {
   });
 }
 
+// Mayhem's data: the question asked once on Home, and too few shared games (the page, a champion,
+// Draft's panel), at 420, 1280 and 2560 px, in English and French (`fr-…`).
+const GATHERING_SHOTS = [
+  { name: "first-start", view: "/", scenario: "first-start" },
+  { name: "mayhem-gathering", view: "/mayhem", scenario: "mayhem-gathering" },
+  { name: "mayhem-champion-gathering", view: "/mayhem?champion=103", scenario: "mayhem-gathering" },
+  { name: "draft-mayhem-gathering", view: "/draft", scenario: "mayhem-gathering" },
+] as const;
+for (const lang of ["en", "fr"] as const) {
+  test.describe(lang === "fr" ? "Mayhem data in French" : "Mayhem data", () => {
+    if (lang === "fr") test.use({ locale: "fr-FR" });
+    const prefix = lang === "fr" ? "fr-" : "";
+    for (const { name, view, scenario } of GATHERING_SHOTS) {
+      for (const [width, height] of [
+        [420, 800],
+        [1280, 800],
+        [2560, 1440],
+      ] as const) {
+        test(`${prefix}${name} ${width}x${height}`, async ({ page }) => {
+          await openApp(page, { view, scenario, width, height });
+          await capture(page, `${OUT}/${prefix}${name}-${width}x${height}.png`, width < 900 && name !== "draft-mayhem-gathering");
+        });
+      }
+    }
+  });
+}
+
 // Home after a game and its history: the game that just ended, open by itself (a win with its LP,
 // a demotion, an unknown LP, the LP on its way, ARAM), the filters (a champion, none left), older
 // games (loading, failed, the end), in English and French (`fr-…`).

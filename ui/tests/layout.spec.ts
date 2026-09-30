@@ -105,6 +105,10 @@ const STATE_VIEWS = [
   { view: "/mayhem", scenario: "mayhem-extreme" },
   { view: "/mayhem?champion=17", scenario: "default" },
   { view: "/live?tab=build", scenario: "mayhem-live" },
+  // Too few shared games: how far it is, on the page, for a champion and in Draft's panel.
+  { view: "/mayhem", scenario: "mayhem-gathering" },
+  { view: "/mayhem?champion=103", scenario: "mayhem-gathering" },
+  { view: "/draft", scenario: "mayhem-gathering" },
 ] as const;
 for (const { view, scenario } of STATE_VIEWS) {
   for (const size of [SIZES[0], SIZES[3], SIZES[6]]) {

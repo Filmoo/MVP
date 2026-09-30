@@ -192,7 +192,7 @@
   margin-top: var(--space-5);
 }
 
-/* ---- Notices: no tiers yet, no shared games yet ------------------------------------------------- */
+/* ---- Notices: no tiers yet, too few shared games yet -------------------------------------------- */
 
 .notices {
   display: flex;
@@ -225,6 +225,26 @@
   flex: none;
   margin-top: var(--space-1);
   color: var(--accent);
+}
+
+/* Pick rates on their way: what switches them on, then how far the shared games are. */
+.gathering {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 0;
+  max-width: 640px;
+}
+
+.gathering a {
+  white-space: nowrap;
+}
+
+/* Sized to what it says: no empty glass beside it on wide windows. */
+.notice:has(.gathering) {
+  width: fit-content;
+  max-width: 100%;
 }
 
 .note {

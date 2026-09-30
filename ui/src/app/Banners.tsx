@@ -2,14 +2,17 @@ import { createSignal, type JSX, lazy, Show, Suspense } from "solid-js";
 import { useData } from "../data/context";
 import type { Banner } from "../data/generated/Banner";
 import type { ClientStatus } from "../data/generated/ClientStatus";
+import type { Settings } from "../data/generated/Settings";
 import { IN_GAME_PHASES, useRemoteConfig, useUpdates } from "../data/platform";
 import { localized, t } from "../i18n";
 import { reportError } from "../lib/errors";
 import type { Ready } from "./notices/Notices";
+import { path } from "./router";
 
 // Loaded only when there is something to show: most sessions never need them.
 const NoticesStrip = lazy(() => import("./notices/Notices").then((m) => ({ default: m.NoticesStrip })));
 const UpdateBlocker = lazy(() => import("./notices/Notices").then((m) => ({ default: m.UpdateBlocker })));
+const ShareQuestion = lazy(() => import("../views/mayhem/Question"));
 
 /** Banners the player closed, by id (the server keeps ids stable). */
 const DISMISSED_KEY = "mvp.dismissed-banners.v1";
@@ -40,10 +43,12 @@ function current(banner: Banner, now: number): boolean {
 }
 
 /**
- * Notices from our server (remote config banners), the "Update ready — Restart" prompt, and the
- * blocking-but-polite "update required" state. Renders nothing when there's nothing to say.
+ * Notices from our server (remote config banners), the "Update ready — Restart" prompt, the
+ * blocking-but-polite "update required" state, and on Home the question the player hasn't
+ * answered yet (sharing Mayhem games; never in champion select or a game). Renders nothing when
+ * there's nothing to say.
  */
-export default function Banners(props: { status: ClientStatus | undefined }): JSX.Element {
+export default function Banners(props: { status: ClientStatus | undefined; settings: Settings | undefined }): JSX.Element {
   const { transport } = useData();
   const config = useRemoteConfig();
   const updates = useUpdates();
@@ -51,6 +56,10 @@ export default function Banners(props: { status: ClientStatus | undefined }): JS
   // "Later" on the prompt: until the next launch.
   const [later, setLater] = createSignal(false);
   const inGame = () => IN_GAME_PHASES.has(props.status?.phase ?? "idle");
+  const unanswered = () => {
+    const settings = props.settings;
+    return settings?.shareMayhemGames === null && config().features.mayhemSharing && !inGame() && path() === "/" ? settings : undefined;
+  };
 
   const banners = () => {
     const now = Date.now();
@@ -105,6 +114,9 @@ export default function Banners(props: { status: ClientStatus | undefined }): JS
             onLater={() => setLater(true)}
           />
         </Show>
+      </Suspense>
+      <Suspense>
+        <Show when={unanswered()}>{(settings) => <ShareQuestion settings={settings()} />}</Show>
       </Suspense>
     </>
   );

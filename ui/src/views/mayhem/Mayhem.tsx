@@ -26,7 +26,7 @@ import { Widget } from "../../widgets/Widget";
 import page from "../page.module.css";
 import { type Fact, QueueTabs, SearchField, StatsHead, TitleScope } from "../stats/common";
 import styles from "./Mayhem.module.css";
-import { AugmentIcon, ChampionAugments, RankPill, sentence, TierMark, useAugments } from "./parts";
+import { AugmentIcon, ChampionAugments, Meter, RankPill, sentence, TierMark, useAugments } from "./parts";
 
 const TIERS: AugmentTier[] = ["S", "A", "B", "C"];
 /** Augments without a tier shown before "Show all" (keeps the page light). */
@@ -68,6 +68,9 @@ function AugmentCard(props: { augment: AugmentInfo; tier?: AugmentTier; rank?: n
   );
 }
 
+/** The pick rates over all champions, once enough games are shared (else `null`: no numbers). */
+const counted = (o: MayhemOverview | undefined) => (o && o.progress.games >= o.progress.gamesNeeded ? o.popularity : null);
+
 /** Every augment by MVP's tiers, then the ones without a tier (most picked first). */
 export function AugmentTiers(props: {
   augments: ReadonlyMap<number, AugmentInfo>;
@@ -75,7 +78,7 @@ export function AugmentTiers(props: {
   rarity: RarityFilter;
 }): JSX.Element {
   const [all, setAll] = createSignal(false);
-  const popularity = () => props.overview?.popularity ?? null;
+  const popularity = () => counted(props.overview);
   const picks = createMemo(() => new Map(popularity()?.augments.map((p) => [p.id, p.n]) ?? []));
   const pickRate = (id: number) => {
     const players = popularity()?.players ?? 0;
@@ -252,6 +255,11 @@ export default function Mayhem(): JSX.Element {
     return facts;
   };
   const problem = () => statsErrorWords(backendError(augments.error()));
+  // Too few games for pick rates over all champions: how far it is (the overview's own progress).
+  const gathering = () => {
+    const o = overview.data();
+    return o && !counted(o) ? o.progress : undefined;
+  };
   return (
     <div class={page.page}>
       <StatsHead
@@ -300,7 +308,7 @@ export default function Mayhem(): JSX.Element {
         <Match when={augments.data()}>
           {(list) => (
             <>
-              <Show when={!overview.data()?.tiers || !overview.data()?.popularity}>
+              <Show when={!overview.data()?.tiers || gathering()}>
                 <div class={styles.notices}>
                   <Show when={!overview.data()?.tiers}>
                     <p class={styles.notice} data-testid="mayhem-no-tiers">
@@ -310,13 +318,24 @@ export default function Mayhem(): JSX.Element {
                       </span>
                     </p>
                   </Show>
-                  <Show when={!overview.data()?.popularity}>
-                    <p class={styles.notice} data-testid="mayhem-no-shared">
-                      <Icon name="info" size={16} class={styles.noticeIcon} />
-                      <span>
-                        <b>{t().mayhem.noShared.title}.</b> {t().mayhem.noShared.text} <a href="#/settings">{t().mayhem.noShared.link}</a>
-                      </span>
-                    </p>
+                  <Show when={gathering()}>
+                    {(p) => (
+                      <div class={styles.notice} data-testid="mayhem-gathering">
+                        <Icon name="info" size={16} class={styles.noticeIcon} />
+                        <div class={styles.gathering}>
+                          <span>
+                            <b>{t().mayhem.gathering.title}.</b> {t().mayhem.gathering.page(p().gamesNeeded)}{" "}
+                            <a href="#/settings">{t().settings.stats.shareMayhem.title}</a>
+                          </span>
+                          <Meter
+                            label={t().mayhem.gathering.shared}
+                            count={t().mayhem.gathering.count(p().games, p().gamesNeeded)}
+                            have={p().games}
+                            needed={p().gamesNeeded}
+                          />
+                        </div>
+                      </div>
+                    )}
                   </Show>
                 </div>
               </Show>

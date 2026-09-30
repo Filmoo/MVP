@@ -10,9 +10,15 @@
 //! time and kept on disk only for the version being built.
 //!
 //! Descriptions are the game's summaries, as plain text: values come from the augment's
-//! definitions (a level range reads `20–80`; what grows with a stat shows its base), a value
-//! only the game knows in play reads `…`, the champion's own ability reads `[Ability]`, and a
-//! summary that can't be read leaves the description empty rather than failing the catalog.
+//! definitions (a level range reads `20–80`; what grows with a stat shows its base; a melee
+//! value is followed by its ranged one), a quest's goal from its first milestone, the champion's
+//! own ability (the game names it in play) reads "your ability", a value only the game knows in
+//! play reads "some", and a summary that can't be read leaves the description empty rather than
+//! failing the catalog.
+//!
+//! Icons are the client's; an augment that changes one of the champion's abilities has a generic
+//! one (the game draws that ability's icon in play), for which the same augment's Arena icon is
+//! taken when it has one.
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt;
@@ -44,6 +50,11 @@ const STRINGS_EN: &str = "game/en_us/data/menu/en_us/lol.stringtable.json";
 const STRINGS_FR: &str = "game/fr_fr/data/menu/en_us/lol.stringtable.json";
 /// Where the client's asset paths start (`/lol-game-data/assets/ASSETS/UX/…`).
 const ASSETS_PREFIX: &str = "/lol-game-data/assets/";
+/// The icon of augments that change one of the champion's abilities (one per rarity).
+const GENERIC_ICON: &str = "genericabilityaugmenticon";
+/// What the builder makes of the files: a catalog of an older revision is built again, even of the
+/// same game version (2: values from more calculations, quests, "your ability", Arena icons).
+pub const REVISION: u32 = 2;
 
 /// The full URL of an augment's icon (a catalog's `icon`) on the mirror at `base`.
 pub fn icon_url(base: &str, icon: &str) -> String {
@@ -66,11 +77,55 @@ pub enum Lang {
 }
 
 impl Lang {
-    /// What stands for the champion's own ability (the game fills it in during play).
-    const fn ability(self) -> &'static str {
+    /// The champion's ability an augment changes (the game names it in play), after `before`:
+    /// "your ability" ("ability" right after "your"), starting with a capital to start a sentence.
+    fn ability(self, before: &str) -> String {
+        let (your, word) = match self {
+            Self::En => ("your ", "ability"),
+            Self::Fr => ("votre ", "compétence"),
+        };
+        let before = before.to_lowercase();
+        if before.ends_with(your) {
+            return word.to_owned();
+        }
+        let before = before.trim_end();
+        let starts =
+            before.is_empty() || before.ends_with(['.', '!', '?']) || before.ends_with("<br>");
+        let mut phrase = format!("{your}{word}");
+        if starts {
+            phrase[..1].make_ascii_uppercase();
+        }
+        phrase
+    }
+
+    /// A value only the game knows in play (it grows with the champion's stats).
+    const fn some(self) -> &'static str {
         match self {
-            Self::En => "[Ability]",
-            Self::Fr => "[Compétence]",
+            Self::En => "some",
+            Self::Fr => "quelques",
+        }
+    }
+
+    /// A melee value's ranged one: ` (100 ranged)`.
+    fn ranged(self, value: &str) -> String {
+        match self {
+            Self::En => format!(" ({value} ranged)"),
+            Self::Fr => format!(" ({value} à distance)"),
+        }
+    }
+
+    const fn percent(self) -> &'static str {
+        match self {
+            Self::En => "%",
+            Self::Fr => "\u{a0}%",
+        }
+    }
+
+    /// The gold coin icon's word (`%i:goldCoins% @Gold@` reads `250 Gold`).
+    const fn gold(self) -> &'static str {
+        match self {
+            Self::En => "Gold",
+            Self::Fr => "PO",
         }
     }
 }
@@ -147,6 +202,18 @@ struct BinEntry {
     root_spell: Option<String>,
     #[serde(rename = "mSpell", default, deserialize_with = "lenient")]
     spell: Option<BinSpell>,
+    /// A quest augment's quest (the field's name is a hash in the file).
+    #[serde(rename = "{3ed971bd}", default, deserialize_with = "lenient")]
+    quest: Option<QuestRef>,
+    /// A quest's goals, one per quest level (their numbers are a hashed field each).
+    #[serde(rename = "Milestones", default, deserialize_with = "lenient")]
+    milestones: Option<Vec<serde_json::Map<String, serde_json::Value>>>,
+}
+
+#[derive(Deserialize)]
+struct QuestRef {
+    #[serde(rename = "Quest")]
+    path: String,
 }
 
 #[derive(Deserialize, Default)]
@@ -176,14 +243,30 @@ struct Shown {
     high: f64,
     /// Shown as a percentage (the game's `mDisplayAsPercent`).
     percent: bool,
+    /// For a ranged champion, when it differs from `low–high` (a melee champion's).
+    ranged: Option<(f64, f64)>,
 }
 
 impl Shown {
     const fn plain(x: f64) -> Self {
+        Self::range(x, x)
+    }
+
+    const fn range(low: f64, high: f64) -> Self {
         Self {
-            low: x,
-            high: x,
+            low,
+            high,
             percent: false,
+            ranged: None,
+        }
+    }
+
+    fn times(self, (low, high): (f64, f64)) -> Self {
+        Self {
+            low: self.low * low,
+            high: self.high * high,
+            ranged: self.ranged.map(|(l, h)| (l * low, h * high)),
+            ..self
         }
     }
 }
@@ -202,48 +285,192 @@ fn level_one(values: &[f64]) -> Option<f64> {
     values.get(1).or_else(|| values.first()).copied()
 }
 
-/// A calculation's value, when its parts are ones a description can show: numbers, named
-/// values, level ranges (stat scalings are left out: the base shows). `None` for anything else.
-fn calculation(calc: &serde_json::Value, values: &[(String, Shown)]) -> Option<Shown> {
-    let text = |part: &serde_json::Value, key: &str| {
-        part.get(key)
-            .and_then(serde_json::Value::as_str)
-            .map(str::to_owned)
-    };
-    let number =
-        |part: &serde_json::Value, key: &str| part.get(key).and_then(serde_json::Value::as_f64);
-    if text(calc, "__type").as_deref() != Some("GameCalculation") {
-        return None;
+/// Levels a champion goes through: a value growing with them reads from level 1 to this one.
+const MAX_LEVEL: u64 = 18;
+
+/// How the file names what it has no name for: `{fnv1a}` of the lower-case name.
+fn hashed(name: &str) -> String {
+    let hash = name.bytes().fold(0x811c_9dc5_u32, |hash, byte| {
+        (hash ^ u32::from(byte.to_ascii_lowercase())).wrapping_mul(0x0100_0193)
+    });
+    format!("{{{hash:08x}}}")
+}
+
+/// `name`'s entry of `list` (lower-case names): by its name, else by its hash.
+fn named<'a, T>(list: &'a [(String, T)], name: &str) -> Option<&'a T> {
+    let name = name.trim().to_ascii_lowercase();
+    let hash = hashed(&name);
+    list.iter()
+        .find(|(n, _)| *n == name || *n == hash)
+        .map(|(_, v)| v)
+}
+
+fn number_at(value: &serde_json::Value, key: &str) -> Option<f64> {
+    value.get(key).and_then(serde_json::Value::as_f64)
+}
+
+fn text_at<'a>(value: &'a serde_json::Value, key: &str) -> Option<&'a str> {
+    value.get(key).and_then(serde_json::Value::as_str)
+}
+
+/// A value that grows at given levels (`ByCharLevelBreakpoints…`): level 1's and the last level's.
+fn breakpoints(part: &serde_json::Value) -> (f64, f64) {
+    let one = number_at(part, "mLevel1Value").unwrap_or(0.0);
+    let mut per_level = number_at(part, "mInitialBonusPerLevel").unwrap_or(0.0);
+    let marks = part
+        .get("mBreakpoints")
+        .and_then(serde_json::Value::as_array)
+        .map_or(&[][..], Vec::as_slice);
+    let mut total = one;
+    for level in 2..=MAX_LEVEL {
+        for mark in marks
+            .iter()
+            .filter(|m| m.get("mLevel").and_then(serde_json::Value::as_u64) == Some(level))
+        {
+            total += number_at(mark, "mAdditionalBonusAtThisLevel").unwrap_or(0.0);
+            per_level = number_at(mark, "mBonusPerLevelAtAndAfter").unwrap_or(per_level);
+        }
+        total += per_level;
     }
-    let mut total = Shown::plain(0.0);
-    let mut counted = false;
-    for part in calc.get("mFormulaParts")?.as_array()? {
-        match text(part, "__type")?.as_str() {
-            "NumberCalculationPart" => {
-                let n = number(part, "mNumber")?;
-                (total.low, total.high) = (total.low + n, total.high + n);
-                counted = true;
-            }
-            "NamedDataValueCalculationPart" => {
-                let name = text(part, "mDataValue")?.to_ascii_lowercase();
-                let value = values.iter().find(|(n, _)| *n == name)?.1;
-                (total.low, total.high) = (total.low + value.low, total.high + value.high);
-                counted = true;
-            }
-            "ByCharLevelInterpolationCalculationPart" => {
-                total.low += number(part, "mStartValue").unwrap_or(0.0);
-                total.high += number(part, "mEndValue").unwrap_or(0.0);
-                counted = true;
-            }
-            "StatByNamedDataValueCalculationPart" | "StatByCoefficientCalculationPart" => {}
-            _ => return None,
+    (one, total)
+}
+
+/// A formula's part as a description can show it.
+#[derive(Debug, Clone, Copy)]
+enum Part {
+    /// Its value at level 1 and at the last level.
+    Known(f64, f64),
+    /// It grows with a stat or stacks: only the game knows it in play.
+    InPlay,
+}
+
+impl Part {
+    /// The parts summed: what only the game knows adds nothing (its base shows), all of it is
+    /// `InPlay`.
+    fn sum(parts: &[Self]) -> Self {
+        parts
+            .iter()
+            .fold(Self::InPlay, |total, part| match (total, *part) {
+                (Self::Known(a, b), Self::Known(c, d)) => Self::Known(a + c, b + d),
+                (Self::InPlay, known) | (known, Self::InPlay) => known,
+            })
+    }
+
+    const fn known(self) -> Option<(f64, f64)> {
+        match self {
+            Self::Known(low, high) => Some((low, high)),
+            Self::InPlay => None,
         }
     }
-    total.percent = calc
-        .get("mDisplayAsPercent")
-        .and_then(serde_json::Value::as_bool)
-        .unwrap_or(false);
-    counted.then_some(total)
+}
+
+/// An augment's calculations, read with its named values and each other.
+struct Calcs<'a> {
+    values: &'a [(String, Shown)],
+    calcs: &'a [(String, &'a serde_json::Value)],
+}
+
+impl Calcs<'_> {
+    /// The named value or calculation called `name`.
+    fn get(&self, name: &str, depth: u8) -> Option<Shown> {
+        named(self.values, name)
+            .copied()
+            .or_else(|| self.calculation(named(self.calcs, name)?, depth + 1))
+    }
+
+    /// A calculation's value: numbers, named values, level ranges and other calculations, summed
+    /// and multiplied; a melee value with its ranged one. What grows with a stat or stacks only
+    /// the game knows in play: its base shows, and a value that is nothing but that is `None`.
+    fn calculation(&self, calc: &serde_json::Value, depth: u8) -> Option<Shown> {
+        if depth > 4 {
+            return None;
+        }
+        let shown = match text_at(calc, "__type")? {
+            "GameCalculationModified" => self
+                .get(text_at(calc, "mModifiedGameCalculation")?, depth)?
+                .times(self.part(calc.get("mMultiplier")?, depth)?.known()?),
+            // Melee, then ranged (the only condition read).
+            "GameCalculationConditional" => {
+                let kind = calc.pointer("/mConditionalCalculationRequirements/__type");
+                (kind?.as_str()? == "IsRangedCastRequirement").then_some(())?;
+                let ranged = self.get(text_at(calc, "mConditionalGameCalculation")?, depth)?;
+                Shown {
+                    ranged: Some((ranged.low, ranged.high)),
+                    ..self.get(text_at(calc, "mDefaultGameCalculation")?, depth)?
+                }
+            }
+            _ => {
+                let (low, high) = self.parts(calc.get("mFormulaParts")?, depth)?.known()?;
+                let mut shown = Shown::range(low, high);
+                if let Some(multiplier) = calc.get("mMultiplier") {
+                    shown = shown.times(self.part(multiplier, depth)?.known()?);
+                }
+                if let Some(ranged) = calc.get("mRangedMultiplier") {
+                    let (l, h) = self.part(ranged, depth)?.known()?;
+                    shown.ranged = Some((shown.low * l, shown.high * h));
+                }
+                shown
+            }
+        };
+        let percent = calc
+            .get("mDisplayAsPercent")
+            .and_then(serde_json::Value::as_bool);
+        Some(Shown {
+            percent: percent.unwrap_or(shown.percent),
+            ..shown
+        })
+    }
+
+    /// A list of parts, summed; `None` when one can't be read.
+    fn parts(&self, list: &serde_json::Value, depth: u8) -> Option<Part> {
+        let parts = list
+            .as_array()?
+            .iter()
+            .map(|part| self.part(part, depth))
+            .collect::<Option<Vec<_>>>()?;
+        Some(Part::sum(&parts))
+    }
+
+    /// A formula's part; `None` when it can't be read.
+    fn part(&self, part: &serde_json::Value, depth: u8) -> Option<Part> {
+        let value = |name: &str| self.get(name, depth).map(|v| (v.low, v.high));
+        let (low, high) = match text_at(part, "__type")? {
+            "NumberCalculationPart" => {
+                let n = number_at(part, "mNumber")?;
+                (n, n)
+            }
+            "NamedDataValueCalculationPart" => value(text_at(part, "mDataValue")?)?,
+            "ByCharLevelInterpolationCalculationPart" => (
+                number_at(part, "mStartValue").unwrap_or(0.0),
+                number_at(part, "mEndValue").unwrap_or(0.0),
+            ),
+            // From one named value to another over the levels (a hashed kind).
+            "{ee18a47b}" => (
+                value(text_at(part, "StartDataValue")?)?.0,
+                value(text_at(part, "EndDataValue")?)?.0,
+            ),
+            "ByCharLevelBreakpointsCalculationPart" => breakpoints(part),
+            "ProductOfSubPartsCalculationPart" => {
+                let a = self.part(part.get("mPart1")?, depth)?;
+                let b = self.part(part.get("mPart2")?, depth)?;
+                let (Part::Known(a0, a1), Part::Known(b0, b1)) = (a, b) else {
+                    return Some(Part::InPlay);
+                };
+                (a0 * b0, a1 * b1)
+            }
+            "SumOfSubPartsCalculationPart" => return self.parts(part.get("mSubparts")?, depth),
+            // Another calculation, by its key (a hashed kind).
+            "{f3cbe7b2}" => value(text_at(part, "mSpellCalculationKey")?)?,
+            "StatByCoefficientCalculationPart"
+            | "StatByNamedDataValueCalculationPart"
+            | "StatBySubPartCalculationPart"
+            | "AbilityResourceByCoefficientCalculationPart"
+            | "BuffCounterByCoefficientCalculationPart"
+            | "BuffCounterByNamedDataValueCalculationPart" => return Some(Part::InPlay),
+            _ => return None,
+        };
+        Some(Part::Known(low, high))
+    }
 }
 
 /// The definitions of `paths` (augments of the pool) from `kiwi.bin.json`.
@@ -275,8 +502,13 @@ fn definitions(
                 ))
             })
             .collect();
-        // Calculations read the named values: after them, in the same order.
-        let computed: Vec<(String, Shown)> = spells
+        // A quest's goal: its first milestone's number (quest level 1).
+        let goal = entry.quest.as_ref().and_then(|quest| {
+            let first = entries.get(&quest.path)?.milestones.as_ref()?.first()?;
+            first.values().find_map(serde_json::Value::as_f64)
+        });
+        values.extend(goal.map(|n| ("questrequirement".to_owned(), Shown::plain(n))));
+        let calcs: Vec<(String, &serde_json::Value)> = spells
             .iter()
             .filter_map(|(_, spell)| spell.calculations.as_ref())
             .flat_map(|calcs| {
@@ -284,9 +516,16 @@ fn definitions(
                 calcs.sort_by_key(|(name, _)| *name);
                 calcs
             })
-            .filter_map(|(name, calc)| {
-                Some((name.to_ascii_lowercase(), calculation(calc, &values)?))
-            })
+            .map(|(name, calc)| (name.to_ascii_lowercase(), calc))
+            .collect();
+        // Calculations read the named values and each other: after them, in the same order.
+        let read = Calcs {
+            values: &values,
+            calcs: &calcs,
+        };
+        let computed: Vec<(String, Shown)> = calcs
+            .iter()
+            .filter_map(|(name, calc)| Some((name.clone(), read.calculation(calc, 0)?)))
             .collect();
         values.extend(computed);
         out.insert(
@@ -425,31 +664,45 @@ fn summaries<R: Read>(
 
 // ---- Descriptions -------------------------------------------------------------------------------
 
-/// A number as the tooltip shows it: whole when it is, else up to two decimals.
+/// A number as the tooltip shows it: whole when it is, else two decimals under 10, one under
+/// 100 (a ranged value of 150 × 0.667 reads 100).
 fn number(x: f64, lang: Lang) -> String {
-    if (x - x.round()).abs() < 1e-6 {
-        // Tooltip values are small: the cast can't truncate anything real.
-        #[allow(clippy::cast_possible_truncation, reason = "a small whole number")]
-        return format!("{}", x.round() as i64);
-    }
-    let text = format!("{x:.2}");
-    let text = text.trim_end_matches('0').trim_end_matches('.');
+    let decimals = match x.abs() {
+        a if a >= 100.0 => 0,
+        a if a >= 10.0 => 1,
+        _ => 2,
+    };
+    let text = format!("{x:.decimals$}");
+    let text = if text.contains('.') {
+        text.trim_end_matches('0').trim_end_matches('.')
+    } else {
+        &text
+    };
     match lang {
         Lang::En => text.to_owned(),
         Lang::Fr => text.replace('.', ","),
     }
 }
 
-/// `Name`, `Name*100` or `Name/2` → its value, when the definitions have it: a number or a level
-/// range (`20–80`), and whether the game shows it as a percentage (its sign not written yet).
-fn placeholder(inner: &str, values: &[(String, Shown)], lang: Lang) -> Option<(String, bool)> {
+/// `low–high` (one number when they're the same).
+fn range(low: f64, high: f64, lang: Lang) -> String {
+    let mut shown = number(low, lang);
+    if (high - low).abs() > 1e-6 {
+        shown = format!("{shown}–{}", number(high, lang));
+    }
+    shown
+}
+
+/// `Name`, `Name*100` or `Name/2` → its value when the definitions have it (by its name, its
+/// hash, or with `Base` in front, as the game's tooltips name some), scaled (a percentage ×100).
+fn placeholder(inner: &str, values: &[(String, Shown)]) -> Option<Shown> {
     let at = inner.find(['*', '/']);
     let (name, op) = match at {
         Some(i) => (&inner[..i], Some((&inner[i..=i], inner[i + 1..].trim()))),
         None => (inner, None),
     };
-    let name = name.trim().to_ascii_lowercase();
-    let value = values.iter().find(|(n, _)| *n == name)?.1;
+    let name = name.trim();
+    let value = *named(values, name).or_else(|| named(values, &format!("base{name}")))?;
     let factor = match op {
         None => 1.0,
         Some(("*", factor)) => factor.parse::<f64>().ok()?,
@@ -466,15 +719,8 @@ fn placeholder(inner: &str, values: &[(String, Shown)], lang: Lang) -> Option<(S
     } else {
         factor
     };
-    let (low, high) = (value.low * scale, value.high * scale);
-    if !low.is_finite() || !high.is_finite() {
-        return None;
-    }
-    let mut shown = number(low, lang);
-    if (high - low).abs() > 1e-6 {
-        shown = format!("{shown}–{}", number(high, lang));
-    }
-    Some((shown, value.percent))
+    let shown = value.times((scale, scale));
+    (shown.low.is_finite() && shown.high.is_finite()).then_some(shown)
 }
 
 /// `{{ key }}`: another string of the table, or the champion's ability.
@@ -488,7 +734,8 @@ fn expand_references(text: &str, nested: &Strings, lang: Lang) -> String {
         };
         let key = rest[open + 2..open + len].trim().to_ascii_lowercase();
         if key == "spellname" {
-            out.push_str(lang.ability());
+            let ability = lang.ability(&out);
+            out.push_str(&ability);
         } else if let Some(inner) = nested.get(&key) {
             out.push_str(inner);
         }
@@ -498,14 +745,36 @@ fn expand_references(text: &str, nested: &Strings, lang: Lang) -> String {
     out
 }
 
-/// The text after a value writes its own `%` (`@X*100@%`, French `@X@ %`).
-fn percent_follows(rest: &str) -> bool {
+/// The text after a value writes its own `%` (`@X*100@%`, French `@X@ %`): what comes after it.
+fn after_percent(rest: &str) -> Option<&str> {
     rest.trim_start_matches([' ', '\u{a0}', '\u{202f}'])
-        .starts_with('%')
+        .strip_prefix('%')
 }
 
-/// `@Value@`, `@Value*100@` from the definitions. A value only the game knows in play (it
-/// depends on the champion's stats) reads `…`, so the sentence still holds.
+/// The gold coin icon names the currency after its value: `%i:goldCoins% @Gold@` → `@Gold@ Gold`.
+fn gold_words(text: &str, lang: Lang) -> String {
+    const COINS: &str = "%i:goldCoins%";
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(at) = rest.find(COINS) {
+        out.push_str(&rest[..at]);
+        rest = rest[at + COINS.len()..].trim_start();
+        let value = rest
+            .strip_prefix('@')
+            .and_then(|r| r.find('@'))
+            .map_or(0, |end| end + 2);
+        out.push_str(&rest[..value]);
+        out.push(' ');
+        out.push_str(lang.gold());
+        rest = &rest[value..];
+    }
+    out.push_str(rest);
+    out
+}
+
+/// `@Value@`, `@Value*100@` from the definitions; a melee value with its ranged one. A value only
+/// the game knows in play (it depends on the champion's stats) reads "some", so the sentence
+/// still holds.
 fn fill_values(text: &str, values: &[(String, Shown)], lang: Lang) -> String {
     let mut out = String::with_capacity(text.len());
     let mut rest = text;
@@ -522,17 +791,26 @@ fn fill_values(text: &str, values: &[(String, Shown)], lang: Lang) -> String {
         }
         out.push_str(&rest[..open]);
         rest = &rest[open + len + 2..];
-        match placeholder(inner, values, lang) {
-            Some((value, percent)) => {
-                out.push_str(&value);
-                if percent && !percent_follows(rest) {
-                    out.push_str(match lang {
-                        Lang::En => "%",
-                        Lang::Fr => "\u{a0}%",
-                    });
-                }
-            }
-            None => out.push('…'),
+        let Some(value) = placeholder(inner, values) else {
+            // "some %" means nothing: the text's sign goes too.
+            out.push_str(lang.some());
+            rest = after_percent(rest).unwrap_or(rest);
+            continue;
+        };
+        // Both values of a melee and ranged pair take the sign the text writes after them.
+        let mut percent = value.percent;
+        if let (Some(_), Some(after)) = (value.ranged, after_percent(rest)) {
+            (rest, percent) = (after, true);
+        }
+        let sign = if percent && after_percent(rest).is_none() {
+            lang.percent()
+        } else {
+            ""
+        };
+        out.push_str(&range(value.low, value.high, lang));
+        out.push_str(sign);
+        if let Some((low, high)) = value.ranged {
+            out.push_str(&lang.ranged(&format!("{}{sign}", range(low, high, lang))));
         }
     }
     out.push_str(rest);
@@ -578,7 +856,7 @@ fn strip_markup(text: &str) -> String {
 }
 
 /// One space between words (no-break spaces kept: French puts one before `%`), none before a
-/// full stop or comma, one line break between paragraphs.
+/// full stop or comma, one line break between paragraphs (a stray full stop isn't one).
 fn tidy(text: &str) -> String {
     let lines: Vec<String> = text
         .lines()
@@ -586,7 +864,7 @@ fn tidy(text: &str) -> String {
             let words = line.split_ascii_whitespace().collect::<Vec<_>>().join(" ");
             words.replace(" .", ".").replace(" ,", ",")
         })
-        .filter(|line| !line.is_empty())
+        .filter(|line| line.chars().any(char::is_alphanumeric))
         .collect();
     lines.join("\n")
 }
@@ -594,7 +872,7 @@ fn tidy(text: &str) -> String {
 /// Plain text of a game string: references resolved (`{{ key }}` from `nested`, `@Value@` from
 /// `values`), what can't be resolved left out, markup dropped, `<br>` kept as a line break.
 fn describe(text: &str, values: &[(String, Shown)], nested: &Strings, lang: Lang) -> String {
-    let expanded = expand_references(text, nested, lang);
+    let expanded = gold_words(&expand_references(text, nested, lang), lang);
     tidy(&strip_markup(&fill_values(&expanded, values, lang)))
 }
 
@@ -717,6 +995,17 @@ pub fn assemble<R: Read>(inputs: Inputs<R>) -> Result<AugmentCatalog, StaticData
     let french: HashMap<u32, &str> = fr.iter().map(|a| (a.id, a.name.as_str())).collect();
     let described = Described::read(inputs.definitions, inputs.strings.as_ref(), &pool);
     let plain = |name: &str, lang| describe(name, &[], &HashMap::new(), lang);
+    // A generic icon (the game draws the champion's ability there in play): the same augment's
+    // Arena icon when it has one (`ARAM_BreadAndJam` is Arena's `BreadAndJam`).
+    let icon_of = |client: &ClientAugment| {
+        let own = icon_path(&client.augment_small_icon_path)?;
+        let arena = client
+            .augment_name_id
+            .strip_prefix("ARAM_")
+            .and_then(|name| icon_path(&by_name.get(name)?.augment_small_icon_path))
+            .filter(|icon| !icon.contains(GENERIC_ICON));
+        Some(arena.filter(|_| own.contains(GENERIC_ICON)).unwrap_or(own))
+    };
 
     let mut augments = BTreeMap::new();
     for path in &pool {
@@ -725,10 +1014,7 @@ pub fn assemble<R: Read>(inputs: Inputs<R>) -> Result<AugmentCatalog, StaticData
             tracing::debug!(name_id, "Mayhem augment missing from the client's list");
             continue;
         };
-        let (Some(rarity), Some(icon)) = (
-            rarity(&client.rarity),
-            icon_path(&client.augment_small_icon_path),
-        ) else {
+        let (Some(rarity), Some(icon)) = (rarity(&client.rarity), icon_of(client)) else {
             continue;
         };
         let name_en = plain(&client.name, Lang::En);
@@ -766,6 +1052,7 @@ pub fn assemble<R: Read>(inputs: Inputs<R>) -> Result<AugmentCatalog, StaticData
         version: inputs.version,
         patch,
         built_at: now_ms(),
+        revision: REVISION,
         augments: augments.into_values().collect(),
     })
 }
@@ -943,35 +1230,67 @@ mod tests {
             .collect()
     }
 
+    /// Every calculation of `json` (`{ name: calculation }`), read like the definitions read them.
+    fn computed(named: &[(String, Shown)], json: &str) -> Vec<(String, Shown)> {
+        let raw: serde_json::Map<String, serde_json::Value> = serde_json::from_str(json).unwrap();
+        let calcs: Vec<(String, &serde_json::Value)> = raw
+            .iter()
+            .map(|(n, c)| (n.to_ascii_lowercase(), c))
+            .collect();
+        let read = Calcs {
+            values: named,
+            calcs: &calcs,
+        };
+        let mut out = named.to_vec();
+        out.extend(
+            calcs
+                .iter()
+                .filter_map(|(n, c)| Some((n.clone(), read.calculation(c, 0)?))),
+        );
+        out
+    }
+
     #[test]
-    fn calculations_show_numbers_ranges_and_percentages() {
-        let named = values(&[("BaseCrit", 0.25)]);
-        let calc = |json: &str| calculation(&serde_json::from_str(json).unwrap(), &named);
-        let crit = calc(
-            r#"{"__type":"GameCalculation","mDisplayAsPercent":true,"mFormulaParts":[
-                {"__type":"NamedDataValueCalculationPart","mDataValue":"BaseCrit"},
-                {"__type":"StatByNamedDataValueCalculationPart","mDataValue":"Ratio"}]}"#,
-        )
-        .unwrap();
-        let ap = calc(
-            r#"{"__type":"GameCalculation","mFormulaParts":[
-                {"__type":"ByCharLevelInterpolationCalculationPart","mStartValue":20.0,"mEndValue":80.0}]}"#,
-        )
-        .unwrap();
-        let flat = calc(r#"{"__type":"GameCalculation","mFormulaParts":[{"__type":"NumberCalculationPart","mNumber":0.45}]}"#).unwrap();
-        let v = vec![
-            ("crit".to_owned(), crit),
-            ("ap".to_owned(), ap),
-            ("flat".to_owned(), flat),
-        ];
-        let none = HashMap::new();
-        assert_eq!(
-            describe(
-                "Gain @Crit@ Crit Chance and @AP@ Ability Power, @Flat*100@% more.",
-                &v,
-                &none,
-                Lang::En
+    fn calculations_show_numbers_ranges_percentages_and_ranged_values() {
+        let named = values(&[("BaseCrit", 0.25), ("Reward", 80.0), ("Ratio", 0.6)]);
+        let number = |n: f64| format!(r#"{{"__type":"NumberCalculationPart","mNumber":{n}}}"#);
+        let v = computed(
+            &named,
+            &format!(
+                r#"{{
+                "Crit": {{"__type":"GameCalculation","mDisplayAsPercent":true,"mFormulaParts":[
+                    {{"__type":"NamedDataValueCalculationPart","mDataValue":"BaseCrit"}},
+                    {{"__type":"StatByNamedDataValueCalculationPart","mDataValue":"Ratio"}}]}},
+                "AP": {{"__type":"GameCalculation","mFormulaParts":[
+                    {{"__type":"ByCharLevelInterpolationCalculationPart","mStartValue":20.0,"mEndValue":80.0}}]}},
+                "Flat": {{"__type":"GameCalculation","mFormulaParts":[{}]}},
+                "Range": {{"__type":"{{e9a3c91d}}","mFormulaParts":[{}],"mRangedMultiplier":{}}},
+                "Split": {{"__type":"{{e9a3c91d}}","mDisplayAsPercent":true,"mFormulaParts":[{{"__type":"NamedDataValueCalculationPart","mDataValue":"BaseCrit"}}],"mRangedMultiplier":{{"__type":"NamedDataValueCalculationPart","mDataValue":"Ratio"}}}},
+                "Max": {{"__type":"GameCalculation","mFormulaParts":[{}],"mMultiplier":{{"__type":"NamedDataValueCalculationPart","mDataValue":"Reward"}}}},
+                "{}": {{"__type":"GameCalculation","mDisplayAsPercent":true,"mFormulaParts":[{}]}},
+                "Armor": {{"__type":"GameCalculation","mFormulaParts":[{{"__type":"ByCharLevelBreakpointsCalculationPart","mLevel1Value":1,"mBreakpoints":[
+                    {{"__type":"Breakpoint","mLevel":7,"mAdditionalBonusAtThisLevel":1}},{{"__type":"Breakpoint","mLevel":11,"mAdditionalBonusAtThisLevel":1}}]}}]}},
+                "Blast": {{"__type":"GameCalculation","mFormulaParts":[{{"__type":"ByCharLevelBreakpointsCalculationPart","mLevel1Value":70,"mInitialBonusPerLevel":10}}]}},
+                "Product": {{"__type":"GameCalculation","mFormulaParts":[{{"__type":"ProductOfSubPartsCalculationPart","mPart1":{{"__type":"{{f3cbe7b2}}","mSpellCalculationKey":"Flat"}},"mPart2":{}}}]}},
+                "Twice": {{"__type":"GameCalculationModified","mModifiedGameCalculation":"Flat","mMultiplier":{}}},
+                "Reach": {{"__type":"GameCalculationConditional","mDefaultGameCalculation":"Flat","mConditionalGameCalculation":"Twice","mConditionalCalculationRequirements":{{"__type":"IsRangedCastRequirement"}}}},
+                "Stacks": {{"__type":"GameCalculation","mFormulaParts":[{{"__type":"StatByCoefficientCalculationPart","mStat":8,"mCoefficient":0.3}}]}},
+                "Odd": {{"__type":"GameCalculation","mFormulaParts":[{{"__type":"{{12345678}}","mNumber":1}}]}}
+            }}"#,
+                number(0.45),
+                number(150.0),
+                number(0.667),
+                number(2.0),
+                hashed("SpinDamageAmp_Ult"),
+                number(0.5),
+                number(4.0),
+                number(2.0),
             ),
+        );
+        let none = HashMap::new();
+        let en = |text: &str| describe(text, &v, &none, Lang::En);
+        assert_eq!(
+            en("Gain @Crit@ Crit Chance and @AP@ Ability Power, @Flat*100@% more."),
             "Gain 25% Crit Chance and 20–80 Ability Power, 45% more.",
             "a stat scaling leaves its base"
         );
@@ -985,21 +1304,24 @@ mod tests {
             "a text that writes its own % keeps one"
         );
         assert_eq!(
-            calc(
-                r#"{"__type":"{e9a3c91d}","mFormulaParts":[{"__type":"NumberCalculationPart","mNumber":75.0}]}"#
-            ),
-            None,
-            "a calculation of another kind (melee and ranged values) isn't guessed"
+            en("Gain @Range@ Attack Range, deal @Split@ more, or @Reach@."),
+            "Gain 150 (100 ranged) Attack Range, deal 25% (15% ranged) more, or 0.45 (0.9 ranged).",
+            "melee values with their ranged ones"
         );
         assert_eq!(
-            describe(
-                "Throw a boomerang every @Cooldown@s. Hits @Unknown@% harder.",
-                &v,
-                &none,
-                Lang::En
-            ),
-            "Throw a boomerang every …s. Hits …% harder.",
-            "a value only the game knows in play reads …"
+            describe("Portée @Range@, @Split@ %.", &v, &none, Lang::Fr),
+            "Portée 150 (100 à distance), 25\u{a0}% (15\u{a0}% à distance)."
+        );
+        assert_eq!(
+            en("Up to @Max@, @SpinDamageAmp_Ult@ for ultimates, @Armor@ Armor, @Blast@ damage."),
+            "Up to 160, 50% for ultimates, 1–3 Armor, 70–240 damage.",
+            "a multiplier, a hashed name, levels' breakpoints"
+        );
+        assert_eq!(en("@Product@ and @Twice@"), "1.8 and 0.9");
+        assert_eq!(
+            en("Throw every @Stacks@ s, @Odd@% more."),
+            "Throw every some s, some more.",
+            "what only the game knows in play (a stat, an unknown kind) reads some"
         );
     }
 
@@ -1033,7 +1355,13 @@ mod tests {
             "item_keyword_onhit".to_owned(),
             "<OnHit>On-Hit</OnHit>".to_owned(),
         )]);
-        let v = values(&[("Duration", 4.0), ("Shred", 0.3), ("Haste", 12.5)]);
+        let v = values(&[
+            ("Duration", 4.0),
+            ("Shred", 0.3),
+            ("Haste", 12.5),
+            ("BaseCooldown", 7.0),
+            ("Gold", 250.0),
+        ]);
         assert_eq!(
             describe(
                 "Gain <speed>@Duration@ s</speed> of @Shred*100@% <scaleArmor>shred</scaleArmor>.<br><br><rules>Once per @Cooldown@ seconds.</rules>",
@@ -1041,25 +1369,37 @@ mod tests {
                 &nested,
                 Lang::En
             ),
-            "Gain 4 s of 30% shred.\nOnce per … seconds.",
+            "Gain 4 s of 30% shred.\nOnce per 7 seconds.",
+            "a value missing by its name, found with Base in front"
         );
         assert_eq!(
             describe(
-                "Your {{SpellName}} gains @Haste@ Ability Haste %i:scaleAH%.",
+                "Your {{SpellName}} gains @Haste@ Ability Haste %i:scaleAH%. {{SpellName}} applies On-Hit, damage with {{ spellname }}.",
                 &v,
                 &nested,
                 Lang::En
             ),
-            "Your [Ability] gains 12.5 Ability Haste."
+            "Your ability gains 12.5 Ability Haste. Your ability applies On-Hit, damage with your ability.",
+            "the ability the game names in play"
         );
         assert_eq!(
             describe(
-                "Votre {{ SpellName }} gagne @Haste@ d'accélération.",
+                "Votre {{ SpellName }} gagne @Haste@ d'accélération.<br>{{SpellName}} applique, avec {{SpellName}}.",
                 &v,
                 &nested,
                 Lang::Fr
             ),
-            "Votre [Compétence] gagne 12,5 d'accélération."
+            "Votre compétence gagne 12,5 d'accélération.\nVotre compétence applique, avec votre compétence."
+        );
+        assert_eq!(
+            describe(
+                "Gain <gold>%i:goldCoins% @Gold@</gold>.<br>.<br>",
+                &v,
+                &nested,
+                Lang::En
+            ),
+            "Gain 250 Gold.",
+            "the coin icon's word; a stray full stop isn't a line"
         );
         assert_eq!(
             describe(
@@ -1072,13 +1412,17 @@ mod tests {
         );
         assert_eq!(
             describe(
-                "Unknown @Calc_Shield@% shield and @TotalShield@ more.",
+                "Consume @Calc_Mana@ Mana to deal @Calc_Damage@ damage.",
                 &v,
                 &nested,
                 Lang::En
             ),
-            "Unknown …% shield and … more.",
-            "values the game computes in play read …"
+            "Consume some Mana to deal some damage.",
+            "values the game computes in play read some"
+        );
+        assert_eq!(
+            describe("Lancez 1 + @Extra@ projectiles.", &v, &nested, Lang::Fr),
+            "Lancez 1 + quelques projectiles."
         );
         assert_eq!(
             describe("Email me@host or 2 @ 3", &v, &nested, Lang::En),
@@ -1100,13 +1444,16 @@ mod tests {
     #[test]
     fn values_divide_and_multiply() {
         let v = values(&[("Ratio", 0.125)]);
-        let shown = |inner: &str| placeholder(inner, &v, Lang::En).map(|(text, _)| text);
+        let shown = |inner: &str| placeholder(inner, &v).map(|s| number(s.low, Lang::En));
         assert_eq!(shown("Ratio*100").as_deref(), Some("12.5"));
         assert_eq!(shown("ratio/0.5").as_deref(), Some("0.25"));
-        assert_eq!(placeholder("Ratio/0", &v, Lang::En), None);
-        assert_eq!(placeholder("Missing", &v, Lang::En), None);
+        assert_eq!(placeholder("Ratio/0", &v), None);
+        assert_eq!(placeholder("Missing", &v), None);
         assert_eq!(number(3.0, Lang::Fr), "3");
         assert_eq!(number(0.333_33, Lang::Fr), "0,33");
+        assert_eq!(number(100.05, Lang::En), "100", "a ranged 150 × 0.667");
+        assert_eq!(number(39.975, Lang::En), "40");
+        assert_eq!(hashed("SpinDamageAmp_Ult"), "{90a024ae}", "the file's hash");
     }
 
     #[test]
@@ -1122,21 +1469,23 @@ mod tests {
     /// A made-up miniature of the game's files (no game text).
     fn inputs(described: bool) -> Inputs<Cursor<Vec<u8>>> {
         let lists = br#"[{"augmentList":["Maps/A/Glass"],"modeName":"CHERRY"},
-            {"augmentList":["Maps/A/Glass","Maps/A/Spark","Maps/A/Missing"],"modeName":"KIWI"}]"#;
+            {"augmentList":["Maps/A/Glass","Maps/A/Spark","Maps/A/Missing","Maps/A/ARAM_Bread"],"modeName":"KIWI"}]"#;
         let en = br#"[{"id":7,"augmentNameId":"Glass","nameTRA":"Glass Test","augmentSmallIconPath":"/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/Glass_small.png","rarity":"kGold"},
             {"id":3,"augmentNameId":"Spark","nameTRA":"Spark Test","augmentSmallIconPath":"/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/Spark_small.png","rarity":"kPrismatic"},
-            {"id":9,"augmentNameId":"ArenaOnly","nameTRA":"Arena","augmentSmallIconPath":"/lol-game-data/assets/x.png","rarity":"kSilver"}]"#;
+            {"id":9,"augmentNameId":"ArenaOnly","nameTRA":"Arena","augmentSmallIconPath":"/lol-game-data/assets/x.png","rarity":"kSilver"},
+            {"id":50,"augmentNameId":"Bread","nameTRA":"Bread Test","augmentSmallIconPath":"/lol-game-data/assets/ASSETS/UX/Cherry/Augments/Icons/Bread_small.png","rarity":"kGold"},
+            {"id":1050,"augmentNameId":"ARAM_Bread","nameTRA":"Bread Test","augmentSmallIconPath":"/lol-game-data/assets/ASSETS/UX/Kiwi/Augments/Icons/GenericAbilityAugmentIcon_Gold.png","rarity":"kGold"}]"#;
         let fr = br#"[{"id":7,"augmentNameId":"Glass","nameTRA":"Verre test","augmentSmallIconPath":"","rarity":"kGold"}]"#;
         let bin = br#"{
             "Maps/A/Glass": {"__type":"AugmentData","DescriptionTra":"Glass_Summary","RootSpell":"Maps/A/Glass/Root"},
             "Maps/A/Glass/Root": {"__type":"SpellObject","mSpell":{"DataValues":[{"name":"Duration","values":[0,3,3]}]}},
             "Maps/A/Glass/Other": {"__type":"SpellObject","mSpell":{"DataValues":[{"name":"Duration","values":[9,9]},{"mName":"Bonus","mValues":[0.2]}]}},
             "Maps/A/Glass/Particles/X": {"__type":"VfxSystemDefinitionData","mSpell":"not an object"},
-            "Maps/A/Spark": {"__type":"AugmentData","DescriptionTra":"Spark_Summary"}
+            "Maps/A/Spark": {"__type":"AugmentData","DescriptionTra":"Spark_Summary","{3ed971bd}":{"Quest":"Maps/Q/Spark","__type":"{e93de85a}"}},
+            "Maps/Q/Spark": {"QuestName":"Spark","Milestones":[{"{7fec0982}":18,"{03d6a5a2}":"x"},{"{7fec0982}":40}]}
         }"#;
-        let strings_en = br#"{"entries":{"glass_summary":"Last @Duration@ s, +@Bonus*100@% with {{ Keyword_Test }}.","keyword_test":"<b>focus</b>","spark_summary":"Sparks."}}"#;
-        let strings_fr =
-            br#"{"entries":{"glass_summary":"Dure @Duration@ s.","spark_summary":"Etincelles."}}"#;
+        let strings_en = br#"{"entries":{"glass_summary":"Last @Duration@ s, +@Bonus*100@% with {{ Keyword_Test }}.","keyword_test":"<b>focus</b>","spark_summary":"Sparks @QuestRequirement@ times."}}"#;
+        let strings_fr = br#"{"entries":{"glass_summary":"Dure @Duration@ s.","spark_summary":"Etincelles @QuestRequirement@ fois."}}"#;
         let table =
             |bytes: &'static [u8]| -> Box<dyn Fn() -> std::io::Result<Cursor<Vec<u8>>> + Send> {
                 Box::new(move || Ok(Cursor::new(bytes.to_vec())))
@@ -1158,11 +1507,16 @@ mod tests {
     fn assembles_the_pool_by_id_in_both_languages() {
         let catalog = assemble(inputs(true)).unwrap();
         assert_eq!(catalog.patch, "16.19");
+        assert_eq!(catalog.revision, REVISION);
         let ids: Vec<u32> = catalog.augments.iter().map(|a| a.id).collect();
         assert_eq!(
             ids,
-            [3, 7],
+            [3, 7, 1050],
             "the KIWI pool only, by id; unknown names skipped"
+        );
+        assert_eq!(
+            catalog.augments[2].icon, "assets/ux/cherry/augments/icons/bread_small.png",
+            "a generic ability icon: the same augment's Arena icon"
         );
         let glass = &catalog.augments[1];
         assert_eq!(glass.rarity, AugmentRarity::Gold);
@@ -1181,13 +1535,17 @@ mod tests {
             spark.name.fr, "Spark Test",
             "no French name: the English one"
         );
-        assert_eq!(spark.description.en, "Sparks.");
+        assert_eq!(
+            spark.description.en, "Sparks 18 times.",
+            "a quest's goal: its first milestone"
+        );
+        assert_eq!(spark.description.fr, "Etincelles 18 fois.");
     }
 
     #[test]
     fn without_the_large_files_the_names_still_come() {
         let catalog = assemble(inputs(false)).unwrap();
-        assert_eq!(catalog.augments.len(), 2);
+        assert_eq!(catalog.augments.len(), 3);
         assert!(catalog.augments.iter().all(|a| a.description.en.is_empty()));
         let mut broken = inputs(false);
         broken.lists = br#"[{"augmentList":[],"modeName":"CHERRY"}]"#.to_vec();
