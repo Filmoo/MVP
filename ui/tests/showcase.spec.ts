@@ -619,7 +619,9 @@ async function gameShot(
   // follows, the hint says what more would do. Needs a touch screen (`test.use({ hasTouch })`).
   const up = opts.part === "close";
   await toEdge(page, up ? "top" : "end");
-  // From an empty spot of the head, to one without hints (the items' heading, or the title bar).
+  // The mouse out of the way (no row under it, no tooltip); the finger from an empty spot of the
+  // head, to one without hints (the items' heading, or the title bar).
+  await page.mouse.move(0, 0);
   const box = await current(page).boundingBox();
   const title = await current(page).locator("h2").boundingBox();
   const x = (box?.x ?? 0) + (box?.width ?? 0) - 200;
