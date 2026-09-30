@@ -180,22 +180,23 @@ function PlayerLine(props: {
           {t().matchDetails.kp(percent(Math.min(1, (p().kills + p().assists) / Math.max(1, props.kills))))}
         </span>
       </span>
+      {/* A number, then its bar or its pace: the number a bare line of its column (one element less a cell). */}
       <span class={`${table.damage} ${styles.stat} num`} data-hint={t().matchDetails.damageTitle(integer(p().damageToChampions))}>
-        <span>{integer(p().damageToChampions)}</span>
+        {integer(p().damageToChampions)}
         <span class={styles.bar} aria-hidden="true">
           <span class={styles.fill} style={{ width: `${(p().damageToChampions / props.top) * 100}%` }} />
         </span>
       </span>
       <span class={`${table.gold} ${styles.stat} num`}>
-        <span>{integer(p().gold)}</span>
+        {integer(p().gold)}
         <span class={styles.sub}>{t().matches.perMinute(integer((p().gold * 60) / Math.max(60, props.seconds)))}</span>
       </span>
       <span class={`${table.cs} ${styles.stat} num`}>
-        <span>{p().creepScore}</span>
+        {p().creepScore}
         <span class={styles.sub}>{t().matches.perMinute(perMinute(p().creepScore, props.seconds))}</span>
       </span>
       <span class={`${table.vision} ${styles.stat} num`}>
-        <span>{p().visionScore}</span>
+        {p().visionScore}
         <span class={styles.sub}>{t().matches.perMinute(perMinute(p().visionScore, props.seconds))}</span>
       </span>
       <span class={`${table.items} ${styles.items}`}>
