@@ -2,9 +2,9 @@
  * An opened game's end-of-game stats (MatchStats.tsx), a tab of its window, on the window's glass
  * like the scoreboard. Nothing scrolls: the lines share the window's height (`cqh`: the window's
  * body, GameStack.module.css). A wide window has a row per stat and a column per player (`.rows`:
- * `--lines` from MatchStats.tsx, 28 px each at most); a narrow one turns it around (`.across`: a
- * row per player, a column per stat, as many as fit). Selectors run from the least specific to the
- * most, whatever they end on.
+ * `--lines` from MatchStats.tsx, 40 px each at most, the same columns in every tab); a narrow one
+ * turns it around (`.across`: a row per player, a column per stat, as many as fit). Selectors run
+ * from the least specific to the most, whatever they end on.
  */
 .stats {
   container: stats / inline-size;
@@ -28,7 +28,7 @@
 
 .rows th,
 .rows td {
-  height: clamp(18px, (100cqh - 48px) / var(--lines, 15), 28px);
+  height: clamp(18px, (100cqh - 56px) / var(--lines, 15), 40px);
 }
 
 .across th,
@@ -92,12 +92,17 @@
 
 /* The heads: each player's champion, on a bar in their team's colour (blue won, rose lost). */
 .rows thead > tr > * {
-  height: 40px;
+  height: 48px;
   vertical-align: middle;
 }
 
-/* Right-aligned over its numbers. */
+/* Right-aligned over its numbers; every tab the same columns (the labels a fifth of the width). */
 .rows thead th {
+  width: 8%;
+  text-align: right;
+}
+
+.across thead th {
   text-align: right;
 }
 
@@ -132,6 +137,10 @@
 
 .across .split > * {
   border-top: 1px solid var(--line-2);
+}
+
+.rows .corner {
+  width: 20%;
 }
 
 /* The page owner's column or row (you on Home): on a breath of the accent, its head marked. */
@@ -185,5 +194,23 @@
   .across th,
   .across td {
     padding: 0 var(--space-3);
+  }
+}
+
+/* A short window: the heads on one line; the shortest, smaller champions. */
+@container game-window (max-height: 449px) {
+  .across th,
+  .across td {
+    height: clamp(20px, (100cqh - 44px) / 10, 36px);
+  }
+  .across thead > tr > * {
+    height: 32px;
+  }
+}
+
+@container game-window (max-height: 359px) {
+  .across th img {
+    width: 20px;
+    height: 20px;
   }
 }

@@ -178,7 +178,10 @@
   }
 }
 
-/* A short window (MatchTable.module.css): a line of text a player, the portrait alone and smaller (its level on hover). */
+/*
+ * A short window (MatchTable.module.css): a line of text a player, the portrait alone (its level on
+ * hover) and smaller; the shortest, the grade's chip smaller too.
+ */
 @container game-window (max-height: 449px) {
   .sub,
   .bar,
@@ -189,6 +192,19 @@
   .portrait > img {
     width: 24px;
     height: 24px;
+  }
+}
+
+@container game-window (max-height: 359px) {
+  .portrait > img {
+    width: 20px;
+    height: 20px;
+  }
+  .grade [data-chip] {
+    width: 20px;
+    height: 20px;
+    border-radius: var(--radius-1);
+    font-size: var(--text-xs);
   }
 }
 

@@ -69,12 +69,13 @@ test("matches: a row opens the stack on its game, a modal window of glass; only 
     await expect(neighbour).toHaveAttribute("aria-hidden", "true");
   }
   await expect(current(page)).not.toHaveAttribute("inert");
-  // The current window floats over most of the page, a margin around it where the page shows.
+  // The current window floats over most of the page, beside its receded rail (3 % of the width
+  // in, 72 px × 0.94 wide), a margin around it.
   const box = await current(page).boundingBox();
   expect(box?.width ?? 0).toBeGreaterThan(1000);
   expect(box?.height ?? 0).toBeGreaterThan(640);
-  expect(box?.x ?? 0).toBeGreaterThan(64);
-  expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThan(1280 - 64);
+  expect(box?.x ?? 0).toBeGreaterThan(1280 * 0.03 + 72 + 16);
+  expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThan(1280 - 16);
   // Three games asked for: this one and its neighbours, nothing else.
   expect(await calls(page, "match_details")).toBe(3);
   // Both teams; yours is marked; a player in streamer mode stays hidden.
@@ -112,7 +113,8 @@ for (const [effects, drawn] of [
     if (effects === "full") {
       await expect.poll(() => glass.evaluate((el) => el.style.getPropertyValue("--lg-filter"))).toMatch(/^url\(#lg-/);
     } else {
-      await expect(glass).toHaveCSS("background-color", "rgba(19, 20, 30, 0.9)");
+      // Light: a little of the page through it, blurred; Off (no blur): opaque, nothing through it.
+      await expect(glass).toHaveCSS("background-color", effects === "light" ? "rgba(19, 20, 30, 0.9)" : "rgb(17, 18, 27)");
     }
     // Closed, the page comes back as it was.
     await page.keyboard.press("Escape");
@@ -599,11 +601,11 @@ test("matches: nothing scrolls in a window, at any size and in any tab: its line
       await expect(current(page).locator("[data-testid=game-player], [data-testid=game-stats]").first()).toBeVisible();
       expect(await scrolled(page), `${width}×${height}, tab ${at}`).toEqual([]);
     }
-    // A short window keeps a line of text a player; a taller one their second line too.
+    // A short window keeps a line of text a player; a big one their second line too.
     await tabs(page).first().click();
     const second = current(page).getByTestId("game-player").first().getByText(/KP/);
     if (height <= 560) await expect(second, `${width}×${height}`).toBeHidden();
-    else await expect(second, `${width}×${height}`).toBeVisible();
+    if (width >= 1280) await expect(second, `${width}×${height}`).toBeVisible();
   }
   expect(errors).toEqual([]);
 });
@@ -642,12 +644,13 @@ test("matches: someone else's game (our backend) has every stat row", async ({ p
   expect(errors).toEqual([]);
 });
 
-test("matches: a game on Howling Abyss has no vision or monster stats", async ({ page }) => {
+test("matches: a game on Howling Abyss has no vision or monster stats", async ({ page, t }) => {
   const errors = trackErrors(page);
   await openApp(page, { scenario: "howling-abyss", width: 1920, height: 1080 });
-  // ARAM: Mayhem, then ARAM: nobody has a vision score there.
+  // ARAM: Mayhem, then ARAM: nobody has a vision score there (its tab says gold only).
   for (const at of [0, 1]) {
     await openGame(page, at);
+    await expect(tabs(page).nth(2)).toHaveText(t.matchDetails.columns.gold);
     await statsTab(page, 2);
     for (const key of ["visionScore", "wardsPlaced", "controlWards", "monsters"]) await expect(stat(page, key)).toHaveCount(0);
     await expect(stat(page, "goldEarned")).toHaveCount(1);

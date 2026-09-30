@@ -94,4 +94,5 @@
   --blur-glass: none;
   /* Without blur, floating panels stay opaque so what's behind never competes with them. */
   --bg-float: var(--bg-2);
+  --bg-sheet-flat: var(--bg-1);
 }

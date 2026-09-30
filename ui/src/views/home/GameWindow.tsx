@@ -30,7 +30,7 @@ import { Widget } from "../../widgets/Widget";
 import styles from "./GameStack.module.css";
 import { GradeChip } from "./GradeChip";
 import { factorWords, MatchTable, markedIn, type OpenPlayer } from "./MatchDetails";
-import { MatchStats, STAT_TABS, type StatTab, statRows } from "./MatchStats";
+import { MatchStats, STAT_TABS, type StatTab, statRows, tabName } from "./MatchStats";
 
 /** A window's tabs: its scoreboard, then its end-of-game stats. */
 export type Tab = "scoreboard" | StatTab;
@@ -219,7 +219,7 @@ export function GameWindow(props: WindowProps): JSX.Element {
               size="sm"
               class={styles.tabs}
               label={t().matchDetails.tabs.label}
-              options={tabs().map((tab) => ({ value: tab, label: t().matchDetails.tabs[tab] }))}
+              options={tabs().map((tab) => ({ value: tab, label: tabName(tab, m().queueId) }))}
               value={shown()}
               onChange={props.onTab}
               testId="game-tabs"

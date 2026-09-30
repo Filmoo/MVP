@@ -85,6 +85,10 @@ export const STAT_TABS = {
 } as const satisfies Record<string, readonly Group[]>;
 export type StatTab = keyof typeof STAT_TABS;
 
+/** A window tab's name: on Howling Abyss (no vision there) "Vision & gold" is only gold. */
+export const tabName = (tab: StatTab | "scoreboard", queueId: number): string =>
+  tab === "vision" && onHowlingAbyss(queueId) ? t().matchDetails.columns.gold : t().matchDetails.tabs[tab];
+
 interface Row {
   key: keyof Words["rows"];
   kind: Kind | undefined;
@@ -170,7 +174,7 @@ export function MatchStats(props: {
   /** A player: their champion, on their team's colour, and who they are (its name, and its card on hover). */
   const player = (c: Column, scope: "col" | "row", cls = "") => (
     <th scope={scope} class={`${cls} ${c.win ? styles.win : styles.loss}`} aria-label={name(c.player)} data-hint={name(c.player)}>
-      <ChampionIcon championId={c.player.championId} size={24} />
+      <ChampionIcon championId={c.player.championId} size={scope === "col" ? 32 : 24} />
     </th>
   );
   return (
@@ -180,7 +184,7 @@ export function MatchStats(props: {
         fallback={
           <table
             class={`${styles.table} ${styles.rows} num`}
-            aria-label={t().matchDetails.tabs[props.tab]}
+            aria-label={tabName(props.tab, props.game.queueId)}
             // Its lines share the window's height (MatchStats.module.css).
             style={{ "--lines": String(groups().reduce((n, g) => n + 1 + g.rows.length, 0)) }}
             data-testid="game-stats"
@@ -215,7 +219,7 @@ export function MatchStats(props: {
           </table>
         }
       >
-        <table class={`${styles.table} ${styles.across} num`} aria-label={t().matchDetails.tabs[props.tab]} data-testid="game-stats">
+        <table class={`${styles.table} ${styles.across} num`} aria-label={tabName(props.tab, props.game.queueId)} data-testid="game-stats">
           <thead>
             <tr>
               <td class={styles.corner} />

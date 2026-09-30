@@ -22,10 +22,32 @@
   overflow: hidden;
 }
 
+/*
+ * The cell in the middle of the room the receded page leaves beside its rail and under its title
+ * bar (3vw and 3vh: where the page's edges went), so neither is covered: they say where you are.
+ */
 .stack[open] {
   display: grid;
   grid-template: minmax(0, 1fr) / minmax(0, 1fr);
   place-items: center;
+}
+
+@media (min-width: 560px) {
+  .stack[open] {
+    grid-template-columns: calc(3vw + var(--sidebar-w)) minmax(0, 1fr);
+  }
+  .cell {
+    grid-column: 2;
+  }
+}
+
+@media (min-height: 640px) {
+  .stack[open] {
+    grid-template-rows: calc(3vh + var(--titlebar-h)) minmax(0, 1fr);
+  }
+  .cell {
+    grid-row: 2;
+  }
 }
 
 /* The page dims itself (below): nothing between it and the stack. */
@@ -38,7 +60,8 @@
  * you were on (every effects level). One transition, both ways; reduced motion: at once
  * (base.css). The dialog lives in the top layer: the page's scale and opacity never reach it.
  */
-:global([data-ambient-host]) {
+:global([data-ambient-host]),
+:global([data-ambient-host] > :is(header, nav)) {
   transition:
     scale var(--dur-glide) var(--ease-glide),
     opacity var(--dur-glide) var(--ease-glide);
@@ -47,6 +70,19 @@
 :global([data-ambient-host]):has(.stack[open]:not([data-closing])) {
   scale: 0.94;
   opacity: 0.55;
+}
+
+/* Where the stack must cover the title bar (a short window) or the tab bar (a narrow one): gone. */
+@media (max-height: 639px) {
+  :global([data-ambient-host]):has(.stack[open]:not([data-closing])) > :global(header) {
+    opacity: 0;
+  }
+}
+
+@media (max-width: 559px) {
+  :global([data-ambient-host]):has(.stack[open]:not([data-closing])) > :global(nav) {
+    opacity: 0;
+  }
 }
 
 /*
@@ -61,8 +97,8 @@
   --peek: var(--space-8);
   --room: 680px;
   position: relative;
-  width: min(100% - 2 * clamp(var(--space-5), 10vw - var(--space-8), 120px), var(--content-max));
-  height: min(100% - 2 * clamp(var(--space-4), 4vh, var(--space-11)), var(--room) + 2 * var(--peek));
+  width: min(100% - 2 * clamp(var(--space-5), 5vw - var(--space-9), 120px), var(--content-max));
+  height: min(100% - 2 * clamp(var(--space-4), 2vh, var(--space-8)), var(--room) + 2 * var(--peek));
   overflow-x: visible;
   overflow-y: clip;
   animation: rise var(--dur-spring) var(--ease-spring);
@@ -129,8 +165,8 @@
 /*
  * Liquid glass over the page (design/liquid, "sheet"): the page bent at the rim, frosted and
  * tinted in the middle (`--bg-sheet`), where its lights still come through, faintly, under the
- * tables. Without it (Light, Off) a solid layer (`--bg-sheet-flat`) with a clear edge: its rim
- * all around, not only where the light catches it.
+ * tables. Without it (Light, Off) a solid layer (`--bg-sheet-flat`, opaque in Off) with a clear
+ * edge: its rim all around, not only where the light catches it, and the app's top-lit sheen.
  */
 .glass {
   --lg-tint: var(--bg-sheet);
@@ -139,6 +175,7 @@
   z-index: -1;
   border-radius: inherit;
   background: var(--lg-fill, var(--bg-sheet-flat));
+  background-image: var(--sheen, none);
   backdrop-filter: var(--lg-filter, var(--blur-glass));
   pointer-events: none;
   animation: appear var(--dur-2) var(--ease);
@@ -146,6 +183,7 @@
 
 :global(:root:not([data-effects="shader"])) .window {
   --line-rim-far: var(--line-specular);
+  --sheen: linear-gradient(180deg, var(--bg-sheen), transparent 25%);
 }
 
 /* Over a neighbour's glass (after it: the same layer, painted later), lifted as it arrives. */
@@ -170,7 +208,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-5);
-  padding: var(--space-6) var(--space-6) var(--space-5) var(--space-7);
+  padding: var(--space-6) var(--space-7) var(--space-5);
   animation: appear var(--dur-2) var(--ease);
 }
 
@@ -308,9 +346,9 @@
 .bar {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
+  align-items: baseline;
   gap: var(--space-4) var(--space-6);
-  padding: 0 var(--space-6) var(--space-5) var(--space-7);
+  padding: 0 var(--space-7) var(--space-5);
   animation: appear var(--dur-2) var(--ease);
 }
 
@@ -613,7 +651,7 @@
   }
 }
 
-/* Short windows: thinner bands, a tighter head; the grade without what moved it (its why is a hover away). */
+/* Short windows: thinner bands, a tighter head; the grade without what moved it (a hover away). */
 @media (max-height: 719px) {
   .cell {
     --peek: var(--space-7);
@@ -638,9 +676,6 @@
 
 /* Narrow windows: a smaller radius, a tighter head. */
 @media (max-width: 559px) {
-  .cell {
-    --gap: var(--space-4);
-  }
   .window {
     border-radius: var(--radius-4);
   }

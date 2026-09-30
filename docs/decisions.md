@@ -421,4 +421,5 @@ be slightly refracting lights from the background, although very dim." Calls:
 - **Glass that lets the page through**: the `sheet` kind frosts its middle 10 px (was 16) and
   saturates it 1.25, under a 75 % tint (`--bg-sheet`, was the panels' 80 %): the page's lights and
   shapes show faintly through the whole window. A test measures every text of the window against
-  the ground actually drawn under it (≥ 4.5:1 in Full, Light and Off; text-3 over the glass: 4.8).
+  the ground actually drawn under it (≥ 4.5:1 in Full, Light and Off; the muted text over the
+  glass: 4.7 at worst).

@@ -684,6 +684,16 @@ for (const lang of ["en", "fr"] as const) {
         await gameShot(page, `${prefix}home-game-smallest-${tab}`, { width: 400, height: 560, row: 2, effects: "full", tab });
       });
     }
+    // Between the widths above (the rail beside the stack, the stats turned around), and Off.
+    test(`${prefix}home game full 1024x768`, async ({ page }) => {
+      await gameShot(page, `${prefix}home-game-full`, { width: 1024, height: 768, row: 2, effects: "full" });
+    });
+    test(`${prefix}home game combat 1024x768`, async ({ page }) => {
+      await gameShot(page, `${prefix}home-game-combat`, { width: 1024, height: 768, row: 2, effects: "full", tab: 3 });
+    });
+    test(`${prefix}home game off 1280x800`, async ({ page }) => {
+      await gameShot(page, `${prefix}home-game-off`, { width: 1280, height: 800, row: 2, effects: "off" });
+    });
     test.describe("held by a finger", () => {
       test.use({ hasTouch: true });
       test(`${prefix}home game pulled to close 1280x800`, async ({ page }) => {

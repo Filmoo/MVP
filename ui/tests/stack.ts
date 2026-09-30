@@ -44,14 +44,22 @@ export async function aim(page: Page): Promise<void> {
   await page.waitForTimeout(Math.max(GESTURE_GAP_MS, SETTLE_MS) + 50);
 }
 
-/** Wheel notches over the current window, sent back to back: one gesture (a busy machine spaced awaited ones out). */
+/**
+ * Wheel notches over the middle of the current window, back to back: one gesture, whatever the
+ * machine's load (made in the page, all at once: a busy browser handing input over late would
+ * spread notches sent from outside into gestures of their own).
+ */
 export async function notches(page: Page, count: number, dy: number): Promise<void> {
   const at = await middle(page);
-  const cdp = await page.context().newCDPSession(page);
-  await Promise.all(
-    Array.from({ length: count }, () => cdp.send("Input.dispatchMouseEvent", { type: "mouseWheel", ...at, deltaX: 0, deltaY: dy })),
+  await page.evaluate(
+    ({ x, y, count, dy }) => {
+      const target = document.elementFromPoint(x, y);
+      for (let i = 0; i < count; i++) {
+        target?.dispatchEvent(new WheelEvent("wheel", { deltaY: dy, clientX: x, clientY: y, bubbles: true, cancelable: true }));
+      }
+    },
+    { ...at, count, dy },
   );
-  await cdp.detach();
 }
 
 /** How the stack is pulled right now (`null`: it isn't), and what the hint says. */

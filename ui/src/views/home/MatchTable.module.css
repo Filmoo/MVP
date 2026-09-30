@@ -33,7 +33,7 @@
 .head,
 .player {
   display: grid;
-  grid-template-columns: var(--champ) minmax(0, 1.2fr) 112px minmax(140px, 1fr) 64px 64px 48px 156px 56px;
+  grid-template-columns: var(--champ) minmax(0, 260px) 112px minmax(140px, 1fr) 64px 64px 48px 156px 56px;
   column-gap: var(--space-7);
   align-items: center;
   padding: 0 var(--space-4);
@@ -106,7 +106,7 @@
 
 .noVision .head,
 .noVision .player {
-  grid-template-columns: var(--champ) minmax(0, 1.2fr) 112px minmax(140px, 1fr) 64px 64px 156px 56px;
+  grid-template-columns: var(--champ) minmax(0, 260px) 112px minmax(140px, 1fr) 64px 64px 156px 56px;
 }
 
 /* Narrower: no gold and vision. */
