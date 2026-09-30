@@ -347,7 +347,9 @@ Every finished game in a match history gets a grade, and a match row opens on th
   (momentum) add nothing, merged notches (200 then 100) count. A gesture that moved the stack is
   spent: the rest of it is swallowed (`preventDefault`; a pull takes its events from its first
   one on, as Chromium lets the rest of a wheel sequence be cancelled only when its first event
-  was), so the game it brought arrives at its top. Going up, a game arrives at its end (the stack
+  was), and the wheel rests `SETTLE_MS` (400 ms) while the stack glides, pause or not (a page busy
+  drawing hands a spin's last notches over late), so the game it brought arrives at its top and
+  stays there. Going up, a game arrives at its end (the stack
   reads like one long page); the keyboard goes on in it. Past the last game loaded a pull (or ↓ at
   its end) loads the history's next page (the list's "load more", Home only) and moves on to it
   once it is in; "Loading older games…" (or the failure: pull again) shows meanwhile; at the

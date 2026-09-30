@@ -24,6 +24,12 @@ export const TOUCH_MOVE = 100;
 export const TOUCH_CLOSE = 140;
 /** A pause this long between two wheel events starts a new gesture. */
 export const GESTURE_GAP_MS = 200;
+/**
+ * After a move the wheel rests this long, pause or not, while the stack glides: a spin never
+ * carries on into the game it brought, even when the page, busy drawing, hands its last notches
+ * over late.
+ */
+export const SETTLE_MS = 400;
 /** No wheel event for this long: the pull springs back (notch after notch still adds up). */
 export const RELEASE_MS = 500;
 
@@ -73,7 +79,7 @@ export interface WheelPull {
   wheel(time: number, dy: number, edges: Edges): number | null;
   /** Lets go: the pull springs back (the gesture may pull again). */
   release(): void;
-  /** The pull did what it pulled for (moved, loaded): the rest of its gesture is swallowed. */
+  /** The pull did what it pulled for (moved, loaded): the rest of its gesture is swallowed, and the wheel rests `SETTLE_MS`. */
   spend(): void;
 }
 
@@ -84,11 +90,13 @@ export function wheelPull(): WheelPull {
   let shrinking = 0;
   let moved = false;
   let spent = false;
+  /** When the gesture was spent. */
+  let spentAt = Number.NEGATIVE_INFINITY;
   let distance = 0;
   return {
     wheel(time, dy, { atTop, atEnd }) {
       if (dy === 0) return spent ? null : distance;
-      if (time - last > GESTURE_GAP_MS) {
+      if (time - last > GESTURE_GAP_MS && time - spentAt > SETTLE_MS) {
         moved = false;
         spent = false;
         previous = 0;
@@ -115,6 +123,7 @@ export function wheelPull(): WheelPull {
     spend() {
       distance = 0;
       spent = true;
+      spentAt = last;
     },
   };
 }

@@ -4,6 +4,7 @@ import {
   GESTURE_GAP_MS,
   keyStep,
   rubber,
+  SETTLE_MS,
   TOUCH_CLOSE,
   TOUCH_MOVE,
   threshold,
@@ -107,9 +108,20 @@ describe("the stack: the wheel past a game's edge", () => {
     expect(pull.wheel(40, 100, TOP)).toBeNull();
     expect(feed(pull, 56, [80, 60, 40, 20], MIDDLE)).toBeNull();
     expect(pull.wheel(200, 0, MIDDLE)).toBeNull();
-    // After a pause: a new gesture (the new game at its top scrolls; at an edge, it pulls).
-    expect(pull.wheel(200 + GESTURE_GAP_MS + 1, 100, MIDDLE)).toBe(0);
-    expect(pull.wheel(400 + 2 * GESTURE_GAP_MS, 100, END)).toBe(100);
+    // After a pause, once the stack has glided: a new gesture (the new game at its top scrolls;
+    // at an edge, it pulls).
+    const later = 16 + SETTLE_MS + 1;
+    expect(pull.wheel(later, 100, MIDDLE)).toBe(0);
+    expect(pull.wheel(later + GESTURE_GAP_MS + 1, 100, END)).toBe(100);
+  });
+
+  it("while the stack glides the wheel rests, even across a pause (a busy page hands notches over late)", () => {
+    const pull = wheelPull();
+    feed(pull, 0, [100, 100]);
+    pull.spend();
+    // The same spin's last notches, handed over 280 ms later: still swallowed.
+    expect(pull.wheel(16 + 280, 200, MIDDLE)).toBeNull();
+    expect(pull.wheel(16 + SETTLE_MS - 1, 100, END)).toBeNull();
   });
 
   it("ignores events without a vertical part", () => {
