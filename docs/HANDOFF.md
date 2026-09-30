@@ -57,7 +57,11 @@ session hit the usage limit five times.
   Augments"), the champion page under the same tabs row, tier medallions, the penguin, the
   no-stats notice in the header; both design reviews fixed. Merged with `release/0.3` (the game
   windows included); the budget went to 153 KB of JS in total for it (the owner's call):
-  152.4 / 153 KB, startup 40.6 / 46 KB. `check.mjs full` green through the runner.
+  152.4 / 153 KB, startup 40.6 / 46 KB (and `mayhem-champion` 264 DOM nodes: Mayhem's spark on
+  augments without art). `check.mjs full` green through the runner, 2026-09-30 (timing-only
+  failures under load, each green alone). Seen once in a gate, not the hub's: `stats::grade`'s
+  proptest `the_order_of_players_changes_nothing` shrank to a lobby of roleless players (five
+  all-zero losers) whose scores change with their order; rerun green (random seeds), still to fix.
 - `feature/game-windows` (2026-09-30; merged into `release/0.3` at 66f61d0): opened games as a
   stack of windows you scroll between, the game that just ended opening by itself instead of
   Home's card, a DPM-like scoreboard with "Scoreboard | Details" (decisions.md "Opened games are
