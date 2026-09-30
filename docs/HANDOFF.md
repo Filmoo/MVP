@@ -58,8 +58,8 @@ session hit the usage limit five times.
   game that just ended opening by itself instead of Home's card, a DPM-like scoreboard with
   "Scoreboard | Details" (decisions.md "Opened games are a stack of windows"). It carries the
   sheet's branch (`worktree-agent-a81fa7b74de5da1fc`, merged into it) and `release/0.3`. Over the
-  JS budget: 140.3 / 136 KB in all (the sheet merged onto main was 139.3 already, the stack
-  +1.1), startup 41.0 / 46 KB: raise the budget in its own commit, or trim.
+  JS budget: 140.8 / 136 KB in all (the sheet merged onto main was 139.3 already, the stack
+  +1.5), startup 41.0 / 46 KB: raise the budget in its own commit, or trim.
 - `worktree-agent-af4bb73c493248211`: one more commit (50eae94, the roadmap's design review) to
   merge; keep main's `FeatureSheet.tsx`, `playwright.config.ts` and `roadmap.spec.ts` (b4ef9a8).
 
@@ -344,7 +344,7 @@ Everything below is merged on `release/0.3` and green on
      weighed 1.5 KB more) and their words cost +4.4 KB: 130.5 / 131 KB total (main 126.1 before
      it), 0.5 KB left; startup unchanged (40.6 / 46 KB). *(2026-09-30)* Merged onto main (with
      ARAM: Mayhem) the sheet made 139.3 KB in all, over the 136 KB budget; the stack of windows
-     adds 1.1 KB: 140.3 / 136 KB, startup 41.0 / 46 KB (the owner's call).
+     adds 1.5 KB: 140.8 / 136 KB, startup 41.0 / 46 KB (the owner's call).
 
 9. *(built, against mock-lcu and synthetic stats only)* **Draft insights** (architecture.md "Stats
    pipeline" and "Stats in the app"): the crawler keeps each game's length and every player's

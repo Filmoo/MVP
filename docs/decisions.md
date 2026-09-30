@@ -390,5 +390,5 @@ post-game scoreboard shared as inspiration, not to copy.) Calls:
   on most screens, and the view chosen stays from game to game; a window 1000 px tall or more (the
   review found a QHD window half empty) shows both, the stats under the scoreboard.
 - **Budget, over**: the sheet merged onto main (with ARAM: Mayhem) was already 139.3 KB of JS in
-  all, over the 136 KB budget; the stack adds 1.1 KB (140.3 KB; startup 41.0 of 46 KB). Not raised:
+  all, over the 136 KB budget; the stack adds 1.5 KB (140.8 KB; startup 41.0 of 46 KB). Not raised:
   the owner's call (raise it in its own commit, or trim elsewhere).
