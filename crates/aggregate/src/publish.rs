@@ -559,6 +559,15 @@ pub fn grade(score: f64) -> TierGrade {
 
 fn tier_list(s: &SliceStats, model: &Model<'_>, info: &DataSetInfo, opts: &Options) -> TierList {
     let matches = f64::from(s.games.max(1));
+    // Every game of each champion, in any role (those too rare to be listed included): the
+    // share of a listed role is out of all of them.
+    let mut games_of: BTreeMap<u16, u32> = BTreeMap::new();
+    for (&(c, role), r) in &s.champions {
+        if role.is_some() {
+            let total = games_of.entry(c).or_default();
+            *total = total.saturating_add(r.games);
+        }
+    }
     let mut entries: Vec<TierEntry> = s
         .champions
         .iter()
@@ -577,6 +586,10 @@ fn tier_list(s: &SliceStats, model: &Model<'_>, info: &DataSetInfo, opts: &Optio
                 win_rate: round(wr, 4),
                 pick_rate: round(f64::from(r.games) / matches, 4),
                 ban_rate: round(f64::from(s.bans.get(&c).copied().unwrap_or(0)) / matches, 4),
+                share: role
+                    .and(games_of.get(&c))
+                    .filter(|&&total| total > 0)
+                    .map(|&total| round(f64::from(r.games) / f64::from(total), 4)),
             }
         })
         .collect();
@@ -713,5 +726,47 @@ mod tests {
         assert_eq!(grade(2.5), TierGrade::S);
         assert_eq!(grade(0.0), TierGrade::B);
         assert_eq!(grade(-3.0), TierGrade::D);
+    }
+
+    #[test]
+    fn a_role_share_counts_every_game_of_the_champion() {
+        let rec = |games, wins| Rec { games, wins };
+        let mut s = SliceStats {
+            games: 1_000,
+            ..SliceStats::default()
+        };
+        // Top 900 games (listed), jungle 100 (listed), mid 40: too few to be listed, yet its
+        // games are the champion's too.
+        s.champions.insert((1, Some(Lane::Top)), rec(900, 470));
+        s.champions.insert((1, Some(Lane::Jungle)), rec(100, 50));
+        s.champions.insert((1, Some(Lane::Middle)), rec(40, 20));
+        let info = DataSetInfo {
+            schema: 1,
+            patch: "16.19".to_owned(),
+            queue: 420,
+            bracket: Bracket::EmeraldPlus,
+            games: 1_000,
+            updated_at: 1,
+        };
+        let opts = Options::default();
+        let list = tier_list(&s, &Model::new(&s, opts.base_prior_games), &info, &opts);
+        let share = |role| {
+            list.entries
+                .iter()
+                .find(|e| e.role == Some(role))
+                .and_then(|e| e.share)
+        };
+        assert_eq!(list.entries.len(), 2);
+        assert_eq!(share(domain::Role::Top), Some(round(900.0 / 1_040.0, 4)));
+        assert_eq!(share(domain::Role::Jungle), Some(round(100.0 / 1_040.0, 4)));
+
+        // ARAM has no roles: no share.
+        let mut aram = SliceStats {
+            games: 1_000,
+            ..SliceStats::default()
+        };
+        aram.champions.insert((1, None), rec(500, 250));
+        let list = tier_list(&aram, &Model::new(&aram, 1_000.0), &info, &opts);
+        assert_eq!(list.entries.first().and_then(|e| e.share), None);
     }
 }

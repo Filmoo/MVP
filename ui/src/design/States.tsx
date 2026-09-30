@@ -13,12 +13,27 @@ function Title(props: { heading?: boolean | undefined; children: string }): JSX.
   );
 }
 
-export function EmptyState(props: { icon: IconName; title: string; text?: string; action?: JSX.Element; heading?: boolean }): JSX.Element {
+export function EmptyState(props: {
+  icon: IconName;
+  title: string;
+  text?: string;
+  action?: JSX.Element;
+  heading?: boolean;
+  /** A drawing instead of the icon (the penguin, where waiting or emptiness can be friendly). */
+  art?: JSX.Element;
+}): JSX.Element {
   return (
     <div class={styles.state} data-state="empty">
-      <div class={styles.icon}>
-        <Icon name={props.icon} size={24} />
-      </div>
+      <Show
+        when={props.art}
+        fallback={
+          <div class={styles.icon}>
+            <Icon name={props.icon} size={24} />
+          </div>
+        }
+      >
+        <div class={styles.art}>{props.art}</div>
+      </Show>
       <Title heading={props.heading}>{props.title}</Title>
       <Show when={props.text}>
         <p class={styles.text}>{props.text}</p>

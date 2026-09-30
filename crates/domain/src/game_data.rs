@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::Tier;
+use crate::{Role, Tier};
 
 /// Static game data for one patch (names and asset ids), from Riot's Data Dragon.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
@@ -158,6 +158,25 @@ pub struct RankEmblems {
 pub struct RankEmblem {
     pub tier: Tier,
     /// `data:image/png;base64,…`
+    pub url: String,
+}
+
+/// League's position icons as the core has them (`position_icons`, `position-icons` event): each
+/// role's icon from the League client, as a data URL the UI tints. Roles not downloaded yet are
+/// missing: the UI draws its own icons for them.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct PositionIcons {
+    pub icons: Vec<PositionIcon>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct PositionIcon {
+    pub role: Role,
+    /// `data:image/svg+xml;base64,…`
     pub url: String,
 }
 

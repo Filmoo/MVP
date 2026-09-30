@@ -198,10 +198,10 @@ test("hints: the client's status and the rail's pages say what they are, on hove
   await page.mouse.move(640, 700);
   await expect(hint(page)).toHaveCount(0);
 
-  const champions = page.locator("nav a[href='#/champions']");
-  pane = await hoverTip(page, champions, "hint");
-  await expect(pane).toContainText(t.nav.champions.label);
-  await expect(pane).toContainText(t.tip.nav.champions);
+  const draft = page.locator("nav a[href='#/draft']");
+  pane = await hoverTip(page, draft, "hint");
+  await expect(pane).toContainText(t.nav.draft.label);
+  await expect(pane).toContainText(t.tip.nav.draft);
 
   // From the keyboard, the next page of the rail explains itself as the focus lands on it.
   await page.mouse.move(640, 700);
@@ -249,7 +249,7 @@ test("hints: an import button that can't be used says why", async ({ page, t }) 
 });
 
 test("hints: the tier list's columns and icon-only choices explain themselves", async ({ page, t }) => {
-  await openApp(page, { view: "/tier-list" });
+  await openApp(page, { view: "/tier-list?view=table" });
   // A column: its name and what it counts, also when its sort button has the focus.
   const winRate = page.locator("th", { hasText: t.tierList.columns.winRate });
   const pane = await hoverTip(page, winRate, "hint");
@@ -274,6 +274,7 @@ test("no view uses a native title tooltip", async ({ page }) => {
     ["/champions?id=103", "default"],
     ["/champions", "default"],
     ["/tier-list", "default"],
+    ["/tier-list?view=table", "default"],
     ["/settings", "default"],
     ["/player/euw1/Blade%20Dancer/IRE", "default"],
     ["/mayhem", "default"],

@@ -9,9 +9,12 @@ import type { MatchupEntry } from "../data/generated/MatchupEntry";
 import type { Role } from "../data/generated/Role";
 import type { StatsIndex } from "../data/generated/StatsIndex";
 import type { TierEntry } from "../data/generated/TierEntry";
+import type { TierGrade } from "../data/generated/TierGrade";
+import type { TierList } from "../data/generated/TierList";
 import type { SegmentedOption } from "../design/Segmented";
 import { t } from "../i18n";
-import { ROLE_ICON, ROLES, roleLabel } from "./roles";
+import { matchScore } from "./fuzzy";
+import { ROLES } from "./roles";
 import { ARAM, type Queue, RANKED, type RoleFilter } from "./stats-filters";
 
 /** A stats queue's name: `Ranked Solo`, `ARAM`. */
@@ -34,17 +37,8 @@ export function bracketName(label: string): string {
 /** `Ranked Solo · Emerald+`: which data a number comes from. */
 export const scopeLabel = (queue: Queue, bracket: Bracket): string => `${queueLabel(queue)} · ${bracketLabel(bracket)}`;
 
-export const queueOptions = (): SegmentedOption<Queue>[] => [
-  { value: 420, label: queueLabel(420) },
-  { value: 450, label: queueLabel(450) },
-];
-
+/** The rank setting's choices (Settings → Stats). */
 export const bracketOptions = (): SegmentedOption<Bracket>[] => BRACKETS.map((value) => ({ value, label: bracketLabel(value) }));
-
-export const roleFilterOptions = (): SegmentedOption<RoleFilter>[] => [
-  { value: "all", label: t().stats.all, icon: "champions" },
-  ...ROLES.map((role) => ({ value: role, label: roleLabel(role), icon: ROLE_ICON[role] })),
-];
 
 /** A stats queue the core named (a game's builds: from its map, as imports decide), if published. */
 export function asStatsQueue(queue: number | null | undefined): Queue | undefined {
@@ -95,18 +89,22 @@ export function statsErrorWords(error: BackendError): StatsErrorWords {
 /** A tier-list row with its rank by score within the rows shown (1 = best). */
 export type RankedEntry = TierEntry & { rank: number };
 
-export type TierSortKey = "rank" | "name" | "winRate" | "pickRate" | "banRate" | "score";
+/** The table's columns, each sortable. `tier` sorts by the score the tier comes from. */
+export type TierSortKey = "rank" | "name" | "role" | "tier" | "winRate" | "pickRate" | "banRate" | "games";
 export type SortDir = "asc" | "desc";
 
-/** Rows of one role (or all), ranked by score as published (best first). */
+/** A row's key: a champion once per role it is played in. */
+export const entryKey = (e: { id: number; role?: Role | undefined }): string => `${e.id}:${e.role ?? ""}`;
+
+/** Rows of one role (or all: a champion once per role), ranked by score as published (best first). */
 export function rankEntries(entries: readonly TierEntry[], role: RoleFilter): RankedEntry[] {
   const rows = role === "all" ? entries : entries.filter((e) => e.role === role);
   return [...rows].sort((a, b) => b.score - a.score || b.g - a.g || a.id - b.id).map((e, i) => ({ ...e, rank: i + 1 }));
 }
 
-/** First direction when a column is picked: names A→Z, ranks 1→n, numbers high→low. */
+/** First direction when a column is picked: names A→Z, ranks 1→n, lanes in map order, the rest high→low. */
 export function defaultDir(key: TierSortKey): SortDir {
-  return key === "name" || key === "rank" ? "asc" : "desc";
+  return key === "name" || key === "rank" || key === "role" ? "asc" : "desc";
 }
 
 export function sortEntries(rows: readonly RankedEntry[], key: TierSortKey, dir: SortDir, name: (id: number) => string): RankedEntry[] {
@@ -118,8 +116,13 @@ export function sortEntries(rows: readonly RankedEntry[], key: TierSortKey, dir:
         return e.pickRate;
       case "banRate":
         return e.banRate;
-      case "score":
+      case "tier":
         return e.score;
+      case "games":
+        return e.g;
+      // Map order, then the champions most played there first.
+      case "role":
+        return (e.role ? ROLES.indexOf(e.role) : 0) - (e.share ?? 0) / 2;
       default:
         return e.rank;
     }
@@ -130,6 +133,55 @@ export function sortEntries(rows: readonly RankedEntry[], key: TierSortKey, dir:
       ? (a: RankedEntry, b: RankedEntry) => name(a.id).localeCompare(name(b.id)) * sign || a.rank - b.rank
       : (a: RankedEntry, b: RankedEntry) => (value(a) - value(b)) * sign || a.rank - b.rank;
   return [...rows].sort(compare);
+}
+
+export interface TierGroup {
+  tier: TierGrade;
+  entries: RankedEntry[];
+}
+
+const GRADES: readonly TierGrade[] = ["S", "A", "B", "C", "D"];
+
+/** Rows by tier, best tier first (rows keep their order inside a tier; empty tiers left out). */
+export function groupByTier(rows: readonly RankedEntry[]): TierGroup[] {
+  return GRADES.map((tier) => ({ tier, entries: rows.filter((e) => e.tier === tier) })).filter((g) => g.entries.length > 0);
+}
+
+/** Over, under or at 50 % as shown (one decimal): `50.0%` is even, whichever side it is on. */
+export const wrSide = (winRate: number): "win" | "loss" | "even" =>
+  Math.abs(winRate - 0.5) < 0.0005 ? "even" : winRate > 0.5 ? "win" : "loss";
+
+/** Since the previous patch, in points (`+0.8`: 0.8 points more than then). */
+export interface Trend {
+  winRate: number;
+  pickRate: number;
+  banRate: number;
+}
+
+/**
+ * Each row's change since the previous patch's list, by `entryKey`: nothing when there is no
+ * previous list, when it is the same patch (the current one's files standing in offline) or
+ * another data set. A row that wasn't in the previous list has no trend.
+ */
+export function trendsOf(current: TierList, previous: TierList | null | undefined): Map<string, Trend> | undefined {
+  const same = previous && previous.info.queue === current.info.queue && previous.info.bracket === current.info.bracket;
+  if (!previous || !same || previous.info.patch === current.info.patch) return undefined;
+  const before = new Map(previous.entries.map((e) => [entryKey(e), e]));
+  const trends = new Map<string, Trend>();
+  for (const e of current.entries) {
+    const then = before.get(entryKey(e));
+    if (then) {
+      const points = (key: keyof Trend) => (e[key] - then[key]) * 100;
+      trends.set(entryKey(e), { winRate: points("winRate"), pickRate: points("pickRate"), banRate: points("banRate") });
+    }
+  }
+  return trends;
+}
+
+/** Rows whose champion matches `query` (champion filter), in their order: the ranking stays. */
+export function matchingEntries(rows: readonly RankedEntry[], query: string, name: (id: number) => string): RankedEntry[] {
+  const q = query.trim();
+  return q ? rows.filter((e) => matchScore(q, name(e.id)) !== null) : [...rows];
 }
 
 // ——— Champion pages ———

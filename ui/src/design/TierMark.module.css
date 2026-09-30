@@ -1,0 +1,63 @@
+/* Tier medallions (TierMark.tsx): one element each, the shape by clip-path or radius. */
+.mark {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: var(--m);
+  height: var(--m);
+  color: var(--text-on-accent);
+  font-weight: var(--weight-bold);
+  line-height: 1;
+  letter-spacing: 0;
+  user-select: none;
+}
+
+.sm {
+  --m: 20px;
+  --r: var(--radius-2);
+  font-size: var(--text-xs);
+}
+.md {
+  --m: 24px;
+  --r: var(--radius-2);
+  font-size: var(--text-sm);
+}
+.lg {
+  --m: 40px;
+  --r: var(--radius-4);
+  font-size: var(--text-xl);
+}
+
+/* S: a cut gem, its upper facet catching the light. */
+.S {
+  background-color: var(--tier-s);
+  background-image: linear-gradient(162deg, var(--bg-highlight) 0 38%, transparent 38%);
+  clip-path: polygon(50% 0, 94% 25%, 94% 75%, 50% 100%, 6% 75%, 6% 25%);
+}
+
+/* A: a shield (its letter sits a hair higher, where the shield is widest). */
+.A {
+  background-color: var(--tier-a);
+  clip-path: polygon(50% 0, 93% 12%, 93% 48%, 78% 78%, 50% 100%, 22% 78%, 7% 48%, 7% 12%);
+  padding-bottom: var(--space-1);
+}
+
+/* B: a tile. */
+.B {
+  background-color: var(--tier-b);
+  border-radius: var(--r);
+}
+
+/* C: a coin. */
+.C {
+  background-color: var(--tier-c);
+  border-radius: var(--radius-full);
+}
+
+/* D: an empty ring, the weakest; its letter stays legible on the page. */
+.D {
+  background-color: var(--bg-1);
+  border: 2px solid var(--tier-d);
+  border-radius: var(--radius-full);
+  color: var(--text-2);
+}

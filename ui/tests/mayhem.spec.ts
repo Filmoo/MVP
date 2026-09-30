@@ -17,7 +17,7 @@ test.describe("ARAM: Mayhem page", () => {
     await openApp(page, { view: "/tier-list" });
     await queueTab(page, t.queues[2400]).click();
     await expect(page).toHaveURL(/#\/mayhem$/);
-    await expect(page.getByRole("heading", { level: 1 })).toHaveText(t.queues[2400]);
+    await expect(page.getByRole("heading", { level: 1 })).toContainText(t.mayhem.augments);
     await expect(queueTab(page, t.queues[2400])).toHaveAttribute("aria-checked", "true");
     await expect(page.getByTestId("bracket-switch"), "no ranks: shared games aren't ranked").toHaveCount(0);
     await queueTab(page, t.queues[450]).click();
@@ -30,9 +30,10 @@ test.describe("ARAM: Mayhem page", () => {
     await openApp(page, { view: "/mayhem" });
     const first = augments(page).first();
     await expect(first).toContainText(nameOf(mayhemTiers.tiers.S[0] ?? 0));
-    await expect(first).toContainText("S · 1");
-    await expect(augments(page).nth(1)).toContainText("S · 2");
-    await expect(page.getByTestId("mayhem-sources")).toContainText(t.mayhem.shared(1_284));
+    // Inside its tier's section, an augment's rank alone.
+    await expect(first).toContainText(t.tierList.rankN(1));
+    await expect(augments(page).nth(1)).toContainText(t.tierList.rankN(2));
+    await expect(page.getByTestId("mayhem-sources")).toContainText(t.common.games(1_284));
     // Pick rates on every augment, never a win rate (the page's note says why there is none).
     const cards = (await augments(page).allInnerTexts()).join("\n").toLowerCase();
     expect(cards).toContain(t.mayhem.picked("").trim().split(" ")[0]?.toLowerCase() ?? "");

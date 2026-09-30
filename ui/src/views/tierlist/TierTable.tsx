@@ -1,167 +1,157 @@
 import { createEffect, createMemo, createSignal, For, type JSX, on, Show } from "solid-js";
 import { useData } from "../../data/context";
-import type { TierGrade } from "../../data/generated/TierGrade";
-import type { TierList } from "../../data/generated/TierList";
-import { Card } from "../../design/Card";
+import { Button } from "../../design/Button";
 import { ChampionIcon } from "../../design/GameIcon";
+import { Glyph, type GlyphName } from "../../design/Glyph";
 import { Icon } from "../../design/Icon";
+import { RoleIcon } from "../../design/RoleIcon";
 import { EmptyState } from "../../design/States";
-import { GradeBadge } from "../../design/TierBadge";
+import { TierMark } from "../../design/TierMark";
 import { t } from "../../i18n";
-import { percent, signedPoints } from "../../lib/format";
+import { integer, percent } from "../../lib/format";
 import { roleLabel } from "../../lib/roles";
-import { defaultDir, rankEntries, type SortDir, sortEntries, type TierSortKey } from "../../lib/stats";
-import type { RoleFilter } from "../../lib/stats-filters";
+import { entryKey, type RankedEntry, sortEntries, type TierSortKey, type Trend, wrSide } from "../../lib/stats";
+import { sortBy, tableSort } from "../../lib/tier-view";
+import { championLink, TrendMark } from "./Shelves";
 import styles from "./TierTable.module.css";
 
-/** Rows rendered before "Show all": a role fits, "all roles" asks (keeps the DOM small). */
+/** Rows rendered before "Show all": a lane fits, "all roles" asks (keeps the page light). */
 export const INITIAL_ROWS = 50;
 
-interface Sort {
-  key: TierSortKey;
-  dir: SortDir;
-}
-
-function SortHeader(props: {
-  label: string;
-  key: TierSortKey;
-  sort: Sort;
-  onSort: (key: TierSortKey) => void;
-  class?: string | undefined;
-  title?: string;
+/**
+ * The tier list as a table, like a spreadsheet: every header sorts (again: the other way), the
+ * filter too. With every lane, a champion is a row per lane it is played in; with one, the lane
+ * column says how much of the champion's games it has. Rows open the champion's build in that lane.
+ */
+export function TierTable(props: {
+  rows: RankedEntry[];
+  aram: boolean;
+  allRoles: boolean;
+  trends: Map<string, Trend> | undefined;
 }): JSX.Element {
-  const active = () => props.sort.key === props.key;
-  return (
-    // What the column counts, on hover or when its sort button has the focus (design/tip).
-    <th
-      scope="col"
-      class={props.class}
-      aria-sort={active() ? (props.sort.dir === "asc" ? "ascending" : "descending") : undefined}
-      data-hint-title={props.label}
-      data-hint={props.title}
-    >
-      <button type="button" class={`${styles.sort} ${active() ? styles.sorted : ""}`} onClick={() => props.onSort(props.key)}>
-        <span>{props.label}</span>
-        <Icon name="chevronDown" size={14} class={`${styles.arrow} ${active() && props.sort.dir === "asc" ? styles.flip : ""}`} />
-      </button>
-    </th>
-  );
-}
-
-/** The tier list of one queue × bracket: sortable, one role or all, rows link to champion pages. */
-export function TierTable(props: { list: TierList; roleFilter: RoleFilter }): JSX.Element {
   const { gameData } = useData();
   const name = (id: number) => gameData()?.champions.get(id)?.name ?? t().common.championN(id);
-  const [sort, setSort] = createSignal<Sort>({ key: "rank", dir: "asc" });
   const [limit, setLimit] = createSignal(INITIAL_ROWS);
-  // Another list or role starts short again (the sort stays).
-  createEffect(on([() => props.list, () => props.roleFilter], () => setLimit(INITIAL_ROWS), { defer: true }));
-
-  const ranked = createMemo(() => rankEntries(props.list.entries, props.roleFilter));
-  const rows = createMemo(() => sortEntries(ranked(), sort().key, sort().dir, name));
-  const shown = createMemo(() => rows().slice(0, limit()));
-  const hasBans = createMemo(() => props.list.entries.some((e) => e.banRate > 0));
-  // In tier order, each tier opens with a small divider (its size counts every row, shown or not).
-  const inTierOrder = () => (sort().key === "rank" && sort().dir === "asc") || (sort().key === "score" && sort().dir === "desc");
-  const tierSizes = createMemo(() => {
-    const sizes = new Map<TierGrade, number>();
-    for (const e of rows()) sizes.set(e.tier, (sizes.get(e.tier) ?? 0) + 1);
-    return sizes;
-  });
-  const opensTier = (i: number) => inTierOrder() && (i === 0 || shown()[i - 1]?.tier !== shown()[i]?.tier);
-  const onSort = (key: TierSortKey) =>
-    setSort((s) => (s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: defaultDir(key) }));
+  // Another list starts short again (the sort stays).
+  createEffect(
+    on(
+      () => props.rows,
+      () => setLimit(INITIAL_ROWS),
+      { defer: true },
+    ),
+  );
+  const sorted = createMemo(() => sortEntries(props.rows, tableSort().key, tableSort().dir, name));
+  const shown = createMemo(() => sorted().slice(0, limit()));
   const columns = () => t().tierList.columns;
   const titles = () => t().tierList.titles;
-  const header = (label: string, key: TierSortKey, cls: string | undefined, title?: string) => (
-    <SortHeader label={label} key={key} sort={sort()} onSort={onSort} class={cls} {...(title ? { title } : {})} />
-  );
+  const header = (key: TierSortKey, label: string, cls: string | undefined, glyph?: GlyphName, title?: string) => {
+    const active = () => tableSort().key === key;
+    // The lane's word gives way to a glyph in a narrow table: the button keeps its name.
+    const lane = key === "role";
+    return (
+      // What the column counts, on hover or when its sort button has the focus (design/tip).
+      <th
+        scope="col"
+        class={cls}
+        aria-sort={active() ? (tableSort().dir === "asc" ? "ascending" : "descending") : undefined}
+        data-hint-title={title ? label : undefined}
+        data-hint={title}
+      >
+        <button
+          type="button"
+          class={`${styles.sort} ${active() ? styles.sorted : ""}`}
+          aria-label={lane ? label : undefined}
+          onClick={() => sortBy(key)}
+        >
+          <Show when={glyph}>{(g) => <Glyph name={g()} size={14} class={styles.headGlyph} />}</Show>
+          <Show when={lane}>
+            <Icon name="champions" size={14} class={styles.laneGlyph} />
+          </Show>
+          <span class={lane ? styles.laneWord : undefined}>{label}</span>
+          <Icon name="chevronDown" size={14} class={`${styles.arrow} ${active() && tableSort().dir === "asc" ? styles.flip : ""}`} />
+        </button>
+      </th>
+    );
+  };
 
   return (
-    <Card flush class={styles.card}>
-      <Show when={rows().length > 0} fallback={<EmptyState icon="tiers" title={t().tierList.empty.title} text={t().tierList.empty.text} />}>
-        <div class={`${styles.wrap} ${hasBans() ? "" : styles.noBans}`}>
-          <table class={`${styles.table} num`} data-testid="tier-table">
-            <colgroup>
-              <col class={styles.cRank} />
-              <col class={styles.cChampion} />
-              <col class={styles.cTier} />
-              <col class={styles.cWr} />
-              <col class={styles.cPick} />
-              <col class={`${styles.cBan} ${styles.ban}`} />
-              <col class={`${styles.cScore} ${styles.score}`} />
-            </colgroup>
-            <thead>
-              <tr>
-                {header(columns().rank, "rank", styles.rank, titles().rank)}
-                {header(columns().champion, "name", styles.champion)}
-                <th scope="col" class={styles.tier} data-hint-title={columns().tier} data-hint={titles().tier} tabIndex={0}>
-                  {columns().tier}
-                </th>
-                {header(columns().winRate, "winRate", styles.wr, titles().winRate)}
-                {header(columns().pick, "pickRate", styles.pick, titles().pick)}
-                {header(columns().ban, "banRate", styles.ban, titles().ban)}
-                {header(columns().score, "score", styles.score, titles().score)}
-              </tr>
-            </thead>
-            {/* A click on a tier's badge (over the row's link, for its tooltip) opens the row's champion too. */}
-            {/* biome-ignore lint/a11y/useKeyWithClickEvents: pointer only: the keyboard opens a row with its own link */}
-            <tbody onClick={(e) => (e.target as Element).closest(`.${styles.tier}`)?.closest("tr")?.querySelector("a")?.click()}>
-              <For each={shown()}>
-                {(e, i) => (
-                  <>
-                    <Show when={opensTier(i())}>
-                      {/* A cell per column (not one wide cell): columns the width hides stay hidden here too. */}
-                      <tr class={styles.group}>
-                        <td colSpan={2}>
-                          <span class={styles.groupLine}>
-                            <span class={styles[`tone${e.tier}`]}>{t().stats.tier(e.tier)}</span>
-                            <span class={styles.groupSize}>{tierSizes().get(e.tier) ?? 0}</span>
-                          </span>
-                        </td>
-                        <td class={styles.tier} />
-                        <td class={styles.wr} />
-                        <td class={styles.pick} />
-                        <td class={styles.ban} />
-                        <td class={styles.score} />
-                      </tr>
-                    </Show>
-                    <tr class={styles.row} data-testid="tier-row" data-champion={e.id} data-role={e.role}>
-                      <td class={styles.rank}>{e.rank}</td>
-                      <td class={styles.champion}>
-                        <a class={styles.link} href={`#/champions?id=${e.id}${e.role ? `&role=${e.role}` : ""}`}>
-                          <ChampionIcon championId={e.id} size={32} />
-                          <span class={styles.names}>
-                            <span class={styles.name}>{name(e.id)}</span>
-                            <Show when={e.role}>{(r) => <span class={styles.sub}>{roleLabel(r())}</span>}</Show>
-                          </span>
-                        </a>
-                      </td>
-                      <td class={styles.tier}>
-                        <GradeBadge grade={e.tier} />
-                      </td>
-                      <td class={styles.wr}>
-                        <span class={styles.value}>{percent(e.winRate, 1)}</span>
-                        <span class={styles.sub}>{t().common.games(e.g)}</span>
-                      </td>
-                      <td class={styles.pick}>{percent(e.pickRate, 1)}</td>
-                      <td class={styles.ban}>{percent(e.banRate, 1)}</td>
-                      <td class={`${styles.score} ${e.score >= 0 ? styles.up : styles.down}`}>{signedPoints(e.score)}</td>
-                    </tr>
-                  </>
-                )}
-              </For>
-            </tbody>
-          </table>
-        </div>
-        <Show when={rows().length > shown().length}>
+    <Show
+      when={props.rows.length > 0}
+      fallback={<EmptyState icon="search" title={t().tierList.noMatch} text={t().champions.checkSpelling} />}
+    >
+      <div class={`${styles.wrap} glass-rim ${props.aram ? styles.aram : props.allRoles ? "" : styles.oneLane}`}>
+        <table class={`${styles.table} num`} data-testid="tier-table">
+          <colgroup>
+            <col class={styles.cRank} />
+            <col class={styles.cChampion} />
+            <col class={`${styles.cLane} ${styles.lane}`} />
+            <col class={styles.cTier} />
+            <col class={styles.cWr} />
+            <col class={`${styles.cRate} ${styles.pick}`} />
+            <col class={`${styles.cRate} ${styles.ban}`} />
+            <col class={`${styles.cGames} ${styles.games}`} />
+          </colgroup>
+          <thead>
+            <tr>
+              {header("rank", columns().rank, styles.rank, undefined, titles().rank)}
+              {header("name", columns().champion, styles.champion)}
+              {props.allRoles
+                ? header("role", columns().lane, styles.lane, undefined, titles().lane)
+                : header("role", columns().share, styles.lane, undefined, titles().share)}
+              {header("tier", columns().tier, styles.tier, undefined, titles().tier)}
+              {header("winRate", columns().winRate, styles.wr, "winRate", titles().winRate)}
+              {header("pickRate", columns().pick, styles.pick, "pick", titles().pick)}
+              {header("banRate", columns().ban, styles.ban, "ban", titles().ban)}
+              {header("games", columns().games, styles.games, "games", titles().games)}
+            </tr>
+          </thead>
+          {/* A click on a tooltip's anchor over the row's link (medallion, lane) opens the row's champion too. */}
+          {/* biome-ignore lint/a11y/useKeyWithClickEvents: pointer only: the keyboard opens a row with its own link */}
+          <tbody onClick={(e) => (e.target as Element).closest("[data-tip], [data-hint]")?.closest("tr")?.querySelector("a")?.click()}>
+            <For each={shown()}>
+              {(e) => {
+                // A row's own parts never change: made once, not watched. One lane shown: its share alone.
+                const key = entryKey(e);
+                const lane = e.role && props.allRoles ? roleLabel(e.role) : undefined;
+                return (
+                  <tr class={styles.row} data-testid="tier-row" data-champion={e.id} data-role={e.role} data-key={key}>
+                    <td class={styles.rank}>{e.rank}</td>
+                    <td class={styles.champion}>
+                      {/* The link covers the whole row. */}
+                      <a class={styles.link} href={championLink(e)}>
+                        <ChampionIcon championId={e.id} size={32} />
+                        {name(e.id)}
+                      </a>
+                    </td>
+                    {/* The lane's name on hover (design/tip): the cell sits over the row's link. */}
+                    <td class={styles.lane} data-hint={lane}>
+                      {e.role && lane ? <RoleIcon role={e.role} size={16} class={styles.laneIcon} label={lane} /> : null}
+                      {e.share === undefined ? null : <span class={styles.share}>{percent(e.share, 0)}</span>}
+                    </td>
+                    <td class={styles.tier}>
+                      <TierMark grade={e.tier} size="sm" />
+                    </td>
+                    <td class={styles.wr} data-wr={wrSide(e.winRate)}>
+                      {percent(e.winRate, 1)}
+                      <Show when={props.trends?.get(key)}>{(trend) => <TrendMark points={trend().winRate} tone />}</Show>
+                    </td>
+                    <td class={styles.pick}>{percent(e.pickRate, 1)}</td>
+                    <td class={styles.ban}>{percent(e.banRate, 1)}</td>
+                    <td class={styles.games}>{integer(e.g)}</td>
+                  </tr>
+                );
+              }}
+            </For>
+          </tbody>
+        </table>
+        <Show when={sorted().length > shown().length}>
           <div class={styles.more}>
-            <button type="button" class={styles.moreButton} onClick={() => setLimit(Number.POSITIVE_INFINITY)} data-testid="tier-show-all">
-              {t().tierList.showAll(rows().length)}
-            </button>
+            <Button variant="ghost" onClick={() => setLimit(Number.POSITIVE_INFINITY)} testId="tier-show-all">
+              {t().tierList.showAll(sorted().length)}
+            </Button>
           </div>
         </Show>
-      </Show>
-    </Card>
+      </div>
+    </Show>
   );
 }

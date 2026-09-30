@@ -122,7 +122,6 @@ export const en = {
     home: { label: "Home", short: "Home" },
     draft: { label: "Draft", short: "Draft" },
     live: { label: "Live game", short: "Live" },
-    champions: { label: "Champions", short: "Champs" },
     tierList: { label: "Tier list", short: "Tiers" },
     settings: { label: "Settings", short: "Settings" },
   },

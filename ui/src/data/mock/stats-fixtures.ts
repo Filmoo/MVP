@@ -27,6 +27,7 @@ type Cls = "M" | "A" | "F" | "T" | "K" | "E" | "P";
 const HOUR = 3_600_000;
 export const STATS_UPDATED_AT = FIXTURE_NOW - 2 * HOUR;
 export const STATS_PATCH = "16.19";
+export const PREVIOUS_PATCH = "16.18";
 
 /**
  * `id:roles` + popularity (0–5) + class. Roles most played first (t/j/m/b/s). Popularity 0 =
@@ -223,21 +224,25 @@ function grade(score: number): TierGrade {
   return "D";
 }
 
-function tierEntry(ds: Dataset, s: Slot): TierEntry | undefined {
+/** A tier-list row of `record` (this patch's, or the previous one's for trends). */
+function tierEntry(ds: Dataset, s: Slot, record: { g: number; w: number } = s): TierEntry | undefined {
   const games = ds.info.games;
-  if (s.g < MIN_ROLE_GAMES || s.g / games < MIN_PICK_RATE) return undefined;
-  const wr = shrunk(s);
+  if (record.g < MIN_ROLE_GAMES || record.g / games < MIN_PICK_RATE) return undefined;
+  const wr = shrunk(record);
   const score = round((wr - 0.5) * 100, 2);
+  // Out of every game of the champion, in any role (as the aggregator counts it).
+  const all = (ds.slots.get(s.id) ?? []).reduce((sum, own) => sum + (record === s ? own.g : own.prev.g), 0);
   return {
     id: s.id,
-    ...(s.role ? { role: s.role } : {}),
+    ...(s.role ? { role: s.role, share: round(record.g / Math.max(1, all), 4) } : {}),
     tier: grade(score),
     score,
-    g: s.g,
-    w: s.w,
+    g: record.g,
+    w: record.w,
     winRate: round(wr, 4),
-    pickRate: round(s.g / games, 4),
-    banRate: round((ds.bans.get(s.id) ?? 0) / games, 4),
+    pickRate: round(record.g / games, 4),
+    // Bans moved a little since the previous patch (0.9 to 1.09 times this patch's).
+    banRate: round(((ds.bans.get(s.id) ?? 0) * (record === s ? 1 : 0.9 + ((s.id * 7) % 20) / 100)) / games, 4),
   };
 }
 
@@ -255,7 +260,7 @@ export function mockStatsIndex(): StatsIndex {
     current: STATS_PATCH,
     patches: [
       { patch: STATS_PATCH, name: "26.19", sets: sets(1), updatedAt: STATS_UPDATED_AT },
-      { patch: "16.18", name: "26.18", sets: sets(1.84), updatedAt: STATS_UPDATED_AT - 13 * 24 * HOUR },
+      { patch: PREVIOUS_PATCH, name: "26.18", sets: sets(1.84), updatedAt: STATS_UPDATED_AT - 13 * 24 * HOUR },
     ],
     updatedAt: STATS_UPDATED_AT,
   };
@@ -269,6 +274,17 @@ export function mockTierList(queue: Queue, bracket: Bracket): TierList {
     .filter((e): e is TierEntry => e !== undefined)
     .sort((a, b) => b.score - a.score || b.g - a.g || a.id - b.id);
   return { info: ds.info, entries };
+}
+
+/** The previous patch's list (`previous_tier_list`), from each slot's record on that patch. */
+export function mockPreviousTierList(queue: Queue, bracket: Bracket): TierList {
+  const ds = dataset(queue, bracket);
+  const entries = [...ds.slots.values()]
+    .flat()
+    .map((s) => tierEntry(ds, s, s.prev))
+    .filter((e): e is TierEntry => e !== undefined)
+    .sort((a, b) => b.score - a.score || b.g - a.g || a.id - b.id);
+  return { info: { ...ds.info, patch: PREVIOUS_PATCH, updatedAt: ds.info.updatedAt - 13 * 24 * HOUR }, entries };
 }
 
 // ——— Builds ———

@@ -20,6 +20,12 @@
   margin-bottom: var(--space-2);
 }
 
+.art {
+  display: grid;
+  place-items: center;
+  margin-bottom: var(--space-2);
+}
+
 .error .icon {
   background: var(--loss-soft);
   color: var(--loss);

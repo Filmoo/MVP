@@ -165,6 +165,8 @@ buttons, vary". Design calls:
   can help), the champions are grouped by Data Dragon class.
 - **Budget**: the JS bundle had 1.3 KB left; the list fits in it (the loading skeleton is drawn by
   CSS, constant classes are set once with `/*@once*/`).
+- Superseded on 2026-09-29: the champion list is gone, tiers and builds are one hub (below). Its
+  filter and its champions-by-class without stats live on in the tier list.
 
 ## 2026-09-29 — Live names from Riot's live game, then the game (owner's brief, Claude built)
 A real client (2026-09-28, EUW, ARAM: Mayhem and custom games) names nobody but the local player
@@ -354,6 +356,53 @@ nothing to crawl. Offered editorial tiers or opt-in sharing, the owner took both
   releases, the update-signing key behind the `release` environment's approval, and the server
   runs only release tags of `main` (`mvp-deploy`). `scripts/check-secrets.mjs` (in `check.mjs`)
   refuses keys and tokens, Riot's included.
+
+## 2026-09-29 — Tiers and builds, one hub (owner decided, Claude designed)
+Owner, on three tier list directions: "I love the shelves view and the top 3. A mix would be
+nice", with the meta map "small inside shelves view, which is the main view" and full screen;
+"jungle icon should be more league like, same for supp". Then: "champs tab makes no sense if we
+have tiers. Tiers and build should be one", pointing at DPM.lol ("way easier to chose lanes,
+more compact, rank also better, no region list, no patch") and its spreadsheet-like list where
+every column sorts. Calls:
+- **One hub**: no Champions entry in the nav; `/champions` without an id is the tier list (the
+  link's filters kept); a champion anywhere opens its build page, Tiers stays lit there, and the
+  way back returns to the same queue, rank, lane and view.
+- **A compact header**: queue tabs (Ranked Solo, ARAM, then ARAM: Mayhem, which opens the Mayhem
+  page: the same tabs there, in the same place, so the three read as one hub), lanes as a row of
+  icon buttons with tooltips (the vertical role rail of the first drafts is gone), the rank as a
+  button with its emblem opening a grid of the published brackets, a champion filter. The patch
+  is text; no region list, no patch picker. Without stats, why sits in the header where the lanes
+  were (one line: the penguin when nothing is published, an alert with Try again otherwise), and
+  every champion shows by class below, as the champion list did.
+- **Two views, remembered**: Shelves (default: podium, mini meta map, a shelf per tier, a glass
+  card with the numbers) and Table (every header sorts, again the other way; essential columns
+  on narrow windows). "All roles" shows a champion once per lane it's played in.
+- **The meta map**: small next to the podium (a bar on narrow pages), full screen on a click as a
+  modal dialog; its code loads then.
+- **Medallions** for tiers (S gem, A shield, B tile, C coin, D ring), the Mayhem page's tier
+  headings included (with their own hint: those tiers are made by hand), **the penguin** waiting
+  for the client, when nothing is published, and in About.
+- **Trends** only where data allows: the previous patch's published list (kept on disk with the
+  current one); nothing shows on a first patch.
+- **Tooltips** (main's cards, design/tip): the medallions say what their tier means, the columns
+  what they count, the lanes and the view switch their names, the rank button whose games count.
+
+Finishing it (2026-09-30), the owner's calls on the open questions:
+- **Budget raised** for the hub: 153 KB of JS in total (gzip), in its own commit. The hub
+  costs ~11.6 KB, all in lazy chunks (mostly the Tier list's); with `release/0.3`'s game windows
+  it measures 152.4 KB in all, 40.6 of 46 KB at startup (unchanged: the drawn lane icons
+  even left the first screen).
+- **Lane icons: League's own**, for all five roles ("Not yet" to our three-talon Jungle): the
+  client's position icons, downloaded at run time from CommunityDragon's mirror and cached like
+  the ranked emblems, never committed (policy.md), tinted in the text's colour. Our drawings (a
+  slimmer Jungle, Support's gem bigger) only show while they aren't there.
+- **Rows stay 44 px** in the table.
+- **Both design reviews fixed**, polish included. Among them: no role colours on the tier list
+  (colours there are the tiers' and win rates'; lanes are white on a neutral drop); the filter
+  keeps the ranking and every sort (Enter still opens the best match; faces are named while it
+  filters); the map keeps each face in its tier's band, the medallions in a column of their own;
+  the Mayhem page ("Tier list · Augments") and the champion page share the tier list's head and
+  tabs row; the view switch is a 40 px `Segmented` at the tools' end.
 
 ## 2026-09-30 — Opened games are a stack of windows (owner asked, Claude designed)
 Owner: "It should be a proper window, that takes the whole window but still have previous

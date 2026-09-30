@@ -30,8 +30,8 @@ pub use draft::{
     TeamComp,
 };
 pub use game_data::{
-    ChampionInfo, Description, DescriptionKind, GameData, ItemInfo, RankEmblem, RankEmblems,
-    RuneInfo, RuneStyle, SpellInfo, TextSpan, TextTone,
+    ChampionInfo, Description, DescriptionKind, GameData, ItemInfo, PositionIcon, PositionIcons,
+    RankEmblem, RankEmblems, RuneInfo, RuneStyle, SpellInfo, TextSpan, TextTone,
 };
 pub use imports::{
     FailReason, FlashKey, FlashNote, ImportOutcome, ImportPart, ImportRequest, ImportResult,

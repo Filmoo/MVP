@@ -26,7 +26,8 @@ flowchart LR
   Core --> Cache
   Core -- "versions + JSON" --> DD
   UI -- "icons (img)" --> DD
-  UI -- "emblems, augment icons (img)" --> CD
+  Core -- "ranked emblems, position icons,<br/>once (then its cache)" --> CD
+  UI -- "augment icons (img)" --> CD
   Api -- "Mayhem augments,<br/>once per game version" --> CD
   Api <-- "RIOT_API_KEY" --> Riot
   Crawler --> Riot --> Crawler
@@ -51,7 +52,9 @@ flowchart LR
   `ui/dist-preview`); the desktop build (`pnpm build` = `vite build --mode app`, into `ui/dist`,
   the one the bundle budgets measure) leaves it out with the widget harness. Both builds shrink
   the same code (`ui/vite.config.ts`): short CSS module class names, lazy views' preload lists
-  without the startup files, constant classes set once (Solid's `@once`, written at build time).
+  without the startup files, constant classes set once (Solid's `@once`, written at build time),
+  and everything the first screen loads in one chunk (code-splitting group `app`, Rolldown's
+  `$initial` tag; none of its modules may await at top level, lazy chunks import from it).
 - **Light next to League.** No overlay, no injection, no polling loops in the UI; the webview can
   be closed while the core keeps following the client from the tray. Budgets and an idle-work
   test guard this in CI, plus a real-app memory/CPU check on Windows.
@@ -501,9 +504,18 @@ when it is pressed. Lookups are shared with the player page (2 min in memory, fa
 Recent searches (max 8) and the region live in `localStorage`.
 
 ## Stats pages (`ui/src/views/tierlist`, `ui/src/views/champions`)
-The Tier list and Champions pages read the published stats through the core only (`stats_index`,
-`tier_list`, `champion_stats`, event `stats-index`; see `transport.ts`); failures carry a
-`BackendError` and read as "nothing published yet" (empty state) or an error with a retry.
+The Tier list and champion pages read the published stats through the core only (`stats_index`,
+`tier_list`, `previous_tier_list`, `champion_stats`, event `stats-index`; see `transport.ts`);
+failures carry a `BackendError` and read as "nothing published yet" (empty state) or an error
+with a retry.
+- **One hub for tiers and builds**: the nav has Tiers, no champion list. A champion anywhere (the
+  tier list, Ctrl+K search, matchups, Draft) opens its page, `#/champions?id=…`, and the nav keeps
+  Tiers lit there (`Route.also` in `app/router.ts`). `/champions` without an id goes to the tier
+  list with the link's filters (`location.replace`). The page's way back returns to the tier list
+  in the same scope (the filters and the view are shared and remembered). Both pages have the
+  same head and tabs row (`StatsHead`, `QueueTabs` with the rank at its end on a champion page,
+  `RankPicker`, `SearchField` in `views/stats/common.tsx`); the ARAM: Mayhem page ("Tier list ·
+  Augments") has them too, in the tier list's place, and is lit under Tiers as well.
 - **Scope**: queue (420 ranked solo · 450 ARAM), rank bracket and the tier-list role filter are
   remembered in `localStorage["mvp.stats-filters.v1"]` (`lib/stats-filters.ts`) and shared by both
   pages. Links can set them: `#/tier-list?queue=450&role=middle`; on a champion page `role` picks the
@@ -515,39 +527,69 @@ The Tier list and Champions pages read the published stats through the core only
   filter never blanks the page), drops answers to older keys and never triggers the app's
   Suspense. The `stats-index` event bumps a version in every request key: pages refetch when a new
   publication lands. No timers, no polling.
-- **Tier list**: rows ranked by score within the role shown (a divider opens each tier), sortable
-  columns (`aria-sort`), 50 rows then "Show all" (keeps the DOM small), each row a link to the
-  champion in that role; win rate is the shrunk one with its games, a footnote explains score and
-  grades.
+- **Tier list** (`views/tierlist`): a compact header, then one of two views.
+  - **Header**: the queue as tabs with a line under the one shown: Ranked Solo, ARAM, then
+    ARAM: Mayhem, which opens the Mayhem page (on a champion page, its Mayhem tab; `MayhemTab`);
+    then one row of 40 px pills: lanes as icon buttons (All, then League's own position icons,
+    `RoleIcon`; the one chosen on a neutral drop of glass, in white: colours on this page are the
+    tiers' and win rates'; each named by a tooltip); the rank as a button with the bracket's
+    emblem opening a grid of the brackets published for the queue (native popover, anchored in
+    CSS; it opens with the rank shown focused, arrows choose without closing it, a click or Enter
+    on a rank, Escape or a click outside close it and the focus goes back to the button); a
+    champion filter (fuzzy; the list keeps its order and its sort, Enter opens the best match;
+    faces are named while it filters); the view switch at the row's end (a `Segmented`). No region
+    or patch picker: the patch, games and last update are text on the title's line.
+  - **Two views**, remembered with the table's sort in `localStorage["mvp.tier-view.v1"]`
+    (`lib/tier-view.ts`; a link can pick one, `#/tier-list?view=table`). **Shelves** (default): a
+    podium of the top three (the first taller; gold, silver, bronze; the champion's art), a mini
+    meta map, then a shelf per tier (medallion, size, average win rate) with the champions as
+    faces, strongest first; a glass card glides from face to face with the numbers and their
+    trends. A face under the pointer lights its dot on the map and the reverse. **Table**: rank,
+    champion, lane (icon and the share of the champion's games played there; with one lane, its
+    share alone, "Share"), tier, win rate (the change since the previous patch after it, under it
+    below 640 px), pick, ban, games in full; every header sorts (again: the other way;
+    `aria-sort`), 44 px rows, 50 rows then "Show all"; under 800 px no games, under 640 px rank,
+    champion, lane icon, tier and win rate. With every lane shown, a champion is a face or a row
+    per lane it is played in.
+  - **The full meta map** (`MapDialog.tsx`, a chunk loaded when first opened) opens from the mini
+    map (a bar on pages under 900 px): a modal `<dialog>` (focus kept inside, Escape or the close
+    button, the focus back on the mini map). Strength (score) up, popularity (pick rate, log scale)
+    across, tier bands (`lib/meta-map.ts`, shared with the mini map: popularity from the least to
+    the most picked, at least 8× across, ARAM's 4×, so close pick rates spread out), each tier's
+    medallion in a column of its own beside its band (the mini map: its letter down the left
+    edge); faces pushed apart where they would overlap, sideways, each kept inside its tier's band
+    (`placeOnMap`), dots when every lane shows, always in their tier's colour; one name tag for the
+    point lit (with its lane when every lane shows), kept inside the plot. No wider than the page
+    (`--content-max`) on very wide windows.
+  - **Trends**: `previous_tier_list` answers the tier list of the patch before the current one,
+    same queue and bracket (`DataSet::previous`; the disk cache keeps the current and the previous
+    patch), or `null` when there is none: then nothing shows. The change in points shows after the
+    table's win rates (the arrow in the win or loss colour, the points quiet; a dot when unchanged)
+    and in the hover card (win, pick and ban rate, "since the last patch").
+  - **Without stats** (offline, nothing published): why, in the header where the lanes were
+    (`NoStatsNotice`: one line, the penguin when nothing is published, else an alert with Try
+    again ending it when asking again can help), then every champion by Data Dragon class,
+    filtered as you type, built a slice at a time (`NoStats.tsx`, `lib/progressive.ts`). While
+    the list loads: the shown view's skeleton (the podium and shelves, or the table's rows).
+  - **Medallions** (`design/TierMark.tsx`): S a gem, A a shield, B a tile, C a coin, D a ring, CSS
+    shapes in the tier colours, wherever a tier shows (shelves, table, hover card, the map's bands,
+    the champion page's hero, the Mayhem page's tier headings with their own hint). Widgets:
+    `tier-shelves`, `tier-table`, `tier-no-stats`.
 - **Champion page**: hero (art, role tabs with their share of the champion's games, tier, win/pick/ban
   rates with their counts, patch), then for the chosen role: the full rune page (both trees, the
   chosen runes lit in the tree's color, shards; the next most played pages one click away), spells,
   skill max order and first points (keycaps), items (starting, core in order, boots, 4th/5th/6th),
   every option with win rate, games and pick share; matchups best/worst by the shrunk effect `d`
   (lane, vs jungler, duos; rows open the other champion). ARAM: no roles, no bans, no matchups.
-- **Champion list** (`/champions` without an id; `lib/champion-grid.ts`, `views/champions/ChampionGrid.tsx`):
-  every champion as a tile (icon, name, and the number it's sorted by). A role shows the champions
-  with a tier-list row in it, so one played in two roles is in both (the tier list's role filter,
-  shared and remembered); "all" takes each champion's most played role for its tier and adds its
-  roles up for its pick rate. Sorted by tier (default), pick rate or name, the choice remembered in
-  `localStorage["mvp.champion-sort.v1"]`; by tier, groups read like a tier list (the letter and
-  the group's size in a column left of its tiles, sticky while the group scrolls by, champions
-  with too few games last) and tiles leave their badge to the heading. The field filters as you
-  type (fuzzy, best match first, ungrouped; Enter opens the first; the sort waits, dimmed, until
-  the field is empty). Without stats (offline, nothing published) the page still works: one line
-  says why ("Try again" ending it when that can help), the role and sort go away and the
-  champions are grouped by Data Dragon class. The grid is built a slice at a time
-  (`lib/progressive.ts`: 36 tiles with the view, 36 more whenever the page is idle, again from the
-  start when a filter changes; `aria-busy` meanwhile; a group shows once some of its tiles are
-  built): switching to it doesn't wait for ~170 tiles, the first screen shows at once.
 - **Runes** come from `GameData.runes` (Data Dragon `runesReforged.json`, cached with the patch;
   icons under `artBase/img/…`). Stat shards (5001–5013) aren't in Data Dragon: `lib/runes.ts` names
   them and `design/RuneIcon.tsx` draws them as glyphs (no Riot art); their tooltips use the League
   client's own words when the core has them ("Tooltips" below).
-- **Controls**: `design/Segmented.tsx` is the radio group used for every filter and tab (one tab
-  stop, arrow keys, Home/End; the selection is a separate thumb element). Not every choice should
-  look like a pill: the champion list's sort is the same group restyled as words with a gliding
-  accent bar (`.sortTabs` in `Champions.module.css`).
+- **Controls**: `design/Segmented.tsx` is the radio group for the pages' other filters and tabs
+  (one tab stop, arrow keys, Home/End; the selection is a separate thumb element; `lg` is a 40 px
+  pill: the tier list's view switch, Mayhem's rarity). Not every choice should look like a pill:
+  the stats pages' queue tabs, rank menu and lanes are the same pattern drawn by their caller
+  (`design/Radios.tsx`).
 - **For later**: `views/champions/BuildSummary.tsx` (keystone + secondary tree, spells, max order,
   core items) is ready for the Live page (the local player's champion and role, the game's queue);
   an "Import" action (rune page, item set: HANDOFF job 5) belongs in the Runes card header, next to
@@ -723,7 +765,7 @@ fixed, `z-index: -1`, `aria-hidden`, `data-free-style`), drawn **on demand only*
   PUUIDs, IP addresses, user folders). The UI copies it (clipboard API, else a text area and
   `execCommand`). "Open log folder" (`open_logs`) opens the folder in Explorer.
 
-## Ranked emblems (`static_data::emblems`, `ui/src/design/RankEmblem.tsx`)
+## Ranked emblems and position icons (`static_data::{client,emblems,positions}`, `ui/src/design`)
 - **Riot's art, at run time**: at start the desktop core loads the ten tier emblems
   (`RankEmblems::load`): from its cache (`<app cache>/emblems/v1/emblem-<tier>.png`), else from
   `CommunityDragon`'s mirror of the League client files (`…/rcp-fe-lol-static-assets/global/default/
@@ -733,7 +775,15 @@ fixed, `z-index: -1`, `aria-hidden`, `data-free-style`), drawn **on demand only*
   80 × 60 on a 2× screen), then cached. A tier that fails is left out; offline, the cache serves.
   Bump `CACHE_DIR` to fetch again (new art or another window).
 - The UI gets them as data URLs (`rank_emblems` command, `rank-emblems` event when they arrive;
-  `ui/src/data/emblems.ts` asks once per session). The app's CSP already allows `data:` images.
+  `ui/src/data/core-art.ts` asks once per session). The app's CSP already allows `data:` images.
+- **League's position icons**, next: the five lanes' icons from the same mirror
+  (`PositionIcons::load`: `…/global/default/svg/position-{top,jungle,middle,bottom,utility}.svg`,
+  cached in `<app cache>/positions/v1/`), the drawing alone (the client's file links a stylesheet;
+  anything but a small SVG is refused). The UI (`position_icons`, `position-icons`) draws them as a
+  CSS mask in the text's colour (`RoleIcon`: the tier list's lanes, table, shelves and map, the
+  champion page's role tabs), MVP's own line drawings until then (offline on a first start). Both
+  loaders share `static_data::client::ClientFiles` (the cache, else the first folder that has the
+  file, shaped off the async threads, written then renamed); the log says "position icons ready".
 - **`RankEmblem`** (`tier | "unranked"`, `sm` 48 × 36 · `md` 64 × 48 (Live cards) · `lg` 80 × 60 ·
   `xl` 96 × 72 (Home; the core's 192 × 144 at 2×)) shows Riot's art when it has it, else MVP's
   crest in the same box (`data-emblem="riot" | "crest"`), so nothing moves when the art arrives.
@@ -744,7 +794,8 @@ fixed, `z-index: -1`, `aria-hidden`, `data-free-style`), drawn **on demand only*
   tokens (`--rank-<tier>`). No rank: an empty slot, not a dimmed Iron.
 - Mock scenarios: none by default (the crest shows), `?scenario=emblems` stands in stylized
   emblems (no Riot art in the repository). Dev lab: `#/__harness?show=emblems` (every tier,
-  crest and art, at every size).
+  crest and art, at every size). Position icons: the dev cache's copies
+  (`scripts/fetch-dev-assets.mjs`), none without them; the tests stand in squares.
 
 ## Build imports (`companion::imports`)
 MVP writes a champion's build into the League client: its own rune page, its item set for the
@@ -1051,8 +1102,9 @@ rate** (policy.md, "ARAM: Mayhem augments"; decisions.md).
   Mayhem tab (`/champions?id=…&mode=mayhem`, then ARAM's build labelled as ARAM data), Draft's
   *Augments* tab and rows, Live's "My build" in a Mayhem game. Hovers are the app's tooltip cards
   (`data-hint`, "Tooltips"): an augment row says what it does (also on keyboard focus), `S · 2`
-  and the page's tier marks what MVP's tiers are (their own mark: the stats pages' grade badge
-  explains a win-rate tier). Mock scenarios `mayhem-*`
+  and the page's tier headings what MVP's tiers are (the headings wear the tier list's medallions
+  with this hint of their own: the tier list's medallion explains a win-rate tier). Mock
+  scenarios `mayhem-*`
   (`empty`, `unbuilt`, `offline`, `slow`, `extreme`, `champ-select`, `live`); `?augments=dev`
   (dev server and screenshots only) shows the real catalog from `.cache/mayhem`.
 - **mock-lcu** `--mayhem`: champion selects and games of queue 2400; the newest listed game is a
@@ -1066,7 +1118,7 @@ rate** (policy.md, "ARAM: Mayhem augments"; decisions.md).
 | `mock-lcu` | fake League client for tests and development (match history with whole games) |
 | `companion` | Tauri-free core: client status, champ select → `DraftView` (+ draft helper), loading screen → `LiveGame`, settings, automations, build imports, your games' grades and details, backend client, stats download + disk cache, ARAM: Mayhem data and opt-in sharing, remote config, crash reports, update policy |
 | `scrub` | removes personal data (Riot IDs, PUUIDs, user names in paths, e-mails, credentials, IPs) from crash reports, in the app and on the server |
-| `static-data` | Data Dragon download (champions, items, spells, rune trees) + per-patch cache + offline fallback; what each rune, shard, spell and item does (Riot's markup to safe text), ranked emblems; ARAM: Mayhem's augment catalog from the game files (run by the backend) |
+| `static-data` | Data Dragon download (champions, items, spells, rune trees) + per-patch cache + offline fallback; what each rune, shard, spell and item does (Riot's markup to safe text), ranked emblems and League's position icons; ARAM: Mayhem's augment catalog from the game files (run by the backend) |
 | `stats` | statistics, the draft model and the per-game grade |
 | `aggregate` | stats pipeline core: Match-V5 → facts → mergeable aggregates → published JSON |
 | `riot-api` | Riot Web API client for the backend (rate limits, retries) |

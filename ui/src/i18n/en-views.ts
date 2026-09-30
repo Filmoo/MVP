@@ -373,9 +373,10 @@ export const enViews = {
   stats: {
     queue: "Queue",
     rank: "Rank",
+    /** The rank button's tooltip: whose games the numbers count. */
+    rankHint: "Whose games the stats count: players of this rank and above.",
     role: "Role",
-    all: "All",
-    queueN: (id: number) => `Queue ${id}`,
+    allRoles: "All roles",
     errors: {
       notFound: {
         title: "No stats published yet",
@@ -403,56 +404,83 @@ export const enViews = {
 
   tierList: {
     title: "Tier list",
-    note: "Tiers come from the score: the win rate pulled toward 50 % as if every champion had 1,000 more games at 50 % (so a lucky small sample can't top the list), minus 50 %. S ≥ +2 · A ≥ +0.75 · B ≥ −0.75 · C ≥ −2 · D below. Pick and ban rates are shares of all games counted.",
+    note: "Tiers come from the score: the win rate pulled toward 50% as if every champion had 1,000 more games at 50% (so a lucky small sample can't top the list), minus 50%. S ≥ +2 · A ≥ +0.75 · B ≥ −0.75 · C ≥ −2 · D below. Pick and ban rates are shares of all games counted.",
     columns: {
       rank: "#",
       champion: "Champion",
+      lane: "Lane",
+      /** One lane shown: how much of the champion's games it has. */
+      share: "Share",
       tier: "Tier",
       winRate: "Win rate",
       pick: "Pick",
       ban: "Ban",
-      score: "Score",
+      games: "Games",
     },
     titles: {
       rank: "Rank by score",
+      lane: "The lane, and the share of the champion's games played there",
+      share: "Share of the champion's games played in this lane",
       tier: "S ≥ +2 · A ≥ +0.75 · B ≥ −0.75 · C ≥ −2 · D below (score, points)",
-      winRate: "Win rate shrunk toward 50 %: small samples count less",
-      pick: "Share of games with this champion in this role",
+      winRate: "Win rate shrunk toward 50% (small samples count less), then its change since the previous patch",
+      pick: "Share of games with this champion in this lane",
       ban: "Share of games where it was banned",
-      score: "Shrunk win rate minus 50 %, in points: what the tier is based on",
+      games: "Games counted",
     },
     empty: {
       title: "No champion ranked here yet",
       text: "Champions need enough games in a role to be ranked. Try another role or rank.",
     },
     showAll: (n: number) => `Show all ${n}`,
+    views: { label: "View", shelves: "Shelves", table: "Table" },
+    filter: "Filter champions",
+    noMatch: "No champion matches the filter",
+    /** Why every champion shows by class: `reason` is why stats are missing (`Can't reach MVP's servers`). */
+    noStats: (reason: string) => `${reason}. Champions are grouped by class until tiers and pick rates are available.`,
+    /** A tier's size, or a lane's: `18 champions`. */
+    champions: (n: number) => `${integer(n)} ${plural(n, "champion", "champions")}`,
+    /** A tier's mean win rate: `avg 52.8%`. */
+    average: (pct: string) => `avg ${pct}`,
+    /** A champion's face, read aloud: `Zed, Mid: 52.6% win rate`. */
+    tileLabel: (name: string, role: string | undefined, winRate: string) => `${name}${role ? `, ${role}` : ""}: ${winRate} win rate`,
+    /** Rank in the list shown: `#3`. */
+    rankN: (rank: number) => `#${rank}`,
+    /** Rank within a lane: `#3 in Mid`. */
+    rankIn: (rank: number, role: Role) => `#${rank} in ${roles[role]}`,
+    /** The first three, on steps. */
+    podium: "Top three",
+    /** Under the numbers that moved: what they are compared with. */
+    sincePrevious: "since the previous patch",
+    map: {
+      title: "Meta map",
+      open: "Open the meta map",
+      close: "Close the meta map",
+      strength: "Strength",
+      popularity: "Popularity",
+      /** The dashed line at an even record. */
+      even: "50%",
+      hidden: "Strong, rarely picked",
+      meta: "Strong and popular",
+      traps: "Popular, below average",
+      /** A face on the map, read aloud. */
+      pointLabel: (name: string, winRate: string, pick: string) => `${name}: ${winRate} win rate, ${pick} pick rate`,
+    },
   },
 
   champions: {
-    title: "Champions",
-    all: "All champions",
-    search: "Search a champion",
     classes: "Classes",
     record: "Record",
-    tiersFrom: { before: "Tiers from the ", link: "tier list", after: (scope: string) => `: ${scope}` },
-    noMatch: (query: string) => `No champion matches “${query}”`,
     noneYet: "No champion here yet",
     checkSpelling: "Check the spelling, or clear the search.",
     whenLoaded: "Champions show once game data and stats are loaded.",
-    sort: "Sort by",
-    sorts: { tier: "Tier", pickRate: "Pick rate", name: "A–Z" },
-    /** The group of champions without a tier: not enough games in their role. */
-    fewGames: "Too few games",
-    /** Why the grid is grouped by class: `reason` is why stats are missing (`Can't reach MVP's servers`). */
-    noStats: (reason: string) => `${reason}. Champions are grouped by class until tiers and pick rates are available.`,
     noBuild: {
       title: "No build data yet",
       text: (champion: string, role: Role | undefined) =>
         `${champion} needs more games${role ? ` as ${roles[role]}` : ""} before its build is published.`,
     },
-    /** The tier's score: `+3.1 pts over 50 %`. */
-    pointsVs50: (score: number) => `${signedPoints(score)} pts ${score >= 0 ? "over" : "under"} 50 %`,
-    pointsTitle: "Shrunk win rate minus 50 %, in points (what the tier is based on)",
+    /** The tier's score: `+3.1 pts over 50%`. */
+    pointsVs50: (score: number) => `${signedPoints(score)} pts ${score >= 0 ? "over" : "under"} 50%`,
+    pointsTitle: "Shrunk win rate minus 50%, in points (what the tier is based on)",
     winRate: "Win rate",
     pickRate: "Pick rate",
     banRate: "Ban rate",
@@ -463,7 +491,7 @@ export const enViews = {
     ofGames: (n: number) => `of ${games(n)} ${plural(n, "game", "games")}`,
     bans: (n: number) => `${games(n)} ${plural(n, "ban", "bans")}`,
     shrunkTitle: (wins: number, games: number, raw: string) =>
-      `Shrunk toward 50 %: ${integer(wins)} wins in ${integer(games)} games is ${raw} raw`,
+      `Shrunk toward 50%: ${integer(wins)} wins in ${integer(games)} games is ${raw} raw`,
     build: "Build",
     runes: "Runes",
     shards: "Shards",
@@ -527,9 +555,6 @@ export const enViews = {
     pickedBy: (pct: string, champion: string) => `picked in ${pct} of ${champion} games`,
     /** An item's share of the champion's games: `in 62% of games`. */
     held: (pct: string) => `in ${pct} of games`,
-    tiersOf: (patch: string) => `MVP's tiers · patch ${patch}`,
-    tiersBy: "MVP's tiers",
-    shared: (n: number) => `${games(n)} shared ${plural(n, "game", "games")}`,
     order: {
       byRate: (champion: string, n: number) =>
         `By MVP's tiers, best first; then augments without a tier that ${champion} players pick. Pick rates from ${games(n)} shared games.`,
@@ -592,19 +617,18 @@ export const enViews = {
     tree: "Rune path",
     /** What each tier of the tier list means (the score: see `tierList.note`). */
     tiers: {
-      S: "Among the strongest picks this patch: its win rate is 2 points or more over 50 %, small samples evened out.",
-      A: "A strong pick: 0.75 to 2 points over 50 %.",
-      B: "About even: within 0.75 points of 50 %.",
-      C: "A weaker pick: 0.75 to 2 points under 50 %.",
-      D: "Among the weakest picks this patch: 2 points or more under 50 %.",
+      S: "Among the strongest picks this patch: its win rate is 2 points or more over 50%, small samples evened out.",
+      A: "A strong pick: 0.75 to 2 points over 50%.",
+      B: "About even: within 0.75 points of 50%.",
+      C: "A weaker pick: 0.75 to 2 points under 50%.",
+      D: "Among the weakest picks this patch: 2 points or more under 50%.",
     },
     /** What each page of the rail holds. */
     nav: {
       home: "Your profile, rank and recent games, each with its grade.",
       draft: "Champion select: the picks the stats favour for your role, and why.",
       live: "The game you're in: every player's rank and form, and your build.",
-      champions: "Every champion's builds, runes, items and matchups.",
-      tierList: "Champions ranked by how they win in each role this patch.",
+      tierList: "Champions ranked by how they win in each role this patch, and each one's build.",
       settings: "Automations, build imports, language, visual effects and updates.",
     },
     /** What the League client's status in the title bar means for MVP. */

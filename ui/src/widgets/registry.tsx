@@ -10,16 +10,15 @@ import { mayhemAugments, mayhemChampion, mayhemOverview } from "../data/mock/may
 import { outageBanner, patchBanner, requiredConfig, updateReady } from "../data/mock/platform-fixtures";
 import { lpFor, masteryFixture } from "../data/mock/progress-fixtures";
 import { defaultSettings } from "../data/mock/settings-fixtures";
-import { mockChampionPage, mockStatsIndex, mockTierList } from "../data/mock/stats-fixtures";
+import { mockChampionPage, mockPreviousTierList, mockStatsIndex, mockTierList } from "../data/mock/stats-fixtures";
 import { ShardIcon } from "../design/RuneIcon";
 import { GameTip, type GameTipProps } from "../design/tip/Tip";
 import tipStyles from "../design/tip/Tip.module.css";
 import { localized, t } from "../i18n";
 import { roleLabel } from "../lib/roles";
-import { bracketLabel, buildFor, roleTabs } from "../lib/stats";
+import { bracketLabel, buildFor, rankEntries, roleTabs, trendsOf } from "../lib/stats";
 import { BuildSummary } from "../views/champions/BuildSummary";
 import { ItemsCard, SkillsCard, SpellsCard } from "../views/champions/Builds";
-import { ChampionGrid } from "../views/champions/ChampionGrid";
 import { ChampionHero } from "../views/champions/ChampionHero";
 import { MatchupsCard } from "../views/champions/Matchups";
 import { RunesCard } from "../views/champions/Runes";
@@ -37,10 +36,15 @@ import { LiveTeam } from "../views/live/LiveTeam";
 import { AugmentTiers } from "../views/mayhem/Mayhem";
 import { ChampionAugmentsView } from "../views/mayhem/parts";
 import { About, AppSettings, AutomationSettings, ImportSettings, NoMatch, StatsSettings } from "../views/settings/sections";
+import { NoStatsChampions } from "../views/tierlist/NoStats";
+import { Shelves } from "../views/tierlist/Shelves";
 import { TierTable } from "../views/tierlist/TierTable";
 
-// Stats widgets measured on a two-role champion (Lux: support, mid) and the full Emerald+ list.
+// Stats widgets measured on a two-role champion (Lux: support, mid) and the full Emerald+ list,
+// every lane at once (its heaviest: ~220 rows, a champion once per lane), with its trends.
 const tierList = mockTierList(420, "emeraldPlus");
+const tierRows = rankEntries(tierList.entries, "all");
+const trends = trendsOf(tierList, mockPreviousTierList(420, "emeraldPlus"));
 const lux = mockChampionPage(99, 420, "emeraldPlus");
 const luxBuild = buildFor(lux, "support");
 if (!luxBuild) throw new Error("the Lux fixture has a support build");
@@ -202,9 +206,32 @@ export const widgetRegistry: Record<string, () => JSX.Element> = {
       onCheck={() => {}}
     />
   ),
-  "tier-list": () => <TierTable list={tierList} roleFilter="all" />,
-  // Sorted by name, its heaviest first slice: every tile has a badge (by tier, a heading has it).
-  "champion-grid": () => <ChampionGrid list={tierList} roleFilter="all" sort="name" query="" />,
+  // Its first 50 rows (then "Show all"). In an element, as the page's widget has it: the table
+  // starts with a <Show>, which the harness can't mount alone.
+  "tier-table": () => (
+    <div>
+      <TierTable rows={tierRows} aram={false} allRoles trends={trends} />
+    </div>
+  ),
+  // The podium, the mini map (a dot per row) and the first slice of faces.
+  "tier-shelves": () => (
+    <Shelves
+      rows={tierRows}
+      shown={tierRows}
+      filtering={false}
+      allRoles
+      trends={trends}
+      lit={undefined}
+      onLight={() => {}}
+      onOpenMap={() => {}}
+    />
+  ),
+  // Without stats: every champion by class, its first slice.
+  "tier-no-stats": () => (
+    <div>
+      <NoStatsChampions query="" />
+    </div>
+  ),
   "champion-hero": () => (
     <ChampionHero
       championId={99}

@@ -150,6 +150,28 @@ impl DataSet {
         })
     }
 
+    /// `queue` × `bracket` of the patch published before the index's current one, when both
+    /// exist (trends compare against it). No older patch stands in for its files: a trend
+    /// against the wrong patch would mislead.
+    pub fn previous(index: &StatsIndex, queue: u32, bracket: Bracket) -> Option<Self> {
+        let current = index.current.as_deref()?;
+        let at = index.patches.iter().position(|p| p.patch == current)?;
+        let patch = index.patches.get(at + 1)?;
+        let set = patch
+            .sets
+            .iter()
+            .find(|s| s.queue == queue && s.bracket == bracket)?;
+        valid_patch(&patch.patch).then(|| Self {
+            patch: patch.patch.clone(),
+            name: patch.name.clone(),
+            queue,
+            bracket,
+            games: set.games,
+            generation: patch.updated_at,
+            previous: None,
+        })
+    }
+
     fn key_in(&self, patch: &str, file: &str) -> String {
         format!("{patch}/{}/{}/{file}", self.queue, self.bracket.slug())
     }
@@ -574,6 +596,24 @@ impl StatsClient {
         }
     }
 
+    /// The tier list of the patch before the current one for `queue` × `bracket` (the
+    /// `previous_tier_list` command, for trends): `None` when no such patch or data set is
+    /// published, or its file isn't. Kept on disk with the current patch's files.
+    pub async fn previous_tier_list(
+        &self,
+        queue: u32,
+        bracket: Bracket,
+    ) -> Result<Option<TierList>, BackendError> {
+        let index = self.index().await?;
+        let Some(set) = DataSet::previous(&index, queue, bracket) else {
+            return Ok(None);
+        };
+        Ok(self
+            .tier_list(&set)
+            .await?
+            .map(|list| TierList::clone(&list)))
+    }
+
     /// One champion's page for `queue` × `bracket` (the `champion_stats` command): its record,
     /// tier rows (best role first), builds and matchups (ranked). A file that isn't published
     /// leaves its part empty; `NotFound` only when the data set itself isn't there.
@@ -851,6 +891,26 @@ mod tests {
             ..index
         };
         assert!(DataSet::current(&traversal, RANKED, Bracket::EmeraldPlus).is_none());
+    }
+
+    #[test]
+    fn the_previous_patch_for_trends() {
+        let index = StatsIndex {
+            schema: STATS_SCHEMA,
+            current: Some("16.19".into()),
+            patches: vec![patch("16.20", 30), patch("16.19", 20), patch("16.18", 10)],
+            updated_at: 30,
+        };
+        let set = DataSet::previous(&index, RANKED, Bracket::EmeraldPlus).expect("an older patch");
+        assert_eq!(set.patch, "16.18");
+        assert_eq!(set.generation, 10);
+        assert_eq!(set.previous, None, "nothing older stands in for it");
+        assert!(DataSet::previous(&index, ARAM, Bracket::EmeraldPlus).is_none());
+        let oldest = StatsIndex {
+            current: Some("16.18".into()),
+            ..index
+        };
+        assert!(DataSet::previous(&oldest, RANKED, Bracket::EmeraldPlus).is_none());
     }
 
     #[test]

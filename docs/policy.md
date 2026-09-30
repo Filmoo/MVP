@@ -153,6 +153,12 @@ detection, composite player scores, live win probability, sending data to third-
   Riot also publishes these emblems for developers on developer.riotgames.com: before the
   production-key application, check which source Riot prefers and switch if needed
   (`static_data::emblems`, one constant).
+- **League's position icons (2026-09-30, built; not gray, noted for the asset rules).** The lanes'
+  icons (the tier list, the champion page's role tabs) are the League client's own
+  `position-*.svg`, handled exactly like the ranked emblems: downloaded at run time from
+  `CommunityDragon`'s mirror of the client, cached, never committed or bundled, the request
+  carrying nothing about the player; the app only tints them. MVP's own drawings stand in while
+  they aren't there (`static_data::positions`, the same source constant).
 - **Per-game grades (2026-09-28, built; gray: a composite score; the owner kept it the same day).** Every
   finished game in a match history (yours on Home, anyone's on a player page) gets a letter
   (S+ to C), a score out of 10 and a place among the ten; an opened game shows all ten players'.
