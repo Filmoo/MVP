@@ -80,6 +80,8 @@
     radial-gradient(70% 90% at 70% 35%, color-mix(in oklab, var(--tone-a) 34%, transparent), transparent 72%),
     radial-gradient(60% 80% at 100% 100%, color-mix(in oklab, var(--tone-b) 24%, transparent), transparent 70%);
   mask-image: linear-gradient(90deg, transparent, #000 60%);
+  /* The art grows a little under the pointer: inside its box. */
+  overflow: hidden;
   pointer-events: none;
 }
 

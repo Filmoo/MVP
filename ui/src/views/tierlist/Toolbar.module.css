@@ -1,4 +1,4 @@
-/* The tier list's tools (Toolbar.tsx): lanes, the view switch, why there are no stats. */
+/* The tier list's tools (Toolbar.tsx): lanes, why there are no stats. */
 
 /* ——— Lanes: icon buttons, the chosen one on a neutral drop of glass ——— */
 .lanes {
@@ -79,11 +79,6 @@
 
 .lane:focus-visible {
   outline-offset: 0;
-}
-
-/* ——— Shelves or table: the tools' last, at the row's end ——— */
-.views {
-  margin-inline-start: auto;
 }
 
 /* ——— Without stats: why, as tall as the tools, the sign on its first line ——— */

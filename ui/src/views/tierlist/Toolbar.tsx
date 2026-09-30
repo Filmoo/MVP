@@ -39,7 +39,6 @@ export function ViewSwitch(): JSX.Element {
     <Segmented
       label={t().tierList.views.label}
       size="lg"
-      class={styles.views}
       options={TIER_VIEWS.map((view) => ({
         value: view,
         label: t().tierList.views[view],

@@ -129,21 +129,25 @@ export default function TierListView(): JSX.Element {
       {/* ARAM: Mayhem's augments have a page of their own. */}
       <QueueTabs mayhem={{ selected: false, onSelect: () => navigate("/mayhem") }} />
       <div class={styles.tools}>
-        <Show when={!aram() && failed() === undefined}>
-          <LaneButtons />
-        </Show>
-        <RankPicker index={data.index()} />
-        <SearchField
-          label={t().tierList.filter}
-          value={query()}
-          onInput={setQuery}
-          onEnter={openBest}
-          class={styles.filter}
-          testId="champion-filter"
-        />
-        <Show when={failed() === undefined}>
-          <ViewSwitch />
-        </Show>
+        <div class={styles.scope}>
+          <Show when={!aram() && failed() === undefined}>
+            <LaneButtons />
+          </Show>
+          <RankPicker index={data.index()} />
+        </div>
+        <div class={styles.find}>
+          <SearchField
+            label={t().tierList.filter}
+            value={query()}
+            onInput={setQuery}
+            onEnter={openBest}
+            class={styles.filter}
+            testId="champion-filter"
+          />
+          <Show when={failed() === undefined}>
+            <ViewSwitch />
+          </Show>
+        </div>
       </div>
       <Show when={failed() !== undefined}>
         <NoStatsNotice error={failed()} onRetry={data.list.refetch} />

@@ -1,12 +1,23 @@
 /* The tier list page (TierList.tsx): a compact header, then the shelves or the table. */
 
-/* Lanes, rank, filter, then the view at the row's end: one row of 40 px pills. */
-.tools {
+/*
+ * One row of 40 px pills: lanes and rank, then the filter and the view switch, which take what
+ * the first two leave (their own line when narrow), the switch at the row's end.
+ */
+.tools,
+.scope,
+.find {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: var(--space-4) var(--space-5);
   min-width: 0;
+}
+
+.find {
+  flex: 1 1 auto;
+  flex-wrap: nowrap;
+  justify-content: space-between;
 }
 
 .filter {
