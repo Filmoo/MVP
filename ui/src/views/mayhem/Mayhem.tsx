@@ -238,14 +238,14 @@ export default function Mayhem(): JSX.Element {
     return Number.isInteger(n) && n > 0 ? n : undefined;
   };
   const name = (id: number) => gameData()?.champions.get(id)?.name ?? t().common.championN(id);
-  // Where the tiers and pick rates come from, like the tier list's data line.
+  // Where the tiers and pick rates come from, in the tier list's words (the note says whose).
   const sources = (): Fact[] => {
     const o = overview.data();
     const facts: Fact[] = [];
-    if (o?.tiers) facts.push({ glyph: "patch", text: o.tiers.patch ? t().mayhem.tiersOf(o.tiers.patch) : t().mayhem.tiersBy });
+    if (o?.tiers?.patch) facts.push({ glyph: "patch", text: t().common.patch(o.tiers.patch) });
     if (o?.popularity) {
       facts.push(
-        { glyph: "games", text: t().mayhem.shared(o.popularity.games) },
+        { glyph: "games", text: t().common.games(o.popularity.games) },
         { text: t().common.updated(timeAgo(o.popularity.updatedAt)) },
       );
     }

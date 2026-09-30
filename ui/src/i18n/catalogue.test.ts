@@ -220,8 +220,6 @@ const samples = (): Record<string, unknown[][]> => ({
     [percent(0.34), "Ahri"],
   ],
   "mayhem.held": [[percent(0.62)]],
-  "mayhem.tiersOf": [["26.19"]],
-  "mayhem.shared": [[1], [1234]],
   "mayhem.order.byRate": [["Ahri", 48]],
   "mayhem.order.byTier": [["Kog’Maw", 12, 30]],
   "mayhem.order.byPicks": [["Ahri", 48]],

@@ -150,7 +150,8 @@
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 0;
+  /* On the hairline, 4 px under the tab. */
+  bottom: calc(-1 * var(--space-2));
   height: 2px;
   border-radius: var(--radius-full);
   background: var(--accent);

@@ -66,12 +66,12 @@ describe("faces on the map", () => {
   const d = mapDomain(crowd);
   const placed = placeOnMap(crowd, d, size, 16, 22);
 
-  it("keeps each face in its own tier's band, however crowded", () => {
+  it("keeps each face, all of it, in its own tier's band, however crowded", () => {
     const bands = new Map(tierBands(d).map((b) => [b.tier, b]));
     for (const p of placed) {
       const band = bands.get(p.e.tier);
-      expect(p.y).toBeGreaterThanOrEqual((band?.top ?? 0) * size.h + 2 - 1e-6);
-      expect(p.y).toBeLessThanOrEqual(((band?.top ?? 0) + (band?.height ?? 0)) * size.h - 2 + 1e-6);
+      expect(p.y - 16).toBeGreaterThanOrEqual((band?.top ?? 0) * size.h - 1e-6);
+      expect(p.y + 16).toBeLessThanOrEqual(((band?.top ?? 0) + (band?.height ?? 0)) * size.h + 1e-6);
     }
   });
 

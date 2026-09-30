@@ -105,6 +105,13 @@
   color: var(--text-2);
 }
 
+/* The narrowest pages: words in 40 px pills keep their room ("Prismatique"). */
+@container page (max-width: 439px) {
+  .lg .segment:not(.withIcon) {
+    padding: 0 var(--space-3);
+  }
+}
+
 /* Narrow pages: segments with an icon show just the icon (the label stays their name). */
 @container page (max-width: 639px) {
   .withIcon .label {

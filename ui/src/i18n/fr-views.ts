@@ -502,7 +502,7 @@ export const frViews = {
     nth: (n: number) => `${n}ᵉ objet`,
     matchups: "Matchups",
     lane: "Voie",
-    vsJungler: "Jungler adverse",
+    vsJungler: "Vs jungler",
     duos: "Coéquipiers",
     bestWith: "Meilleurs avec",
     bestAgainst: "Meilleurs contre",
@@ -535,9 +535,6 @@ export const frViews = {
     picked: (pct: string) => `choisi dans ${pct} des parties`,
     pickedBy: (pct: string, champion: string) => `choisi dans ${pct} des parties ${de(champion)}`,
     held: (pct: string) => `dans ${pct} des parties`,
-    tiersOf: (patch: string) => `Tiers de MVP · patch ${patch}`,
-    tiersBy: "Tiers de MVP",
-    shared: (n: number) => count(n, "partie partagée", "parties partagées"),
     order: {
       byRate: (champion: string, n: number) =>
         `Selon les tiers de MVP, le meilleur d’abord ; puis les augments sans tier que les joueurs ${de(champion)} choisissent. Taux de sélection sur ${count(n, "partie partagée", "parties partagées")}.`,

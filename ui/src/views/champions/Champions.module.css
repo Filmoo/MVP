@@ -2,6 +2,10 @@
 .back {
   align-self: flex-start;
   display: inline-flex;
+  /* As tall as the tier list's head, the chevron on the column's edge: the tabs under it sit
+     where the tier list has them. */
+  min-height: var(--space-9);
+  margin-left: calc(-1 * var(--space-2));
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-2) var(--space-4) var(--space-2) var(--space-2);

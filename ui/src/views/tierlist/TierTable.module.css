@@ -212,6 +212,13 @@ td.lane {
   font-size: var(--text-sm);
 }
 
+/* Shares end on one edge: 100%, 70%, 13% line up. */
+.share {
+  display: inline-block;
+  min-width: 4ch;
+  text-align: right;
+}
+
 .laneIcon {
   display: inline-block;
   margin-right: var(--space-3);
@@ -244,9 +251,11 @@ td.wr {
   line-height: 1.2;
 }
 
-/* The change since the previous patch, after the win rate (under it on narrow tables). */
+/* The change since the previous patch, after the win rate (under it on narrow tables), in a slot
+   of its own: the rates stay aligned whatever the change reads. */
 td.wr > span {
   display: inline-flex;
+  min-width: var(--space-10);
   margin-left: var(--space-3);
 }
 
@@ -303,6 +312,10 @@ td.games {
   .aram .cRate,
   .aram .cGames {
     width: 140px;
+  }
+  /* A long way from a name to its numbers: every other row lit, to follow it. */
+  .aram .row:nth-child(even):not(:hover) td {
+    background: var(--bg-sheen);
   }
 }
 

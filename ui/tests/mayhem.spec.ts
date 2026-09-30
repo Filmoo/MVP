@@ -33,7 +33,7 @@ test.describe("ARAM: Mayhem page", () => {
     // Inside its tier's section, an augment's rank alone.
     await expect(first).toContainText(t.tierList.rankN(1));
     await expect(augments(page).nth(1)).toContainText(t.tierList.rankN(2));
-    await expect(page.getByTestId("mayhem-sources")).toContainText(t.mayhem.shared(1_284));
+    await expect(page.getByTestId("mayhem-sources")).toContainText(t.common.games(1_284));
     // Pick rates on every augment, never a win rate (the page's note says why there is none).
     const cards = (await augments(page).allInnerTexts()).join("\n").toLowerCase();
     expect(cards).toContain(t.mayhem.picked("").trim().split(" ")[0]?.toLowerCase() ?? "");

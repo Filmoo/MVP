@@ -79,7 +79,8 @@ export interface Placed<T> {
 /**
  * Where each row sits on a `w` × `h` plot, in px. Faces (`r` their radius) are pushed apart where
  * they would overlap, sideways (the push across tiers is damped) so a crowd spreads along
- * popularity; each stays inside its tier's band (2 px in) and `edge` px inside the plot. Dots
+ * popularity; each stays inside its tier's band (all of it when the band has room) and `edge` px
+ * inside the plot. Dots
  * (`r` 0) only stay inside.
  */
 export function placeOnMap<T extends Pick<RankedEntry, "score" | "pickRate" | "tier">>(
@@ -91,10 +92,12 @@ export function placeOnMap<T extends Pick<RankedEntry, "score" | "pickRate" | "t
 ): Placed<T>[] {
   const { w, h } = size;
   const bands = new Map(tierBands(d).map((b) => [b.tier, b]));
+  // A face keeps all of itself in its band when the band has room (else its middle).
+  const inset = (px: number) => (px > 2 * r + 4 ? r + 2 : px / 2);
   const inside = (p: Placed<T>) => {
     const band = bands.get(p.e.tier);
-    const top = Math.max(edge, band ? band.top * h + 2 : 0);
-    const bottom = Math.max(top, Math.min(h - edge, band ? (band.top + band.height) * h - 2 : h));
+    const top = Math.max(edge, band ? band.top * h + inset(band.height * h) : 0);
+    const bottom = Math.max(top, Math.min(h - edge, band ? (band.top + band.height) * h - inset(band.height * h) : h));
     p.x = Math.min(Math.max(p.x, edge), w - edge);
     p.y = Math.min(Math.max(p.y, top), bottom);
   };

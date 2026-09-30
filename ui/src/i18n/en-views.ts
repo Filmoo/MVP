@@ -450,7 +450,7 @@ export const enViews = {
     /** The first three, on steps. */
     podium: "Top three",
     /** Under the numbers that moved: what they are compared with. */
-    sincePrevious: "since the last patch",
+    sincePrevious: "since the previous patch",
     map: {
       title: "Meta map",
       open: "Open the meta map",
@@ -555,9 +555,6 @@ export const enViews = {
     pickedBy: (pct: string, champion: string) => `picked in ${pct} of ${champion} games`,
     /** An item's share of the champion's games: `in 62% of games`. */
     held: (pct: string) => `in ${pct} of games`,
-    tiersOf: (patch: string) => `MVP's tiers · patch ${patch}`,
-    tiersBy: "MVP's tiers",
-    shared: (n: number) => `${games(n)} shared ${plural(n, "game", "games")}`,
     order: {
       byRate: (champion: string, n: number) =>
         `By MVP's tiers, best first; then augments without a tier that ${champion} players pick. Pick rates from ${games(n)} shared games.`,

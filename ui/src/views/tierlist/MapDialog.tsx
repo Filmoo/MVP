@@ -50,7 +50,8 @@ export default function MapDialog(props: {
   });
   const d = createMemo(() => mapDomain(props.rows));
   const dots = () => props.allRoles;
-  const radius = () => (dots() ? 6 : size().w < 520 ? 12 : 16);
+  // Faces as big as the plot allows them to read: 24 px on phones, 44 px on very wide windows.
+  const radius = () => (dots() ? 6 : size().w < 520 ? 12 : size().w >= 1100 ? 22 : 16);
   // Faces pushed apart where they'd overlap, each in its tier's band; dots may touch. Every point
   // stays inside the plot, grown or not.
   const placed = createMemo(() =>
