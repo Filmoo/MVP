@@ -69,6 +69,7 @@ pub fn run() {
             commands::game_data,
             commands::game_description,
             commands::rank_emblems,
+            commands::position_icons,
             commands::draft_state,
             commands::get_settings,
             commands::update_settings,

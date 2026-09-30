@@ -14,9 +14,11 @@ use std::time::Duration;
 use domain::{ChampionInfo, GameData, ItemInfo, RuneInfo, RuneStyle, SpellInfo};
 use serde::Deserialize;
 
+pub mod client;
 pub mod descriptions;
 pub mod emblems;
 pub mod mayhem;
+pub mod positions;
 
 pub use descriptions::rich_text;
 

@@ -15,8 +15,8 @@ use companion::settings::SettingsStore;
 use companion::stats::StatsClient;
 use companion::{ScoutingHandle, Services, ViewReporter};
 use domain::{
-    ClientStatus, Description, DraftView, GameData, ImportWarning, Language, LiveGame, RankEmblem,
-    RankEmblems, Settings, StatsIndex,
+    ClientStatus, Description, DraftView, GameData, ImportWarning, Language, LiveGame,
+    PositionIcon, PositionIcons, RankEmblem, RankEmblems, Settings, StatsIndex,
 };
 use tauri::{AppHandle, Emitter as _, Manager as _, Runtime};
 use tokio::sync::watch;
@@ -205,9 +205,16 @@ impl UiLanguage {
 #[derive(Debug)]
 pub struct LogFile(pub Option<PathBuf>);
 
-/// Riot's ranked emblems, once downloaded (or read from the cache).
-#[derive(Debug, Default)]
-pub struct EmblemState(pub RwLock<Option<RankEmblems>>);
+/// Riot's art from the League client's files (the ranked emblems, the position icons), once
+/// downloaded or read from the cache.
+#[derive(Debug)]
+pub struct Art<T>(pub RwLock<Option<T>>);
+
+impl<T> Default for Art<T> {
+    fn default() -> Self {
+        Self(RwLock::new(None))
+    }
+}
 
 /// Our backend (player lookups, scouting), `None` when the client couldn't be built.
 #[derive(Debug)]
@@ -358,8 +365,7 @@ pub fn start<R: Runtime>(app: &AppHandle<R>, settings: &SettingsStore) {
     let ui_language = UiLanguage::new(settings.get().language);
     let language = ui_language.subscribe();
     app.manage(ui_language);
-    app.manage(EmblemState::default());
-    load_rank_emblems(app);
+    load_client_art(app);
     let dir = app.path().app_config_dir().unwrap_or_else(|error| {
         tracing::error!(%error, "no config directory, using the temporary one");
         std::env::temp_dir().join(&app.config().identifier)
@@ -513,51 +519,80 @@ fn forward<R: Runtime, T: Clone + serde::Serialize + Send + Sync + 'static>(
     });
 }
 
-/// Loads Riot's ranked emblems (downloaded once, cropped and cached) and hands them to the UI.
-fn load_rank_emblems<R: Runtime>(app: &AppHandle<R>) {
+/// Loads Riot's art from the League client's files (downloaded once, then from the cache) and
+/// hands it to the UI: the ranked emblems, then the position icons. What can't be had now is left
+/// out (the UI draws its own), and the next start tries again.
+fn load_client_art<R: Runtime>(app: &AppHandle<R>) {
     use base64::Engine as _;
+    use static_data::client::CDRAGON;
+    app.manage(Art::<RankEmblems>::default());
+    app.manage(Art::<PositionIcons>::default());
     let cache = match app.path().app_cache_dir() {
-        Ok(dir) => dir.join("emblems"),
+        Ok(dir) => dir,
         Err(error) => {
-            tracing::error!(%error, "no cache directory for ranked emblems");
+            tracing::error!(%error, "no cache directory for the client's art");
             return;
         }
     };
+    let url = |mime: &str, bytes: &[u8]| {
+        let data = base64::engine::general_purpose::STANDARD.encode(bytes);
+        format!("data:{mime};base64,{data}")
+    };
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
-        let emblems =
-            match static_data::emblems::RankEmblems::new(static_data::emblems::CDRAGON, cache) {
-                Ok(source) => source.load().await,
-                Err(error) => {
-                    tracing::warn!(%error, "ranked emblems unavailable");
-                    return;
+        match static_data::emblems::RankEmblems::new(CDRAGON, cache.join("emblems")) {
+            Ok(source) => {
+                let emblems: Vec<_> = source
+                    .load()
+                    .await
+                    .into_iter()
+                    .map(|(tier, png)| RankEmblem {
+                        tier,
+                        url: url("image/png", &png),
+                    })
+                    .collect();
+                if !emblems.is_empty() {
+                    tracing::info!(tiers = emblems.len(), "ranked emblems ready");
+                    hand_over(&app, "rank-emblems", RankEmblems { emblems });
                 }
-            };
-        if emblems.is_empty() {
-            return;
+            }
+            Err(error) => tracing::warn!(%error, "ranked emblems unavailable"),
         }
-        let emblems = RankEmblems {
-            emblems: emblems
-                .into_iter()
-                .map(|(tier, png)| RankEmblem {
-                    tier,
-                    url: format!(
-                        "data:image/png;base64,{}",
-                        base64::engine::general_purpose::STANDARD.encode(png)
-                    ),
-                })
-                .collect(),
-        };
-        tracing::info!(tiers = emblems.emblems.len(), "ranked emblems ready");
-        if let Some(state) = app.try_state::<EmblemState>()
-            && let Ok(mut slot) = state.0.write()
-        {
-            *slot = Some(emblems.clone());
-        }
-        if let Err(error) = app.emit("rank-emblems", emblems) {
-            tracing::warn!(%error, "cannot emit ranked emblems");
+        match static_data::positions::PositionIcons::new(CDRAGON, cache.join("positions")) {
+            Ok(source) => {
+                let icons: Vec<_> = source
+                    .load()
+                    .await
+                    .into_iter()
+                    .map(|(role, svg)| PositionIcon {
+                        role,
+                        url: url("image/svg+xml", &svg),
+                    })
+                    .collect();
+                if !icons.is_empty() {
+                    tracing::info!(roles = icons.len(), "position icons ready");
+                    hand_over(&app, "position-icons", PositionIcons { icons });
+                }
+            }
+            Err(error) => tracing::warn!(%error, "position icons unavailable"),
         }
     });
+}
+
+/// Keeps the client's art for the UI's next ask (`Art<T>`) and sends it now.
+fn hand_over<R: Runtime, T: Clone + serde::Serialize + Send + Sync + 'static>(
+    app: &AppHandle<R>,
+    event: &'static str,
+    art: T,
+) {
+    if let Some(state) = app.try_state::<Art<T>>()
+        && let Ok(mut slot) = state.0.write()
+    {
+        *slot = Some(art.clone());
+    }
+    if let Err(error) = app.emit(event, art) {
+        tracing::warn!(%error, event, "cannot emit the client's art");
+    }
 }
 
 /// Loads champion/item/spell data (cached per patch and locale) in the language the UI asks for,

@@ -7,15 +7,15 @@ use domain::{
     AppInfo, BackendError, Bracket, ChampionMastery, ChampionPage, ClientError, ClientStatus,
     Description, DescriptionKind, DraftView, GameData, GradedMatch, ImportRequest, ImportResult,
     ImportWarning, Language, LiveGame, LpGame, MatchDetails, MatchSummary, MayhemAugments,
-    MayhemChampion, MayhemOverview, PlayerProfile, PostGame, RankEmblems, RemoteConfig, RiotId,
-    Settings, StatsIndex, TierList, UpdateStatus,
+    MayhemChampion, MayhemOverview, PlayerProfile, PositionIcons, PostGame, RankEmblems,
+    RemoteConfig, RiotId, Settings, StatsIndex, TierList, UpdateStatus,
 };
 use tauri::{Emitter as _, Manager as _};
 use tauri_plugin_autostart::ManagerExt as _;
 
 use crate::core::{
-    Backend, Core, Crashes, EmblemState, GameDataState, InstallId, LogFile, Mayhem, Remote,
-    ShardTexts, Stats, UiLanguage, ddragon_cache,
+    Art, Backend, Core, Crashes, GameDataState, InstallId, LogFile, Mayhem, Remote, ShardTexts,
+    Stats, UiLanguage, ddragon_cache,
 };
 use crate::updater::Updates;
 use crate::{diagnostics, logging};
@@ -356,8 +356,23 @@ pub async fn game_description(
     reason = "Tauri injects command arguments by value"
 )]
 pub fn rank_emblems(app: tauri::AppHandle) -> Option<RankEmblems> {
-    app.try_state::<EmblemState>()
-        .and_then(|state| state.0.read().ok().and_then(|emblems| emblems.clone()))
+    art(&app)
+}
+
+/// League's position icons, `None` until downloaded or read from the cache (`position-icons`
+/// follows).
+#[tauri::command]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "Tauri injects command arguments by value"
+)]
+pub fn position_icons(app: tauri::AppHandle) -> Option<PositionIcons> {
+    art(&app)
+}
+
+fn art<T: Clone + Send + Sync + 'static>(app: &tauri::AppHandle) -> Option<T> {
+    app.try_state::<Art<T>>()
+        .and_then(|state| state.0.read().ok().and_then(|art| art.clone()))
 }
 
 /// The player's settings.
@@ -640,16 +655,7 @@ pub fn diagnostics(app: tauri::AppHandle) -> String {
         .and_then(|stats| stats.0.as_ref().and_then(StatsClient::cached_index))
         .and_then(|index| index.current.clone());
     let game_data = app.try_state::<GameDataState>().and_then(|g| g.loaded());
-    let emblems = app
-        .try_state::<EmblemState>()
-        .and_then(|state| {
-            state
-                .0
-                .read()
-                .ok()
-                .map(|e| e.as_ref().map_or(0, |e| e.emblems.len()))
-        })
-        .unwrap_or(0);
+    let emblems = art::<RankEmblems>(&app).map_or(0, |e| e.emblems.len());
     let settings = app
         .try_state::<SettingsStore>()
         .map(|store| store.get())
