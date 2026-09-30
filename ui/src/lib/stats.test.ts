@@ -159,23 +159,31 @@ describe("tier list rows", () => {
     expect(wrSide(0.4994)).toBe("loss");
   });
 
-  it("filter by champion name, best match first", () => {
+  it("filter by champion name, the ranking kept", () => {
     const rows = rankEntries(entries, "all");
     const name = (id: number) => ["", "Zed", "Ahri", "Garen", "Lux"][id] ?? "";
     expect(matchingEntries(rows, "a", name).map((e) => e.id)).toEqual([2, 3]);
+    // A better match ranked lower stays lower: the list's order, not the match's.
+    const ka = (id: number) => ["", "Kassadin", "Ahri", "Garen", "Ka"][id] ?? "";
+    expect(matchingEntries(rows, "ka", ka).map((e) => e.id)).toEqual([1, 4]);
     expect(matchingEntries(rows, "  ", name)).toHaveLength(4);
     expect(matchingEntries(rows, "zzz", name)).toEqual([]);
   });
 });
 
 describe("trends", () => {
-  const now = list("16.19", [entry(1, "top", 1, 0.52, 0.05), entry(2, "middle", 0, 0.5, 0.1), entry(3, "top", 0, 0.5, 0.01)]);
-  const before = list("16.18", [entry(1, "top", 1, 0.51, 0.06), entry(2, "middle", 0, 0.505, 0.08)]);
+  const now = list("16.19", [
+    entry(1, "top", 1, 0.52, 0.05, { banRate: 0.12 }),
+    entry(2, "middle", 0, 0.5, 0.1),
+    entry(3, "top", 0, 0.5, 0.01),
+  ]);
+  const before = list("16.18", [entry(1, "top", 1, 0.51, 0.06, { banRate: 0.1 }), entry(2, "middle", 0, 0.505, 0.08)]);
 
   it("compare each row with the previous patch's, in points", () => {
     const trends = trendsOf(now, before);
     expect(trends?.get("1:top")?.winRate).toBeCloseTo(1);
     expect(trends?.get("1:top")?.pickRate).toBeCloseTo(-1);
+    expect(trends?.get("1:top")?.banRate).toBeCloseTo(2);
     expect(trends?.get("2:middle")?.winRate).toBeCloseTo(-0.5);
     expect(trends?.has("3:top"), "not listed then: no trend").toBe(false);
   });

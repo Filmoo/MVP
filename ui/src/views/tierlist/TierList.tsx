@@ -7,18 +7,20 @@ import { championIconUrl } from "../../design/GameIcon";
 import { PenguinArt } from "../../design/PenguinArt";
 import { EmptyState, Skeleton } from "../../design/States";
 import { t } from "../../i18n";
+import { timeAgo } from "../../lib/format";
+import { bestMatches } from "../../lib/fuzzy";
 import { createQuery } from "../../lib/query";
-import { matchingEntries, rankEntries, trendsOf } from "../../lib/stats";
+import { matchingEntries, patchName, rankEntries, trendsOf } from "../../lib/stats";
 import { ARAM, filters, type RoleFilter } from "../../lib/stats-filters";
 import { parseView, setTierView, type TierView, tierView } from "../../lib/tier-view";
 import { Widget } from "../../widgets/Widget";
 import page from "../page.module.css";
-import { QueueTabs, RankPicker, useLinkFilters, useStatsIndex } from "../stats/common";
+import { type Fact, QueueTabs, RankPicker, SearchField, StatsHead, useLinkFilters, useStatsIndex } from "../stats/common";
 import { NoStatsChampions } from "./NoStats";
 import { championLink, Shelves } from "./Shelves";
 import styles from "./TierList.module.css";
 import { TierTable } from "./TierTable";
-import { ChampionFilter, DataLine, LaneButtons, NoStatsNotice, TierTitle, ViewSwitch } from "./Toolbar";
+import { LaneButtons, LaneScope, NoStatsNotice, ViewSwitch } from "./Toolbar";
 
 // The full meta map loads when first opened.
 const MapDialog = lazy(() => import("./MapDialog"));
@@ -54,7 +56,7 @@ function useTierData() {
 }
 
 /** Shelves: the podium's row, then shelves. The table: its header, then rows. */
-const SKELETONS = { shelves: ["168px", "108px", "108px", "108px"], table: ["28px", ...Array<string>(9).fill("36px")] };
+const SKELETONS = { shelves: ["176px", "108px", "108px", "108px"], table: ["28px", ...Array<string>(9).fill("36px")] };
 
 /** Same boxes as the view shown, so nothing jumps when it lands. */
 function ViewSkeleton(props: { view: TierView }): JSX.Element {
@@ -66,9 +68,10 @@ function ViewSkeleton(props: { view: TierView }): JSX.Element {
 }
 
 /**
- * The tier list, where champions are found: a compact header (queue tabs; lanes, rank and a
- * champion filter), then shelves (the podium, a meta map, a shelf per tier) or a table sorted by
- * any column. Every champion opens its build in that lane. Without stats, every champion by class.
+ * The tier list, where champions are found: a compact header (queue tabs; lanes, rank, a
+ * champion filter and the view), then shelves (the podium, a meta map, a shelf per tier) or a table
+ * sorted by any column. Every champion opens its build in that lane. Without stats, every
+ * champion by class.
  */
 export default function TierListView(): JSX.Element {
   const { gameData } = useData();
@@ -89,38 +92,58 @@ export default function TierListView(): JSX.Element {
   const [mapOpen, setMapOpen] = createSignal(false);
   const name = (id: number) => gameData()?.champions.get(id)?.name ?? t().common.championN(id);
   const filtering = () => query().trim().length > 0;
+  // The filter keeps the list's order; Enter opens the best match.
   const shown = createMemo(() => matchingEntries(data.ranked(), query(), name));
   const aram = () => data.queue() === ARAM;
   const allRoles = () => data.role() === "all" && !aram();
   // Why there is nothing to rank (kept while a retry runs, so nothing flickers).
   const failed = () => (data.list.data() || data.list.error() === undefined ? undefined : data.list.error());
+  const facts = (): Fact[] => {
+    const info = data.list.data()?.info;
+    if (!info) return [];
+    return [
+      { glyph: "patch", text: t().common.patch(patchName(data.index(), info.patch)) },
+      { glyph: "games", text: t().common.games(info.games) },
+      { text: t().common.updated(timeAgo(info.updatedAt)) },
+    ];
+  };
   // The page takes its light from the best champion shown.
   useAmbient(() => championIconUrl(gameData(), data.ranked()[0]?.id));
   const openBest = () => {
-    const best = filtering() ? (shown()[0] ?? undefined) : undefined;
+    const best = filtering() ? bestMatches(query(), shown(), (e) => name(e.id), 1)[0] : undefined;
     if (best) navigate(championLink(best).slice(1));
   };
   const busy = () => (data.list.loading() ? styles.busy : undefined);
 
   return (
     <div class={page.page}>
-      <header class={styles.head}>
-        <TierTitle role={data.role()} lane={!aram() && failed() === undefined} />
-        <Show when={data.list.data()}>{(l) => <DataLine info={l().info} index={data.index()} />}</Show>
-      </header>
-      <div class={styles.tabsRow}>
-        {/* ARAM: Mayhem's augments have a page of their own. */}
-        <QueueTabs mayhem={{ selected: false, onSelect: () => navigate("/mayhem") }} />
-        <Show when={data.list.data()}>
-          <ViewSwitch />
-        </Show>
-      </div>
+      <StatsHead
+        scope={
+          <Show when={!aram() && failed() === undefined}>
+            <LaneScope role={data.role()} />
+          </Show>
+        }
+        facts={failed() === undefined ? facts() : undefined}
+        testId="data-badge"
+      />
+      {/* ARAM: Mayhem's augments have a page of their own. */}
+      <QueueTabs mayhem={{ selected: false, onSelect: () => navigate("/mayhem") }} />
       <div class={styles.tools}>
         <Show when={!aram() && failed() === undefined}>
           <LaneButtons />
         </Show>
         <RankPicker index={data.index()} />
-        <ChampionFilter value={query()} onInput={setQuery} onEnter={openBest} />
+        <SearchField
+          label={t().tierList.filter}
+          value={query()}
+          onInput={setQuery}
+          onEnter={openBest}
+          class={styles.filter}
+          testId="champion-filter"
+        />
+        <Show when={failed() === undefined}>
+          <ViewSwitch />
+        </Show>
       </div>
       <Show when={failed() !== undefined}>
         <NoStatsNotice error={failed()} onRetry={data.list.refetch} />
@@ -138,7 +161,7 @@ export default function TierListView(): JSX.Element {
         </Match>
         <Match when={data.list.data() && tierView() === "table"}>
           <Widget name="tier-table" class={busy()}>
-            <TierTable rows={shown()} filtering={filtering()} aram={aram()} trends={data.trends()} />
+            <TierTable rows={shown()} aram={aram()} allRoles={allRoles()} trends={data.trends()} />
           </Widget>
         </Match>
         <Match when={data.list.data()}>

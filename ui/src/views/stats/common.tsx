@@ -1,4 +1,4 @@
-import { type Accessor, createEffect, createSignal, createUniqueId, type JSX, on, onCleanup, Show } from "solid-js";
+import { type Accessor, createEffect, createSignal, createUniqueId, For, type JSX, on, onCleanup, Show } from "solid-js";
 import { queryParam } from "../../app/router";
 import { useData } from "../../data/context";
 import type { Bracket } from "../../data/generated/Bracket";
@@ -51,6 +51,83 @@ export function useLinkFilters(options: { role: boolean }): void {
   );
 }
 
+/** A fact of the data line: `Patch 26.19`, `412K games`. */
+export interface Fact {
+  glyph?: GlyphName;
+  text: string;
+}
+
+/**
+ * The hub's head: `Tier list · Mid` (what the page shows, `TitleScope`), then where the numbers
+ * come from as text, no picker (under the title when narrow). The facts' line is kept while they
+ * load, so nothing moves when they land; none without `facts`.
+ */
+export function StatsHead(props: { scope: JSX.Element; facts: readonly Fact[] | undefined; testId: string }): JSX.Element {
+  return (
+    <header class={styles.head}>
+      <h1 class={styles.title}>
+        {t().tierList.title}
+        {props.scope}
+      </h1>
+      <Show when={props.facts}>
+        {(facts) => (
+          <p class={`${styles.dataLine} num`} data-testid={props.testId}>
+            <For each={facts()}>
+              {(fact) => (
+                <span class={styles.fact}>
+                  <Show when={fact.glyph}>{(glyph) => <Glyph name={glyph()} size={14} class={styles.factIcon} />}</Show>
+                  {fact.text}
+                </span>
+              )}
+            </For>
+          </p>
+        )}
+      </Show>
+    </header>
+  );
+}
+
+/** `· Mid`: what a title shows, its icon and its name. */
+export function TitleScope(props: { icon: JSX.Element; label: string }): JSX.Element {
+  return (
+    <span class={styles.scope}>
+      <span class={styles.scopeDot} aria-hidden="true">
+        ·
+      </span>
+      {props.icon}
+      {props.label}
+    </span>
+  );
+}
+
+/** A champion filter, as a 40 px pill: Enter does what the page says (opens the best match). */
+export function SearchField(props: {
+  label: string;
+  value: string;
+  onInput: (value: string) => void;
+  onEnter: () => void;
+  class: string | undefined;
+  testId: string;
+}): JSX.Element {
+  return (
+    <label class={`${styles.search} ${props.class ?? ""}`}>
+      <Icon name="search" size={16} class={styles.searchIcon} />
+      <input
+        type="search"
+        class={styles.searchInput}
+        placeholder={props.label}
+        aria-label={props.label}
+        value={props.value}
+        onInput={(e) => props.onInput(e.currentTarget.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") props.onEnter();
+        }}
+        data-testid={props.testId}
+      />
+    </label>
+  );
+}
+
 /** ARAM: Mayhem as the last queue tab: its own page from the tier list, a champion's Mayhem tab. */
 export interface MayhemTab {
   selected: boolean;
@@ -64,33 +141,37 @@ type QueueTab = Queue | typeof MAYHEM;
 const QUEUE_GLYPH: Record<QueueTab, GlyphName> = { 420: "ranked", 450: "aram", [MAYHEM]: "mayhem" };
 
 /**
- * The queue as the stats pages' own tabs: words, a line under the one shown. Remembered for every
- * stats page, like the rank. With `mayhem`, ARAM: Mayhem ends the row (its augments have a page and
- * a champion tab of their own: nothing is published for it).
+ * The queue as the stats pages' own tabs, on a hairline: words, a line under the one shown (`end`
+ * at the row's other end). Remembered for every stats page, like the rank. With `mayhem`, ARAM:
+ * Mayhem ends the tabs (its augments have a page and a champion tab of their own: nothing is
+ * published for it).
  */
-export function QueueTabs(props: { mayhem?: MayhemTab }): JSX.Element {
+export function QueueTabs(props: { mayhem?: MayhemTab; end?: JSX.Element }): JSX.Element {
   const values = (): QueueTab[] => (props.mayhem ? [RANKED, ARAM, MAYHEM] : [RANKED, ARAM]);
   return (
-    <Radios<QueueTab>
-      label={t().stats.queue}
-      value={props.mayhem?.selected ? MAYHEM : filters().queue}
-      values={values()}
-      onChange={(queue) => {
-        if (queue === MAYHEM) return props.mayhem?.onSelect();
-        setFilter({ queue });
-        props.mayhem?.onLeave?.();
-      }}
-      class={styles.tabs}
-      optionClass={() => styles.tab}
-      testId="queue-switch"
-    >
-      {(queue) => (
-        <>
-          <Glyph name={QUEUE_GLYPH[queue]} size={16} class={styles.tabIcon} />
-          <span>{queue === MAYHEM ? t().queues[MAYHEM] : queueLabel(queue)}</span>
-        </>
-      )}
-    </Radios>
+    <div class={styles.tabsRow}>
+      <Radios<QueueTab>
+        label={t().stats.queue}
+        value={props.mayhem?.selected ? MAYHEM : filters().queue}
+        values={values()}
+        onChange={(queue) => {
+          if (queue === MAYHEM) return props.mayhem?.onSelect();
+          setFilter({ queue });
+          props.mayhem?.onLeave?.();
+        }}
+        class={styles.tabs}
+        optionClass={() => styles.tab}
+        testId="queue-switch"
+      >
+        {(queue) => (
+          <>
+            <Glyph name={QUEUE_GLYPH[queue]} size={16} class={styles.tabIcon} />
+            <span>{queue === MAYHEM ? t().queues[MAYHEM] : queueLabel(queue)}</span>
+          </>
+        )}
+      </Radios>
+      {props.end}
+    </div>
   );
 }
 

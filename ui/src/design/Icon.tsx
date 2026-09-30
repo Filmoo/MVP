@@ -29,15 +29,6 @@ const paths = {
   import: "M12 3v11M7.5 9.5 12 14l4.5-4.5M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4",
   info: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 16v-5M12 8h.01",
   download: "M12 4v11M7 10.5l5 5 5-5M5 20h14",
-  // Roles, read like the game's own position icons (drawn here): the lane on a map square (top
-  // and bottom along the edges, mid across), the jungle's three talons, the support's winged crest.
-  roleTop: "M4 20V4h16M9 9h5v5H9z",
-  roleJungle:
-    "M12 20.5C10.3 15.6 10.5 9 12.8 3.5c1.4 5.3 1.6 11.4-.8 17zM11.2 20.2C7.6 18.6 4.8 14.6 4 8c3.2 2.4 5.8 6.4 7.2 12.2zM12.8 20.2c3.6-1.6 6.4-5.6 7.2-12.2-3.2 2.4-5.8 6.4-7.2 12.2z",
-  roleMiddle: "M5 19 19 5M4 9V4h5M20 15v5h-5",
-  roleBottom: "M20 4v16H4M10 10h5v5h-5z",
-  roleSupport:
-    "M12 9.2l2.6 2.8L12 19.5 9.4 12zM9.5 10.6C7.3 8.6 4.8 7.9 2.5 8.3c1 2.7 3.6 4.2 6.6 4.2M14.5 10.6c2.2-2 4.7-2.7 7-2.3-1 2.7-3.6 4.2-6.6 4.2M12 3.5l1.4 1.6L12 6.7l-1.4-1.6z",
   back: "M15 5l-7 7 7 7",
   chevronDown: "M6 9l6 6 6-6",
 } as const;
@@ -73,9 +64,6 @@ export function LineIcon(props: LineProps & { d: string }): JSX.Element {
     </svg>
   );
 }
-
-/** An icon's path, for controls that draw icons of both sets (`glyphPath` for the others). */
-export const iconPath = (name: IconName): string => paths[name];
 
 export function Icon(props: LineProps & { name: IconName }): JSX.Element {
   return <LineIcon d={paths[props.name]} size={props.size} class={props.class} label={props.label} />;

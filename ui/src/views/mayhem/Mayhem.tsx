@@ -13,6 +13,7 @@ import type { MayhemOverview } from "../../data/generated/MayhemOverview";
 import { Button } from "../../design/Button";
 import { Card } from "../../design/Card";
 import { ChampionIcon } from "../../design/GameIcon";
+import { Glyph } from "../../design/Glyph";
 import { Icon } from "../../design/Icon";
 import { Segmented } from "../../design/Segmented";
 import { EmptyState, ErrorState, Skeleton } from "../../design/States";
@@ -23,7 +24,7 @@ import { createQuery } from "../../lib/query";
 import { statsErrorWords } from "../../lib/stats";
 import { Widget } from "../../widgets/Widget";
 import page from "../page.module.css";
-import { QueueTabs } from "../stats/common";
+import { type Fact, QueueTabs, SearchField, StatsHead, TitleScope } from "../stats/common";
 import styles from "./Mayhem.module.css";
 import { AugmentIcon, ChampionAugments, RankPill, sentence, TierMark, useAugments } from "./parts";
 
@@ -52,7 +53,7 @@ function AugmentCard(props: { augment: AugmentInfo; tier?: AugmentTier; rank?: n
         <div class={styles.top}>
           <span class={styles.name}>{props.augment.name}</span>
           <Show when={props.tier && props.rank ? { tier: props.tier, rank: props.rank } : undefined}>
-            {(placed) => <RankPill tier={placed().tier} rank={placed().rank} />}
+            {(placed) => <RankPill tier={placed().tier} rank={placed().rank} inTier />}
           </Show>
         </div>
         <span class={`${styles.meta} num`}>{meta()}</span>
@@ -101,9 +102,10 @@ export function AugmentTiers(props: {
         {(group) => (
           <Card
             title={
+              // The medallion says the letter (and its name, "S tier"): the word follows it.
               <span class={styles.tierTitle}>
                 <TierMark tier={group.tier} />
-                {t().mayhem.tier(group.tier)}
+                <span aria-hidden="true">{t().tierList.columns.tier}</span>
               </span>
             }
             actions={<span class={`${styles.count} num`}>{group.entries.length}</span>}
@@ -163,22 +165,17 @@ function ChampionFilter(props: { championId: number | undefined }): JSX.Element 
       <Show
         when={props.championId}
         fallback={
-          <label class={styles.search}>
-            <Icon name="search" size={16} class={styles.searchIcon} />
-            <input
-              type="search"
-              class={styles.searchInput}
-              placeholder={t().mayhem.search}
-              aria-label={t().mayhem.search}
-              value={query()}
-              onInput={(e) => setQuery(e.currentTarget.value)}
-              onKeyDown={(e) => {
-                const first = matches()[0];
-                if (e.key === "Enter" && first) pick(first.id);
-              }}
-              data-testid="mayhem-champion-search"
-            />
-          </label>
+          <SearchField
+            label={t().mayhem.search}
+            value={query()}
+            onInput={setQuery}
+            onEnter={() => {
+              const first = matches()[0];
+              if (first) pick(first.id);
+            }}
+            class={styles.search}
+            testId="mayhem-champion-search"
+          />
         }
       >
         {(id) => (
@@ -241,33 +238,34 @@ export default function Mayhem(): JSX.Element {
     return Number.isInteger(n) && n > 0 ? n : undefined;
   };
   const name = (id: number) => gameData()?.champions.get(id)?.name ?? t().common.championN(id);
-  const sources = () => {
+  // Where the tiers and pick rates come from, like the tier list's data line.
+  const sources = (): Fact[] => {
     const o = overview.data();
-    const parts: string[] = [];
-    if (o?.tiers) parts.push(o.tiers.patch ? t().mayhem.tiersOf(o.tiers.patch) : t().mayhem.tiersBy);
-    if (o?.popularity) parts.push(t().mayhem.shared(o.popularity.games), t().common.updated(timeAgo(o.popularity.updatedAt)));
-    return parts;
+    const facts: Fact[] = [];
+    if (o?.tiers) facts.push({ glyph: "patch", text: o.tiers.patch ? t().mayhem.tiersOf(o.tiers.patch) : t().mayhem.tiersBy });
+    if (o?.popularity) {
+      facts.push(
+        { glyph: "games", text: t().mayhem.shared(o.popularity.games) },
+        { text: t().common.updated(timeAgo(o.popularity.updatedAt)) },
+      );
+    }
+    return facts;
   };
   const problem = () => statsErrorWords(backendError(augments.error()));
   return (
     <div class={page.page}>
-      <div class={styles.head}>
-        <h1 class={page.title}>{t().queues[2400]}</h1>
-        <Show when={sources().length > 0}>
-          <p class={`${styles.sources} num`} data-testid="mayhem-sources">
-            <For each={sources()}>{(s, i) => <span class={styles.source}>{i() < sources().length - 1 ? `${s} ·` : s}</span>}</For>
-          </p>
-        </Show>
-      </div>
+      <StatsHead
+        scope={<TitleScope icon={<Glyph name="mayhem" size={20} />} label={t().mayhem.augments} />}
+        facts={sources()}
+        testId="mayhem-sources"
+      />
       {/* The tier list's queue tabs, in the same place: Ranked Solo or ARAM goes back to it. */}
-      <div class={styles.tabsRow}>
-        <QueueTabs mayhem={{ selected: true, onSelect: () => {}, onLeave: () => navigate("/tier-list") }} />
-      </div>
+      <QueueTabs mayhem={{ selected: true, onSelect: () => {}, onLeave: () => navigate("/tier-list") }} />
       <div class={styles.filters}>
         <Show when={!championId()}>
           <Segmented
             label={t().mayhem.rarity}
-            size="sm"
+            size="lg"
             options={rarityOptions()}
             value={rarity()}
             onChange={setRarity}

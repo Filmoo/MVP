@@ -1,101 +1,12 @@
-/* The tier list's header (Toolbar.tsx): compact, one row of tools under the queue tabs (stats/common). */
+/* The tier list's tools (Toolbar.tsx): lanes, the view switch, why there are no stats. */
 
-/* ——— Title: `Tier list · Mid`, the lane in its colour ——— */
-.title {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0 var(--space-4);
-  font-size: var(--text-2xl);
-  font-weight: var(--weight-bold);
-  letter-spacing: -0.01em;
-}
-
-.titleRole {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-3);
-  font-size: var(--text-xl);
-  font-weight: var(--weight-semibold);
-  letter-spacing: 0;
-  color: var(--tone);
-}
-
-.titleDot {
-  margin-right: var(--space-1);
-  color: var(--text-3);
-}
-
-.titleIcon {
-  flex: none;
-}
-
-/* ——— Where the numbers come from ——— */
-.dataLine {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2) var(--space-6);
-  min-width: 0;
-  font-size: var(--text-sm);
-  color: var(--text-2);
-}
-
-.fact {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-3);
-  white-space: nowrap;
-}
-
-.factIcon {
-  flex: none;
-}
-
-/* ——— Shelves or table ——— */
-.views {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-}
-
-.view {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-3);
-  height: 32px;
-  padding: 0 var(--space-5);
-  border: 0;
-  border-radius: var(--radius-full);
-  background: transparent;
-  color: var(--text-3);
-  font-size: var(--text-md);
-  font-weight: var(--weight-medium);
-  white-space: nowrap;
-  cursor: pointer;
-  transition:
-    color var(--dur-1) var(--ease),
-    background-color var(--dur-1) var(--ease);
-}
-
-.view:hover {
-  color: var(--text-1);
-  background: var(--bg-3);
-}
-
-.view[aria-checked="true"] {
-  color: var(--accent-strong);
-  background: var(--accent-soft);
-  cursor: default;
-}
-
-/* ——— Lanes: icon buttons, the chosen one on a drop of glass in its colour ——— */
+/* ——— Lanes: icon buttons, the chosen one on a neutral drop of glass ——— */
 .lanes {
-  --lane: 36px;
+  --lane: var(--space-9);
   position: relative;
   display: flex;
   flex: none;
-  padding: var(--space-1);
+  padding: var(--space-2);
   border-radius: var(--radius-full);
   background: var(--bg-1);
   box-shadow:
@@ -103,12 +14,12 @@
     inset 0 0 0 1px var(--line-glass);
 }
 
-/* The glass is neutral (the lens reads its tint once); the lane's colour is a layer in it. */
+/* The glass is neutral (the lens reads its tint once), a drop's light over it. */
 .drop {
   --lg-tint: var(--bg-highlight);
   position: absolute;
-  top: var(--space-1);
-  left: var(--space-1);
+  top: var(--space-2);
+  left: var(--space-2);
   width: var(--lane);
   height: var(--lane);
   border-radius: var(--radius-full);
@@ -123,8 +34,7 @@
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: var(--drop);
-  transition: background-color var(--dur-2) var(--ease);
+  background: var(--bg-drop);
 }
 
 :global(:root[data-effects="shader"]) .drop {
@@ -158,12 +68,8 @@
 }
 
 .lane[aria-checked="true"] {
-  color: var(--tone, var(--text-1));
+  color: var(--text-1);
   cursor: default;
-}
-
-.lane[aria-checked="true"] .laneIcon {
-  color: var(--tone);
 }
 
 /* A press you can feel (the icon is a vector: it stays sharp). */
@@ -175,48 +81,9 @@
   outline-offset: 0;
 }
 
-/* ——— The champion filter ——— */
-.filter {
-  position: relative;
-  display: flex;
-  align-items: center;
-  flex: 1 1 200px;
-  min-width: 0;
-  max-width: 360px;
-}
-
-.filterIcon {
-  position: absolute;
-  left: var(--space-5);
-  color: var(--text-3);
-  pointer-events: none;
-}
-
-.filterInput {
-  width: 100%;
-  height: var(--space-10);
-  /* Room for the clear button (design/base.css). */
-  padding: 0 var(--space-4) 0 var(--space-10);
-  border: 1px solid var(--line-glass);
-  border-radius: var(--radius-full);
-  background: var(--bg-1);
-  color: var(--text-1);
-  font: inherit;
-  font-size: var(--text-md);
-  outline: none;
-  transition: border-color var(--dur-1) var(--ease);
-}
-
-.filterInput::placeholder {
-  color: var(--text-3);
-}
-
-.filterInput:hover {
-  border-color: var(--line-2);
-}
-
-.filterInput:focus-visible {
-  border-color: var(--accent);
+/* ——— Shelves or table: the tools' last, at the row's end ——— */
+.views {
+  margin-inline-start: auto;
 }
 
 /* ——— Without stats: why, as tall as the tools, the sign on its first line ——— */
@@ -262,21 +129,4 @@
 
 .retry:hover {
   color: var(--accent-strong);
-}
-
-/* Narrow pages: the views say themselves with their icon only. */
-@container page (max-width: 639px) {
-  .viewLabel {
-    display: none;
-  }
-  .view {
-    padding: 0 var(--space-4);
-  }
-}
-
-@container page (max-width: 559px) {
-  .filter {
-    flex-basis: 100%;
-    max-width: none;
-  }
 }

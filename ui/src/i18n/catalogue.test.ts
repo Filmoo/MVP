@@ -169,6 +169,7 @@ const samples = (): Record<string, unknown[][]> => ({
     [1234, 5000],
   ],
   "tierList.showAll": [[171]],
+  "tierList.noStats": [["No stats published yet"]],
   "tierList.champions": [[1], [18]],
   "tierList.average": [[percent(0.528, 1)]],
   "tierList.tileLabel": [

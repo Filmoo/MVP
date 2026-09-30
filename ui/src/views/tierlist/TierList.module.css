@@ -1,34 +1,17 @@
 /* The tier list page (TierList.tsx): a compact header, then the shelves or the table. */
 
-/* Title, then where the numbers come from (it goes under the title when narrow). */
-.head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: var(--space-4) var(--space-6);
-  min-height: var(--space-9);
-}
-
-/* The queue tabs on a hairline, the view switch at the other end. */
-.tabsRow {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: var(--space-4) var(--space-6);
-  margin-top: calc(-1 * var(--space-2));
-  padding-bottom: var(--space-2);
-  box-shadow: inset 0 -1px 0 var(--line-1);
-}
-
-/* Lanes, rank, filter: one row of tools. */
+/* Lanes, rank, filter, then the view at the row's end: one row of 40 px pills. */
 .tools {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: var(--space-4) var(--space-5);
   min-width: 0;
+}
+
+.filter {
+  flex: 1 1 200px;
+  max-width: 360px;
 }
 
 /* A newer answer is on its way: the current one stays, quieter. */
@@ -56,4 +39,12 @@
   max-width: 880px;
   font-size: var(--text-sm);
   color: var(--text-3);
+}
+
+/* Narrow pages: the filter shares its line with the view switch. */
+@container page (max-width: 559px) {
+  .filter {
+    flex: 1 1 160px;
+    max-width: none;
+  }
 }

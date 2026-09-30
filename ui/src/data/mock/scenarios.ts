@@ -22,7 +22,7 @@ import {
   champSelectNoStats,
   champSelectPlanning,
 } from "./draft-fixtures";
-import { rankEmblemsFixture } from "./emblem-fixtures";
+import { devPositionIcons, rankEmblemsFixture } from "./emblem-fixtures";
 import { aramProfile, corruptProfile, extremeProfile, newPlayerProfile, profile } from "./fixtures";
 import { flashKept, importAnswer, importFailures, tradedWarning, warningResponses } from "./import-fixtures";
 import {
@@ -157,6 +157,8 @@ const base: Scenario["responses"] = {
   dismiss_post_game: { data: null },
   // Riot's emblems come from the core (downloaded at run time): the preview draws MVP's crests.
   rank_emblems: { data: null },
+  // League's position icons: from the dev cache, like the core hands over its own.
+  position_icons: { handle: () => devPositionIcons() },
   // What runes, shards, spells and items do: read from the dev cache like the core reads its own.
   game_description: { handle: describeFromDevCache },
   draft_state: { data: null },

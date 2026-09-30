@@ -4,14 +4,14 @@ import type { Role } from "../../data/generated/Role";
 import { useTone } from "../../design/ambient";
 import { ChampionArt, ChampionIcon, championIconUrl } from "../../design/GameIcon";
 import { Glyph } from "../../design/Glyph";
-import { iconPath, LineIcon } from "../../design/Icon";
 import { liquid } from "../../design/liquid/liquid";
+import { RoleIcon } from "../../design/RoleIcon";
 import { EmptyState } from "../../design/States";
 import { TierMark } from "../../design/TierMark";
 import { t } from "../../i18n";
 import { percent, signedPoints } from "../../lib/format";
 import { createProgressive } from "../../lib/progressive";
-import { ROLE_ICON, ROLE_TONE, roleLabel } from "../../lib/roles";
+import { roleLabel } from "../../lib/roles";
 import { entryKey, groupByTier, type RankedEntry, type Trend, wrSide } from "../../lib/stats";
 import { MiniMap, markLit } from "./MiniMap";
 import styles from "./Shelves.module.css";
@@ -63,7 +63,7 @@ const MEDAL = ["var(--rank-gold)", "var(--rank-silver)", "var(--rank-bronze)"];
 function RoleLine(props: { role: Role }): JSX.Element {
   return (
     <span class={styles.roleLine}>
-      <LineIcon d={iconPath(ROLE_ICON[props.role])} size={14} />
+      <RoleIcon role={props.role} size={14} />
       {roleLabel(props.role)}
     </span>
   );
@@ -99,15 +99,12 @@ function Podium(props: { rows: RankedEntry[]; allRoles: boolean; onLight: (key: 
               </div>
               <div class={styles.stepText}>
                 <div class={styles.stepHead}>
-                  <div class={styles.stepTop}>
-                    <span class={`${styles.medal} num`}>
-                      <Show when={i() === 0}>
-                        <Glyph name="crown" size={16} />
-                      </Show>
-                      {e.rank}
-                    </span>
-                    <TierMark grade={e.tier} size="sm" />
-                  </div>
+                  <span class={`${styles.medal} num`}>
+                    <Show when={i() === 0}>
+                      <Glyph name="crown" size={16} />
+                    </Show>
+                    {e.rank}
+                  </span>
                   <span class={styles.stepName}>{name(e.id)}</span>
                   <Show when={props.allRoles && e.role}>{(role) => <RoleLine role={role()} />}</Show>
                 </div>
@@ -115,6 +112,7 @@ function Podium(props: { rows: RankedEntry[]; allRoles: boolean; onLight: (key: 
                   <span class={styles.stepWr} data-wr={wrSide(e.winRate)}>
                     {percent(e.winRate, 1)}
                   </span>
+                  <TierMark grade={e.tier} size="sm" />
                   <span class={styles.stepFacts}>
                     <span data-hint-title={t().tierList.columns.pick} data-hint={t().tierList.titles.pick}>
                       <Glyph name="pick" size={14} />
@@ -243,12 +241,18 @@ function Board(props: ShelvesProps): JSX.Element {
                           <ChampionIcon championId={e.id} size={48} />
                           <Show when={props.allRoles && e.role}>
                             {(role) => (
-                              <span class={styles.roleBadge} style={{ "--tone": ROLE_TONE[role()] }}>
-                                <LineIcon d={iconPath(ROLE_ICON[role()])} size={14} />
+                              <span class={styles.roleBadge}>
+                                <RoleIcon role={role()} size={14} />
                               </span>
                             )}
                           </Show>
                         </span>
+                        {/* While filtering, each face says who it is. */}
+                        <Show when={props.filtering}>
+                          <span class={styles.name} aria-hidden="true">
+                            {name(e.id)}
+                          </span>
+                        </Show>
                         <span class={`${styles.wr} num`} data-wr={wrSide(e.winRate)}>
                           {percent(e.winRate, 1)}
                         </span>
@@ -292,7 +296,7 @@ function PeekCard(props: { entry: RankedEntry; name: string; trend: Trend | unde
             <Show when={e().role} fallback={t().tierList.rankN(e().rank)}>
               {(role) => (
                 <>
-                  <LineIcon d={iconPath(ROLE_ICON[role()])} size={14} />
+                  <RoleIcon role={role()} size={14} />
                   {t().tierList.rankIn(e().rank, role())}
                 </>
               )}
@@ -326,15 +330,16 @@ function PeekCard(props: { entry: RankedEntry; name: string; trend: Trend | unde
               {t().tierList.columns.ban}
             </dt>
             <dd>{percent(e().banRate, 1)}</dd>
+            <Show when={props.trend}>{(trend) => <TrendMark points={trend().banRate} tone={false} />}</Show>
           </div>
         </Show>
       </dl>
+      <Show when={props.trend}>
+        <span class={styles.peekSince}>{t().tierList.sincePrevious}</span>
+      </Show>
       <span class={`${styles.peekGames} num`}>
         <Glyph name="games" size={14} />
         {t().common.games(e().g)}
-        <Show when={props.trend}>
-          <span class={styles.peekSince}>{t().tierList.sincePrevious}</span>
-        </Show>
       </span>
     </div>
   );

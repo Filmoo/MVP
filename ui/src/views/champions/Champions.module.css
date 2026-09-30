@@ -1,14 +1,6 @@
-/* Champion page: a way back and the data scope on top, the hero, then builds beside matchups. */
-.top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: var(--space-4) var(--space-6);
-  min-height: var(--space-9);
-}
-
+/* Champion page: a way back, the tier list's tabs row, the hero, then builds beside matchups. */
 .back {
+  align-self: flex-start;
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
@@ -27,15 +19,6 @@
 .back:hover {
   background: var(--bg-3);
   color: var(--text-1);
-}
-
-/* Queue tabs and the rank button, as on the tier list. */
-.scope {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-4) var(--space-8);
-  min-width: 0;
 }
 
 .grid {

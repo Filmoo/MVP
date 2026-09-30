@@ -241,7 +241,8 @@ function tierEntry(ds: Dataset, s: Slot, record: { g: number; w: number } = s): 
     w: record.w,
     winRate: round(wr, 4),
     pickRate: round(record.g / games, 4),
-    banRate: round((ds.bans.get(s.id) ?? 0) / games, 4),
+    // Bans moved a little since the previous patch (0.9 to 1.09 times this patch's).
+    banRate: round(((ds.bans.get(s.id) ?? 0) * (record === s ? 1 : 0.9 + ((s.id * 7) % 20) / 100)) / games, 4),
   };
 }
 

@@ -71,18 +71,35 @@
 
 .bandS {
   --soft: var(--tier-s-soft);
+  --tone: var(--tier-s);
 }
 .bandA {
   --soft: var(--tier-a-soft);
+  --tone: var(--tier-a);
 }
 .bandB {
   --soft: var(--tier-b-soft);
+  --tone: var(--tier-b);
 }
 .bandC {
   --soft: var(--tier-c-soft);
+  --tone: var(--tier-c);
 }
 .bandD {
   --soft: var(--tier-d-soft);
+  --tone: var(--tier-d);
+}
+
+/* Each band's letter down the left edge; the dots keep to the right of it. */
+.letter {
+  position: absolute;
+  top: 50%;
+  left: var(--space-1);
+  translate: 0 -50%;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  line-height: 1;
+  color: var(--tone);
 }
 
 .even {
@@ -95,6 +112,7 @@
 
 .dot {
   position: absolute;
+  left: calc(var(--space-5) + (100% - var(--space-5)) * var(--x));
   width: 8px;
   height: 8px;
   translate: -50% -50%;

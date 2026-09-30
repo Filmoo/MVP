@@ -20,7 +20,7 @@
 
 /*
  * Column widths: the champion takes what is left. Each fits its header in French too, sort arrow
- * included (glyph, label and arrow: "Victoires" is the longest).
+ * included (glyph, label and arrow: "% victoires" is the longest).
  */
 .cRank {
   width: 48px;
@@ -32,7 +32,7 @@
   width: 64px;
 }
 .cWr {
-  width: 120px;
+  width: 132px;
 }
 .cRate {
   width: 92px;
@@ -135,11 +135,6 @@
   scale: 1 -1;
 }
 
-/* While the filter shows the best matches first, the sort waits (no header shows an arrow). */
-.paused th .sort {
-  pointer-events: none;
-}
-
 /* ——— Rows: compact and sober; the link covers the row ——— */
 .row {
   position: relative;
@@ -226,7 +221,7 @@ td.lane {
 
 /* Over the row's link, so hovering them explains them (design/tip); a click still opens the
    champion (TierTable forwards it to the link). */
-.table td.lane,
+.table td.lane[data-hint],
 .table td.tier > * {
   position: relative;
   z-index: 1;
@@ -249,10 +244,10 @@ td.wr {
   line-height: 1.2;
 }
 
-/* The change since the previous patch, under the win rate. */
+/* The change since the previous patch, after the win rate (under it on narrow tables). */
 td.wr > span {
-  display: flex;
-  justify-content: flex-end;
+  display: inline-flex;
+  margin-left: var(--space-3);
 }
 
 .wrap [data-wr="win"] {
@@ -269,7 +264,7 @@ td.wr > span {
 
 td.pick,
 td.ban {
-  color: var(--text-1);
+  color: var(--text-2);
 }
 
 td.games {
@@ -290,23 +285,6 @@ td.games {
   box-shadow: inset 0 1px 0 var(--line-1);
 }
 
-.moreButton {
-  height: 32px;
-  padding: 0 var(--space-6);
-  border: 1px solid var(--line-2);
-  border-radius: var(--radius-3);
-  background: var(--bg-3);
-  color: var(--text-1);
-  font-size: var(--text-md);
-  font-weight: var(--weight-medium);
-  cursor: pointer;
-  transition: background-color var(--dur-1) var(--ease);
-}
-
-.moreButton:hover {
-  background: var(--bg-4);
-}
-
 /* ——— Wide: the numbers spread out, the champion keeps a third ——— */
 @container tiertable (min-width: 1100px) {
   .cChampion {
@@ -316,6 +294,15 @@ td.games {
   .cRate,
   .cGames {
     width: auto;
+  }
+  /* ARAM has no lanes or bans: its numbers keep together, the champion takes the rest. */
+  .aram .cChampion {
+    width: auto;
+  }
+  .aram .cWr,
+  .aram .cRate,
+  .aram .cGames {
+    width: 140px;
   }
 }
 
@@ -328,7 +315,7 @@ td.games {
     width: 80px;
   }
   .cWr {
-    width: 100px;
+    width: 112px;
   }
   .cRate {
     width: 76px;
@@ -354,7 +341,7 @@ td.games {
     width: 56px;
   }
   .cWr {
-    width: 92px;
+    width: 104px;
   }
   .table th,
   .table td {
@@ -364,9 +351,11 @@ td.games {
   .table td.tier {
     padding-right: var(--space-7);
   }
-  /* The lane says itself with its icon; its header too (the word would not fit). */
+  /* The lane says itself with its icon; its header too (the word would not fit). One lane
+     shown: no column (its share is the champion page's). */
   .share,
-  .laneWord {
+  .laneWord,
+  .oneLane .lane {
     display: none;
   }
   .laneGlyph {
@@ -380,5 +369,10 @@ td.games {
   }
   .link > :first-child {
     margin-right: var(--space-4);
+  }
+  td.wr > span {
+    display: flex;
+    justify-content: flex-end;
+    margin-left: 0;
   }
 }

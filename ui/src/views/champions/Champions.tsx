@@ -139,17 +139,15 @@ function ChampionView(props: { championId: number }): JSX.Element {
 
   return (
     <div class={page.page}>
-      <div class={styles.top}>
-        <a class={styles.back} href="#/tier-list">
-          <Icon name="back" size={16} />
-          {t().tierList.title}
-        </a>
-        {/* The tier list's scope controls: the same look, the same remembered choice. */}
-        <div class={styles.scope}>
-          <QueueTabs mayhem={{ selected: mayhem(), onSelect: () => setMayhem(true), onLeave: () => setMayhem(false) }} />
-          <RankPicker index={index()} />
-        </div>
-      </div>
+      <a class={styles.back} href="#/tier-list">
+        <Icon name="back" size={16} />
+        {t().tierList.title}
+      </a>
+      {/* The tier list's tabs row: the same place, the same remembered choices. */}
+      <QueueTabs
+        mayhem={{ selected: mayhem(), onSelect: () => setMayhem(true), onLeave: () => setMayhem(false) }}
+        end={<RankPicker index={index()} />}
+      />
       <Widget name="champion-hero">
         <ChampionHero
           championId={props.championId}

@@ -1,41 +1,10 @@
-/* ARAM: Mayhem: title with where the numbers come from, filters, then augments by tier. */
-.head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: var(--space-4) var(--space-6);
-  min-height: var(--space-9);
-}
-
-.sources {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2) var(--space-3);
-  min-width: 0;
-  font-size: var(--text-sm);
-  color: var(--text-3);
-}
-
-/* Wraps between sources, never inside one. */
-.source {
-  white-space: nowrap;
-}
-
-/* The stats pages' queue tabs on a hairline, as on the tier list (tierlist/TierList.module.css). */
-.tabsRow {
-  display: flex;
-  align-items: flex-end;
-  margin-top: calc(-1 * var(--space-2));
-  padding-bottom: var(--space-2);
-  box-shadow: inset 0 -1px 0 var(--line-1);
-}
-
+/* ARAM: Mayhem: the hub's head and tabs (stats/common), filters, then augments by tier. */
+/* The rarity and the champion: 40 px pills, like the tier list's tools. */
 .filters {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-4) var(--space-6);
+  gap: var(--space-4) var(--space-5);
 }
 
 /* ---- The champion picker ----------------------------------------------------------------------- */
@@ -43,49 +12,12 @@
 .picker {
   position: relative;
   display: flex;
-  flex: 0 1 280px;
+  flex: 0 1 360px;
   min-width: 0;
 }
 
 .search {
-  position: relative;
-  display: flex;
-  align-items: center;
   flex: 1;
-  min-width: 0;
-}
-
-.searchIcon {
-  position: absolute;
-  left: var(--space-5);
-  color: var(--text-3);
-  pointer-events: none;
-}
-
-.searchInput {
-  width: 100%;
-  height: 36px;
-  padding: 0 var(--space-4) 0 var(--space-10);
-  border: 1px solid var(--line-glass);
-  border-radius: var(--radius-3);
-  background: var(--bg-1);
-  color: var(--text-1);
-  font: inherit;
-  font-size: var(--text-md);
-  outline: none;
-  transition: border-color var(--dur-1) var(--ease);
-}
-
-.searchInput::placeholder {
-  color: var(--text-3);
-}
-
-.searchInput:hover {
-  border-color: var(--line-2);
-}
-
-.searchInput:focus-visible {
-  border-color: var(--accent);
 }
 
 .matches {
@@ -131,6 +63,7 @@
   align-items: center;
   gap: var(--space-3);
   min-width: 0;
+  min-height: var(--space-10);
   padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
   border: 1px solid var(--line-2);
   border-radius: var(--radius-full);

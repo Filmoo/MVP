@@ -7,8 +7,6 @@ import { LineIcon } from "./Icon";
  * not with the first screen.
  */
 const glyphs = {
-  /** Every lane at once: the whole map, mid across. */
-  roleAll: "M4 4h16v16H4zM8.5 15.5l7-7",
   /** Win rate: a cup. */
   winRate: "M8 4h8v5a4 4 0 0 1-8 0zM8 6H5v1a3 3 0 0 0 3 3M16 6h3v1a3 3 0 0 1-3 3M12 13v7M8 20h8",
   /** Pick rate: the logo's pointer, mid-click. */
@@ -37,9 +35,6 @@ const glyphs = {
 } as const;
 
 export type GlyphName = keyof typeof glyphs;
-
-/** A glyph's path, for controls that draw icons of both sets. */
-export const glyphPath = (name: GlyphName): string => glyphs[name];
 
 export function Glyph(props: {
   name: GlyphName;

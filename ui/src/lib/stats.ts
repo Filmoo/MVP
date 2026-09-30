@@ -13,7 +13,7 @@ import type { TierGrade } from "../data/generated/TierGrade";
 import type { TierList } from "../data/generated/TierList";
 import type { SegmentedOption } from "../design/Segmented";
 import { t } from "../i18n";
-import { bestMatches } from "./fuzzy";
+import { matchScore } from "./fuzzy";
 import { ROLES } from "./roles";
 import { ARAM, type Queue, RANKED, type RoleFilter } from "./stats-filters";
 
@@ -155,6 +155,7 @@ export const wrSide = (winRate: number): "win" | "loss" | "even" =>
 export interface Trend {
   winRate: number;
   pickRate: number;
+  banRate: number;
 }
 
 /**
@@ -169,15 +170,18 @@ export function trendsOf(current: TierList, previous: TierList | null | undefine
   const trends = new Map<string, Trend>();
   for (const e of current.entries) {
     const then = before.get(entryKey(e));
-    if (then) trends.set(entryKey(e), { winRate: (e.winRate - then.winRate) * 100, pickRate: (e.pickRate - then.pickRate) * 100 });
+    if (then) {
+      const points = (key: keyof Trend) => (e[key] - then[key]) * 100;
+      trends.set(entryKey(e), { winRate: points("winRate"), pickRate: points("pickRate"), banRate: points("banRate") });
+    }
   }
   return trends;
 }
 
-/** Rows whose champion matches `query`, best match first (champion filter). */
+/** Rows whose champion matches `query` (champion filter), in their order: the ranking stays. */
 export function matchingEntries(rows: readonly RankedEntry[], query: string, name: (id: number) => string): RankedEntry[] {
   const q = query.trim();
-  return q ? bestMatches(q, [...rows], (e) => name(e.id), rows.length) : [...rows];
+  return q ? rows.filter((e) => matchScore(q, name(e.id)) !== null) : [...rows];
 }
 
 // ——— Champion pages ———

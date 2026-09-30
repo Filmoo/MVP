@@ -22,8 +22,9 @@ export function markLit(root: () => HTMLElement | undefined, lit: () => string |
 }
 
 /**
- * A small live meta map next to the podium: the tier bands and a dot per champion, lit with its
- * face under the pointer. A click opens the full map; on narrow pages it is just a button.
+ * A small live meta map next to the podium: the tier bands (their letters down the left edge) and
+ * a dot per champion, lit with its face under the pointer. A click opens the full map; on narrow
+ * pages it is just a button.
  */
 export function MiniMap(props: {
   rows: RankedEntry[];
@@ -63,7 +64,9 @@ export function MiniMap(props: {
       >
         <For each={tierBands(d())}>
           {(b) => (
-            <span class={`${styles.band} ${styles[`band${b.tier}`]}`} style={{ top: `${b.top * 100}%`, height: `${b.height * 100}%` }} />
+            <span class={`${styles.band} ${styles[`band${b.tier}`]}`} style={{ top: `${b.top * 100}%`, height: `${b.height * 100}%` }}>
+              <span class={styles.letter}>{b.tier}</span>
+            </span>
           )}
         </For>
         <span class={styles.even} style={{ top: `${yOf(d(), 0) * 100}%` }} />
@@ -73,7 +76,7 @@ export function MiniMap(props: {
               class={styles.dot}
               data-key={entryKey(e)}
               style={{
-                left: `${xOf(d(), e.pickRate) * 100}%`,
+                "--x": String(xOf(d(), e.pickRate)),
                 top: `${yOf(d(), e.score) * 100}%`,
                 "--dot": dotTone(e),
               }}

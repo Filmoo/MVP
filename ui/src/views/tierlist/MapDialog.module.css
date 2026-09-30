@@ -49,6 +49,14 @@
   color: var(--text-2);
 }
 
+/* The page's width at most: very wide windows keep the map readable. */
+.head,
+.chart {
+  width: 100%;
+  max-width: var(--content-max);
+  margin-inline: auto;
+}
+
 .head {
   display: flex;
   align-items: center;
@@ -67,11 +75,6 @@
 .titleIcon {
   flex: none;
   color: var(--accent);
-}
-
-.titleRole {
-  font-weight: var(--weight-medium);
-  color: var(--text-2);
 }
 
 .close {
@@ -99,7 +102,7 @@
 .chart {
   flex: 1;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: auto var(--space-9) minmax(0, 1fr);
   gap: var(--space-2) var(--space-4);
   min-height: 0;
 }
@@ -122,6 +125,21 @@
 
 .axisY svg {
   rotate: 90deg;
+}
+
+/* The tiers' medallions in a column of their own, level with their bands (the plot's height:
+   the popularity axis under it is left out). */
+.marks {
+  position: relative;
+  margin-bottom: var(--space-10);
+}
+
+.mark {
+  position: absolute;
+  left: 50%;
+  display: grid;
+  margin-top: var(--space-3);
+  translate: -50% 0;
 }
 
 .frame {
@@ -162,12 +180,6 @@
   --soft: var(--tier-d-soft);
 }
 
-.bandMark {
-  position: absolute;
-  top: var(--space-3);
-  left: var(--space-3);
-}
-
 .even {
   position: absolute;
   left: 0;
@@ -203,7 +215,7 @@
 
 .topLeft {
   top: var(--space-3);
-  left: var(--space-10);
+  left: var(--space-3);
 }
 
 .topRight {
@@ -318,7 +330,7 @@
 /* ——— Popularity, along the bottom ——— */
 .axisX {
   position: relative;
-  height: 40px;
+  height: var(--space-10);
   font-size: var(--text-xs);
   color: var(--text-3);
 }

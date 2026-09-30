@@ -1,13 +1,15 @@
 import { createEffect, createMemo, createSignal, For, type JSX, on, Show } from "solid-js";
 import { useData } from "../../data/context";
+import { Button } from "../../design/Button";
 import { ChampionIcon } from "../../design/GameIcon";
 import { Glyph, type GlyphName } from "../../design/Glyph";
-import { Icon, iconPath, LineIcon } from "../../design/Icon";
+import { Icon } from "../../design/Icon";
+import { RoleIcon } from "../../design/RoleIcon";
 import { EmptyState } from "../../design/States";
 import { TierMark } from "../../design/TierMark";
 import { t } from "../../i18n";
-import { games, percent } from "../../lib/format";
-import { ROLE_ICON, roleLabel } from "../../lib/roles";
+import { integer, percent } from "../../lib/format";
+import { roleLabel } from "../../lib/roles";
 import { entryKey, type RankedEntry, sortEntries, type TierSortKey, type Trend, wrSide } from "../../lib/stats";
 import { sortBy, tableSort } from "../../lib/tier-view";
 import { championLink, TrendMark } from "./Shelves";
@@ -17,14 +19,14 @@ import styles from "./TierTable.module.css";
 export const INITIAL_ROWS = 50;
 
 /**
- * The tier list as a table, like a spreadsheet: every header sorts (again: the other way). A
- * champion is a row per lane it is played in. Rows open the champion's build in that lane.
+ * The tier list as a table, like a spreadsheet: every header sorts (again: the other way), the
+ * filter too. With every lane, a champion is a row per lane it is played in; with one, the lane
+ * column says how much of the champion's games it has. Rows open the champion's build in that lane.
  */
 export function TierTable(props: {
-  /** Matching the filter: best match first while filtering (the sort waits). */
   rows: RankedEntry[];
-  filtering: boolean;
   aram: boolean;
+  allRoles: boolean;
   trends: Map<string, Trend> | undefined;
 }): JSX.Element {
   const { gameData } = useData();
@@ -38,12 +40,12 @@ export function TierTable(props: {
       { defer: true },
     ),
   );
-  const sorted = createMemo(() => (props.filtering ? props.rows : sortEntries(props.rows, tableSort().key, tableSort().dir, name)));
+  const sorted = createMemo(() => sortEntries(props.rows, tableSort().key, tableSort().dir, name));
   const shown = createMemo(() => sorted().slice(0, limit()));
   const columns = () => t().tierList.columns;
   const titles = () => t().tierList.titles;
   const header = (key: TierSortKey, label: string, cls: string | undefined, glyph?: GlyphName, title?: string) => {
-    const active = () => !props.filtering && tableSort().key === key;
+    const active = () => tableSort().key === key;
     // The lane's word gives way to a glyph in a narrow table: the button keeps its name.
     const lane = key === "role";
     return (
@@ -63,7 +65,7 @@ export function TierTable(props: {
         >
           <Show when={glyph}>{(g) => <Glyph name={g()} size={14} class={styles.headGlyph} />}</Show>
           <Show when={lane}>
-            <Glyph name="roleAll" size={14} class={styles.laneGlyph} />
+            <Icon name="champions" size={14} class={styles.laneGlyph} />
           </Show>
           <span class={lane ? styles.laneWord : undefined}>{label}</span>
           <Icon name="chevronDown" size={14} class={`${styles.arrow} ${active() && tableSort().dir === "asc" ? styles.flip : ""}`} />
@@ -77,7 +79,7 @@ export function TierTable(props: {
       when={props.rows.length > 0}
       fallback={<EmptyState icon="search" title={t().tierList.noMatch} text={t().champions.checkSpelling} />}
     >
-      <div class={`${styles.wrap} glass-rim ${props.aram ? styles.aram : ""} ${props.filtering ? styles.paused : ""}`}>
+      <div class={`${styles.wrap} glass-rim ${props.aram ? styles.aram : props.allRoles ? "" : styles.oneLane}`}>
         <table class={`${styles.table} num`} data-testid="tier-table">
           <colgroup>
             <col class={styles.cRank} />
@@ -93,7 +95,9 @@ export function TierTable(props: {
             <tr>
               {header("rank", columns().rank, styles.rank, undefined, titles().rank)}
               {header("name", columns().champion, styles.champion)}
-              {header("role", columns().lane, styles.lane, undefined, titles().lane)}
+              {props.allRoles
+                ? header("role", columns().lane, styles.lane, undefined, titles().lane)
+                : header("role", columns().share, styles.lane, undefined, titles().share)}
               {header("tier", columns().tier, styles.tier, undefined, titles().tier)}
               {header("winRate", columns().winRate, styles.wr, "winRate", titles().winRate)}
               {header("pickRate", columns().pick, styles.pick, "pick", titles().pick)}
@@ -106,11 +110,9 @@ export function TierTable(props: {
           <tbody onClick={(e) => (e.target as Element).closest("[data-tip], [data-hint]")?.closest("tr")?.querySelector("a")?.click()}>
             <For each={shown()}>
               {(e) => {
-                // A row's own parts never change: made once, not watched.
+                // A row's own parts never change: made once, not watched. One lane shown: its share alone.
                 const key = entryKey(e);
-                const lane = e.role ? roleLabel(e.role) : undefined;
-                const icon = e.role ? <LineIcon d={iconPath(ROLE_ICON[e.role])} size={16} class={styles.laneIcon} label={lane} /> : null;
-                const share = e.share === undefined ? null : <span class={styles.share}>{percent(e.share, 0)}</span>;
+                const lane = e.role && props.allRoles ? roleLabel(e.role) : undefined;
                 return (
                   <tr class={styles.row} data-testid="tier-row" data-champion={e.id} data-role={e.role} data-key={key}>
                     <td class={styles.rank}>{e.rank}</td>
@@ -123,8 +125,8 @@ export function TierTable(props: {
                     </td>
                     {/* The lane's name on hover (design/tip): the cell sits over the row's link. */}
                     <td class={styles.lane} data-hint={lane}>
-                      {icon}
-                      {share}
+                      {e.role && lane ? <RoleIcon role={e.role} size={16} class={styles.laneIcon} label={lane} /> : null}
+                      {e.share === undefined ? null : <span class={styles.share}>{percent(e.share, 0)}</span>}
                     </td>
                     <td class={styles.tier}>
                       <TierMark grade={e.tier} size="sm" />
@@ -135,7 +137,7 @@ export function TierTable(props: {
                     </td>
                     <td class={styles.pick}>{percent(e.pickRate, 1)}</td>
                     <td class={styles.ban}>{percent(e.banRate, 1)}</td>
-                    <td class={styles.games}>{games(e.g)}</td>
+                    <td class={styles.games}>{integer(e.g)}</td>
                   </tr>
                 );
               }}
@@ -144,9 +146,9 @@ export function TierTable(props: {
         </table>
         <Show when={sorted().length > shown().length}>
           <div class={styles.more}>
-            <button type="button" class={styles.moreButton} onClick={() => setLimit(Number.POSITIVE_INFINITY)} data-testid="tier-show-all">
+            <Button variant="ghost" onClick={() => setLimit(Number.POSITIVE_INFINITY)} testId="tier-show-all">
               {t().tierList.showAll(sorted().length)}
-            </button>
+            </Button>
           </div>
         </Show>
       </div>

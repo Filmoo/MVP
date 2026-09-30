@@ -12,8 +12,8 @@ import styles from "./TierMark.module.css";
  */
 export function TierMark(props: {
   grade: TierGrade;
-  /** 20, 24, 40 or 64 px. */
-  size?: "sm" | "md" | "lg" | "xl";
+  /** 20, 24 or 40 px. */
+  size?: "sm" | "md" | "lg";
   /** Next to its written name: not read twice. */
   decorative?: boolean;
   /** Its tooltip even when decorative (a shelf's medallion; a named one always has it). */

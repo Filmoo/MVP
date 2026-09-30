@@ -210,7 +210,7 @@ export const widgetRegistry: Record<string, () => JSX.Element> = {
   // starts with a <Show>, which the harness can't mount alone.
   "tier-table": () => (
     <div>
-      <TierTable rows={tierRows} filtering={false} aram={false} trends={trends} />
+      <TierTable rows={tierRows} aram={false} allRoles trends={trends} />
     </div>
   ),
   // The podium, the mini map (a dot per row) and the first slice of faces.

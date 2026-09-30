@@ -27,11 +27,6 @@
   --r: var(--radius-4);
   font-size: var(--text-xl);
 }
-.xl {
-  --m: 64px;
-  --r: var(--radius-5);
-  font-size: var(--text-3xl);
-}
 
 /* S: a cut gem, its upper facet catching the light. */
 .S {

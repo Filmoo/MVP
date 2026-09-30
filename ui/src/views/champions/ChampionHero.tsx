@@ -4,15 +4,15 @@ import type { ChampionPage } from "../../data/generated/ChampionPage";
 import type { Role } from "../../data/generated/Role";
 import type { StatsIndex } from "../../data/generated/StatsIndex";
 import { ChampionArt, ChampionIcon } from "../../design/GameIcon";
-import { Icon } from "../../design/Icon";
 import { liquid } from "../../design/liquid/liquid";
+import { RoleIcon } from "../../design/RoleIcon";
 import { Segmented } from "../../design/Segmented";
 import { Skeleton } from "../../design/States";
 import { TierMark } from "../../design/TierMark";
 import { t } from "../../i18n";
 import { className } from "../../lib/champions";
 import { percent, timeAgo } from "../../lib/format";
-import { ROLE_ICON, roleLabel } from "../../lib/roles";
+import { roleLabel } from "../../lib/roles";
 import { bracketLabel, patchName, type RoleTab, tierFor } from "../../lib/stats";
 import { parseQueue } from "../../lib/stats-filters";
 import styles from "./ChampionHero.module.css";
@@ -79,7 +79,7 @@ export function ChampionHero(props: {
                 options={roleTabs().map((tab) => ({
                   value: tab.role,
                   label: roleLabel(tab.role),
-                  icon: ROLE_ICON[tab.role],
+                  icon: () => <RoleIcon role={tab.role} size={16} />,
                   detail: percent(tab.share),
                 }))}
                 value={props.forRole ?? roleTabs()[0]?.role ?? "middle"}
@@ -90,7 +90,7 @@ export function ChampionHero(props: {
             <Match when={roleTabs()[0]}>
               {(only) => (
                 <span class={styles.onlyRole} data-testid="only-role">
-                  <Icon name={ROLE_ICON[only().role]} size={16} />
+                  <RoleIcon role={only().role} size={16} />
                   {roleLabel(only().role)}
                 </span>
               )}

@@ -160,6 +160,15 @@ test.describe("tier list", () => {
     await expect(rows(page).first().locator("td").first()).toHaveText("1");
   });
 
+  test("one lane: its column says how much of each champion's games it has", async ({ page, t }) => {
+    await openApp(page, { view: "/tier-list?view=table&role=middle" });
+    await expect(page.getByRole("columnheader", { name: t.tierList.columns.share, exact: true })).toBeVisible();
+    await expect(page.getByRole("columnheader", { name: t.tierList.columns.lane, exact: true })).toHaveCount(0);
+    const share = rows(page).first().locator("td").nth(2);
+    await expect(share).toHaveText(/\d/);
+    await expect(share.getByRole("img"), "no lane icon: it would be the same on every row").toHaveCount(0);
+  });
+
   test("every lane: a champion once per lane it's played in; the first rows, then all on request", async ({ page }) => {
     await openApp(page, { view: "/tier-list?view=table&role=all" });
     await expect(rows(page)).toHaveCount(50);
@@ -181,13 +190,20 @@ test.describe("tier list", () => {
     await expect(page.locator("main [data-trend]"), "nothing to compare with").toHaveCount(0);
   });
 
-  test("the filter: best match first, the sort waits; Enter opens the first", async ({ page, t }) => {
+  test("the filter keeps the ranking, and every column still sorts; Enter opens the best match", async ({ page, t }) => {
     const errors = trackErrors(page);
     await openApp(page, { view: "/tier-list?view=table&role=all" });
     const filter = page.getByTestId("champion-filter");
-    await filter.fill("ahr");
-    await expect(rows(page).first()).toHaveAttribute("data-champion", "103");
-    await expect(page.getByRole("columnheader", { name: t.tierList.columns.rank, exact: true })).not.toHaveAttribute("aria-sort");
+    await filter.fill("ka");
+    await expect(page.getByRole("columnheader", { name: t.tierList.columns.rank, exact: true })).toHaveAttribute("aria-sort", "ascending");
+    const ranks = await rows(page).evaluateAll((els) => els.map((el) => Number(el.querySelector("td")?.textContent)));
+    expect(ranks.length).toBeGreaterThan(1);
+    expect(ranks, "the list's order, not the matches'").toEqual([...ranks].sort((a, b) => a - b));
+    const winRate = page.getByRole("columnheader", { name: t.tierList.columns.winRate, exact: true });
+    await winRate.getByRole("button").click();
+    await expect(winRate).toHaveAttribute("aria-sort", "descending");
+    const rates = (await rowEntries(page)).map((e) => e?.winRate ?? Number.NaN);
+    expect(rates).toEqual([...rates].sort((a, b) => b - a));
     await filter.fill("zzzz");
     await expect(page.locator("main")).toContainText(t.tierList.noMatch);
     await filter.fill("ahr");

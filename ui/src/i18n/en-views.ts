@@ -346,6 +346,8 @@ export const enViews = {
       rank: "#",
       champion: "Champion",
       lane: "Lane",
+      /** One lane shown: how much of the champion's games it has. */
+      share: "Share",
       tier: "Tier",
       winRate: "Win rate",
       pick: "Pick",
@@ -355,8 +357,9 @@ export const enViews = {
     titles: {
       rank: "Rank by score",
       lane: "The lane, and the share of the champion's games played there",
+      share: "Share of the champion's games played in this lane",
       tier: "S ≥ +2 · A ≥ +0.75 · B ≥ −0.75 · C ≥ −2 · D below (score, points)",
-      winRate: "Win rate shrunk toward 50% (small samples count less); under it, its change since the previous patch",
+      winRate: "Win rate shrunk toward 50% (small samples count less), then its change since the previous patch",
       pick: "Share of games with this champion in this lane",
       ban: "Share of games where it was banned",
       games: "Games counted",

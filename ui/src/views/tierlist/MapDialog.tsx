@@ -2,26 +2,22 @@ import { createEffect, createMemo, createSignal, createUniqueId, For, type JSX, 
 import { useData } from "../../data/context";
 import { ChampionIcon } from "../../design/GameIcon";
 import { Glyph } from "../../design/Glyph";
-import { Icon, iconPath, LineIcon } from "../../design/Icon";
+import { Icon } from "../../design/Icon";
+import { RoleIcon } from "../../design/RoleIcon";
 import { TierMark } from "../../design/TierMark";
 import { t } from "../../i18n";
 import { percent } from "../../lib/format";
-import { dotTone, mapDomain, tierBands, xOf, yOf } from "../../lib/meta-map";
-import { ROLE_ICON, roleLabel } from "../../lib/roles";
+import { dotTone, mapDomain, placeOnMap, tierBands, xOf, yOf } from "../../lib/meta-map";
+import { roleLabel } from "../../lib/roles";
 import { entryKey, type RankedEntry, wrSide } from "../../lib/stats";
 import type { RoleFilter } from "../../lib/stats-filters";
 import styles from "./MapDialog.module.css";
 import { championLink } from "./Shelves";
+import { LaneScope } from "./Toolbar";
 
 const TICKS = [0.005, 0.01, 0.02, 0.05, 0.1, 0.2];
 /** How much a face grows when pointed at (MapDialog.module.css): it stays inside the plot. */
 const LIT_SCALE = 1.35;
-
-interface Placed {
-  e: RankedEntry;
-  x: number;
-  y: number;
-}
 
 /**
  * The meta map, full screen over the page (loaded when first opened): strength up, popularity
@@ -55,49 +51,11 @@ export default function MapDialog(props: {
   const d = createMemo(() => mapDomain(props.rows));
   const dots = () => props.allRoles;
   const radius = () => (dots() ? 6 : size().w < 520 ? 12 : 16);
-  // Faces pushed apart where they'd overlap (each stays near its true spot); dots may touch.
-  // Every point stays inside the plot, grown or not.
-  const placed = createMemo<Placed[]>(() => {
-    const { w, h } = size();
-    if (w === 0) return [];
-    const r = radius();
-    const edge = Math.ceil(r * LIT_SCALE);
-    const inside = (p: Placed) => {
-      p.x = Math.min(Math.max(p.x, edge), w - edge);
-      p.y = Math.min(Math.max(p.y, edge), h - edge);
-    };
-    const points = props.rows.map((e) => ({ e, x: xOf(d(), e.pickRate) * w, y: yOf(d(), e.score) * h }));
-    if (dots()) {
-      for (const p of points) inside(p);
-      return points;
-    }
-    const gap = r * 2 + 2;
-    for (let round = 0; round < 40; round++) {
-      let moved = false;
-      for (let i = 0; i < points.length; i++) {
-        for (let j = i + 1; j < points.length; j++) {
-          const a = points[i];
-          const b = points[j];
-          if (!a || !b) continue;
-          const dx = b.x - a.x;
-          const dy = b.y - a.y;
-          const dist = Math.hypot(dx, dy);
-          if (dist >= gap) continue;
-          const push = (gap - dist) / 2;
-          const ux = dist > 0.01 ? dx / dist : 1;
-          const uy = dist > 0.01 ? dy / dist : 0;
-          a.x -= ux * push;
-          a.y -= uy * push;
-          b.x += ux * push;
-          b.y += uy * push;
-          moved = true;
-        }
-      }
-      for (const p of points) inside(p);
-      if (!moved) break;
-    }
-    return points;
-  });
+  // Faces pushed apart where they'd overlap, each in its tier's band; dots may touch. Every point
+  // stays inside the plot, grown or not.
+  const placed = createMemo(() =>
+    size().w === 0 ? [] : placeOnMap(props.rows, d(), size(), dots() ? 0 : radius(), Math.ceil(radius() * LIT_SCALE)),
+  );
   // The name of the face pointed at: one tag over it (under it near the top), inside the plot.
   const litPoint = createMemo(() => placed().find((p) => entryKey(p.e) === props.lit));
   let tag: HTMLSpanElement | undefined;
@@ -110,7 +68,6 @@ export default function MapDialog(props: {
     tag.style.translate = `${Math.round(x)}px ${Math.round(above >= 0 ? above : p.y + lift)}px`;
   });
   const words = () => t().tierList.map;
-  const role = () => (props.role === "all" ? t().stats.allRoles : roleLabel(props.role));
 
   return (
     <dialog ref={dialog} class={styles.dialog} aria-labelledby={heading} onClose={() => props.onClose()} data-testid="map-dialog">
@@ -118,7 +75,7 @@ export default function MapDialog(props: {
         <h2 id={heading} class={styles.title}>
           <Glyph name="map" size={20} class={styles.titleIcon} />
           {words().title}
-          <span class={styles.titleRole}>{role()}</span>
+          <LaneScope role={props.role} />
         </h2>
         <button type="button" class={styles.close} onClick={() => dialog?.close()} aria-label={words().close} data-hint={words().close}>
           <Icon name="close" size={20} />
@@ -129,6 +86,18 @@ export default function MapDialog(props: {
           <Glyph name="winRate" size={14} />
           {words().strength}
         </div>
+        {/* Each tier's medallion beside its band, clear of the faces and the grid. */}
+        <div class={styles.marks} aria-hidden="true">
+          <For each={tierBands(d())}>
+            {(b) => (
+              <Show when={b.height * size().h >= 30}>
+                <span class={styles.mark} style={{ top: `${b.top * 100}%` }}>
+                  <TierMark grade={b.tier} size="sm" decorative />
+                </span>
+              </Show>
+            )}
+          </For>
+        </div>
         <div class={styles.frame}>
           <div class={styles.plot} ref={plot} style={{ "--d": `${radius() * 2}px` }}>
             <For each={tierBands(d())}>
@@ -137,11 +106,7 @@ export default function MapDialog(props: {
                   class={`${styles.band} ${styles[`band${b.tier}`]}`}
                   style={{ top: `${b.top * 100}%`, height: `${b.height * 100}%` }}
                   aria-hidden="true"
-                >
-                  <Show when={b.height * size().h >= 30}>
-                    <TierMark grade={b.tier} size="sm" decorative class={styles.bandMark} />
-                  </Show>
-                </div>
+                />
               )}
             </For>
             <div class={styles.even} style={{ top: `${yOf(d(), 0) * 100}%` }} aria-hidden="true">
@@ -196,7 +161,7 @@ export default function MapDialog(props: {
                   <>
                     {/* Every lane shown: the lane is in the tag (colours are the tiers'). */}
                     <Show when={props.allRoles && p().e.role}>
-                      {(lane) => <LineIcon d={iconPath(ROLE_ICON[lane()])} size={14} class={styles.tagLane} label={roleLabel(lane())} />}
+                      {(lane) => <RoleIcon role={lane()} size={14} class={styles.tagLane} label={roleLabel(lane())} />}
                     </Show>
                     <span class={styles.tagName}>{name(p().e.id)}</span>
                     <span class={`${styles.tagWr} num`} data-wr={wrSide(p().e.winRate)}>

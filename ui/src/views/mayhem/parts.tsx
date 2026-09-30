@@ -12,6 +12,7 @@ import type { AugmentTier } from "../../data/generated/AugmentTier";
 import type { MayhemChampion } from "../../data/generated/MayhemChampion";
 import type { Transport } from "../../data/transport";
 import { ItemIcon } from "../../design/GameIcon";
+import { Glyph } from "../../design/Glyph";
 import { Segmented } from "../../design/Segmented";
 import { Skeleton } from "../../design/States";
 import { TierMark as Medallion } from "../../design/TierMark";
@@ -59,19 +60,15 @@ export function championIn(transport: Transport, championId: number): Promise<Ma
   return answer;
 }
 
-const initials = (name: string) =>
-  name
-    .split(/\s+/)
-    .map((w) => w.charAt(0))
-    .join("")
-    .slice(0, 2);
+/** Mayhem's spark on a tile without art, by the tile's size. */
+const SPARK = { 24: 14, 32: 16, 40: 20 } as const;
 
-/** An augment's tile: its glyph (the game's art, at run time) on its rarity's colour, else its initials. */
+/** An augment's tile: its art (the game's, at run time) on its rarity's colour, else Mayhem's spark in it. */
 export function AugmentIcon(props: { augment: AugmentInfo | undefined; size: 24 | 32 | 40 }): JSX.Element {
   const [failed, setFailed] = createSignal(false);
   return (
     <span class={`${styles.tile} ${styles[props.augment?.rarity ?? "silver"]} ${styles[`s${props.size}`]}`} aria-hidden="true">
-      <Show when={props.augment?.icon && !failed()} fallback={<span class={styles.initials}>{initials(props.augment?.name ?? "?")}</span>}>
+      <Show when={props.augment?.icon && !failed()} fallback={<Glyph name="mayhem" size={SPARK[props.size]} />}>
         <img
           src={props.augment?.icon}
           alt=""
@@ -87,10 +84,11 @@ export function AugmentIcon(props: { augment: AugmentInfo | undefined; size: 24 
 }
 
 /**
- * An augment's tier and its rank in it (`S · 2`: first is best), in the tier's colour; on hover,
- * what MVP's tiers are (design/tip). Not the stats pages' grade badge: that one explains win rates.
+ * An augment's tier and its rank in it (`S · 2`: first is best; inside its tier's section, `#2`),
+ * in the tier's colour; on hover, what MVP's tiers are (design/tip). Not the stats pages' grade
+ * badge: that one explains win rates.
  */
-export function RankPill(props: { tier: AugmentTier; rank: number }): JSX.Element {
+export function RankPill(props: { tier: AugmentTier; rank: number; inTier?: boolean }): JSX.Element {
   const words = () => t().mayhem.ranked(props.tier, props.rank);
   return (
     <span
@@ -100,7 +98,7 @@ export function RankPill(props: { tier: AugmentTier; rank: number }): JSX.Elemen
       data-hint-title={words()}
       data-hint={t().mayhem.tierHint}
     >
-      {props.tier} · {props.rank}
+      {props.inTier ? t().tierList.rankN(props.rank) : `${props.tier} · ${props.rank}`}
     </span>
   );
 }
