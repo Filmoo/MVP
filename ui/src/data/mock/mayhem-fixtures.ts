@@ -178,6 +178,19 @@ export const mayhemOverview: MayhemOverview = {
 
 /** Nothing published yet: a new patch or a fresh server. */
 export const emptyOverview: MayhemOverview = { tiers: null, popularity: null, progress: progress(0, 0) };
+
+/** The first days of a patch: 37 games shared, too few for pick rates; 4 champions have enough. */
+export const gatheringOverview: MayhemOverview = {
+  tiers: mayhemTiers,
+  popularity: mayhemOverview.popularity && {
+    ...mayhemOverview.popularity,
+    games: 37,
+    players: 370,
+    augments: mayhemOverview.popularity.augments.map((p) => ({ id: p.id, n: Math.round(p.n / 35) })),
+  },
+  progress: progress(37, 4),
+};
+
 const PER_RARITY = 8;
 const TIER_ORDER: AugmentTier[] = ["S", "A", "B", "C"];
 
@@ -195,9 +208,9 @@ export function championGames(championId: number): number {
   return championId % 3 === 0 ? 12 : 40 + (championId % 50);
 }
 
-/** One champion in Mayhem, ranked like the core ranks it. */
+/** One champion in Mayhem, ranked like the core ranks it (its games in proportion to the overview's). */
 export function mayhemChampion(championId: number, overview: MayhemOverview = mayhemOverview): MayhemChampion {
-  const games = overview.popularity ? championGames(championId) : 0;
+  const games = Math.round((championGames(championId) * overview.progress.games) / 1_284);
   const byRate = games >= MIN_GAMES;
   // Up to about half of its games each, a few augments not at all.
   const share = (id: number) => Math.max(0, ((id * 37 + championId * 11) % 64) - 12) / 100;

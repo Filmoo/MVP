@@ -450,3 +450,32 @@ the glass, the owner chose the glass for everyone: Auto is now Full whatever tha
 only a GPU too slow for the shader (the first-frame probe) falls back to CSS, with its reason in
 Settings. Light and Off stay one click away; reduced motion is still followed. This replaces the
 "Full means Full" default above (the Windows switch no longer matters at all).
+
+## 2026-09-30 — Mayhem data: asked once, every past game, no numbers before enough games (owner asked, Claude built)
+Owner: "it needs to show with a nice message, to explain that it will be on once enough data is
+gathered. Make a progress bar"; "go through all my current games of mayhem"; "make data collection
+a question at first, very easy to read".
+- **Enough data** (`companion::mayhem`): the page's pick rates over all champions from 100 shared
+  games of the patch (`PAGE_GAMES`); a champion's own pick rates, most picked augments, common
+  items and Draft's row tiles from 30 of its games (`MIN_GAMES`, as before); "every champion" is
+  the share of the game's champions with 30. `mayhem_overview` carries `progress`; below the mark
+  the views say so kindly with a bar (`12 / 30`) and show no percentage (37 games made "picked in
+  20%" out of two games before). Per patch: a new patch starts again (open question below).
+- **Asked once**: `Settings.shareMayhemGames` is `null` until answered. A card on Home (never in
+  champion select or a game, never blocking) says what goes in plain words, shows the features
+  still waiting with their bars, and has two equal answers; Settings keeps the switch. Not asked
+  again after an answer, even after later updates (a new question would need a new field).
+- **Every past game**: turned on (or after updating with it on), the core pages back through the
+  client's whole match history (20 a page, 500 games at most), reads each Mayhem game once, 300 ms
+  apart, never during champion select or a game (it stops and goes on after the next game), and
+  sends 20 at a time; older games count under their own patch. Custom Mayhem games count too
+  (their queue says so); a game with a champion twice is never sent (the server refuses a whole
+  upload for one bad game).
+- **Augment texts and icons**: the catalog builder reads what the game files allow (melee/ranged
+  values, multipliers, level breakpoints, hashed names, quests' goals); "your ability" where the
+  game names the ability in play; "some" for the 3 values only the game knows in play (Twin Fire,
+  Juiced). Ability augments have the game's generic icon (the game draws the champion's ability
+  there): the three Bread augments take their Arena icon; 18 keep the generic one.
+- **Budget, over**: +2.0 KB of JS in total (152.2 → 154.2 KB against 153; startup 40.6 → 40.6
+  of 46): the question 1.1 KB (its own chunk, loaded only when asked), the bars and gathering
+  states 0.5, the words in both languages 0.25, the shell 0.2. Not raised: the owner's call.

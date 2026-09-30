@@ -6,7 +6,7 @@ import { aramDraft, champSelectDraft } from "../data/mock/draft-fixtures";
 import { profile } from "../data/mock/fixtures";
 import { liveGame } from "../data/mock/live-fixtures";
 import { gameFor, withGrades } from "../data/mock/match-fixtures";
-import { mayhemAugments, mayhemChampion, mayhemOverview } from "../data/mock/mayhem-fixtures";
+import { gatheringOverview, mayhemAugments, mayhemChampion, mayhemOverview } from "../data/mock/mayhem-fixtures";
 import { outageBanner, patchBanner, requiredConfig, updateReady } from "../data/mock/platform-fixtures";
 import { lpFor, masteryFixture } from "../data/mock/progress-fixtures";
 import { defaultSettings } from "../data/mock/settings-fixtures";
@@ -35,6 +35,7 @@ import { ProfileHeader } from "../views/home/ProfileHeader";
 import { LiveTeam } from "../views/live/LiveTeam";
 import { AugmentTiers } from "../views/mayhem/Mayhem";
 import { ChampionAugmentsView } from "../views/mayhem/parts";
+import { QuestionCard } from "../views/mayhem/Question";
 import { About, AppSettings, AutomationSettings, ImportSettings, NoMatch, StatsSettings } from "../views/settings/sections";
 import { NoStatsChampions } from "../views/tierlist/NoStats";
 import { Shelves } from "../views/tierlist/Shelves";
@@ -255,6 +256,8 @@ export const widgetRegistry: Record<string, () => JSX.Element> = {
       <ChampionAugmentsView champion={mayhemChampion(103)} augments={augments} name="Ahri" full />
     </div>
   ),
+  // The question asked once, with both features still waiting for games.
+  "share-question": () => <QuestionCard progress={gatheringOverview.progress} champions={172} onAnswer={() => {}} />,
   "game-tips": () => <GameTips />,
   // A champion page's bar, outside of champion select: spells wait for it.
   "champion-import": () => (

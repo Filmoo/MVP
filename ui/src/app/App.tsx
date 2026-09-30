@@ -1,4 +1,4 @@
-import { createEffect, For, type JSX, lazy, Match, on, onCleanup, onMount, Show, Suspense, Switch } from "solid-js";
+import { createEffect, createSignal, For, type JSX, lazy, Match, on, onCleanup, onMount, Show, Suspense, Switch } from "solid-js";
 import { useData } from "../data/context";
 import { createFollowed } from "../data/follow";
 import type { Settings as SettingsData } from "../data/generated/Settings";
@@ -90,11 +90,14 @@ export function App(): JSX.Element {
   onCleanup(followPointerOnGlass());
   onCleanup(followTips({ transport, gameData }, playerPage));
   // The core keeps the lasting visual effects and language choices; the first frame used the
-  // local copies. The stats pages start from the settings' bracket.
-  const apply = (settings: SettingsData) => {
-    setEffects(settings.effects);
-    void setLanguage(settings.language);
-    setSettingsBracket(settings.statsBracket);
+  // local copies. The stats pages start from the settings' bracket; the banners ask what the
+  // player hasn't answered yet.
+  const [settings, setSettings] = createSignal<SettingsData>();
+  const apply = (next: SettingsData) => {
+    setSettings(next);
+    setEffects(next.effects);
+    void setLanguage(next.language);
+    setSettingsBracket(next.statsBracket);
   };
   transport
     .call("get_settings")
@@ -142,7 +145,7 @@ export function App(): JSX.Element {
       <TitleBar status={status()} native={transport.kind === "tauri"} />
       <Sidebar />
       <main class={styles.main} data-view={path()}>
-        <Banners status={status()} />
+        <Banners status={status()} settings={settings()} />
         {/* Nothing to see while a view's code loads, but the page says it is loading (tests wait). */}
         <Suspense fallback={<div data-state="loading" hidden />}>
           <Switch

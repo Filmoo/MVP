@@ -480,7 +480,6 @@ export const enViews = {
     },
     /** The tier's score: `+3.1 pts over 50%`. */
     pointsVs50: (score: number) => `${signedPoints(score)} pts ${score >= 0 ? "over" : "under"} 50%`,
-    pointsTitle: "Shrunk win rate minus 50%, in points (what the tier is based on)",
     winRate: "Win rate",
     pickRate: "Pick rate",
     banRate: "Ban rate",
@@ -553,31 +552,42 @@ export const enViews = {
     picked: (pct: string) => `picked in ${pct} of games`,
     /** One champion's: `picked in 34% of Kog'Maw games`. */
     pickedBy: (pct: string, champion: string) => `picked in ${pct} of ${champion} games`,
-    /** An item's share of the champion's games: `in 62% of games`. */
-    held: (pct: string) => `in ${pct} of games`,
     order: {
       byRate: (champion: string, n: number) =>
         `By MVP's tiers, best first; then augments without a tier that ${champion} players pick. Pick rates from ${games(n)} shared games.`,
-      byTier: (champion: string, n: number, min: number) =>
-        `By MVP's tiers: ${champion} has ${games(n)} of the ${min} shared games needed to add its pick rates.`,
+      byTier: "By MVP's tiers, best first.",
       byPicks: (champion: string, n: number) => `No tiers yet: by how often ${champion} players pick them (${games(n)} shared games).`,
+    },
+    /** Too few shared games yet: what switches on, and how far it is (`12 / 30`). */
+    gathering: {
+      title: "Pick rates are on their way",
+      page: (n: number) => `They switch on once ${integer(n)} Mayhem games of this patch are shared.`,
+      champion: (champion: string, n: number) => `${champion}'s pick rates and common items switch on at ${n} shared games`,
+      shared: "Shared games",
+      count: (have: number, needed: number) => `${integer(have)} / ${integer(needed)}`,
+    },
+    /** Asked once, on the first start after installing or updating (never in a game). */
+    question: {
+      title: "Share your ARAM: Mayhem games?",
+      data: "It's only game data: champions, augments and items. No names, no player ids, no wins.",
+      why: "It makes MVP's percentages better and switches features on.",
+      waiting: "Waiting for more games",
+      pageRates: "Augment pick rates",
+      championRates: "Champions with their own pick rates",
+      later: "You can change this anytime in Settings.",
+      yes: "Share game data",
+      no: "Not now",
+      thanks: "Thanks! Your Mayhem games will be shared.",
     },
     none: "Nothing to rank yet: no tiers, and not enough shared games.",
     mostPicked: "Most picked",
     items: "Common items",
     of: (champion: string) => `${champion}'s augments`,
-    champion: "Champion",
     search: "Filter by champion",
     clear: "All champions",
-    page: "Mayhem page",
     aramBuilds: "ARAM builds",
     aramNote: "From ARAM games: Riot keeps Mayhem games private, so none are counted.",
     noTiers: { title: "No tiers yet", text: "MVP's tiers for Mayhem's augments are on their way. Meanwhile, every augment is listed." },
-    noShared: {
-      title: "No shared Mayhem games yet",
-      text: "Turn on “Help build Mayhem stats” in Settings: your Mayhem games then count in the pick rates.",
-      link: "Open Settings",
-    },
     unbuilt: { title: "Augments aren't available yet", text: "MVP's server is reading this patch's augments. Try again in a few minutes." },
     failed: "Couldn't load Mayhem's augments",
     note: "Tiers are MVP's own picks, made by hand: inside a tier, the first is the best. Pick rates count the games players share with “Help build Mayhem stats”. No win rates: Riot doesn't allow them for augments. Nothing here reacts to what your game offers.",
@@ -667,7 +677,7 @@ export const enViews = {
       bracketText: "Games from this rank up count for Draft, imported builds, and the stats pages at first.",
       shareMayhem: {
         title: "Help build Mayhem stats",
-        text: "After each ARAM: Mayhem game (and once for your recent ones when you turn this on), MVP sends every player's champion, augments and final items to its server, with a one-way code for the game. No names, no player ids, no wins.",
+        text: "After each ARAM: Mayhem game (and once for all your past ones when you turn this on), MVP sends every player's champion, augments and final items to its server, with a one-way code for the game. No names, no player ids, no wins.",
       },
       sharePaused: "Sharing is paused for everyone for now. Your choice is kept.",
     },

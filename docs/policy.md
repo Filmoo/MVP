@@ -219,15 +219,22 @@ detection, composite player scores, live win probability, sending data to third-
   - **Tiers are editorial**: written by hand by the owner in a file on our server
     (`mayhem-tiers.json`, apps/backend/README.md); the order inside a tier is the rank (first =
     best, shown "S · 1"). Never copied from another site (no scraping).
-  - **Popularity only from players who opt in**: Settings → Stats → "Help build Mayhem stats",
-    off by default, with what is sent written under the switch; the server can pause it for
-    everyone (`features.mayhemSharing` in the remote config). When a game ends, and once for the
-    recent games when the switch is turned on, the core reads the player's own match history from
-    their League client and sends, for each matchmade Mayhem game not shared yet: the platform,
+  - **Popularity only from players who opt in**: off until the player says yes. The app asks
+    once (2026-09-30), on Home at the first start after installing or updating, never in
+    champion select or a game and without blocking anything: plain words (game data only: no
+    names, no player ids, no wins), what the data switches on with how far each feature is, and
+    two equal answers ("Share game data" / "Not now", same button, no default). Either answer is
+    kept and changeable in Settings → Stats → "Help build Mayhem stats" (what is sent written
+    under the switch); the server can pause sharing for everyone (`features.mayhemSharing` in
+    the remote config, which also stops the question). When a game ends, and once for the whole
+    history when sharing is turned on (every page the client lists, 500 games at most, one
+    request at a time, never during champion select or a game), the core reads the player's
+    own match history from their League client and sends, for each Mayhem game not shared yet
+    (matchmade, or custom when its queue says Mayhem): the platform,
     the patch, a one-way hash of the game id (SHA-256 of a fixed prefix, the platform and the id,
     the same for every player of that game so it counts once) and each of the ten players'
     champion, augments and final items. **Never** names, Riot IDs, PUUIDs, summoner ids, which
-    player shared, wins, KDA or anything else. Custom games and remakes are never sent. The
+    player shared, wins, KDA or anything else. Remakes are never sent. The
     server uses the install id for the rate limit only (in memory); a stored game is its time of
     arrival, platform, hash, patch and the ten players' picks.
     Caveat: game ids are sequential numbers, so someone holding the stored files could hash
@@ -236,7 +243,8 @@ detection, composite player scores, live win probability, sending data to third-
     wouldn't help: the app is open source and every sharer of a game must produce the same hash.
   - **Priorities are several options with their reasons, shown before the game or as reference.**
     Per champion and rarity: the tier and the owner's rank first, the champion's pick rate from
-    shared games second once it has 30 games (fewer: the tiers alone, and the list says so);
+    shared games second once it has 30 games (fewer: the tiers alone, and a bar says how far it
+    is; no percentage from a handful of games anywhere, the page's own from 100 games);
     every entry says why ("S tier · #2", "picked in 34% of Kog'Maw games"). Never a single "pick
     this", never an order to follow.
   - **Nothing reacts to what the game offers.** The Live Client Data API has no augments (checked

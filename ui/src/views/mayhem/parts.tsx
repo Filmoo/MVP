@@ -121,6 +121,31 @@ export function TierMark(props: { tier: AugmentTier }): JSX.Element {
   );
 }
 
+/**
+ * How far the shared games are from switching a feature on: what it is, `12 / 30` and a bar. The
+ * views show it instead of numbers too few games would make up.
+ */
+export function Meter(props: { label: string; count: string; have: number; needed: number }): JSX.Element {
+  const done = () => Math.min(props.have, props.needed);
+  return (
+    <div class={styles.meter} data-testid="mayhem-meter">
+      <span>{props.label}</span>
+      <span class={`${styles.count} num`}>{props.count}</span>
+      <span
+        class={styles.bar}
+        role="progressbar"
+        aria-label={props.label}
+        aria-valuemin={0}
+        aria-valuemax={props.needed}
+        aria-valuenow={done()}
+        aria-valuetext={props.count}
+      >
+        <span class={styles.fill} style={{ width: `${(done() / Math.max(props.needed, 1)) * 100}%` }} />
+      </span>
+    </div>
+  );
+}
+
 /** The champion's pick rate once it counts (enough games): `Picked in 34% of Jinx games`. */
 export function pickLine(entry: AugmentPriority, champion: string): string {
   return entry.pickRate !== null && entry.picks > 0 ? sentence(t().mayhem.pickedBy(percent(entry.pickRate), champion)) : "";
@@ -207,13 +232,13 @@ export function TopAugments(props: { championId: number; name: string }): JSX.El
   );
 }
 
-/** How the lists are ordered, in a sentence. */
+/** How the lists are ordered, in a sentence (below enough games, the meter says how far it is). */
 function orderLine(c: MayhemChampion, name: string): string {
   const words = t().mayhem;
   if (c.priorities.every((p) => p.entries.length === 0)) return words.none;
   const byRate = c.priorities.some((p) => p.byPickRate);
   if (!c.tiered) return words.order.byPicks(name, c.games);
-  return byRate ? words.order.byRate(name, c.games) : words.order.byTier(name, c.games, c.minGames);
+  return byRate ? words.order.byRate(name, c.games) : words.order.byTier;
 }
 
 /**
@@ -286,6 +311,19 @@ export function ChampionAugmentsView(props: {
   return (
     <>
       <p class={styles.note}>{orderLine(c(), props.name)}</p>
+      <Show when={c().games < c().minGames}>
+        <div class={styles.gathering}>
+          <Meter
+            label={t().mayhem.gathering.champion(props.name, c().minGames)}
+            count={t().mayhem.gathering.count(c().games, c().minGames)}
+            have={c().games}
+            needed={c().minGames}
+          />
+          <Show when={props.full}>
+            <a href="#/settings">{t().settings.stats.shareMayhem.title}</a>
+          </Show>
+        </div>
+      </Show>
       <Show when={!props.full}>
         <Segmented
           label={t().mayhem.rarity}
@@ -354,11 +392,6 @@ export function ChampionAugmentsView(props: {
             </ol>
           </section>
         </div>
-      </Show>
-      <Show when={props.full && c().games === 0}>
-        <p class={styles.note}>
-          {t().mayhem.noShared.text} <a href="#/settings">{t().mayhem.noShared.link}</a>
-        </p>
       </Show>
     </>
   );
