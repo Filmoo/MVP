@@ -15,7 +15,6 @@ import { Widget } from "./Widget";
 // Dev server only (`pnpm dev`): production builds leave the labs out.
 const GlassLab = import.meta.env.DEV ? lazy(() => import("./GlassLab")) : undefined;
 const EmblemLab = import.meta.env.DEV ? lazy(() => import("./EmblemLab")) : undefined;
-const DesignLab = import.meta.env.DEV ? lazy(() => import("./DesignLab")) : undefined;
 
 export default function Harness(): JSX.Element {
   const shown = queryParam("show");
@@ -24,14 +23,6 @@ export default function Harness(): JSX.Element {
     return (
       <div class={page.page} data-harness>
         <GlassLab />
-      </div>
-    );
-  }
-  // Design pre-shoot: new icons, tier medallions, the penguin (dev server only).
-  if (DesignLab && shown === "design") {
-    return (
-      <div class={page.page} data-harness>
-        <DesignLab />
       </div>
     );
   }
