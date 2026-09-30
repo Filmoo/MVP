@@ -311,9 +311,10 @@ Everything below is merged on `release/0.3` and green on
    `GameWindow.tsx`, `stack.ts`): each window's head says the game, its LP and the page owner's
    grade with what moved it; its scoreboard both teams (Riot IDs with hidden players kept hidden,
    each named player a link to their page, level, spells and runes, K/D/A with the kill
-   participation, damage bars, CS with its pace, items, every grade and its why; the page owner's
-   line marked); its details the end-of-game stats (the client's post-game Stats tab:
-   `domain::EndOfGameStats`). Past a game's end the stack moves on to the next one, past the
+   participation, damage bars, gold, CS and vision with their pace, items, every grade and its
+   why; the page owner's line marked); its details the end-of-game stats (the client's post-game
+   Stats tab: `domain::EndOfGameStats`), under the scoreboard on a window 1000 px tall or more.
+   Past a game's end the stack moves on to the next one, past the
    newest game's top it closes, past the last game loaded it loads older ones; it also closes on
    Escape, a click around it, its close button or a link. The game that just ended opens by
    itself, once (Home's card is gone). Your games are graded by the

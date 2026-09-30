@@ -62,7 +62,7 @@ test("matches: a row opens the stack on its game, a modal window of glass; only 
   // neighbours peek at the edges, inert, hidden from screen readers.
   const windows = stack(page).getByTestId("game-window");
   await expect(windows).toHaveCount(3);
-  await expect(stack(page).locator("[data-liquid=panel]")).toHaveCount(3);
+  await expect(stack(page).locator("[data-liquid=sheet]")).toHaveCount(3);
   for (const place of ["newer", "older"]) {
     const neighbour = stack(page).locator(`[data-place=${place}]`);
     await expect(neighbour).toHaveAttribute("inert");
@@ -494,10 +494,11 @@ test("matches: a grade's why shows on hover and on keyboard focus", async ({ pag
 
 // ── The end-of-game stats, a tab away ────────────────────────────────────────────────────────
 
-/** The current window's end-of-game stats (its Details tab). */
+/** The current window's end-of-game stats: its Details tab, or under its scoreboard on a tall window. */
 async function details(page: Page): Promise<void> {
-  await current(page).getByTestId("game-tabs").getByRole("radio").nth(1).click();
-  await expect(current(page).getByTestId("game-stats")).toBeVisible();
+  const tabs = current(page).getByTestId("game-tabs");
+  if ((await tabs.count()) > 0) await tabs.getByRole("radio").nth(1).click();
+  await expect(current(page).getByTestId("game-stats")).toBeAttached();
 }
 const stat = (page: Page, key: string) => current(page).locator(`[data-testid=game-stats] tr[data-stat=${key}]`);
 
@@ -536,6 +537,36 @@ test("matches: your game's end-of-game stats: what the League client counts, eac
   // Gold and vision are there (the scoreboard leaves them to this tab).
   await expect(stat(page, "goldEarned").locator("td").first()).toHaveText(/\d/);
   await expect(stat(page, "visionScore")).toHaveCount(1);
+  expect(errors).toEqual([]);
+});
+
+test("matches: the view chosen stays from game to game", async ({ page, t }) => {
+  await openApp(page);
+  await openGame(page, 1);
+  await details(page);
+  await body(page).focus();
+  await page.keyboard.press("End");
+  await showing(page, await gameOf(page, 11));
+  await expect(current(page).getByTestId("game-tabs").getByRole("radio", { name: t.matchDetails.tabs.details })).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
+  await expect(current(page).getByTestId("game-stats")).toBeVisible();
+  await expect(current(page).locator("[data-widget=match-details]")).toHaveCount(0);
+});
+
+test("matches: a tall window shows the scoreboard, then the stats under their title, no tabs", async ({ page, t }) => {
+  const errors = trackErrors(page);
+  await openApp(page, { width: 1920, height: 1080 });
+  await openGame(page, 1);
+  await expect(current(page).getByTestId("game-tabs")).toHaveCount(0);
+  await expect(current(page).locator("[data-widget=match-details]")).toBeVisible();
+  await expect(current(page).getByRole("heading", { level: 3, name: t.matchDetails.stats.title })).toBeVisible();
+  await expect(current(page).getByTestId("game-stats")).toHaveAccessibleName(t.matchDetails.stats.title);
+  // The game scrolls through both before the stack moves on.
+  expect(await body(page).evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+  // A neighbour's stats wait until it arrives.
+  await expect(stack(page).locator("[data-place=older] [data-testid=game-stats]")).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
@@ -579,6 +610,9 @@ test("matches: a game on Howling Abyss has no vision or monster stats", async ({
     await details(page);
     for (const key of ["visionScore", "wardsPlaced", "controlWards", "monsters"]) await expect(stat(page, key)).toHaveCount(0);
     await expect(stat(page, "toChampions")).toHaveCount(1);
+    // Away from the game's tooltips (one showing would take the Escape).
+    await page.mouse.move(0, 0);
+    await expect(page.locator("[role=tooltip]")).toHaveCount(0);
     await page.keyboard.press("Escape");
     await expect(stack(page)).toHaveCount(0);
   }

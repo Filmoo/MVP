@@ -364,10 +364,11 @@ unusable bubble for last game in MVP. I want it to be the same as when you click
 post-game scoreboard shared as inspiration, not to copy.) Calls:
 - **One window of glass per game, stacked in the history's order** (newest on top) in a modal
   dialog over the page: the current window takes the page's column beside the rail and under the
-  title bar but for a thin band at its top and bottom, where its neighbours' edges peek (clean
-  glass: a neighbour's game fades in as it arrives; a click on an edge goes there). The "panel"
-  liquid glass bends the page at every rim; the scrim went 60 → 40 % so the page stays seen around
-  the stack and through it.
+  title bar but for a thin band at its top and bottom, where its neighbours' edges peek, windows
+  behind it (narrower, veiled, their game unseen until it arrives; a click on an edge goes there).
+  A "sheet" of liquid glass (a panel's bend, frosted deeper and not saturated: the design review
+  saw the history's win/loss marks as stripes along the rim, its rows as ghosts) bends the page at
+  every rim; the scrim went 60 → 40 % so the page stays seen around the stack and through it.
 - **Scrolling carries you from game to game**: a game scrolls first; going on past its end is a
   deliberate pull (the sheet's rules: a gesture that scrolled the game stops at its edge, momentum
   never adds up) under a hint saying what it does; two notches glide on to the next game on a
@@ -383,10 +384,11 @@ post-game scoreboard shared as inspiration, not to copy.) Calls:
   for good; the next champion select stops it. The lane-opponent comparison is left out: the
   scoreboard shows both lines. The core's LP tracking and the rows' LP stay.
 - **A scoreboard after DPM's, MVP's own**: the level on the portrait, spells, keystone and tree,
-  the Riot ID (a link), K / D / A with the ratio and the kill participation, damage with a bar, CS
-  with its pace, items and trinket, MVP's grade and its why. Gold and vision moved to the details
-  (the League client's end-of-game numbers), a tab away: "Scoreboard | Details" keeps each view to
-  one window on most screens.
+  the Riot ID (a link), K / D / A with the ratio and the kill participation, damage with a bar,
+  gold, CS and vision each with its pace, items and trinket, MVP's grade and its why. The League
+  client's end-of-game numbers are a tab away: "Scoreboard | Details" keeps each view to one window
+  on most screens, and the view chosen stays from game to game; a window 1000 px tall or more (the
+  review found a QHD window half empty) shows both, the stats under the scoreboard.
 - **Budget, over**: the sheet merged onto main (with ARAM: Mayhem) was already 139.3 KB of JS in
   all, over the 136 KB budget; the stack adds 1.1 KB (140.3 KB; startup 41.0 of 46 KB). Not raised:
   the owner's call (raise it in its own commit, or trim elsewhere).

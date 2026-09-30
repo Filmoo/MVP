@@ -64,6 +64,7 @@ const samples = (): Record<string, unknown[][]> => ({
   "players.rateLimited.text": [[null], [12]],
   "matchDetails.level": [[16]],
   "matchDetails.kp": [[percent(0.62)]],
+  "matchDetails.placeOf": [["2nd"], ["10th"]],
   "matchDetails.damageTitle": [["31,000"]],
   "matchDetails.playedAt": [
     ["Today", 21, 34],
@@ -296,6 +297,7 @@ const SAME = new Set([
   "grade.mvp",
   "grade.ace",
   "matchDetails.columns.cs",
+  "matchDetails.columns.vision",
   "matchDetails.kp",
   "matchDetails.stats.groups.combat",
   "matchDetails.stats.groups.vision",

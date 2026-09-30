@@ -56,13 +56,27 @@ export const LIQUID = {
     brightness: 1,
     specular: 0.8,
   },
-  /** Floating panels holding text (search results, toasts, opened games' windows): the page bends along a clear rim. */
+  /** Floating panels holding text (search results, toasts): the page bends along a clear rim. */
   panel: {
     glass: { profile: "parabola", bezel: 14, thickness: 13, elevation: 18 },
     frost: 1,
     frostCore: 6,
     saturate: 1.5,
     brightness: 1.06,
+    specular: 0.8,
+  },
+  /**
+   * The windows of opened games (views/home/GameStack.tsx), as big as the page's column and over
+   * its rows of colour (the history's win and loss marks): a panel's bend, frosted deeper and not
+   * saturated, so the page shows as light behind the tables, never as ghost rows or stripes along
+   * the rim (the design review, 2026-09-30).
+   */
+  sheet: {
+    glass: { profile: "parabola", bezel: 14, thickness: 13, elevation: 18 },
+    frost: 3,
+    frostCore: 16,
+    saturate: 1,
+    brightness: 1.04,
     specular: 0.8,
   },
   /**

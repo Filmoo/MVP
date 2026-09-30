@@ -3,9 +3,10 @@
  * table is always 540 px tall, the height of the skeleton its window shows while it loads
  * (GameWindow.tsx): 8 + 2 teams × (24 + 5 × 44 + 5 × 2) + 12 + 12. Columns: the champion (level,
  * spells, keystone and tree), the player, K / D / A (the ratio and the kill participation under
- * it), damage, CS (its pace under it), items and trinket, the grade. They give way as the window
- * narrows: the items wrap, then go, then the damage, then the CS. Widths hold Windows' text too
- * (Inter renders a few px wider there than on Linux: "101 / 14 / 129" needs 91 px).
+ * it), damage (its bar under it), gold, CS and vision (each with its pace under it), items and
+ * trinket, the grade. They give way as the window narrows: gold and vision go and the items wrap,
+ * then the items go, then the damage, then the CS. Widths hold Windows' text too (Inter renders a
+ * few px wider there than on Linux: "101 / 14 / 129" needs 91 px).
  */
 .table {
   container: game / inline-size;
@@ -24,12 +25,12 @@
   list-style: none;
 }
 
-/* A window's width: the damage bar and the name share what the other columns leave. */
+/* A window's width: the name and the damage bar share what the other columns leave. */
 .head,
 .player {
   display: grid;
-  grid-template-columns: 68px minmax(0, 1.25fr) 112px minmax(96px, 1fr) 64px 152px 56px;
-  column-gap: var(--space-6);
+  grid-template-columns: 68px minmax(0, 1.2fr) 112px minmax(140px, 1fr) 64px 64px 48px 156px 56px;
+  column-gap: var(--space-7);
   align-items: center;
   padding: 0 var(--space-4);
   min-width: 0;
@@ -58,11 +59,18 @@
   border-radius: var(--radius-3);
 }
 
+/* The line under the pointer, across the row (yours keeps its mark). */
+.player:not([data-marked]):hover {
+  background: var(--bg-sheen);
+}
+
 .champ,
 .name,
 .kda,
 .damage,
+.gold,
 .cs,
+.vision,
 .items,
 .grade {
   min-width: 0;
@@ -71,28 +79,56 @@
 /* Numbers sit right, under their labels. */
 .kda,
 .damage,
-.cs {
+.gold,
+.cs,
+.vision {
   text-align: right;
   justify-self: stretch;
+}
+
+/* The bar starts a step away from the kill participation before it. */
+.damage {
+  padding-left: var(--space-5);
 }
 
 .grade {
   justify-self: end;
 }
 
-/* Narrower: the items on two lines. */
+/* No vision in the game (Howling Abyss: 0 for everyone): no vision column. */
+.noVision .vision {
+  display: none;
+}
+
+.noVision .head,
+.noVision .player {
+  grid-template-columns: 68px minmax(0, 1.2fr) 112px minmax(140px, 1fr) 64px 64px 156px 56px;
+}
+
+/* Narrower: no gold and vision, the items on two lines. */
 @container game (max-width: 999px) {
   .head,
-  .player {
-    grid-template-columns: 68px minmax(0, 1fr) 104px 96px 60px 86px 56px;
+  .player,
+  .noVision .head,
+  .noVision .player {
+    grid-template-columns: 68px minmax(0, 1fr) 104px 96px 60px 90px 56px;
     column-gap: var(--space-4);
+  }
+  .gold,
+  .vision {
+    display: none;
+  }
+  .damage {
+    padding-left: 0;
   }
 }
 
 /* Then no items; then no damage; then the champion alone and no CS. */
 @container game (max-width: 739px) {
   .head,
-  .player {
+  .player,
+  .noVision .head,
+  .noVision .player {
     grid-template-columns: 68px minmax(0, 1fr) 100px 72px 52px 56px;
   }
   .items {
@@ -102,7 +138,9 @@
 
 @container game (max-width: 559px) {
   .head,
-  .player {
+  .player,
+  .noVision .head,
+  .noVision .player {
     grid-template-columns: 68px minmax(0, 1fr) 100px 52px 44px;
   }
   .damage {
@@ -112,7 +150,9 @@
 
 @container game (max-width: 419px) {
   .head,
-  .player {
+  .player,
+  .noVision .head,
+  .noVision .player {
     grid-template-columns: 32px minmax(0, 1fr) 96px 44px;
   }
   .cs {

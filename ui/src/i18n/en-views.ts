@@ -36,7 +36,9 @@ export const enViews = {
   matchDetails: {
     columns: {
       damage: "Damage",
+      gold: "Gold",
       cs: "CS",
+      vision: "Vision",
       grade: "Grade",
       /** What the KDA column says under each K / D / A (its heading's hint). */
       kdaHint:
@@ -51,6 +53,8 @@ export const enViews = {
     tabs: { label: "Show", scoreboard: "Scoreboard", details: "Details" },
     /** After a grade's score: `8.4 / 10`. */
     outOf: "/ 10",
+    /** A grade's place among the ten, after its score: `2nd of 10`. */
+    placeOf: (place: string) => `${place} of 10`,
     /** A ranked game's LP beside its result (the change itself reads like a row's: `+21 LP`). */
     lp: {
       promoted: "Promoted",

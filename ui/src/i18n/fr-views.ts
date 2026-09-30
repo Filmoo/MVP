@@ -54,7 +54,9 @@ export const frViews = {
   matchDetails: {
     columns: {
       damage: "Dégâts",
+      gold: "Or",
       cs: "CS",
+      vision: "Vision",
       grade: "Note",
       kdaHint:
         "Éliminations / morts / assistances, puis le ratio KDA et la participation aux éliminations : la part des éliminations de l’équipe auxquelles le joueur a pris part.",
@@ -64,6 +66,7 @@ export const frViews = {
     damageTitle: (damage: string) => `${damage} dégâts aux champions`,
     tabs: { label: "Afficher", scoreboard: "Tableau des scores", details: "Détails" },
     outOf: "sur 10",
+    placeOf: (place: string) => `${place} sur 10`,
     lp: {
       promoted: "Promu",
       demoted: "Rétrogradé",

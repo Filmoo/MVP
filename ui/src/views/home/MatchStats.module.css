@@ -138,6 +138,19 @@
   background: var(--bg-3);
 }
 
+/*
+ * In a wide window of glass (GameWindow.tsx's `stats-well`) nothing scrolls under the labels: the
+ * well lets the window's glass show instead of standing in it as a solid slab.
+ */
+@container stats-well (min-width: 960px) {
+  .scroll,
+  .table th[scope="row"],
+  .table th[scope="rowgroup"],
+  .corner {
+    background: transparent;
+  }
+}
+
 /* Narrow sheets: the labels wrap (two lines at most) and cells tighten, so more players fit. */
 @container stats (max-width: 599px) {
   .table th,

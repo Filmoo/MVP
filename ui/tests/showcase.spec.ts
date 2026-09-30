@@ -589,13 +589,12 @@ async function gameShot(
   await settle(page);
   await animationsDone(page);
   if (opts.part === "details") {
-    await current(page).getByTestId("game-tabs").getByRole("radio").nth(1).click();
-    await current(page).getByTestId("game-stats").waitFor();
-    await animationsDone(page);
-  }
-  if (opts.part === "older") {
-    // The last game loaded, pulled on: older games on their way.
-    await page.keyboard.press("End");
+    // Its Details tab; a tall window shows the stats under the scoreboard: scrolled to them.
+    const tabs = current(page).getByTestId("game-tabs");
+    if ((await tabs.count()) > 0) await tabs.getByRole("radio").nth(1).click();
+    await current(page)
+      .locator("[data-widget=match-stats]")
+      .evaluate((el) => el.scrollIntoView({ block: "start" }));
     await animationsDone(page);
   }
   if (!opts.part || opts.part === "top" || opts.part === "details") {
@@ -603,27 +602,39 @@ async function gameShot(
     await page.screenshot({ path });
     return;
   }
-  // Pulled past an edge by two notches (at once: a busy machine spaces awaited ones out): the
-  // stack follows, the hint says what more would do. Captured before it springs back, else again.
-  const up = opts.part === "close";
-  for (let attempt = 0; attempt < 4; attempt++) {
-    await toEdge(page, up ? "top" : "end");
-    await notches(page, opts.part === "older" ? 2 : 1, up ? -100 : 100);
-    if (opts.part === "older") {
-      await stack(page).and(page.locator("[data-status]")).waitFor();
-      await page.mouse.move(0, 0);
-      await animationsDone(page);
-      await page.screenshot({ path });
-      return;
-    }
-    await stack(page).and(page.locator("[data-pulling]")).waitFor();
-    // Away from the game's hints (the pull holds a moment after the wheel stops).
+  if (opts.part === "older") {
+    // The last game loaded, pulled on by two notches: older games on their way.
+    await page.keyboard.press("End");
+    await animationsDone(page);
+    await toEdge(page, "end");
+    await notches(page, 2, 100);
+    await stack(page).and(page.locator("[data-status]")).waitFor();
     await page.mouse.move(0, 0);
-    await page.waitForTimeout(150);
+    await animationsDone(page);
     await page.screenshot({ path });
-    if (await stack(page).and(page.locator("[data-pulling]")).count()) return;
-    await stack(page).and(page.locator(":not([data-pulling])")).waitFor();
+    return;
   }
+  // Pulled past an edge by a finger held there, short of what the pull does (a wheel's pull springs
+  // back half a second after the wheel stops; a finger's holds while it is down): the stack
+  // follows, the hint says what more would do. Needs a touch screen (`test.use({ hasTouch })`).
+  const up = opts.part === "close";
+  await toEdge(page, up ? "top" : "end");
+  // From an empty spot of the head, to one without hints (the items' heading, or the title bar).
+  const box = await current(page).boundingBox();
+  const title = await current(page).locator("h2").boundingBox();
+  const x = (box?.x ?? 0) + (box?.width ?? 0) - 200;
+  const y = (title?.y ?? 0) + (title?.height ?? 0) / 2;
+  const reach = up ? 120 : -90;
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
+  for (let step = 1; step <= 3; step++) {
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y: y + (reach * step) / 3 }] });
+  }
+  await stack(page).and(page.locator("[data-pulling]")).waitFor();
+  await page.waitForTimeout(200);
+  await page.screenshot({ path });
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await cdp.detach();
 }
 
 async function whyShot(page: Page, name: string, width: number, height: number, row: number) {
@@ -658,11 +669,14 @@ for (const lang of ["en", "fr"] as const) {
         await gameShot(page, `${prefix}home-game-extreme`, { scenario: "extreme", width, height });
       });
     }
-    test(`${prefix}home game pulled 1280x800`, async ({ page }) => {
-      await gameShot(page, `${prefix}home-game-pulled`, { width: 1280, height: 800, row: 2, part: "pull" });
-    });
-    test(`${prefix}home game pulled to close 1280x800`, async ({ page }) => {
-      await gameShot(page, `${prefix}home-game-pulled-to-close`, { width: 1280, height: 800, row: 0, part: "close" });
+    test.describe("held by a finger", () => {
+      test.use({ hasTouch: true });
+      test(`${prefix}home game pulled 1280x800`, async ({ page }) => {
+        await gameShot(page, `${prefix}home-game-pulled`, { width: 1280, height: 800, row: 2, part: "pull" });
+      });
+      test(`${prefix}home game pulled to close 1280x800`, async ({ page }) => {
+        await gameShot(page, `${prefix}home-game-pulled-to-close`, { width: 1280, height: 800, row: 0, part: "close" });
+      });
     });
     test(`${prefix}home game older games loading 1280x800`, async ({ page }) => {
       await gameShot(page, `${prefix}home-game-older-loading`, { scenario: "history-more-slow", width: 1280, height: 800, part: "older" });

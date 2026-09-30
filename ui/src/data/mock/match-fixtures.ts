@@ -332,8 +332,11 @@ export function gameFor(match: MatchSummary, owner: RiotId, extreme = false, cli
         seat,
         role,
         player: {
+          // The longest names; the owner's own (the others' tag differs), so their line is theirs.
           riotId: extreme
-            ? { gameName: "WWWWWWWWWWWWWWWW", tagLine: "WWWWW" }
+            ? mine
+              ? owner
+              : { gameName: "WWWWWWWWWWWWWWWW", tagLine: "WWWWM" }
             : mine
               ? owner
               : hidden

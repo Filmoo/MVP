@@ -19,6 +19,7 @@ import { ChampionIcon, ItemIcon, SpellIcon } from "../../design/GameIcon";
 import { tip, untip } from "../../design/tip/Tip";
 import { t } from "../../i18n";
 import { decimal, integer, kdaRatio, percent, perMinute, signedPoints } from "../../lib/format";
+import { onHowlingAbyss } from "../../lib/queues";
 import { formatRiotId, isPlatform, playerPath, riotIdKey } from "../../lib/riot-id";
 import { roleLabel } from "../../lib/roles";
 import { GradeChip } from "./GradeChip";
@@ -185,9 +186,17 @@ function PlayerLine(props: {
           <span class={styles.fill} style={{ width: `${(p().damageToChampions / props.top) * 100}%` }} />
         </span>
       </span>
+      <span class={`${table.gold} ${styles.stat} num`}>
+        <span>{integer(p().gold)}</span>
+        <span class={styles.sub}>{t().matches.perMinute(integer((p().gold * 60) / Math.max(60, props.seconds)))}</span>
+      </span>
       <span class={`${table.cs} ${styles.stat} num`}>
         <span>{p().creepScore}</span>
         <span class={styles.sub}>{t().matches.perMinute(perMinute(p().creepScore, props.seconds))}</span>
+      </span>
+      <span class={`${table.vision} ${styles.stat} num`}>
+        <span>{p().visionScore}</span>
+        <span class={styles.sub}>{t().matches.perMinute(perMinute(p().visionScore, props.seconds))}</span>
       </span>
       <span class={`${table.items} ${styles.items}`}>
         <For each={slots()}>{(id) => <ItemIcon itemId={id} size={20} focusable />}</For>
@@ -237,7 +246,9 @@ function TeamLines(props: {
           {t().profile.stats.kda}
         </span>
         <span class={table.damage}>{columns().damage}</span>
+        <span class={table.gold}>{columns().gold}</span>
         <span class={table.cs}>{columns().cs}</span>
+        <span class={table.vision}>{columns().vision}</span>
         <span class={table.items}>{t().champions.items}</span>
         {/* How a grade is made, on hover or focus (design/tip). */}
         <span
@@ -269,13 +280,15 @@ function TeamLines(props: {
 
 /**
  * The scoreboard: both teams, damage bars scaled on the game's top damage; `focus`'s line (else
- * yours) is marked, a grade explains itself on hover or keyboard focus. Gold and vision are in the
- * end-of-game stats. `onPlayer`: how a player's link opens their page (a plain link without it).
+ * yours) is marked, a grade explains itself on hover or keyboard focus. Games without vision
+ * (Howling Abyss: everyone's score is 0) have no vision column. `onPlayer`: how a player's link
+ * opens their page (a plain link without it).
  */
 export function MatchTable(props: { game: Game; focus: RiotId | undefined; onPlayer?: OpenPlayer }): JSX.Element {
   const players = () => props.game.teams.flatMap((team) => team.players);
   const top = () => Math.max(1, ...players().map((p) => p.damageToChampions));
   const marked = () => markedIn(props.game, props.focus);
+  const noVision = () => onHowlingAbyss(props.game.queueId) || players().every((p) => p.visionScore === 0);
   /** Player pages live on the game's platform (`EUW1_…` → `euw1`). */
   const platform = () => {
     const id = props.game.matchId.split("_")[0]?.toLowerCase() ?? "";
@@ -283,7 +296,8 @@ export function MatchTable(props: { game: Game; focus: RiotId | undefined; onPla
   };
   return (
     <div
-      class={table.table}
+      class={`${table.table} ${noVision() ? table.noVision : ""}`}
+      data-vision={noVision() ? "none" : undefined}
       onPointerOver={explainInGame}
       onPointerOut={explainInGame}
       onFocusIn={explainInGame}

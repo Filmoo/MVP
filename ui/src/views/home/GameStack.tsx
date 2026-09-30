@@ -33,7 +33,7 @@ import { Icon } from "../../design/Icon";
 import { t } from "../../i18n";
 import { REMAKE_MAX_SECONDS, timeAgo } from "../../lib/format";
 import styles from "./GameStack.module.css";
-import { GameWindow, titleOf } from "./GameWindow";
+import { GameWindow, titleOf, type View } from "./GameWindow";
 import { type EdgeAction, edgeAction, keyStep, type More, RELEASE_MS, rubber, threshold, touchPull, wheelPull } from "./stack";
 
 export { hint } from "./MatchDetails";
@@ -86,6 +86,14 @@ export function GameStack(props: GameStackProps): JSX.Element {
   const cache = new Map<string, MatchDetails>();
   const bodies = new Map<string, HTMLElement>();
   const body = () => bodies.get(currentId());
+  /** "Scoreboard | Details": the view chosen stays while you go from game to game. */
+  const [view, setView] = createSignal<View>("scoreboard");
+  /** A tall window shows both, one after the other (no tabs): it has the room. */
+  const tallQuery = matchMedia("(min-height: 1000px)");
+  const [tall, setTall] = createSignal(tallQuery.matches);
+  const onTall = (e: MediaQueryListEvent) => setTall(e.matches);
+  tallQuery.addEventListener("change", onTall);
+  onCleanup(() => tallQuery.removeEventListener("change", onTall));
 
   let dialog!: HTMLDialogElement;
   let cell!: HTMLDivElement;
@@ -211,6 +219,7 @@ export function GameStack(props: GameStackProps): JSX.Element {
   const draw = (distance: number, action: EdgeAction, how: "wheel" | "touch") => {
     if (distance === pulled) return;
     pulled = distance;
+    const moved = distance && !reduced() ? -rubber(distance) : 0;
     if (distance) {
       dialog.dataset.pulling = how;
       cue.dataset.edge = distance > 0 ? "end" : "top";
@@ -218,11 +227,13 @@ export function GameStack(props: GameStackProps): JSX.Element {
       // Its bar fills up to what the pull does (nothing does at the very end).
       const limit = threshold(action, how === "touch");
       cue.style.setProperty("--progress", `${Number.isFinite(limit) ? Math.min(1, Math.abs(distance) / limit) : 0}`);
+      // It rides the seam between the windows, in the room the pull opens.
+      cue.style.setProperty("--pull", `${Math.round(Math.abs(moved))}px`);
     } else {
       delete dialog.dataset.pulling;
     }
     setHeld(distance !== 0);
-    place(distance && !reduced() ? -rubber(distance) : 0);
+    place(moved);
   };
 
   /** A pull (or a key) past the edge did enough: `action` happens. */
@@ -418,6 +429,9 @@ export function GameStack(props: GameStackProps): JSX.Element {
                   grade={props.grade(match())}
                   lp={props.lp?.(id)}
                   lpPending={props.lpPending?.(id) ?? false}
+                  view={view()}
+                  onView={setView}
+                  tall={tall()}
                   cache={cache}
                   bodies={bodies}
                   onPlayer={openPlayer}

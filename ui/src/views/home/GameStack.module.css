@@ -85,7 +85,18 @@
   display: flex;
   flex-direction: column;
   border-radius: var(--radius-5);
-  transition: transform var(--dur-2) var(--ease);
+  transition:
+    transform var(--dur-2) var(--ease),
+    scale var(--dur-spring) var(--ease-spring);
+}
+
+/*
+ * A neighbour is a window behind the current one: a little narrower (its peeking edge stays where
+ * it is; it grows to full width as it glides in), its rim quieter, its glass under a veil.
+ */
+.window:not([data-current]) {
+  --line-rim: var(--line-specular);
+  scale: 0.97 1;
 }
 
 /* Its shadow, a layer of its own: glass that bends the page mustn't cast one (liquid.ts). */
@@ -100,9 +111,9 @@
 }
 
 /*
- * Liquid glass over the page (design/liquid, "panel", like the search's results): the page bent at
- * the rim, frosted and tinted in the middle, where the tables need a calm ground. Opaque when
- * effects are off.
+ * Liquid glass over the page (design/liquid, "sheet": a panel's bend, frosted deeper): the page
+ * bent at the rim, frosted and tinted in the middle, where the tables need a calm ground. Opaque
+ * when effects are off.
  */
 .glass {
   --lg-tint: var(--bg-float);
@@ -114,6 +125,22 @@
   backdrop-filter: var(--lg-filter, var(--blur-glass));
   pointer-events: none;
   animation: appear var(--dur-2) var(--ease);
+}
+
+/* Over a neighbour's glass (after it: the same layer, painted later), lifted as it arrives. */
+.veil {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--bg-scrim);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-2) var(--ease);
+}
+
+.window:not([data-current]) .veil {
+  opacity: 1;
 }
 
 /* ── The head: the game, from its row, at once ────────────────────────────────────────── */
@@ -203,9 +230,17 @@
   gap: var(--space-3);
 }
 
+/* Promoted or demoted, in the colour of the LP that did it. */
 .moved {
-  color: var(--accent);
   font-weight: var(--weight-semibold);
+}
+
+.moved[data-lp="1"] {
+  color: var(--win);
+}
+
+.moved[data-lp="-1"] {
+  color: var(--loss);
 }
 
 .pending {
@@ -239,6 +274,11 @@
 .close:hover {
   background: var(--bg-3);
   color: var(--text-1);
+}
+
+/* A neighbour's head, pulled into view, has nothing to press. */
+.window:not([data-current]) .close {
+  visibility: hidden;
 }
 
 /* ── Your line: the grade and what moved it, then the window's two views ──────────────── */
@@ -387,6 +427,7 @@
 }
 
 .stats {
+  container: stats-well / inline-size;
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
@@ -460,7 +501,14 @@
   overflow: hidden;
   pointer-events: none;
   opacity: 0;
-  translate: -50% 0;
+  /* It rides the seam between the windows as the pull opens it (`--pull`, from GameStack.tsx). */
+  translate: -50% calc(-1 * var(--pull, 0px));
+  transition:
+    opacity var(--dur-1) var(--ease),
+    translate var(--dur-1) var(--ease);
+}
+
+.stack[data-pulling="touch"] .cue {
   transition: opacity var(--dur-1) var(--ease);
 }
 
@@ -494,15 +542,24 @@
 .cue[data-edge="top"] {
   top: var(--space-2);
   bottom: auto;
+  translate: -50% var(--pull, 0px);
 }
 
 .cue[data-edge="top"] svg {
   rotate: 180deg;
 }
 
-/* Waiting for older games (or after a failure): no bar to fill. */
+/* Waiting for older games (or after a failure): no bar to fill, back at rest, no arrow to follow. */
 .stack:not([data-pulling]) .cue::after {
   transform: scaleX(0);
+}
+
+.stack[data-status]:not([data-pulling]) .cue {
+  translate: -50% 0;
+}
+
+.stack[data-status="loading"]:not([data-pulling]) .cue svg {
+  display: none;
 }
 
 /* ── Rising in, leaving: down when pulled past the newest game's top, a short drop otherwise ── */
@@ -518,6 +575,7 @@
 .stack[data-closing] .window::before,
 .stack[data-closing] .window::after,
 .stack[data-closing] .glass,
+.stack[data-closing] .veil,
 .stack[data-closing] .head,
 .stack[data-closing] .bar,
 .stack[data-closing] .main {

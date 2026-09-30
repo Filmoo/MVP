@@ -316,25 +316,30 @@ Every finished game in a match history gets a grade, and a match row opens on th
   mask would hide the page from the glass). A click on a neighbour's edge goes there (the pointer
   brings it a little closer, a hover says which game). **Only the current window and its
   neighbours are built**, each asking for its game (`match_details`) as it is built, kept while
-  the stack is open; a neighbour's game stays unseen (its edge is clean glass) and fades in as it
-  arrives. Each window is liquid glass (`liquid(el, "panel")` on a layer inside it, tinted
-  `--bg-float`: the page bent along its rim, frosted in its middle; its shadow on a layer of its
-  own). Its head comes from the row at once: result and queue (the title), the LP (`+21 LP` like
+  the stack is open. A neighbour is a window behind: 3 % narrower (`scale`, it grows to full width
+  as it glides in), its rim quieter, its glass under a veil (`--bg-scrim`), its game unseen (its
+  edge is clean glass) until it arrives. Each window is liquid glass (`liquid(el, "sheet")` on a
+  layer inside it, tinted `--bg-float`: the page bent along its rim, frosted deep in its middle,
+  so the history's rows show as light, not as ghost rows or win/loss stripes along the rim; its
+  shadow on a layer of its own). Its head comes from the row at once: result and queue (the title), the LP (`+21 LP` like
   the row, the standing after, Promoted/Demoted; "Counting LP…" while the client counts the game
   that just ended), champion, role, length and when, the close button; then the grade of the player
-  whose games these are (chip, score, MVP/ACE or place) with the facts that moved it, and
-  "Scoreboard | Details" (`Segmented`; no tabs for a game without end-of-game stats). The
-  **scoreboard** (`MatchTable`, DPM as inspiration): per player the level on the portrait, spells,
-  keystone and tree, the Riot ID (a link to `playerPath`, which closes the stack and navigates;
-  hidden players and bots plain text), K / D / A with the ratio and the kill participation under
-  it (clamped to 100 %), damage with a bar on the game's top, CS with its pace, items and trinket,
-  the grade (focusable, its why a tooltip on hover or focus); the runes, spells and items say what
-  they do, the KDA and grade headings what they mean. Its columns give way as the window narrows
-  (the items wrap, then go, then the damage, then the CS). Gold and vision are in the **details**
+  whose games these are (chip, score, MVP/ACE or "2nd of 10") with the facts that moved it, and
+  "Scoreboard | Details" (`Segmented`; the view chosen stays from game to game; no tabs for a game
+  without end-of-game stats; a window 1000 px tall or more shows both, the stats under the
+  scoreboard with their title, and builds the stats of the current game only). The **scoreboard**
+  (`MatchTable`, DPM as inspiration): per player the level on the portrait, spells, keystone and
+  tree, the Riot ID (a link to `playerPath`, which closes the stack and navigates; hidden players
+  and bots plain text), K / D / A with the ratio and the kill participation under it (clamped to
+  100 %), damage with a bar on the game's top (on the second line: the numbers share a line), gold,
+  CS and vision each with its pace (no vision on Howling Abyss), items and trinket, the grade
+  (focusable, its why a tooltip on hover or focus); the runes, spells and items say what they do,
+  the KDA and grade headings what they mean. Its columns give way as the window narrows (gold and
+  vision go and the items wrap, then the items go, then the damage, then the CS). The **details**
   (`MatchStats.tsx`: groups of rows, the ten players as columns with champion heads on their team's
   colour, the page owner's column marked, each row's top value marked, a row no player has left
   out — Howling Abyss has no vision —, a sticky label column and sideways scrolling to your column
-  on narrow windows). Meanwhile a skeleton of the scoreboard's exact height (540 px); errors in
+  on narrow windows; in a wide window the well lets the glass show). Meanwhile a skeleton of the scoreboard's exact height (540 px); errors in
   place with a retry when it helps.
   **Moving** (`stack.ts`, pure and unit-tested): the current game scrolls first. Past its end or
   its top, wheel deltas pull the stack along (`rubber`: it follows with resistance, into the
@@ -678,8 +683,9 @@ functions) → the glass' tint → rim light.
   crease along the corner diagonal); a drop is a stadium.
 - Kinds (`LIQUID`): `bar` (title bar: a 14 px lower rim bending strongly; content scrolling
   under it stretches along that rim, the rest is lightly frosted, 4 px), `dock` (the rail and the
-  floating tab bar: 12 px rims, 6 px frost in the middle), `panel` (search results, toasts, opened games' windows: 14 px
-  rims, 6 px frost in the middle), `clear` (rank pane and champion tier over art: a wide 20 px bent rim, corners
+  floating tab bar: 12 px rims, 6 px frost in the middle), `panel` (search results, toasts: 14 px
+  rims, 6 px frost in the middle), `sheet` (opened games' windows: a panel's bend, 3 px at the rim
+  and 16 px in the middle, not saturated, over the history's coloured rows), `clear` (rank pane and champion tier over art: a wide 20 px bent rim, corners
   `--radius-5` to match, a light frost in the middle for their captions), `lens` (the glass lab's
   drop only). The app's small glass on controls (rail selection, segmented and
   choice thumbs, a held switch's knob) isn't lensed: it is the CSS drop (`design/glass.css`

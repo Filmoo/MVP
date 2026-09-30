@@ -6,7 +6,7 @@
  * to their page) or the end-of-game stats, "Scoreboard | Details". The game is asked for when the
  * window is built (the current game or a neighbour), once while the stack is open.
  */
-import { createResource, createSignal, For, type JSX, onCleanup, Show } from "solid-js";
+import { createResource, For, type JSX, onCleanup, Show } from "solid-js";
 import { useData } from "../../data/context";
 import type { BackendError } from "../../data/generated/BackendError";
 import type { LpGame } from "../../data/generated/LpGame";
@@ -30,8 +30,8 @@ import { GradeChip } from "./GradeChip";
 import { factorWords, MatchTable, markedIn, type OpenPlayer } from "./MatchDetails";
 import { MatchStats, statRows } from "./MatchStats";
 
-/** The window's two views of its game. */
-type View = "scoreboard" | "details";
+/** A window's two views of its game. */
+export type View = "scoreboard" | "details";
 
 export interface WindowProps {
   match: MatchSummary;
@@ -47,6 +47,11 @@ export interface WindowProps {
   grade: MatchGrade | null;
   lp: LpGame | undefined;
   lpPending: boolean;
+  /** The view chosen ("Scoreboard | Details"), the stack's: it stays from game to game. */
+  view: View;
+  onView: (view: View) => void;
+  /** A tall window: both views, one after the other, no tabs. */
+  tall: boolean;
   /** Games read while the stack is open: going back to one doesn't ask again. */
   cache: Map<string, MatchDetails>;
   /** Each window's scroller, by game: the stack scrolls the current one and gives it the keyboard. */
@@ -108,23 +113,27 @@ export function GameWindow(props: WindowProps): JSX.Element {
     return lp.delta > 0 ? t().matchDetails.lp.promoted : t().matchDetails.lp.demoted;
   };
 
-  const [view, setView] = createSignal<View>("scoreboard");
-  // Tabs while the game loads (it has its stats, most likely), none for a game without them.
-  const tabs = () => {
+  // The game's stats: while it loads it has them (most likely), a game without them has none.
+  const hasStats = () => {
     const g = ready();
     return !game.error && (!g || statRows(g).length > 0);
   };
+  // Tabs on a window too short for both views; a tall one shows the stats under the scoreboard
+  // (the current game's only: a neighbour's game stays unseen until it arrives).
+  const tabs = () => hasStats() && !props.tall;
+  const current = () => props.place === 0;
+  const scoreboard = () => props.tall || props.view === "scoreboard" || !hasStats();
+  const details = () => hasStats() && (props.tall ? current() : props.view === "details");
   const views = () => [
     { value: "scoreboard" as const, label: t().matchDetails.tabs.scoreboard },
     { value: "details" as const, label: t().matchDetails.tabs.details },
   ];
   let body!: HTMLDivElement;
   const show = (next: View) => {
-    setView(next);
+    props.onView(next);
     body.scrollTop = 0;
   };
   onCleanup(() => props.bodies.delete(id));
-  const current = () => props.place === 0;
 
   return (
     <section
@@ -138,7 +147,9 @@ export function GameWindow(props: WindowProps): JSX.Element {
       data-current={current() ? "" : undefined}
       data-testid="game-window"
     >
-      <div class={styles.glass} aria-hidden="true" ref={(el) => liquid(el, "panel")} />
+      <div class={styles.glass} aria-hidden="true" ref={(el) => liquid(el, "sheet")} />
+      {/* A neighbour is a window behind: its glass under a veil. */}
+      <div class={styles.veil} aria-hidden="true" />
       <header class={styles.head}>
         <ChampionIcon championId={m().championId} size={48} />
         <div class={styles.heading}>
@@ -156,7 +167,13 @@ export function GameWindow(props: WindowProps): JSX.Element {
                     <TierBadge tier={lp().after.tier} division={lp().after.division} plain />
                     {t().common.lp(lp().after.leaguePoints)}
                   </span>
-                  <Show when={moved(lp())}>{(word) => <span class={styles.moved}>{word()}</span>}</Show>
+                  <Show when={moved(lp())}>
+                    {(word) => (
+                      <span class={styles.moved} data-lp={Math.sign(lp().delta)}>
+                        {word()}
+                      </span>
+                    )}
+                  </Show>
                 </span>
               )}
             </Show>
@@ -188,7 +205,7 @@ export function GameWindow(props: WindowProps): JSX.Element {
                 <p class={`${styles.score} num`}>
                   {decimal(g().score, 1)} <span class={styles.outOf}>{t().matchDetails.outOf}</span>
                   <span class={g().badge ? styles.badge : styles.place}>
-                    {((badge) => (badge ? t().grade[badge] : t().grade.place(g().place)))(g().badge)}
+                    {((badge) => (badge ? t().grade[badge] : t().matchDetails.placeOf(t().grade.place(g().place))))(g().badge)}
                   </span>
                 </p>
                 <ul class={styles.factors}>
@@ -205,7 +222,7 @@ export function GameWindow(props: WindowProps): JSX.Element {
               class={styles.tabs}
               label={t().matchDetails.tabs.label}
               options={views()}
-              value={view()}
+              value={props.view}
               onChange={show}
               testId="game-tabs"
             />
@@ -231,21 +248,20 @@ export function GameWindow(props: WindowProps): JSX.Element {
               </Show>
             }
           >
-            <Show
-              when={view() === "details"}
-              fallback={
-                <Widget name="match-details">
-                  {/* The tables' exact height: nothing moves when the game arrives. */}
-                  <Show when={ready()} fallback={<Skeleton height="540px" />}>
-                    {(g) => <MatchTable game={g()} focus={props.focus} onPlayer={props.onPlayer} />}
-                  </Show>
-                </Widget>
-              }
-            >
-              <Show when={ready()} fallback={<Skeleton height="540px" />}>
+            <Show when={scoreboard()}>
+              <Widget name="match-details">
+                {/* The tables' exact height: nothing moves when the game arrives. */}
+                <Show when={ready()} fallback={<Skeleton height="540px" />}>
+                  {(g) => <MatchTable game={g()} focus={props.focus} onPlayer={props.onPlayer} />}
+                </Show>
+              </Widget>
+            </Show>
+            <Show when={details()}>
+              <Show when={ready()} fallback={props.tall ? undefined : <Skeleton height="540px" />}>
                 {(g) => (
                   <Widget name="match-stats" class={styles.stats}>
-                    <h3 id={`game-stats-${id}`} class={styles.statsTitle}>
+                    {/* Under the scoreboard it has a title; on its own, its tab says what it is. */}
+                    <h3 id={`game-stats-${id}`} class={styles.statsTitle} hidden={!props.tall}>
                       {t().matchDetails.stats.title}
                     </h3>
                     <MatchStats game={g()} marked={markedIn(g(), props.focus)} labelledBy={`game-stats-${id}`} />
