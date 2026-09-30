@@ -66,17 +66,18 @@ export const LIQUID = {
     specular: 0.8,
   },
   /**
-   * The windows of opened games (views/home/GameStack.tsx), as big as the page's column and over
-   * its rows of colour (the history's win and loss marks): a panel's bend, frosted deeper and not
-   * saturated, so the page shows as light behind the tables, never as ghost rows or stripes along
-   * the rim (the design review, 2026-09-30).
+   * The windows of opened games (views/home/GameStack.tsx), big, over the page receded and dimmed
+   * behind them: a panel's bend, frosted in the middle just enough for the tables (their tint,
+   * `--bg-sheet`, does the rest), so the page's lights and shapes still come through, faintly,
+   * dimmed and bent. Owner, 2026-09-30: "It should be slightly refracting lights from the
+   * background, although very dim… right now there's nothing" (a 16 px frost under an 80 % tint).
    */
   sheet: {
     glass: { profile: "parabola", bezel: 14, thickness: 13, elevation: 18 },
-    frost: 3,
-    frostCore: 16,
-    saturate: 1,
-    brightness: 1.04,
+    frost: 2,
+    frostCore: 10,
+    saturate: 1.25,
+    brightness: 1.06,
     specular: 0.8,
   },
   /**

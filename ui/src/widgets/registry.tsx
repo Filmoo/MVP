@@ -130,7 +130,7 @@ export const widgetRegistry: Record<string, () => JSX.Element> = {
   "profile-header": () => <ProfileHeader profile={profile} lp={lp} />,
   "recent-matches": () => <MatchHistory matches={graded.recentMatches} focus={graded.riotId} lp={lp} />,
   "match-details": () => <MatchTable game={firstGame} focus={profile.riotId} />,
-  "match-stats": () => <MatchStats game={firstGame} marked={markedIn(firstGame, profile.riotId)} />,
+  "match-stats": () => <MatchStats game={firstGame} tab="damage" marked={markedIn(firstGame, profile.riotId)} />,
   "performance-summary": () => <PerformanceSummary matches={profile.recentMatches} mastery={masteryFixture} />,
   "draft-teams": () => <Teams draft={champSelectDraft} />,
   "draft-suggestions": () => (

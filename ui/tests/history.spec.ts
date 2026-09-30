@@ -6,7 +6,7 @@ import { integer, signedPoints } from "../src/lib/format";
 import { GESTURE_GAP_MS } from "../src/views/home/stack";
 import { animationsDone, expect, openApp, settle, test, trackErrors } from "./app";
 import { auditLayout } from "./layout-rules";
-import { body, current, gameOf, notches, openGame, pulling, recordPulls, showing, stack, toEdge } from "./stack";
+import { aim, current, gameOf, notches, openGame, pulling, recordPulls, showing, stack } from "./stack";
 
 // Home's history (filters, older games, the LP of each ranked game), the stack of opened games
 // going further back, the game that just ended opening by itself, the LP graph and your mastery.
@@ -136,7 +136,7 @@ test("history: pulling past the last game loaded loads older games, then moves o
   await openGame(page, 0);
   await page.keyboard.press("End");
   await showing(page, await gameOf(page, 19));
-  await toEdge(page, "end");
+  await aim(page);
   const pulls = await recordPulls(page);
   // A pull that says what it does…
   await notches(page, 1, 100);
@@ -164,7 +164,7 @@ test("history: at the history's very end, the stack only gives, and says so", as
   await openGame(page, 0);
   await page.keyboard.press("End");
   await showing(page, await gameOf(page, 46));
-  await toEdge(page, "end");
+  await aim(page);
   const pulls = await recordPulls(page);
   await notches(page, 6, 100);
   await expect.poll(pulls).toMatchObject({ edge: "end", said: t.matches.more.end });
@@ -179,10 +179,7 @@ test("history: older games on their way say so in the stack; a failure too, and 
   await openGame(page, 0);
   await page.keyboard.press("End");
   await showing(page, await gameOf(page, 19));
-  // The keyboard asks too: ↓ at the last game's end.
-  await body(page).evaluate((el) => {
-    el.scrollTop = el.scrollHeight;
-  });
+  // The keyboard asks too: ↓ at the last game.
   await page.keyboard.press("ArrowDown");
   const cue = page.getByTestId("scroll-cue");
   await expect(stack(page)).toHaveAttribute("data-status", "loading");
@@ -196,11 +193,11 @@ test("history: older games on their way say so in the stack; a failure too, and 
   await openGame(page, 0);
   await page.keyboard.press("End");
   await showing(page, await gameOf(page, 19));
-  await toEdge(page, "end");
+  await aim(page);
   await notches(page, 2, 100);
   await expect(stack(page)).toHaveAttribute("data-status", "failed");
   await expect(page.getByTestId("scroll-cue")).toHaveText(t.matchDetails.stack.failed);
-  await page.waitForTimeout(GESTURE_GAP_MS + 50);
+  await aim(page);
   await notches(page, 2, 100);
   await expect.poll(async () => (await calls(page, "older_matches")).length).toBe(2);
   await showing(page, await gameOf(page, 19));
@@ -217,8 +214,8 @@ test("post-game: the game that just ended opens by itself, with its LP and your 
   await expect(current(page).getByTestId("game-lp")).toContainText(t.matches.lp(signedPoints(21, 0)));
   await expect(current(page).getByTestId("game-grade")).toContainText(t.grade.mvp);
   expect(await current(page).getByTestId("game-grade").getByRole("listitem").count()).toBeGreaterThanOrEqual(2);
-  // The keyboard is in the game; the stack goes on to your older games.
-  await expect(body(page)).toBeFocused();
+  // The keyboard is in its window; the stack goes on to your older games.
+  await expect(current(page)).toBeFocused();
   await expect(stack(page).locator("[data-place=older]")).toHaveCount(1);
   // Home has no card for it anymore: the window says it all.
   await expect(page.locator("[data-widget=post-game]")).toHaveCount(0);

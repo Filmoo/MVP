@@ -2,11 +2,13 @@
  * One window of the stack of opened games (GameStack.tsx): a game of the history in liquid glass.
  * Its head says the game at once, from its row: result and queue, the LP it was worth, champion,
  * role, length and when, and the grade of the player whose games these are with what moved it.
- * Its body shows the whole game once loaded: the scoreboard (both teams, each named player a link
- * to their page) or the end-of-game stats, "Scoreboard | Details". The game is asked for when the
- * window is built (the current game or a neighbour), once while the stack is open.
+ * Then its tabs: the scoreboard (both teams, each named player a link to their page) and the
+ * end-of-game stats, a few groups a tab (MatchStats.tsx). Nothing scrolls in it: every tab fits
+ * the window (the tables' lines share its height, their columns give way as it narrows). The game
+ * is asked for when the window is built (the current game or a neighbour), once while the stack is
+ * open.
  */
-import { createResource, For, type JSX, onCleanup, Show } from "solid-js";
+import { createMemo, createResource, For, type JSX, Show } from "solid-js";
 import { useData } from "../../data/context";
 import type { BackendError } from "../../data/generated/BackendError";
 import type { LpGame } from "../../data/generated/LpGame";
@@ -28,10 +30,11 @@ import { Widget } from "../../widgets/Widget";
 import styles from "./GameStack.module.css";
 import { GradeChip } from "./GradeChip";
 import { factorWords, MatchTable, markedIn, type OpenPlayer } from "./MatchDetails";
-import { MatchStats, statRows } from "./MatchStats";
+import { MatchStats, STAT_TABS, type StatTab, statRows } from "./MatchStats";
 
-/** A window's two views of its game. */
-export type View = "scoreboard" | "details";
+/** A window's tabs: its scoreboard, then its end-of-game stats. */
+export type Tab = "scoreboard" | StatTab;
+const STATS = Object.keys(STAT_TABS) as StatTab[];
 
 export interface WindowProps {
   match: MatchSummary;
@@ -47,15 +50,13 @@ export interface WindowProps {
   grade: MatchGrade | null;
   lp: LpGame | undefined;
   lpPending: boolean;
-  /** The view chosen ("Scoreboard | Details"), the stack's: it stays from game to game. */
-  view: View;
-  onView: (view: View) => void;
-  /** A tall window: both views, one after the other, no tabs. */
-  tall: boolean;
+  /** The tab chosen, the stack's: it stays from game to game. */
+  tab: Tab;
+  onTab: (tab: Tab) => void;
+  /** A narrow window: the stats turn around (MatchStats.tsx). */
+  narrow: boolean;
   /** Games read while the stack is open: going back to one doesn't ask again. */
   cache: Map<string, MatchDetails>;
-  /** Each window's scroller, by game: the stack scrolls the current one and gives it the keyboard. */
-  bodies: Map<string, HTMLElement>;
   onPlayer: OpenPlayer;
   onClose: () => void;
 }
@@ -113,27 +114,14 @@ export function GameWindow(props: WindowProps): JSX.Element {
     return lp.delta > 0 ? t().matchDetails.lp.promoted : t().matchDetails.lp.demoted;
   };
 
-  // The game's stats: while it loads it has them (most likely), a game without them has none.
-  const hasStats = () => {
+  // Its tabs: the stats it has (while it loads, most likely all of them); none past the scoreboard, no tabs.
+  const tabs = createMemo((): Tab[] => {
     const g = ready();
-    return !game.error && (!g || statRows(g).length > 0);
-  };
-  // Tabs on a window too short for both views; a tall one shows the stats under the scoreboard
-  // (the current game's only: a neighbour's game stays unseen until it arrives).
-  const tabs = () => hasStats() && !props.tall;
+    const stats = game.error ? [] : g ? STATS.filter((tab) => statRows(g, tab).length > 0) : STATS;
+    return stats.length > 0 ? ["scoreboard", ...stats] : [];
+  });
+  const shown = (): Tab => (tabs().includes(props.tab) ? props.tab : "scoreboard");
   const current = () => props.place === 0;
-  const scoreboard = () => props.tall || props.view === "scoreboard" || !hasStats();
-  const details = () => hasStats() && (props.tall ? current() : props.view === "details");
-  const views = () => [
-    { value: "scoreboard" as const, label: t().matchDetails.tabs.scoreboard },
-    { value: "details" as const, label: t().matchDetails.tabs.details },
-  ];
-  let body!: HTMLDivElement;
-  const show = (next: View) => {
-    props.onView(next);
-    body.scrollTop = 0;
-  };
-  onCleanup(() => props.bodies.delete(id));
 
   return (
     <section
@@ -142,10 +130,20 @@ export function GameWindow(props: WindowProps): JSX.Element {
       aria-labelledby={titleOf(id)}
       inert={!current() || undefined}
       aria-hidden={current() ? undefined : "true"}
+      // It takes the focus when it becomes the current game: the keyboard's keys are the stack's.
+      tabindex="-1"
       data-window
       data-place={current() ? "current" : props.place < 0 ? "newer" : "older"}
       data-current={current() ? "" : undefined}
       data-testid="game-window"
+      // ←/→ change the tab from anywhere in it (the tabs themselves handle theirs).
+      onKeyDown={(e) => {
+        const by = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+        const list = tabs();
+        if (!by || e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || list.length === 0) return;
+        e.preventDefault();
+        props.onTab(list[(list.indexOf(shown()) + by + list.length) % list.length] ?? "scoreboard");
+      }}
     >
       <div class={styles.glass} aria-hidden="true" ref={(el) => liquid(el, "sheet")} />
       {/* A neighbour is a window behind: its glass under a veil. */}
@@ -195,7 +193,7 @@ export function GameWindow(props: WindowProps): JSX.Element {
           <Icon name="close" size={20} />
         </button>
       </header>
-      <Show when={grade() || tabs()}>
+      <Show when={grade() || tabs().length > 0}>
         <div class={styles.bar}>
           <Show when={grade()}>
             {(g) => (
@@ -216,30 +214,21 @@ export function GameWindow(props: WindowProps): JSX.Element {
               </div>
             )}
           </Show>
-          <Show when={tabs()}>
+          <Show when={tabs().length > 0}>
             <Segmented
               size="sm"
               class={styles.tabs}
               label={t().matchDetails.tabs.label}
-              options={views()}
-              value={props.view}
-              onChange={show}
+              options={tabs().map((tab) => ({ value: tab, label: t().matchDetails.tabs[tab] }))}
+              value={shown()}
+              onChange={props.onTab}
               testId="game-tabs"
             />
           </Show>
         </div>
       </Show>
       <div class={styles.main}>
-        <div
-          ref={(el) => {
-            body = el;
-            props.bodies.set(id, el);
-          }}
-          class={styles.body}
-          tabindex="-1"
-          aria-busy={game.loading}
-          data-testid="game-body"
-        >
+        <div class={styles.body} aria-busy={game.loading} data-testid="game-body">
           <Show
             when={!game.error}
             fallback={
@@ -248,26 +237,26 @@ export function GameWindow(props: WindowProps): JSX.Element {
               </Show>
             }
           >
-            <Show when={scoreboard()}>
-              <Widget name="match-details">
-                {/* The tables' exact height: nothing moves when the game arrives. */}
-                <Show when={ready()} fallback={<Skeleton height="540px" />}>
-                  {(g) => <MatchTable game={g()} focus={props.focus} onPlayer={props.onPlayer} />}
+            <Show
+              when={shown() !== "scoreboard" && shown()}
+              fallback={
+                <Widget name="match-details">
+                  {/* The tables' exact height: nothing moves when the game arrives. */}
+                  <Show when={ready()} fallback={<Skeleton height="min(100cqh, 540px)" />}>
+                    {(g) => <MatchTable game={g()} focus={props.focus} onPlayer={props.onPlayer} />}
+                  </Show>
+                </Widget>
+              }
+            >
+              {(tab) => (
+                <Show when={ready()} fallback={<Skeleton height="min(100cqh, 540px)" />}>
+                  {(g) => (
+                    <Widget name="match-stats">
+                      <MatchStats game={g()} tab={tab() as StatTab} marked={markedIn(g(), props.focus)} narrow={props.narrow} />
+                    </Widget>
+                  )}
                 </Show>
-              </Widget>
-            </Show>
-            <Show when={details()}>
-              <Show when={ready()} fallback={props.tall ? undefined : <Skeleton height="540px" />}>
-                {(g) => (
-                  <Widget name="match-stats" class={styles.stats}>
-                    {/* Under the scoreboard it has a title; on its own, its tab says what it is. */}
-                    <h3 id={`game-stats-${id}`} class={styles.statsTitle} hidden={!props.tall}>
-                      {t().matchDetails.stats.title}
-                    </h3>
-                    <MatchStats game={g()} marked={markedIn(g(), props.focus)} labelledBy={`game-stats-${id}`} />
-                  </Widget>
-                )}
-              </Show>
+              )}
             </Show>
           </Show>
         </div>

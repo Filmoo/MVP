@@ -1,23 +1,24 @@
 /**
  * Opened games: a stack of windows of liquid glass over the page (GameWindow.tsx), one per game of
- * the history and in its order, newest on top. The current window covers the page beside the rail
- * and under the title bar but for a small margin, the page behind bent along its rim and frosted in
- * its middle; its neighbours peek at the stack's top and bottom edges (a click on one goes there).
+ * the history and in its order, newest on top. The page behind recedes, a little smaller and
+ * dimmer (still the page you were on, around the stack and through its glass); the current window
+ * floats over it with a margin all around, its neighbours peeking at the stack's top and bottom
+ * edges (a click on one goes there).
  *
- * A window's game scrolls first. Going on past its end moves to the next, older game, past its top
- * to the newer one: by wheel (a deliberate pull, with resistance, then the stack glides on), by
- * finger, or by keyboard (↑/↓, PageUp/PageDown, Space: the game, then the next one; Home/End: the
- * newest and the oldest game loaded). Past the newest game's top a pull closes the stack; past the
- * last game loaded it loads older ones (the history's "load more"), then moves on to them; at the
- * very end it only gives, like a rubber band. What each pull does is decided in stack.ts
- * (unit-tested); a hint says it while pulling.
+ * Nothing scrolls in a window (its game is in tabs that fit it), so the wheel only changes window:
+ * one deliberate gesture (a touchpad's inertia is part of it) moves to the older game (down) or
+ * the newer one (up); so do a finger, ↑/↓ and PageUp/PageDown, and Home/End go to the newest and
+ * the oldest game loaded; ←/→ change the tab. Past the newest game a pull closes the stack; past
+ * the last game loaded it loads older ones (the history's "load more"), then moves on to them; at
+ * the very end it only gives, like a rubber band. What each gesture does is decided in stack.ts
+ * (unit-tested); a hint says what a pull does.
  *
  * Only the current window and its neighbours are built, and their games asked for. A modal dialog
  * labelled by the current game's title: the page behind is inert, the focus stays in the current
  * window and goes back to its game's row after. It closes on Escape, a click around the window, its
- * close button, a player's link (their page opens) and the pull past the newest game. Only transform
- * and opacity move; nothing runs while nothing moves (reduced motion: the stack jumps, pulls don't
- * move it, the hint and the thresholds still work).
+ * close button, a player's link (their page opens) and the pull past the newest game. Only
+ * transform and opacity move; nothing runs while nothing moves (reduced motion: the stack and the
+ * page behind jump, pulls don't move it, the hint and the thresholds still work).
  *
  * The chunk of an opened game (RecentMatches.tsx loads it on first use, with the views' words).
  */
@@ -33,8 +34,8 @@ import { Icon } from "../../design/Icon";
 import { t } from "../../i18n";
 import { REMAKE_MAX_SECONDS, timeAgo } from "../../lib/format";
 import styles from "./GameStack.module.css";
-import { GameWindow, titleOf, type View } from "./GameWindow";
-import { type EdgeAction, edgeAction, keyStep, type More, RELEASE_MS, rubber, threshold, touchPull, wheelPull } from "./stack";
+import { GameWindow, type Tab, titleOf } from "./GameWindow";
+import { type EdgeAction, edgeAction, keyStep, type More, moves, RELEASE_MS, rubber, threshold, wheelPull } from "./stack";
 
 export { hint } from "./MatchDetails";
 
@@ -57,16 +58,10 @@ export interface GameStackProps {
   onClosed: (last: MatchSummary) => void;
 }
 
-/** How the stack leaves: pulled past the newest game's top (down), or dismissed. */
+/** How the stack leaves: pulled past the newest game (down), or dismissed. */
 type Exit = "down" | "away";
 
 const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-/** Whether `body` can't scroll further up or down. */
-const edgesOf = (body: HTMLElement) => ({
-  atTop: body.scrollTop <= 0,
-  atEnd: body.scrollHeight - body.clientHeight - body.scrollTop <= 1,
-});
 
 export function GameStack(props: GameStackProps): JSX.Element {
   const { gameData } = useData();
@@ -84,16 +79,14 @@ export function GameStack(props: GameStackProps): JSX.Element {
     });
   });
   const cache = new Map<string, MatchDetails>();
-  const bodies = new Map<string, HTMLElement>();
-  const body = () => bodies.get(currentId());
-  /** "Scoreboard | Details": the view chosen stays while you go from game to game. */
-  const [view, setView] = createSignal<View>("scoreboard");
-  /** A tall window shows both, one after the other (no tabs): it has the room. */
-  const tallQuery = matchMedia("(min-height: 1000px)");
-  const [tall, setTall] = createSignal(tallQuery.matches);
-  const onTall = (e: MediaQueryListEvent) => setTall(e.matches);
-  tallQuery.addEventListener("change", onTall);
-  onCleanup(() => tallQuery.removeEventListener("change", onTall));
+  /** The tab chosen stays while you go from game to game. */
+  const [tab, setTab] = createSignal<Tab>("scoreboard");
+  /** A narrow window: the stats turn around (no room for ten columns, MatchStats.tsx). */
+  const narrowQuery = matchMedia("(max-width: 1023px)");
+  const [narrow, setNarrow] = createSignal(narrowQuery.matches);
+  const onNarrow = (e: MediaQueryListEvent) => setNarrow(e.matches);
+  narrowQuery.addEventListener("change", onNarrow);
+  onCleanup(() => narrowQuery.removeEventListener("change", onNarrow));
 
   let dialog!: HTMLDialogElement;
   let cell!: HTMLDivElement;
@@ -101,7 +94,7 @@ export function GameStack(props: GameStackProps): JSX.Element {
   let cue!: HTMLDivElement;
   let closing = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
-  /** How far the stack is pulled (wheel or finger pixels, + past the end). */
+  /** How far the stack is pulled (wheel or finger pixels, + down). */
   let pulled = 0;
 
   /** The track's place: the current game's window in view, moved by `pull` pixels of rubber band. */
@@ -123,6 +116,9 @@ export function GameStack(props: GameStackProps): JSX.Element {
     }),
   );
 
+  /** The current window, which has the keyboard. */
+  const focusCurrent = () => dialog.querySelector<HTMLElement>("[data-current]")?.focus({ preventScroll: true });
+
   /** Leaves by `exit` (at once before `then`: a player's page opens), then gives the focus back to the game's row. */
   const close = (exit: Exit, then?: () => void) => {
     if (closing) return;
@@ -142,24 +138,16 @@ export function GameStack(props: GameStackProps): JSX.Element {
   };
   const openPlayer = (path: string) => close("away", () => navigate(path));
 
-  /**
-   * Moves to game `to` of the list. Arriving from below, its game shows its end (the stack reads
-   * like one long page); from above, its top. The keyboard goes on in it.
-   */
+  /** Moves to game `to` of the list; its window takes the keyboard. */
   const go = (to: number) => {
-    const from = index();
     const target = props.games()[to];
-    if (!target || to === from || closing) return;
+    if (!target || to === index() || closing) return;
     clearTimeout(timer);
     pulled = 0;
     delete dialog.dataset.pulling;
     setHeld(false);
     setCurrentId(target.matchId);
-    const next = body();
-    if (next) {
-      next.scrollTop = to < from ? next.scrollHeight : 0;
-      next.focus({ preventScroll: true });
-    }
+    focusCurrent();
   };
 
   // ── Older games ──────────────────────────────────────────────────────────────────────────────
@@ -190,7 +178,7 @@ export function GameStack(props: GameStackProps): JSX.Element {
     return index() === count() - 1 && (state === "loading" || state === "failed") ? state : undefined;
   });
 
-  // ── Pulls: the hint, the rubber band, what they do ─────────────────────────────────────────────
+  // ── Pulls past the ends: the hint, the rubber band, what they do ───────────────────────────────
   /** What the pull does (kept once let go: the hint fades out with its words), and whether one is on. */
   const [said, setSaid] = createSignal<EdgeAction>();
   const [held, setHeld] = createSignal(false);
@@ -198,12 +186,9 @@ export function GameStack(props: GameStackProps): JSX.Element {
     const words = t().matchDetails.stack;
     const more = t().matches.more;
     const waiting = status() === "loading" ? "loading" : status() === "failed" ? "load" : undefined;
-    const action = held() || !waiting ? said() : waiting;
-    switch (action) {
-      case "newer":
-      case "older":
+    switch (held() || !waiting ? said() : waiting) {
       case "close":
-        return words[action];
+        return words.close;
       case "load":
         return props.more?.state() === "failed" ? words.failed : words.load;
       case "loading":
@@ -215,7 +200,7 @@ export function GameStack(props: GameStackProps): JSX.Element {
     }
   };
 
-  /** Shows a pull of `distance` px (+ past the end) toward `action`; 0 lets go (it springs back). */
+  /** Shows a pull of `distance` px (+ down) toward `action`; 0 lets go (it springs back). */
   const draw = (distance: number, action: EdgeAction, how: "wheel" | "touch") => {
     if (distance === pulled) return;
     pulled = distance;
@@ -236,7 +221,7 @@ export function GameStack(props: GameStackProps): JSX.Element {
     place(moved);
   };
 
-  /** A pull (or a key) past the edge did enough: `action` happens. */
+  /** A gesture (or a key) did enough: `action` happens. */
   const act = (action: EdgeAction) => {
     if (action === "close") return close("down");
     if (action === "newer") go(index() - 1);
@@ -248,28 +233,22 @@ export function GameStack(props: GameStackProps): JSX.Element {
   // ── The wheel ────────────────────────────────────────────────────────────────────────────────
   const wheel = wheelPull();
   const onWheel = (e: WheelEvent) => {
-    const scroller = body();
-    // Zooming and sideways scrolling (the stats table) aren't pulls.
-    if (closing || !scroller || e.ctrlKey || Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
-    const dy = e.deltaMode === 1 ? e.deltaY * 40 : e.deltaMode === 2 ? e.deltaY * scroller.clientHeight : e.deltaY;
-    const distance = wheel.wheel(e.timeStamp, dy, edgesOf(scroller));
-    // The rest of a gesture that moved the stack: the game it brought doesn't scroll with it.
-    // A pull takes its events too (at the edge, nothing else would scroll with them): Chromium
-    // lets the rest of a wheel sequence be cancelled only when its first event was.
-    if (distance === null || distance !== 0) e.preventDefault();
+    // Zooming stays the browser's; nothing else scrolls here.
+    if (e.ctrlKey) return;
+    e.preventDefault();
+    if (closing || Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+    const dy = e.deltaMode === 1 ? e.deltaY * 40 : e.deltaMode === 2 ? e.deltaY * innerHeight : e.deltaY;
+    const distance = wheel.wheel(e.timeStamp, dy);
+    // The rest of a gesture that moved the stack.
     if (distance === null) return;
-    // Over the window's head, around it or over a neighbour: the wheel still scrolls the game.
-    if (distance === 0 && !scroller.contains(e.target as Node)) {
-      e.preventDefault();
-      scroller.scrollBy({ top: dy });
-    }
     clearTimeout(timer);
     const action = edgeAction(Math.sign(distance), index(), count(), props.more?.state());
     if (distance && Math.abs(distance) >= threshold(action, false)) {
       wheel.spend();
       return act(action);
     }
-    draw(distance, action, "wheel");
+    // Between games nothing pulls: a gesture moves once it is deliberate. Past the ends, it pulls.
+    draw(moves(action) ? 0 : distance, action, "wheel");
     if (distance) {
       timer = setTimeout(() => {
         wheel.release();
@@ -278,22 +257,20 @@ export function GameStack(props: GameStackProps): JSX.Element {
     }
   };
 
-  // ── A finger ─────────────────────────────────────────────────────────────────────────────────
-  const touch = touchPull();
+  // ── A finger: the stack follows it, and moves (or closes, or loads) when let go far enough ────
+  let startY: number | undefined;
   let dragged = 0;
   const dragAction = () => edgeAction(Math.sign(dragged), index(), count(), props.more?.state());
   const onTouchStart = (e: TouchEvent) => {
-    const finger = e.touches[0];
-    if (finger && e.touches.length === 1) touch.start(finger.clientY);
+    startY = e.touches.length === 1 ? e.touches[0]?.clientY : undefined;
     dragged = 0;
   };
   const onTouchMove = (e: TouchEvent) => {
     const finger = e.touches[0];
-    const scroller = body();
-    if (closing || !finger || !scroller || e.touches.length > 1) return;
-    dragged = touch.move(finger.clientY, edgesOf(scroller));
-    // The pull moves the stack, not the page.
-    if (dragged && e.cancelable) e.preventDefault();
+    if (closing || startY === undefined || !finger || e.touches.length > 1) return;
+    dragged = startY - finger.clientY;
+    // The drag moves the stack, not the page.
+    if (e.cancelable) e.preventDefault();
     draw(dragged, dragAction(), "touch");
   };
   const onTouchEnd = () => {
@@ -301,6 +278,7 @@ export function GameStack(props: GameStackProps): JSX.Element {
     if (dragged && Math.abs(dragged) >= threshold(action, true)) act(action);
     else if (dragged) draw(0, action, "touch");
     dragged = 0;
+    startY = undefined;
   };
 
   // ── Keyboard and pointer ─────────────────────────────────────────────────────────────────────
@@ -324,34 +302,24 @@ export function GameStack(props: GameStackProps): JSX.Element {
       (e.shiftKey ? stops.at(-1) : stops[0])?.focus();
     }
   };
+  /**
+   * The stack's keys, heard first (capturing): ↑/↓ and PageUp/PageDown move between games from
+   * anywhere in it, the tabs too (←/→ are theirs); Home and End go to its ends, but on the tabs.
+   */
   const onKeyDown = (e: KeyboardEvent) => {
     if (e.key === "Tab") return trap(e);
-    if (closing || e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return;
-    const step = keyStep(e.key, e.shiftKey);
-    const target = e.target as Element;
-    const scroller = body();
-    // Controls keep their keys: the tabs' arrows, Home and End, Space on a button or a link.
-    if (!step || !scroller || target.closest("[role=radiogroup]") || (e.key === " " && target.closest("button, a"))) return;
-    if (step === "first" || step === "last") {
+    const step = keyStep(e.key);
+    if (closing || !step || e.altKey || e.ctrlKey || e.metaKey) return;
+    if (typeof step === "string") {
+      if ((e.target as Element).closest("[role=radiogroup]")) return;
       e.preventDefault();
-      go(step === "first" ? 0 : count() - 1);
-      return;
+      return go(step === "first" ? 0 : count() - 1);
     }
-    const edges = edgesOf(scroller);
-    if (!(step.direction > 0 ? edges.atEnd : edges.atTop)) {
-      // The game scrolls: by itself when the focus is in it, else from here.
-      if (!scroller.contains(target)) {
-        e.preventDefault();
-        const by = step.by === "line" ? 40 : scroller.clientHeight * 0.875;
-        scroller.scrollBy({ top: step.direction * by, behavior: reduced() ? "instant" : "smooth" });
-      }
-      return;
-    }
-    // At its edge: a key pressed again goes on (held down, it stops there).
     e.preventDefault();
-    if (e.repeat) return;
-    const action = edgeAction(step.direction, index(), count(), props.more?.state());
-    if (action !== "close") act(action);
+    e.stopPropagation();
+    const action = edgeAction(step, index(), count(), props.more?.state());
+    // Past the newest game nothing (Escape closes); a key held down never loads.
+    if (action !== "close" && !(e.repeat && action === "load")) act(action);
   };
   /** A click around the window: pressed and released outside every window (not on a neighbour). */
   let pressedOutside = false;
@@ -364,9 +332,9 @@ export function GameStack(props: GameStackProps): JSX.Element {
 
   onMount(() => {
     dialog.showModal();
-    // The keyboard scrolls the game at once.
-    body()?.focus({ preventScroll: true });
+    focusCurrent();
     window.addEventListener("keydown", onEscape, true);
+    dialog.addEventListener("keydown", onKeyDown, true);
     dialog.addEventListener("wheel", onWheel, { passive: false });
     dialog.addEventListener("touchstart", onTouchStart, { passive: true });
     dialog.addEventListener("touchmove", onTouchMove, { passive: false });
@@ -389,6 +357,7 @@ export function GameStack(props: GameStackProps): JSX.Element {
   };
 
   return (
+    // biome-ignore lint/a11y/useKeyWithClickEvents: its keys are heard capturing (onMount): ↑/↓ reach the stack before the tabs
     <dialog
       ref={dialog}
       class={styles.stack}
@@ -402,7 +371,6 @@ export function GameStack(props: GameStackProps): JSX.Element {
       onClick={(e) => {
         if (pressedOutside && outside(e.target)) close("away");
       }}
-      onKeyDown={onKeyDown}
       onCancel={(e) => {
         e.preventDefault();
         close("away");
@@ -429,11 +397,10 @@ export function GameStack(props: GameStackProps): JSX.Element {
                   grade={props.grade(match())}
                   lp={props.lp?.(id)}
                   lpPending={props.lpPending?.(id) ?? false}
-                  view={view()}
-                  onView={setView}
-                  tall={tall()}
+                  tab={tab()}
+                  onTab={setTab}
+                  narrow={narrow()}
                   cache={cache}
-                  bodies={bodies}
                   onPlayer={openPlayer}
                   onClose={() => close("away")}
                 />
@@ -468,8 +435,15 @@ export function GameStack(props: GameStackProps): JSX.Element {
             onClick={() => go(index() + 1)}
           />
         </Show>
-        {/* What the pull does, at the edge being pulled, its bar filling up to it. */}
-        <div ref={cue} class={styles.cue} aria-hidden="true" data-edge="end" data-testid="scroll-cue">
+        {/* What a pull past an end does, at that edge, its bar filling up to it. */}
+        <div
+          ref={cue}
+          class={styles.cue}
+          aria-hidden="true"
+          data-edge="end"
+          data-said={hintText() ? "" : undefined}
+          data-testid="scroll-cue"
+        >
           <Icon name="arrowDown" size={16} />
           <span>{hintText()}</span>
         </div>

@@ -64,7 +64,7 @@ export const frViews = {
     kp: (pct: string) => `${pct} KP`,
     level: (n: number) => `Niveau ${n}`,
     damageTitle: (damage: string) => `${damage} dégâts aux champions`,
-    tabs: { label: "Afficher", scoreboard: "Tableau des scores", details: "Détails" },
+    tabs: { label: "Afficher", scoreboard: "Scores", damage: "Dégâts", vision: "Vision et or", combat: "Combat" },
     outOf: "sur 10",
     placeOf: (place: string) => `${place} sur 10`,
     lp: {
@@ -81,8 +81,6 @@ export const frViews = {
     playedAt: (day: string, hours: number, minutes: number) => `${day} à ${hours} h ${String(minutes).padStart(2, "0")}`,
     close: "Fermer",
     stack: {
-      newer: "Continuez à défiler pour une partie plus récente",
-      older: "Continuez à défiler pour une partie plus ancienne",
       close: "Continuez à défiler pour fermer",
       load: "Continuez à défiler pour charger des parties plus anciennes",
       failed: "Impossible de charger les parties plus anciennes. Continuez à défiler pour réessayer.",
@@ -90,7 +88,6 @@ export const frViews = {
     },
     peek: { newer: "Partie plus récente", older: "Partie plus ancienne" },
     stats: {
-      title: "Statistiques de fin de partie",
       groups: {
         combat: "Combat",
         damageDealt: "Dégâts infligés",

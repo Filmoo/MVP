@@ -4,7 +4,7 @@ import { lockInImport, tradedWarning } from "../src/data/mock/import-fixtures";
 import { scenarioNames } from "../src/data/mock/scenarios";
 import { animationsDone, expect, openApp, test, VIEWS } from "./app";
 import { auditTokens } from "./coherence-rules";
-import { body, current, notches, rows, stack, toEdge } from "./stack";
+import { aim, current, notches, rows, stack, tabs } from "./stack";
 
 for (const view of VIEWS) {
   test(`${view} only uses design tokens`, async ({ page }) => {
@@ -234,8 +234,8 @@ test("/settings searched only uses design tokens", async ({ page }) => {
 
 // The stack of opened games (a game's window, or why it can't show) with a grade's why over it, a
 // player's link hovered, then its end-of-game stats with a row hovered, a neighbour's edge hovered,
-// then pulled on with the hint showing (always drawn, see-through until a pull: audited with the
-// rest).
+// then the newest game pulled on with the hint showing (always drawn, see-through until a pull:
+// audited with the rest).
 for (const { scenario, view } of [
   { scenario: "default", view: "/" },
   { scenario: "extreme", view: "/" },
@@ -256,18 +256,20 @@ for (const { scenario, view } of [
     await animationsDone(page);
     expect(await page.evaluate(auditTokens), "a grade's why").toEqual([]);
     await current(page).locator("[data-widget=match-details]").getByRole("link").first().hover();
-    await current(page).getByTestId("game-tabs").getByRole("radio").nth(1).click();
-    await body(page).evaluate((el) => {
-      el.scrollTop = el.scrollHeight;
-    });
-    await current(page).getByTestId("game-stats").locator("tbody tr").nth(2).hover();
-    await animationsDone(page);
-    expect(await page.evaluate(auditTokens), "its stats").toEqual([]);
+    for (const at of [1, 2, 3]) {
+      await tabs(page).nth(at).click();
+      await current(page).getByTestId("game-stats").locator("tbody tr").nth(2).hover();
+      await animationsDone(page);
+      expect(await page.evaluate(auditTokens), `its stats, tab ${at}`).toEqual([]);
+    }
     await stack(page).locator("[data-peek=older]").hover();
     await animationsDone(page);
     expect(await page.evaluate(auditTokens), "a neighbour's edge").toEqual([]);
-    await toEdge(page, "end");
-    await notches(page, 1, 100);
+    await current(page).focus();
+    await page.keyboard.press("Home");
+    await animationsDone(page);
+    await aim(page);
+    await notches(page, 1, -100);
     await expect(stack(page)).toHaveAttribute("data-pulling", "wheel");
     expect(await page.evaluate(auditTokens), "pulled").toEqual([]);
   });

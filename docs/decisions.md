@@ -392,3 +392,33 @@ post-game scoreboard shared as inspiration, not to copy.) Calls:
 - **Budget, over**: the sheet merged onto main (with ARAM: Mayhem) was already 139.3 KB of JS in
   all, over the 136 KB budget; the stack adds 1.5 KB (140.8 KB; startup 41.0 of 46 KB). Not raised:
   the owner's call (raise it in its own commit, or trim elsewhere).
+
+## 2026-09-30 — Game windows: tabs, the wheel changes window, the page recedes (owner asked, Claude built)
+Owner: "Game window has too many things. I don't want scrolling to be buffered by too many pages. It
+should be different tabs, no scroll except to change window." "Without glass, it's hard to know
+where we are… It'd be nice to have the background zoomed, to understand that we are still on the
+same page." And: "The game window is glass. Why do only the borders show the background? It should
+be slightly refracting lights from the background, although very dim." Calls:
+- **Nothing scrolls in a window**: tabs in its head (`Segmented`): Scoreboard, Damage (damage dealt,
+  damage taken and healing), Vision & gold (vision, income), Combat (combat, objectives): the
+  League client's groups two by two, each tab fitting a window. The tables' lines share the
+  window's height (container query units on its body): 44 px at most, down to one line of text a
+  player on a short window (captions, bars, spells and runes go); columns give way as it narrows.
+  Below 1024 px the stats turn around (a row per player, the tab's leading stats as columns, as
+  many as fit) instead of scrolling sideways. The tab chosen stays from game to game; ←/→ change it.
+  French says "Scores" for the scoreboard tab (the tab row fits a 400 px window).
+- **The wheel only changes window**: one deliberate gesture moves one game (a notch, or a swipe's
+  first 50 px; a touchpad's inertia is the same gesture, swallowed; the wheel rests 400 ms while the
+  stack glides). ↑/↓ and PageUp/PageDown do the same from anywhere in the window, the tabs
+  included; Home/End go to the ends. The pulls past the ends stay, with their hint: four notches
+  past the newest game close the stack, two past the last game loaded load older ones.
+- **The page recedes**: while the stack is open the whole app behind it is scaled to 0.94 and
+  dimmed to 55 % (one transition of scale and opacity; at once with reduced motion; no scrim any
+  more), in Full, Light and Off. The window floats in the middle with a margin all around (at most
+  `--content-max` wide and 680 px tall, centred), so the page shows around it and the neighbours
+  still peek. Without liquid glass the window is a 90 % solid layer (`--bg-sheet-flat`) whose rim is
+  lit all around.
+- **Glass that lets the page through**: the `sheet` kind frosts its middle 10 px (was 16) and
+  saturates it 1.25, under a 75 % tint (`--bg-sheet`, was the panels' 80 %): the page's lights and
+  shapes show faintly through the whole window. A test measures every text of the window against
+  the ground actually drawn under it (≥ 4.5:1 in Full, Light and Off; text-3 over the glass: 4.8).

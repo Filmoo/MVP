@@ -312,22 +312,21 @@ Everything below is merged on `release/0.3` and green on
    grade with what moved it; its scoreboard both teams (Riot IDs with hidden players kept hidden,
    each named player a link to their page, level, spells and runes, K/D/A with the kill
    participation, damage bars, gold, CS and vision with their pace, items, every grade and its
-   why; the page owner's line marked); its details the end-of-game stats (the client's post-game
-   Stats tab: `domain::EndOfGameStats`), under the scoreboard on a window 1000 px tall or more.
-   Past a game's end the stack moves on to the next one, past the
-   newest game's top it closes, past the last game loaded it loads older ones; it also closes on
-   Escape, a click around it, its close button or a link. The game that just ended opens by
-   itself, once (Home's card is gone). Your games are graded by the
+   why; the page owner's line marked); its other tabs the end-of-game stats (the client's
+   post-game Stats tab: `domain::EndOfGameStats`) two groups a tab. *(2026-09-30)* Nothing scrolls
+   in a window (tabs that fit it); the page recedes behind the stack; a wheel gesture moves one
+   game, a pull past the newest game closes the stack, past the last game loaded it loads older
+   ones; it also closes on Escape, a click around it, its close button or a link. The game that
+   just ended opens by itself, once (Home's card is gone). Your games are graded by the
    core from `GET /lol-match-history/v1/games/{gameId}` (each read once, after the profile);
    others' by the backend, which also answers `GET /v1/matches/{platform}/{matchId}`. Left:
    - on the owner's machine: the stack's feel with a real mouse wheel and a precision touchpad
-     (`WHEEL_MOVE` 200 px ≈ two notches to move on, `WHEEL_CLOSE` 360 px ≈ four to close,
-     `RELEASE_MS`, `GESTURE_GAP_MS` in `stack.ts`; WebView2's deltas per notch aren't measured
-     yet): that a spin reaching a game's end never moves on by itself, that the rest of a gesture
-     that moved on never scrolls the next game (Chromium lets a wheel sequence be cancelled only
-     from its first event: a pull takes its events), a touch screen if there is one, and the
-     glass frame times while the stack glides on a 1440p window (three windows of the biggest
-     lens of the app; the neighbours are clipped to their edges);
+     (`WHEEL_MOVE` 50 px ≈ half a notch to move one game, `WHEEL_CLOSE` 360 px ≈ four to close,
+     `SETTLE_MS`, `GESTURE_GAP_MS` in `stack.ts`; WebView2's deltas per notch aren't measured
+     yet): that one flick with its inertia moves one game, never two, that slow notches move one
+     game each, a touch screen if there is one, and the glass frame times while the page recedes
+     and the stack glides on a 1440p window (three windows of the biggest lens of the app over a
+     scaled page);
    - the backend's match snapshot is format 3 and its cache holds 12,000 matches (was 20,000: a
      compacted match doubled with its end-of-game stats, under 11 KB); the first start after the
      upgrade begins with an empty match cache;
@@ -486,18 +485,18 @@ Match insights (Home after a few games; a player page with the backend running):
   `spell1Id`/`spell2Id`, `timeline.lane`/`role` (only evidence: each team's roles are worked out
   from the champions' role shares, Smite, lane minions and support items; compare with the player
   page's Match-V5 `teamPosition` for the same games), `gameDuration` in seconds, `platformId`.
-- **Opened games:** a stack of windows of glass over the page (the page bent at each rim, seen
-  around it), the neighbours' edges at its top and bottom; yours open instantly the second time
-  (cached); someone else's (player page) come from the backend; a streamer-mode player shows
-  "Hidden player" in both and isn't a link; your line (or the page owner's) is marked, your grade
-  and the LP head each window; a name opens that player's page (the stack closes). Scrolling on
-  past a game's end moves to the next game ("Keep scrolling for an older game", two notches),
-  past its top back up, past the newest game's top closes (four notches), past the last game
-  loaded loads older ones (Home) and moves on to them; a touchpad flick's inertia never moves on.
-  ↑/↓, PageUp/PageDown and Space scroll then move on; Home/End go to the ends. Escape, a click
-  beside the windows and the close button close it; the focus goes back to the row of the game
-  shown last.
-- **End-of-game stats** (a window's Details, `EndOfGameStats`): compare with the client's own
+- **Opened games:** a stack of windows of glass over the page (the page bent at each rim and
+  faintly through the middle), the neighbours' edges at its top and bottom; yours open instantly
+  the second time (cached); someone else's (player page) come from the backend; a streamer-mode
+  player shows "Hidden player" in both and isn't a link; your line (or the page owner's) is
+  marked, your grade and the LP head each window; a name opens that player's page (the stack
+  closes). The page behind shrinks a little and dims (Full, Light, Off); nothing scrolls in a
+  window, its tabs (Scoreboard, Damage, Vision & gold, Combat; ←/→) fit it down to 400 × 560. A
+  wheel notch (or a touchpad flick, inertia and all) moves one game; past the newest game four
+  notches close, past the last game loaded two load older ones (Home) and move on to them. ↑/↓
+  and PageUp/PageDown move between games; Home/End go to the ends. Escape, a click beside the
+  windows and the close button close it; the focus goes back to the row of the game shown last.
+- **End-of-game stats** (a window's stats tabs, `EndOfGameStats`): compare with the client's own
   post-game Stats tab for the same game (spree, multikill, first blood, damage by type, to
   turrets and objectives, taken and mitigated, healing, wards, gold spent, minions, monsters,
   crowd control, turrets, inhibitors). **Check whether the client's `participants[].stats` carry

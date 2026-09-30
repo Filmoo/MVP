@@ -49,8 +49,8 @@ export const enViews = {
     /** A champion's level at the end of the game. */
     level: (n: number) => `Level ${n}`,
     damageTitle: (damage: string) => `${damage} damage to champions`,
-    /** The window's two views of the game. */
-    tabs: { label: "Show", scoreboard: "Scoreboard", details: "Details" },
+    /** The window's tabs: the scoreboard, then the end-of-game stats (MatchStats.tsx's `STAT_TABS`). */
+    tabs: { label: "Show", scoreboard: "Scoreboard", damage: "Damage", vision: "Vision & gold", combat: "Combat" },
     /** After a grade's score: `8.4 / 10`. */
     outOf: "/ 10",
     /** A grade's place among the ten, after its score: `2nd of 10`. */
@@ -74,12 +74,10 @@ export const enViews = {
       `${day}, ${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`,
     close: "Close",
     /**
-     * The stack of opened games: what going on past a window's edge does, said while the stack is
-     * pulled (and while older games load, or failed to).
+     * The stack of opened games: what a pull past its ends does, said while the stack is pulled
+     * (and while older games load, or failed to).
      */
     stack: {
-      newer: "Keep scrolling for a newer game",
-      older: "Keep scrolling for an older game",
       close: "Keep scrolling to close",
       load: "Keep scrolling to load older games",
       failed: "Couldn't load older games. Keep scrolling to try again.",
@@ -90,7 +88,6 @@ export const enViews = {
     peek: { newer: "Newer game", older: "Older game" },
     /** The raw end-of-game numbers, like the League client's post-game Stats tab. */
     stats: {
-      title: "End-of-game stats",
       groups: {
         combat: "Combat",
         damageDealt: "Damage dealt",

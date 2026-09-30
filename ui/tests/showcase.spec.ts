@@ -6,7 +6,7 @@ import { FIXTURE_NOW } from "../src/data/mock/fixtures";
 import { lockInImport, tradedWarning } from "../src/data/mock/import-fixtures";
 import type { ScenarioName } from "../src/data/mock/scenarios";
 import { animationsDone, openApp, settle, test, VIEWS } from "./app";
-import { current, notches, rows, stack, toEdge } from "./stack";
+import { aim, current, notches, rows, stack, tabs } from "./stack";
 
 // Screenshots for human/UI-agent review. Not asserted: layout, coherence and
 // error specs are the gates. Output: reports/screenshots/<view>-<scenario>-<size>.png
@@ -551,10 +551,11 @@ for (const lang of ["en", "fr"] as const) {
   });
 }
 
-// Match rows: the stack of opened games over the page (a game's window at its top, its end-of-game
-// stats, pulled on toward the next game, pulled past the newest to close, older games on their
-// way), a grade's why, and the game's other states, in English and French (`fr-…`). `row`: which
-// row, newest first (the third has a neighbour peeking at each edge).
+// Match rows: the stack of opened games over the page receded behind it (a game's window on its
+// scoreboard or one of its stats tabs, in Full or Light, pulled past the newest game to close,
+// older games on their way), a grade's why, and the game's other states, in English and French
+// (`fr-…`). `row`: which row, newest first (the third has a neighbour peeking at each edge); `tab`:
+// which of the window's tabs (0, the scoreboard, then the stats).
 async function gameShot(
   page: Page,
   name: string,
@@ -564,16 +565,19 @@ async function gameShot(
     width: number;
     height: number;
     row?: number;
-    part?: "top" | "details" | "pull" | "close" | "older";
+    effects?: "full" | "light" | "off";
+    tab?: number;
+    part?: "close" | "older";
   },
 ) {
   // Two settles and three windows' worth of images: more than 30 s on a busy machine.
   test.slow();
-  await openApp(page, { scenario: opts.scenario ?? "default", view: opts.view ?? "/", width: opts.width, height: opts.height });
+  const { width, height, effects } = opts;
+  await openApp(page, { scenario: opts.scenario ?? "default", view: opts.view ?? "/", width, height, ...(effects ? { effects } : {}) });
   await rows(page)
     .nth(opts.row ?? 0)
     .click();
-  const path = `${OUT}/${name}-${opts.width}x${opts.height}.png`;
+  const path = `${OUT}/${name}-${width}x${height}.png`;
   if (opts.scenario === "match-details-slow") {
     // Still loading: its head and the skeleton, once it has risen in (the skeleton pulses for good).
     await current(page).locator("[data-state=loading]").first().waitFor();
@@ -588,16 +592,11 @@ async function gameShot(
   await current(page).locator("[data-testid=game-player], [role=alert]").first().waitFor();
   await settle(page);
   await animationsDone(page);
-  if (opts.part === "details") {
-    // Its Details tab; a tall window shows the stats under the scoreboard: scrolled to them.
-    const tabs = current(page).getByTestId("game-tabs");
-    if ((await tabs.count()) > 0) await tabs.getByRole("radio").nth(1).click();
-    await current(page)
-      .locator("[data-widget=match-stats]")
-      .evaluate((el) => el.scrollIntoView({ block: "start" }));
+  if (opts.tab) {
+    await tabs(page).nth(opts.tab).click();
     await animationsDone(page);
   }
-  if (!opts.part || opts.part === "top" || opts.part === "details") {
+  if (!opts.part) {
     await page.mouse.move(0, 0);
     await page.screenshot({ path });
     return;
@@ -606,7 +605,7 @@ async function gameShot(
     // The last game loaded, pulled on by two notches: older games on their way.
     await page.keyboard.press("End");
     await animationsDone(page);
-    await toEdge(page, "end");
+    await aim(page);
     await notches(page, 2, 100);
     await stack(page).and(page.locator("[data-status]")).waitFor();
     await page.mouse.move(0, 0);
@@ -614,23 +613,20 @@ async function gameShot(
     await page.screenshot({ path });
     return;
   }
-  // Pulled past an edge by a finger held there, short of what the pull does (a wheel's pull springs
+  // Pulled past the newest game by a finger held there, short of closing (a wheel's pull springs
   // back half a second after the wheel stops; a finger's holds while it is down): the stack
   // follows, the hint says what more would do. Needs a touch screen (`test.use({ hasTouch })`).
-  const up = opts.part === "close";
-  await toEdge(page, up ? "top" : "end");
   // The mouse out of the way (no row under it, no tooltip); the finger from an empty spot of the
-  // head, to one without hints (the items' heading, or the title bar).
+  // head.
   await page.mouse.move(0, 0);
   const box = await current(page).boundingBox();
   const title = await current(page).locator("h2").boundingBox();
   const x = (box?.x ?? 0) + (box?.width ?? 0) - 200;
   const y = (title?.y ?? 0) + (title?.height ?? 0) / 2;
-  const reach = up ? 120 : -90;
   const cdp = await page.context().newCDPSession(page);
   await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
   for (let step = 1; step <= 3; step++) {
-    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y: y + (reach * step) / 3 }] });
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y: y + (120 * step) / 3 }] });
   }
   await stack(page).and(page.locator("[data-pulling]")).waitFor();
   await page.waitForTimeout(200);
@@ -658,12 +654,15 @@ for (const lang of ["en", "fr"] as const) {
       [420, 800],
       [2560, 1440],
     ] as const) {
-      test(`${prefix}home game open ${width}x${height}`, async ({ page }) => {
-        await gameShot(page, `${prefix}home-game-open`, { width, height, row: 2 });
-      });
-      test(`${prefix}home game details ${width}x${height}`, async ({ page }) => {
-        await gameShot(page, `${prefix}home-game-details`, { width, height, row: 2, part: "details" });
-      });
+      // Full (glass) and Light: the scoreboard, and the damage tab.
+      for (const effects of ["full", "light"] as const) {
+        test(`${prefix}home game ${effects} ${width}x${height}`, async ({ page }) => {
+          await gameShot(page, `${prefix}home-game-${effects}`, { width, height, row: 2, effects });
+        });
+        test(`${prefix}home game damage ${effects} ${width}x${height}`, async ({ page }) => {
+          await gameShot(page, `${prefix}home-game-damage-${effects}`, { width, height, row: 2, effects, tab: 1 });
+        });
+      }
       test(`${prefix}home grade why ${width}x${height}`, async ({ page }) => {
         await whyShot(page, `${prefix}home-grade-why`, width, height, 1);
       });
@@ -671,11 +670,22 @@ for (const lang of ["en", "fr"] as const) {
         await gameShot(page, `${prefix}home-game-extreme`, { scenario: "extreme", width, height });
       });
     }
+    // The other tabs; the smallest window, where each line keeps a line of text.
+    for (const [tab, what] of [
+      [2, "vision"],
+      [3, "combat"],
+    ] as const) {
+      test(`${prefix}home game ${what} 1280x800`, async ({ page }) => {
+        await gameShot(page, `${prefix}home-game-${what}`, { width: 1280, height: 800, row: 2, effects: "full", tab });
+      });
+    }
+    for (const tab of [0, 1] as const) {
+      test(`${prefix}home game smallest tab ${tab} 400x560`, async ({ page }) => {
+        await gameShot(page, `${prefix}home-game-smallest-${tab}`, { width: 400, height: 560, row: 2, effects: "full", tab });
+      });
+    }
     test.describe("held by a finger", () => {
       test.use({ hasTouch: true });
-      test(`${prefix}home game pulled 1280x800`, async ({ page }) => {
-        await gameShot(page, `${prefix}home-game-pulled`, { width: 1280, height: 800, row: 2, part: "pull" });
-      });
       test(`${prefix}home game pulled to close 1280x800`, async ({ page }) => {
         await gameShot(page, `${prefix}home-game-pulled-to-close`, { width: 1280, height: 800, row: 0, part: "close" });
       });
@@ -687,13 +697,8 @@ for (const lang of ["en", "fr"] as const) {
     test(`${prefix}home game howling abyss 1920x1080`, async ({ page }) => {
       await gameShot(page, `${prefix}home-game-howling-abyss`, { scenario: "howling-abyss", width: 1920, height: 1080 });
     });
-    test(`${prefix}home game howling abyss details 1920x1080`, async ({ page }) => {
-      await gameShot(page, `${prefix}home-game-howling-abyss-details`, {
-        scenario: "howling-abyss",
-        width: 1920,
-        height: 1080,
-        part: "details",
-      });
+    test(`${prefix}home game howling abyss vision 1920x1080`, async ({ page }) => {
+      await gameShot(page, `${prefix}home-game-howling-abyss-vision`, { scenario: "howling-abyss", width: 1920, height: 1080, tab: 2 });
     });
     for (const scenario of ["match-details-error", "match-details-gone", "match-details-unavailable", "match-details-slow"] as const) {
       test(`${prefix}home ${scenario} 1280x800`, async ({ page }) => {
@@ -704,13 +709,8 @@ for (const lang of ["en", "fr"] as const) {
     test(`${prefix}player game open 1280x800`, async ({ page }) => {
       await gameShot(page, `${prefix}player-game-open`, { view: "/player/euw1/Blade%20Dancer/IRE", width: 1280, height: 800 });
     });
-    test(`${prefix}player game details 1280x800`, async ({ page }) => {
-      await gameShot(page, `${prefix}player-game-details`, {
-        view: "/player/euw1/Blade%20Dancer/IRE",
-        width: 1280,
-        height: 800,
-        part: "details",
-      });
+    test(`${prefix}player game damage 1280x800`, async ({ page }) => {
+      await gameShot(page, `${prefix}player-game-damage`, { view: "/player/euw1/Blade%20Dancer/IRE", width: 1280, height: 800, tab: 1 });
     });
   });
 }
