@@ -1,15 +1,6 @@
 import { createSignal } from "solid-js";
 import { setLensing } from "../liquid/liquid";
-import {
-  type Effects,
-  type Environment,
-  environment,
-  loadEffects,
-  MOTION_QUERY,
-  type Rendering,
-  saveEffects,
-  TRANSPARENCY_QUERY,
-} from "./quality";
+import { type Effects, type Environment, environment, loadEffects, MOTION_QUERY, type Rendering, saveEffects } from "./quality";
 
 /**
  * What the window draws: the visual effects preference and the rendering in force. The WebGL
@@ -35,7 +26,7 @@ let following = false;
 export function osEnvironment(): Environment {
   if (!following && typeof matchMedia === "function") {
     following = true;
-    for (const query of [TRANSPARENCY_QUERY, MOTION_QUERY]) {
+    for (const query of [MOTION_QUERY]) {
       matchMedia(query).addEventListener("change", () => setOs(environment()));
     }
   }

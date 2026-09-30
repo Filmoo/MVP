@@ -2,7 +2,7 @@ import type { Page } from "@playwright/test";
 import type { Settings } from "../src/data/generated/Settings";
 // Brings the window.__SCOUT_MOCK__ declaration into scope.
 import type {} from "../src/data/mock";
-import { rankEmblemsFixture } from "../src/data/mock/emblem-fixtures";
+import { positionIconsFixture, rankEmblemsFixture } from "../src/data/mock/emblem-fixtures";
 import { outageBanner, patchBanner, requiredConfig } from "../src/data/mock/platform-fixtures";
 import { defaultSettings } from "../src/data/mock/settings-fixtures";
 import { en } from "../src/i18n/en";
@@ -281,6 +281,19 @@ test("rank emblems: MVP's crests until the core has Riot's, then Riot's, live", 
   // Live cards take them too (asked once for the whole app).
   await openApp(page, { view: "/live", scenario: "emblems" });
   await expect(page.locator("[data-testid=live-card] [data-emblem=riot]").first()).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("lane icons: MVP's drawings until the core has League's, then League's, live", async ({ page, t }) => {
+  const errors = trackErrors(page);
+  // Nothing in the dev cache, as on a first start offline (a missing file is the preview's page).
+  await page.route("**/cdragon/position-*.svg", (route) => route.fulfill({ contentType: "text/html", body: "<html></html>" }));
+  await openApp(page, { view: "/tier-list?view=shelves" });
+  const top = page.getByTestId("role-filter").getByRole("radio", { name: t.roles.top });
+  await expect(top.locator("svg")).toHaveCount(1);
+  await page.evaluate((icons) => window.__SCOUT_MOCK__?.emit("position-icons", icons), positionIconsFixture);
+  await expect(top.locator("svg"), "the drawing gives way").toHaveCount(0);
+  await expect(top.locator("[role=img]")).toHaveCSS("mask-image", /^url\("data:image\/svg\+xml/);
   expect(errors).toEqual([]);
 });
 

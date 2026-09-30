@@ -1,0 +1,9 @@
+/* League's position icon (RoleIcon.tsx): the client's drawing as a mask, in the text's colour. */
+.icon {
+  flex: none;
+  display: inline-block;
+  width: var(--size);
+  height: var(--size);
+  background: currentColor;
+  mask: var(--icon) center / contain no-repeat;
+}

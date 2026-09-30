@@ -42,8 +42,6 @@ export function saveEffects(effects: Effects, storage: Pick<Storage, "setItem"> 
 }
 
 export interface Environment {
-  /** The user asked the OS for less transparency: no glass effects. */
-  reducedTransparency: boolean;
   /** The user asked for less motion: the shader still draws, but colour changes jump. */
   reducedMotion: boolean;
 }
@@ -60,19 +58,18 @@ export interface Plan {
 export function plan(effects: Effects, env: Environment): Plan {
   if (effects === "off") return { rendering: "flat", animate: false };
   if (effects === "light") return { rendering: "css", animate: false };
-  // The default follows Windows' transparency switch; a Full the player picked doesn't.
-  if (effects === "auto" && env.reducedTransparency) return { rendering: "css", animate: false, reason: "reduced-transparency" };
+  // The default is the glass for everyone, Windows' transparency switch included (owner, 2026-09-30):
+  // only a GPU that can't draw it (the probe) falls back to CSS.
   return { rendering: "shader", animate: !env.reducedMotion };
 }
 
 /** A first frame slower than this (GPU included) means a software or very weak GPU: use CSS. */
 export const SLOW_FIRST_RENDER_MS = 8;
 
-/** The OS preferences as media queries (Windows' transparency switch sets the first). */
-export const TRANSPARENCY_QUERY = "(prefers-reduced-transparency: reduce)";
+/** The OS preference the glass follows, as a media query. */
 export const MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 
 export function environment(): Environment {
   const query = (q: string) => typeof matchMedia === "function" && matchMedia(q).matches;
-  return { reducedTransparency: query(TRANSPARENCY_QUERY), reducedMotion: query(MOTION_QUERY) };
+  return { reducedMotion: query(MOTION_QUERY) };
 }

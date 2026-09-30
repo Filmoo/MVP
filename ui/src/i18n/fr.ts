@@ -128,7 +128,6 @@ export const fr = {
     home: { label: "Accueil", short: "Accueil" },
     draft: { label: "Draft", short: "Draft" },
     live: { label: "Partie en cours", short: "Partie" },
-    champions: { label: "Champions", short: "Champs" },
     tierList: { label: "Tier list", short: "Tiers" },
     settings: { label: "Paramètres", short: "Réglages" },
   },

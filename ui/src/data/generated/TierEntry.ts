@@ -26,4 +26,9 @@ pickRate: number,
 /**
  * Share of matches with this champion banned (0–1).
  */
-banRate: number, };
+banRate: number, 
+/**
+ * Share of this champion's games played in this role (0–1), every role counted, published
+ * or not. `None` in ARAM and in files published before it existed.
+ */
+share?: number, };

@@ -21,6 +21,7 @@ import type { MayhemAugments } from "./generated/MayhemAugments";
 import type { MayhemChampion } from "./generated/MayhemChampion";
 import type { MayhemOverview } from "./generated/MayhemOverview";
 import type { PlayerProfile } from "./generated/PlayerProfile";
+import type { PositionIcons } from "./generated/PositionIcons";
 import type { PostGame } from "./generated/PostGame";
 import type { RankEmblems } from "./generated/RankEmblems";
 import type { RemoteConfig } from "./generated/RemoteConfig";
@@ -85,6 +86,8 @@ export interface Commands {
   game_description: { args: { kind: DescriptionKind; id: number }; result: Description | null };
   /** Riot's ranked emblems, `null` until the core has them (a `rank-emblems` event follows). */
   rank_emblems: { args: undefined; result: RankEmblems | null };
+  /** League's position icons, `null` until the core has them (a `position-icons` event follows). */
+  position_icons: { args: undefined; result: PositionIcons | null };
   /** Current champion select, `null` outside of it (`draft` events follow changes). */
   draft_state: { args: undefined; result: DraftView | null };
   get_settings: { args: undefined; result: Settings };
@@ -113,6 +116,11 @@ export interface Commands {
    * is neither published nor cached (`notFound`), or can't be fetched.
    */
   tier_list: { args: { queue: number; bracket: Bracket }; result: TierList };
+  /**
+   * The tier list of the patch before the current one (trends: win and pick rates then), from
+   * the same disk cache; `null` when no older patch or data set is published, or its file isn't.
+   */
+  previous_tier_list: { args: { queue: number; bracket: Bracket }; result: TierList | null };
   /**
    * One champion's page (record, tiers, builds, matchups) for `queue` × `bracket`, current
    * patch. Missing files leave their part empty; rejects like `tier_list` when there is no
@@ -177,6 +185,8 @@ export interface Events {
   "game-data": GameData;
   /** Riot's ranked emblems, once the core has them (downloaded once, then from its cache). */
   "rank-emblems": RankEmblems;
+  /** League's position icons, once the core has them (downloaded once, then from its cache). */
+  "position-icons": PositionIcons;
   /** `null` when champion select ends. */
   draft: DraftView | null;
   settings: Settings;

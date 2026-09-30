@@ -71,6 +71,12 @@
   --tier-b: #93bcff;
   --tier-c: #b3b7cf;
   --tier-d: #6f7491;
+  /* Tier light: the tier's colour as a wash over glass (tier bands, zones, a row's hover). */
+  --tier-s-soft: #ffb8961f;
+  --tier-a-soft: #92e8c61a;
+  --tier-b-soft: #93bcff1a;
+  --tier-c-soft: #b3b7cf14;
+  --tier-d-soft: #6f749114;
 
   /* Role identity colors (charts, legends). */
   --role-top: #ffb896;

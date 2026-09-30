@@ -1344,6 +1344,7 @@ mod tests {
             win_rate: 0.5,
             pick_rate: 0.1,
             ban_rate: 0.0,
+            share: Some(1.0),
         };
         TierList {
             info: info(),

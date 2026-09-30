@@ -1,18 +1,28 @@
-/* Title with the data badge on the right (wraps under it when narrow). */
-.head {
+/* The tier list page (TierList.tsx): a compact header, then the shelves or the table. */
+
+/*
+ * One row of 40 px pills: lanes and rank, then the filter and the view switch, which take what
+ * the first two leave (their own line when narrow), the switch at the row's end.
+ */
+.tools,
+.scope,
+.find {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   flex-wrap: wrap;
-  gap: var(--space-4) var(--space-6);
-  min-height: var(--space-9);
+  gap: var(--space-4) var(--space-5);
+  min-width: 0;
 }
 
-.filters {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-4);
+.find {
+  flex: 1 1 auto;
+  flex-wrap: nowrap;
+  justify-content: space-between;
+}
+
+.filter {
+  flex: 1 1 200px;
+  max-width: 360px;
 }
 
 /* A newer answer is on its way: the current one stays, quieter. */
@@ -24,12 +34,28 @@
 .skeleton {
   display: flex;
   flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* The table's: its rows inside the table's glass. */
+.skeleton[data-view="table"] {
   gap: var(--space-3);
-  padding: var(--space-4) var(--space-7) var(--space-6);
+  padding: var(--space-4) var(--space-6) var(--space-6);
+  border-radius: var(--radius-4);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-glass);
 }
 
 .note {
   max-width: 880px;
   font-size: var(--text-sm);
   color: var(--text-3);
+}
+
+/* Narrow pages: the filter shares its line with the view switch. */
+@container page (max-width: 559px) {
+  .filter {
+    flex: 1 1 160px;
+    max-width: none;
+  }
 }

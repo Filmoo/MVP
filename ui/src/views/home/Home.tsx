@@ -9,6 +9,7 @@ import { useAmbient } from "../../design/ambient";
 import { Button } from "../../design/Button";
 import { Card } from "../../design/Card";
 import { Icon } from "../../design/Icon";
+import { PenguinArt } from "../../design/PenguinArt";
 import { EmptyState, ErrorState } from "../../design/States";
 import { t } from "../../i18n";
 import page from "../page.module.css";
@@ -129,7 +130,13 @@ export function Home(): JSX.Element {
         <Match when={profile() === null}>
           <div class={page.centered}>
             <Card>
-              <EmptyState heading icon="plug" title={t().home.waiting.title} text={t().home.waiting.text} />
+              <EmptyState
+                heading
+                icon="plug"
+                art={<PenguinArt size={88} gaze="away" />}
+                title={t().home.waiting.title}
+                text={t().home.waiting.text}
+              />
             </Card>
           </div>
         </Match>

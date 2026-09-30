@@ -18,7 +18,7 @@ const packed = (vertices: Float32Array, count: number) =>
   Array.from({ length: count / 6 }, (_, i) => [...vertices.slice(i * 6 * PANE_STRIDE + 2, i * 6 * PANE_STRIDE + PANE_STRIDE)]);
 
 describe("quality", () => {
-  const env = { reducedTransparency: false, reducedMotion: false };
+  const env = { reducedMotion: false };
 
   it("auto draws the shader and animates its glides", () => {
     expect(plan("auto", env)).toEqual({ rendering: "shader", animate: true });
@@ -29,18 +29,12 @@ describe("quality", () => {
     expect(plan("off", env).rendering).toBe("flat");
   });
 
-  it("respects the OS by default: less transparency means no glass effects, less motion means no glides", () => {
-    expect(plan("auto", { ...env, reducedTransparency: true })).toEqual({
-      rendering: "css",
-      animate: false,
-      reason: "reduced-transparency",
-    });
-    expect(plan("auto", { ...env, reducedMotion: true })).toEqual({ rendering: "shader", animate: false });
-    // An explicit choice wins over the OS: Windows' transparency switch is often off for
-    // reasons of its own (seen on a real PC), and a player who picks Full wants the glass.
-    expect(plan("full", { ...env, reducedTransparency: true })).toEqual({ rendering: "shader", animate: true });
-    expect(plan("full", { reducedTransparency: true, reducedMotion: true })).toEqual({ rendering: "shader", animate: false });
-    expect(plan("off", { reducedTransparency: true, reducedMotion: true }).rendering).toBe("flat");
+  it("keeps the glass whatever Windows' transparency switch says, and follows less motion", () => {
+    // The glass is the default for everyone (owner, 2026-09-30): Windows' switch is often off for
+    // reasons of its own; only a GPU too slow for it falls back (the probe, in the controller).
+    expect(plan("auto", { reducedMotion: true })).toEqual({ rendering: "shader", animate: false });
+    expect(plan("full", { reducedMotion: true })).toEqual({ rendering: "shader", animate: false });
+    expect(plan("off", { reducedMotion: true }).rendering).toBe("flat");
   });
 
   it("persists the preference and ignores anything unknown", () => {

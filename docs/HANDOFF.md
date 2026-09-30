@@ -50,16 +50,23 @@ session hit the usage limit five times.
 - An installed MVP in the tray made newer dev builds hand over and quit (known issue 2 below).
 
 **In progress, on branches not merged yet**
-- `worktree-agent-aac82646dd1131931`: the Tier list hub (Shelves with the top-3 podium and a mini
-  meta map, a DPM-like sortable Table, compact lane icons, a rank dropdown with emblems, tier
-  medallions, League-like Jungle and Support icons, the penguin). Stopped with 4 files
-  uncommitted.
-- `feature/game-windows` (2026-09-30): opened games as a stack of windows you scroll between, the
-  game that just ended opening by itself instead of Home's card, a DPM-like scoreboard with
-  "Scoreboard | Details" (decisions.md "Opened games are a stack of windows"). It carries the
-  sheet's branch (`worktree-agent-a81fa7b74de5da1fc`, merged into it) and `release/0.3`. Over the
-  JS budget: 140.8 / 136 KB in all (the sheet merged onto main was 139.3 already, the stack
-  +1.5), startup 41.0 / 46 KB: raise the budget in its own commit, or trim.
+- `feature/tier-list-hub`: the Tier list hub, finished (2026-09-30): one hub for tiers and builds,
+  Shelves (top-3 podium, a shelf per tier, a mini meta map opening full screen) and a DPM-like
+  sortable Table, lanes with League's own position icons (downloaded at run time like the
+  emblems), a rank dropdown with emblems, ARAM: Mayhem as the third queue tab ("Tier list ·
+  Augments"), the champion page under the same tabs row, tier medallions, the penguin, the
+  no-stats notice in the header; both design reviews fixed. Merged with `release/0.3` (the game
+  windows included); the budget went to 153 KB of JS in total for it (the owner's call):
+  152.4 / 153 KB, startup 40.6 / 46 KB (and `mayhem-champion` 264 DOM nodes: Mayhem's spark on
+  augments without art). `check.mjs full` green through the runner, 2026-09-30 (timing-only
+  failures under load, each green alone). Seen once in a gate, not the hub's: `stats::grade`'s
+  proptest `the_order_of_players_changes_nothing` shrank to a lobby of roleless players (five
+  all-zero losers) whose scores change with their order; rerun green (random seeds), still to fix.
+- `feature/game-windows` (2026-09-30; merged into `release/0.3` at 66f61d0): opened games as a
+  stack of windows you scroll between, the game that just ended opening by itself instead of
+  Home's card, a DPM-like scoreboard with "Scoreboard | Details" (decisions.md "Opened games are
+  a stack of windows"). It carries the sheet's branch (`worktree-agent-a81fa7b74de5da1fc`). The
+  budget went 136 → 141 KB of JS in all for it (6cf26a8; startup 41.0 / 46 KB).
 - `worktree-agent-af4bb73c493248211`: one more commit (50eae94, the roadmap's design review) to
   merge; keep main's `FeatureSheet.tsx`, `playwright.config.ts` and `roadmap.spec.ts` (b4ef9a8).
 
@@ -143,11 +150,16 @@ check the latest run before building on it.
    there makes them wait forever: a blank page).
    *(2026-09-29, the opened game's sheet)* Startup JS 40.6 / 46 KB, startup CSS 9.5 / 12 KB,
    total JS 130.5 / 131 KB (126.1 before the sheet): 0.5 KB left in all.
+   *(2026-09-30, the tier list hub)* Startup 40.6 / 46 KB of JS (the drawn lane icons left
+   it), total JS 152.4 / 153 KB with the game windows: the hub costs ~11.6 KB of gzipped
+   JS, all in lazy chunks (the tier list ~9.7, its full map 2.5, the stats pages' shared head and
+   controls 2.5, the penguin 1.3, the medallions 1.2, League's lane icons 0.7, their words in both
+   languages), less the champion list it replaced (~1 KB). The owner raised the budget for it
+   (decisions.md, "Tiers and builds, one hub").
 9. Production Riot key: register the product (policy.md lists the endpoints to declare); a dev
    key crawls ~2k games a day.
 
 **To implement next** (none started)
-- Tier list trends (this patch against the last: win/pick rate arrows).
 - *(built 2026-09-29, against mock-lcu only: see "After a game" in the checklist below)* the
   post-game summary on Home, LP won/lost per ranked game (rows and the ranked pane's graph),
   history filters and "load more", champion mastery on your profile.
@@ -248,10 +260,11 @@ Everything below is merged on `release/0.3` and green on
    the commands `stats_index` / `tier_list` / `champion_stats` and the `stats-index` event are
    wired, and `companion::draft` fills `DraftView` (team odds, pool-first picks with reasons,
    enemy roles) from mastery, own games and pickable champions. No ban suggestions (owner's call).
-   The **Tier list** (`/tier-list`) and **Champions** pages (`/champions`: grid; `?id=…`: builds,
-   runes, spells, skill order, items, matchups) run on those commands (architecture.md "Stats
-   pages"; rune trees in `GameData`, the `Segmented` control, mock scenarios `stats-empty` /
-   `stats-offline` / `stats-slow` / `stats-aram-only`). Left:
+   The **Tier list** (`/tier-list`: shelves or a table, trends from `previous_tier_list`; the one
+   hub where champions are found) and champion pages (`/champions?id=…`: builds, runes, spells,
+   skill order, items, matchups) run on those commands (architecture.md "Stats pages"; rune trees
+   in `GameData`, mock scenarios `stats-empty` / `stats-offline` / `stats-slow` /
+   `stats-aram-only` / `stats-first-patch`). Left:
    - check the pages against real published files (the mock is synthetic: sizes, option counts,
      thin Master+ data, sections with `n = 0`, long lane lists);
    - check against a real client: mastery field names (`championId`, `championLevel`,
@@ -399,7 +412,10 @@ Riot ID · close to tray keeps automations running · launch at startup starts i
 RAM/idle CPU stay low (`scripts/windows-footprint.ps1`) · after the first start Home and Live show
 Riot's ranked emblems (log "ranked emblems ready"; cache in `%LOCALAPPDATA%\gg.mvp.companion\emblems\v1`):
 the crop frames every tier (Iron's small crest to Challenger's wings) at 100 % and 150 %, and an
-offline first start shows MVP's crests. Fix what differs from the mock; add a
+offline first start shows MVP's crests; the tier list's lanes and the champion page's role tabs
+show League's position icons (log "position icons ready"; cache in
+`%LOCALAPPDATA%\gg.mvp.companion\positions\v1`), MVP's drawings on an offline first start. Fix
+what differs from the mock; add a
 mock-lcu scenario for anything the real client does that the mock didn't.
 
 Live names (a backend with a Riot key; the log says "players named from Riot's live game" or
@@ -434,6 +450,9 @@ Draft insights (with published stats that have `compositions.json`; without Leag
   decides.
 - **Rank setting:** Settings → Stats → Rank → Diamond+ mid champion select: the data line says
   Diamond+ at once (Emerald+ when Diamond+ isn't published); the Tier list opens on it.
+- **Tier list trends:** with two patches published, the table's win rates show their change and
+  the hover card says "since the last patch"; the previous patch's files download once (then the
+  disk cache, offline too); with one patch, no trend shows anywhere.
 
 ARAM: Mayhem (a backend with the catalog built; without League: `cargo run -p mock-lcu -- --mayhem`):
 - **Mode:** a Mayhem champion select opens Draft's side panel on *Augments* (the gameflow
