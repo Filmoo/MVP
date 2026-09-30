@@ -127,7 +127,7 @@
     },
     "mayhem-champion": {
       "renderMs": 5,
-      "domNodes": 260
+      "domNodes": 264
     },
     "game-tips": {
       "renderMs": 2,
