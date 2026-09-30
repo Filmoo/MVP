@@ -319,7 +319,6 @@ const SAME = new Set([
   "champions.build",
   "champions.runes",
   "champions.matchups",
-  "champions.duos",
   "champions.tiersFrom.link",
   "champions.sorts.tier",
   "champions.sorts.name",
