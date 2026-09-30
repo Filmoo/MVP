@@ -52,10 +52,12 @@ session hit the usage limit five times.
 **In progress, on branches not merged yet**
 - `feature/tier-list-hub`: the Tier list hub, finished (2026-09-30): one hub for tiers and builds,
   Shelves (top-3 podium, a shelf per tier, a mini meta map opening full screen) and a DPM-like
-  sortable Table, compact lane icons, a rank dropdown with emblems, ARAM: Mayhem as the third
-  queue tab, tier medallions (Mayhem's headings too), League-like Jungle and Support icons, the
-  penguin, the no-stats notice in the header. Merged with `release/0.3` at 375b7bd. Over the JS
-  budget (decisions.md, "Tiers and builds, one hub": the owner's call before it merges).
+  sortable Table, lanes with League's own position icons (downloaded at run time like the
+  emblems), a rank dropdown with emblems, ARAM: Mayhem as the third queue tab ("Tier list ·
+  Augments"), the champion page under the same tabs row, tier medallions, the penguin, the
+  no-stats notice in the header; both design reviews fixed. Merged with `release/0.3` (the game
+  windows included); the budget went to 153 KB of JS in total for it (the owner's call):
+  152.4 / 153 KB, startup 40.6 / 46 KB. `check.mjs full` green through the runner.
 - `feature/game-windows` (2026-09-30; merged into `release/0.3` at 66f61d0): opened games as a
   stack of windows you scroll between, the game that just ended opening by itself instead of
   Home's card, a DPM-like scoreboard with "Scoreboard | Details" (decisions.md "Opened games are
@@ -144,12 +146,12 @@ check the latest run before building on it.
    there makes them wait forever: a blank page).
    *(2026-09-29, the opened game's sheet)* Startup JS 40.6 / 46 KB, startup CSS 9.5 / 12 KB,
    total JS 130.5 / 131 KB (126.1 before the sheet): 0.5 KB left in all.
-   *(2026-09-29, the tier list hub)* Startup unchanged (40.6 / 46 KB of JS, 9.5 / 12 KB of CSS),
-   total JS 136.5 / 131 KB: the hub costs ~10.4 KB of gzipped JS, all in lazy chunks (the tier
-   list 9.3, its full map 2.7, the penguin 1.4, the medallions and the stats pages' scope controls
-   with the radio group 2.8, their words in both languages), less the champion list it replaced
-   (~1 KB). Not raised: the owner's call (raise to 137 KB, or group the views' shared code: 134.3
-   KB, each view then loading code it doesn't use; or cut a part).
+   *(2026-09-30, the tier list hub)* Startup 40.6 / 46 KB of JS (the drawn lane icons left
+   it), total JS 152.4 / 153 KB with the game windows: the hub costs ~11.6 KB of gzipped
+   JS, all in lazy chunks (the tier list ~9.7, its full map 2.5, the stats pages' shared head and
+   controls 2.5, the penguin 1.3, the medallions 1.2, League's lane icons 0.7, their words in both
+   languages), less the champion list it replaced (~1 KB). The owner raised the budget for it
+   (decisions.md, "Tiers and builds, one hub").
 9. Production Riot key: register the product (policy.md lists the endpoints to declare); a dev
    key crawls ~2k games a day.
 
@@ -406,7 +408,10 @@ Riot ID · close to tray keeps automations running · launch at startup starts i
 RAM/idle CPU stay low (`scripts/windows-footprint.ps1`) · after the first start Home and Live show
 Riot's ranked emblems (log "ranked emblems ready"; cache in `%LOCALAPPDATA%\gg.mvp.companion\emblems\v1`):
 the crop frames every tier (Iron's small crest to Challenger's wings) at 100 % and 150 %, and an
-offline first start shows MVP's crests. Fix what differs from the mock; add a
+offline first start shows MVP's crests; the tier list's lanes and the champion page's role tabs
+show League's position icons (log "position icons ready"; cache in
+`%LOCALAPPDATA%\gg.mvp.companion\positions\v1`), MVP's drawings on an offline first start. Fix
+what differs from the mock; add a
 mock-lcu scenario for anything the real client does that the mock didn't.
 
 Live names (a backend with a Riot key; the log says "players named from Riot's live game" or

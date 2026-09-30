@@ -380,19 +380,29 @@ every column sorts. Calls:
 - **The meta map**: small next to the podium (a bar on narrow pages), full screen on a click as a
   modal dialog; its code loads then.
 - **Medallions** for tiers (S gem, A shield, B tile, C coin, D ring), the Mayhem page's tier
-  headings included (with their own hint: those tiers are made by hand), **Jungle and Support
-  icons** redrawn to read like League's positions (three talons from one root, a winged crest; our
-  own drawings), **the penguin** waiting for the client, when nothing is published, and in About.
+  headings included (with their own hint: those tiers are made by hand), **the penguin** waiting
+  for the client, when nothing is published, and in About.
 - **Trends** only where data allows: the previous patch's published list (kept on disk with the
   current one); nothing shows on a first patch.
-- **Budget** (Claude, for the owner to decide): the hub costs ~10.4 KB of gzipped JS, all in
-  lazy chunks; the first screen is unchanged. Main at b7b203b: 126.1 KB of JS in total, 40.6 KB at
-  startup; with the hub: 136.5 of 131 KB in total, 40.6 of 46 at startup. The build savings found
-  on the way (the first screen as one chunk, short class names) landed on main by other branches
-  too, so they no longer pay for the hub. Not raised here: raise to 137 KB, group the views' shared
-  code (134.3 KB, each view then loading code it doesn't use), or cut a part.
 - **Tooltips** (main's cards, design/tip): the medallions say what their tier means, the columns
   what they count, the lanes and the view switch their names, the rank button whose games count.
+
+Finishing it (2026-09-30), the owner's calls on the open questions:
+- **Budget raised** for the hub: 153 KB of JS in total (gzip), in its own commit. The hub
+  costs ~11.6 KB, all in lazy chunks (mostly the Tier list's); with `release/0.3`'s game windows
+  it measures 152.4 KB in all, 40.6 of 46 KB at startup (unchanged: the drawn lane icons
+  even left the first screen).
+- **Lane icons: League's own**, for all five roles ("Not yet" to our three-talon Jungle): the
+  client's position icons, downloaded at run time from CommunityDragon's mirror and cached like
+  the ranked emblems, never committed (policy.md), tinted in the text's colour. Our drawings (a
+  slimmer Jungle, Support's gem bigger) only show while they aren't there.
+- **Rows stay 44 px** in the table.
+- **Both design reviews fixed**, polish included. Among them: no role colours on the tier list
+  (colours there are the tiers' and win rates'; lanes are white on a neutral drop); the filter
+  keeps the ranking and every sort (Enter still opens the best match; faces are named while it
+  filters); the map keeps each face in its tier's band, the medallions in a column of their own;
+  the Mayhem page ("Tier list · Augments") and the champion page share the tier list's head and
+  tabs row; the view switch is a 40 px `Segmented` at the tools' end.
 
 ## 2026-09-30 — Opened games are a stack of windows (owner asked, Claude designed)
 Owner: "It should be a proper window, that takes the whole window but still have previous
