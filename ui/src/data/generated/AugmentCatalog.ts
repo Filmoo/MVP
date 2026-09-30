@@ -19,6 +19,11 @@ patch: string,
  */
 builtAt: number, 
 /**
+ * What the builder made of the files (`static_data::mayhem::REVISION`): an older one is
+ * built again, even of the same game version.
+ */
+revision: number, 
+/**
  * By id.
  */
 augments: Array<CatalogAugment>, };

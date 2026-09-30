@@ -1,6 +1,6 @@
 //! ARAM: Mayhem against the fake League client and a fake backend: opted-in sharing sends each
-//! Mayhem game once (never while off), and the Mayhem data answers from its cache offline.
-//! No network.
+//! Mayhem game once (never while off), reads the whole history once when turned on (never while
+//! a game is being played), and the Mayhem data answers from its cache offline. No network.
 #![allow(clippy::unwrap_used, reason = "tests")]
 
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -161,6 +161,44 @@ fn uploads(state: &Backend) -> Vec<MayhemUpload> {
         .collect()
 }
 
+/// Channels the sharing task follows, in `phase`.
+struct Follow {
+    settings: watch::Sender<Settings>,
+    status: watch::Sender<ClientStatus>,
+    remote: watch::Sender<RemoteConfig>,
+    task: tokio::task::JoinHandle<()>,
+}
+
+fn follow(
+    lcu: LcuClient,
+    backend: BackendClient,
+    data: MayhemClient,
+    phase: GameflowPhase,
+) -> Follow {
+    let (settings_tx, settings) = watch::channel(Settings::default());
+    let (status_tx, status) = watch::channel(ClientStatus {
+        connection: ClientConnection::Connected,
+        phase,
+    });
+    let (remote_tx, remote) = watch::channel(RemoteConfig::default());
+    let task = tokio::spawn(mayhem::share(Sharing {
+        client: watch::channel(Some(lcu)).1,
+        status,
+        settings,
+        remote,
+        backend,
+        mayhem: data,
+        after_game: Duration::from_millis(50),
+        spacing: Duration::from_millis(1),
+    }));
+    Follow {
+        settings: settings_tx,
+        status: status_tx,
+        remote: remote_tx,
+        task,
+    }
+}
+
 #[tokio::test]
 async fn opted_in_players_share_each_mayhem_game_once() {
     let games = [
@@ -172,34 +210,29 @@ async fn opted_in_players_share_each_mayhem_game_once() {
     let (backend, state) = fake_backend().await;
     let dir = tempfile::tempdir().unwrap();
     let data = MayhemClient::new(backend.clone(), dir.path());
-    let (settings_tx, settings) = watch::channel(Settings::default());
-    let (status_tx, status) = watch::channel(ClientStatus {
-        connection: ClientConnection::Connected,
-        phase: GameflowPhase::InGame,
-    });
-    let (remote_tx, remote) = watch::channel(RemoteConfig::default());
-    let task = tokio::spawn(mayhem::share(Sharing {
-        client: watch::channel(Some(lcu)).1,
-        status,
-        settings,
-        remote,
-        backend,
-        mayhem: data,
-        after_game: Duration::from_millis(50),
-    }));
+    let Follow {
+        settings: settings_tx,
+        status: status_tx,
+        remote: remote_tx,
+        task,
+    } = follow(lcu, backend, data, GameflowPhase::InGame);
 
-    // Off (the default): a game ends, nothing is read or sent.
+    // Not answered yet (off): a game ends, nothing is read or sent.
     status_tx.send_modify(|s| s.phase = GameflowPhase::PostGame);
     tokio::time::sleep(Duration::from_millis(400)).await;
     assert!(uploads(&state).is_empty());
     assert_eq!(
-        mock.count("GET", companion::profile::MATCHES),
+        mock.count("GET", history::LIST),
         0,
         "the history isn't even read"
     );
+    // "Not now": the same.
+    settings_tx.send_modify(|s| s.share_mayhem_games = Some(false));
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    assert_eq!(mock.count("GET", history::LIST), 0);
 
-    // Turned on: the recent Mayhem game goes at once, and only it.
-    settings_tx.send_modify(|s| s.share_mayhem_games = true);
+    // Turned on: the Mayhem game goes at once, and only it.
+    settings_tx.send_modify(|s| s.share_mayhem_games = Some(true));
     eventually("the backfill", || uploads(&state).len() == 1).await;
     let first = &uploads(&state)[0];
     assert_eq!(first.platform, "EUW1");
@@ -250,6 +283,94 @@ async fn opted_in_players_share_each_mayhem_game_once() {
     // The record lasts: a new start doesn't send the shared games again.
     let record = std::fs::read_to_string(dir.path().join("shared.json")).unwrap();
     assert!(record.contains(&mayhem::game_key("EUW1", 7_000_000_010)));
+}
+
+/// 47 games, newest first: every third one Mayhem (a custom one among them, and a remake), the
+/// last page short.
+fn long_history() -> Vec<Game> {
+    (0..47_u64)
+        .map(|i| {
+            let id = 7_000_001_000 - i;
+            match i {
+                1 => game(id, history::MAYHEM_CUSTOM_QUEUE, 12),
+                4 => Game {
+                    duration: 200,
+                    ..game(id, history::MAYHEM_QUEUE, 12)
+                },
+                _ if i % 3 == 0 => game(id, history::MAYHEM_QUEUE, 12),
+                _ => game(id, if i % 2 == 0 { 420 } else { 450 }, 12),
+            }
+        })
+        .collect()
+}
+
+#[tokio::test]
+async fn turned_on_it_reads_the_whole_history_once_and_never_during_a_game() {
+    let games = long_history();
+    let shareable = |g: &Game| domain::is_mayhem_queue(g.queue_id) && g.duration > 300;
+    let mayhem_games: Vec<String> = games
+        .iter()
+        .filter(|g| shareable(g))
+        .map(|g| mayhem::game_key("EUW1", g.game_id))
+        .collect();
+    assert_eq!(mayhem_games.len(), 17, "16 matchmade and a custom one");
+    let (mock, lcu) = client(&games).await;
+    let (backend, state) = fake_backend().await;
+    let dir = tempfile::tempdir().unwrap();
+    let data = MayhemClient::new(backend.clone(), dir.path());
+    let Follow {
+        settings,
+        status,
+        task,
+        ..
+    } = follow(lcu, backend, data, GameflowPhase::ChampSelect);
+
+    // Yes during champion select: nothing is asked of the client until it's over.
+    settings.send_modify(|s| s.share_mayhem_games = Some(true));
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    assert_eq!(mock.count("GET", history::LIST), 0);
+    status.send_modify(|s| s.phase = GameflowPhase::InGame);
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    assert_eq!(mock.count("GET", history::LIST), 0, "nor during the game");
+
+    // The game over: every page back to the history's end (20 + 20 + 7), each Mayhem game read
+    // once, sent 20 at a time.
+    status.send_modify(|s| s.phase = GameflowPhase::PostGame);
+    eventually("the whole history", || {
+        uploads(&state).iter().map(|u| u.games.len()).sum::<usize>() == 17
+    })
+    .await;
+    let sent = uploads(&state);
+    assert_eq!(
+        sent.iter().map(|u| u.games.len()).collect::<Vec<_>>(),
+        [17],
+        "one upload (20 at most)"
+    );
+    let keys: Vec<String> = sent[0].games.iter().map(|g| g.game.clone()).collect();
+    assert_eq!(keys, mayhem_games, "newest first, the remake left out");
+    assert_eq!(mock.count("GET", history::LIST), 3, "three pages");
+    for g in &games {
+        let reads = mock.count("GET", &history::game_path(g.game_id));
+        let wanted = usize::from(shareable(g));
+        assert_eq!(reads, wanted, "game {} read once, if Mayhem", g.game_id);
+    }
+
+    // Read to its end: after the next game, only the last 20 games, and only the new one goes.
+    let mut newer = games.clone();
+    newer.insert(0, game(7_000_001_001, history::MAYHEM_QUEUE, 12));
+    history::serve(&mock, &local(), &newer);
+    status.send_modify(|s| s.phase = GameflowPhase::Lobby);
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    status.send_modify(|s| s.phase = GameflowPhase::PostGame);
+    eventually("the new game", || uploads(&state).len() == 2).await;
+    assert_eq!(uploads(&state)[1].games.len(), 1);
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    assert_eq!(
+        mock.count("GET", history::LIST),
+        5,
+        "one page after each scan (leaving the end-of-game screen, then the new game's)"
+    );
+    task.abort();
 }
 
 #[tokio::test]

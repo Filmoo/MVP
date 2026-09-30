@@ -154,6 +154,15 @@ export const mayhemTiers: MayhemTiers = {
 /** How often each augment was taken, from its id (deterministic). */
 const picks = (id: number, salt: number) => ((id * 37 + salt * 101) % 97) + (id % 5) * 11;
 
+const MIN_GAMES = 30;
+/** How far the shared games are from each feature (`companion::mayhem::progress`). */
+const progress = (games: number, championsReady: number) => ({
+  games,
+  gamesNeeded: 100,
+  championsReady,
+  championGamesNeeded: MIN_GAMES,
+});
+
 /** Shared games of this patch: every augment's pick count over all champions. */
 export const mayhemOverview: MayhemOverview = {
   tiers: mayhemTiers,
@@ -164,12 +173,11 @@ export const mayhemOverview: MayhemOverview = {
     updatedAt: FIXTURE_NOW - 2 * 3_600_000,
     augments: mayhemAugments.augments.map((a) => ({ id: a.id, n: picks(a.id, 3) * 9 })).sort((a, b) => b.n - a.n || a.id - b.id),
   },
+  progress: progress(1_284, 118),
 };
 
 /** Nothing published yet: a new patch or a fresh server. */
-export const emptyOverview: MayhemOverview = { tiers: null, popularity: null };
-
-const MIN_GAMES = 30;
+export const emptyOverview: MayhemOverview = { tiers: null, popularity: null, progress: progress(0, 0) };
 const PER_RARITY = 8;
 const TIER_ORDER: AugmentTier[] = ["S", "A", "B", "C"];
 

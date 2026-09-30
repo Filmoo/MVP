@@ -72,8 +72,9 @@ statsBracket: Bracket,
  */
 crashReports: boolean, 
 /**
- * Help build Mayhem stats (opt-in): after each ARAM: Mayhem game, and once for the recent
- * ones when turned on, the champions, augments and final items of its ten players go to
- * our server, with a one-way hash of the game. No names, ids of players or wins.
+ * Help build Mayhem stats (opt-in): after each ARAM: Mayhem game, and once for every past one
+ * the League client lists when turned on, the champions, augments and final items of its
+ * ten players go to our server, with a one-way hash of the game. No names, ids of players or
+ * wins. `None` (off) until the player answers the question the app asks once.
  */
-shareMayhemGames: boolean, };
+shareMayhemGames: boolean | null, };

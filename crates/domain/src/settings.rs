@@ -54,10 +54,11 @@ pub struct Settings {
     /// Send crash reports (opt-in): a crash of the core or an error in the UI goes to our
     /// server, scrubbed of names, ids and paths first, and is kept 30 days.
     pub crash_reports: bool,
-    /// Help build Mayhem stats (opt-in): after each ARAM: Mayhem game, and once for the recent
-    /// ones when turned on, the champions, augments and final items of its ten players go to
-    /// our server, with a one-way hash of the game. No names, ids of players or wins.
-    pub share_mayhem_games: bool,
+    /// Help build Mayhem stats (opt-in): after each ARAM: Mayhem game, and once for every past one
+    /// the League client lists when turned on, the champions, augments and final items of its
+    /// ten players go to our server, with a one-way hash of the game. No names, ids of players or
+    /// wins. `None` (off) until the player answers the question the app asks once.
+    pub share_mayhem_games: Option<bool>,
 }
 
 /// Visual effects level. The UI keeps a copy in `localStorage` so the first frame already
@@ -157,6 +158,12 @@ impl Settings {
         self
     }
 
+    /// Mayhem games are shared: the player said yes (in the question or in Settings).
+    #[must_use]
+    pub const fn shares_mayhem_games(&self) -> bool {
+        matches!(self.share_mayhem_games, Some(true))
+    }
+
     /// Whether `part` is imported by itself at the first lock-in of a champion select.
     #[must_use]
     pub const fn auto_import(&self, part: ImportPart) -> bool {
@@ -186,7 +193,7 @@ impl Default for Settings {
             flash_key: FlashKey::Auto,
             stats_bracket: Bracket::EmeraldPlus,
             crash_reports: false,
-            share_mayhem_games: false,
+            share_mayhem_games: None,
         }
     }
 }
@@ -288,15 +295,21 @@ mod tests {
     fn opt_ins_are_off_by_default() {
         assert!(!Settings::default().auto_accept);
         assert!(!Settings::default().crash_reports);
-        assert!(!Settings::default().share_mayhem_games);
+        assert!(!Settings::default().shares_mayhem_games());
         let older: Settings = serde_json::from_str(r#"{"closeToTray":false}"#).expect("loads");
         assert!(
             !older.crash_reports,
             "files from before the setting existed"
         );
-        assert!(!older.share_mayhem_games);
+        assert_eq!(older.share_mayhem_games, None, "not asked yet");
         let json = serde_json::to_string(&Settings::default()).expect("serializable");
-        assert!(json.contains(r#""shareMayhemGames":false"#), "{json}");
+        assert!(json.contains(r#""shareMayhemGames":null"#), "{json}");
+        for (file, answer) in [("true", Some(true)), ("false", Some(false)), ("null", None)] {
+            let read: Settings =
+                serde_json::from_str(&format!(r#"{{"shareMayhemGames":{file}}}"#)).expect("loads");
+            assert_eq!(read.share_mayhem_games, answer);
+            assert_eq!(read.shares_mayhem_games(), answer == Some(true));
+        }
     }
 
     #[test]
@@ -349,7 +362,7 @@ mod tests {
                 flash_key: FlashKey::F,
                 stats_bracket: Bracket::DiamondPlus,
                 crash_reports: true,
-                share_mayhem_games: false,
+                share_mayhem_games: None,
             }
         );
         let all_on: Settings = serde_json::from_str(

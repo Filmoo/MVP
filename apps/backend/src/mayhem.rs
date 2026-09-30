@@ -177,7 +177,8 @@ pub fn parse_catalog(bytes: &[u8]) -> Result<Option<AugmentCatalog>, String> {
 }
 
 /// Builds the catalog of what the mirror at `base` holds now into the data dir, unless the one
-/// there is of that game version already (`force`: build anyway). Answers what it did.
+/// there is of that game version and the builder's revision already (`force`: build anyway).
+/// Answers what it did.
 pub async fn build_catalog(data_dir: &Path, base: &str, force: bool) -> Result<String, String> {
     let dir = data_dir.join(DIR);
     let path = dir.join(CATALOG_FILE);
@@ -186,7 +187,9 @@ pub async fn build_catalog(data_dir: &Path, base: &str, force: bool) -> Result<S
             .map_err(|e| e.to_string())?;
     let version = source.version().await.map_err(|e| e.to_string())?;
     let current = crate::watched::read(&path, parse_catalog)?.flatten();
-    if !force && current.as_ref().is_some_and(|c| c.version == version) {
+    let built =
+        |c: &AugmentCatalog| c.version == version && c.revision == static_data::mayhem::REVISION;
+    if !force && current.as_ref().is_some_and(built) {
         return Ok(format!("augments of {version} already built"));
     }
     let catalog = source.build().await.map_err(|e| e.to_string())?;
@@ -1075,6 +1078,7 @@ mod tests {
             version: "16.19.1".into(),
             patch: "16.19".into(),
             built_at: 0,
+            revision: 0,
             augments: vec![CatalogAugment {
                 id: 7,
                 rarity: AugmentRarity::Gold,

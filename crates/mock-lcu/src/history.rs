@@ -1,8 +1,8 @@
 //! The local player's match history as the League client serves it: the list, which holds only
 //! the local player's side of each game, and whole games (`/lol-match-history/v1/games/{id}`:
 //! ten participants with their identities, stats, spells and runes; ARAM: Mayhem games, queue
-//! 2400, also carry each player's augments, `playerAugment1`…`6`). Made-up players and numbers,
-//! the same on every run.
+//! 2400 or custom 3270, also carry each player's augments, `playerAugment1`…`6`). Made-up
+//! players and numbers, the same on every run.
 
 use serde_json::{Value, json};
 
@@ -111,8 +111,9 @@ const TELEPORT: u32 = 12;
 const HEAL: u32 = 7;
 const EXHAUST: u32 = 3;
 
-/// ARAM: Mayhem's queue: its games carry augments (`playerAugment1`…`6`).
+/// ARAM: Mayhem's queue: its games carry augments (`playerAugment1`…`6`), as its custom games do.
 pub const MAYHEM_QUEUE: u32 = 2400;
+pub const MAYHEM_CUSTOM_QUEUE: u32 = 3270;
 /// Augment ids of the Mayhem pool (numbers only, as the client's match history has them).
 const AUGMENTS: [u32; 8] = [2137, 2077, 1344, 1028, 1305, 1103, 1004, 1205];
 /// The client's game version (`gameVersion`): patch 16.19.
@@ -124,7 +125,7 @@ impl Game {
     }
 
     fn mayhem(&self) -> bool {
-        self.queue_id == MAYHEM_QUEUE
+        matches!(self.queue_id, MAYHEM_QUEUE | MAYHEM_CUSTOM_QUEUE)
     }
 
     /// Seat `seat`'s augments in slot order (0 = an empty slot, like the client), Mayhem only.

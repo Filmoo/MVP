@@ -1,7 +1,10 @@
 import { MAX_AUTO_ACCEPT_DELAY } from "../../lib/settings";
 import type { Settings } from "../generated/Settings";
 
-/** Mirrors `Settings::default()` in crates/domain/src/settings.rs. */
+/**
+ * Mirrors `Settings::default()` in crates/domain/src/settings.rs, but for the question asked once
+ * about sharing Mayhem games: this player answered "Not now" (`first-start` asks it).
+ */
 export const defaultSettings: Settings = {
   autoAccept: false,
   autoAcceptDelaySeconds: 2,

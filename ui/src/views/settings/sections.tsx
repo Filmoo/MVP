@@ -228,7 +228,7 @@ export function StatsSettings(props: SectionProps & { mayhemPaused?: boolean }):
         <SettingRow title={words().shareMayhem.title} description={words().shareMayhem.text} match={match("shareMayhem")}>
           {(ids) => (
             <Toggle
-              checked={props.settings.shareMayhemGames}
+              checked={props.settings.shareMayhemGames === true}
               onChange={(shareMayhemGames) => props.onChange({ shareMayhemGames })}
               labelledBy={ids.label}
               describedBy={ids.description}
@@ -237,7 +237,7 @@ export function StatsSettings(props: SectionProps & { mayhemPaused?: boolean }):
           )}
         </SettingRow>
       </SettingList>
-      <Show when={props.mayhemPaused && props.settings.shareMayhemGames}>
+      <Show when={props.mayhemPaused && props.settings.shareMayhemGames === true}>
         <p class={styles.paused} role="status" data-testid="mayhem-sharing-paused">
           <Icon name="info" size={16} class={styles.pausedIcon} />
           <span>{words().sharePaused}</span>

@@ -46,8 +46,8 @@ pub use mayhem::{
     AugmentCatalog, AugmentInfo, AugmentPriorities, AugmentPriority, AugmentRarity, AugmentTier,
     CatalogAugment, MAYHEM_CUSTOM_QUEUE, MAYHEM_GAME_MODE, MAYHEM_QUEUE, MayhemAugments,
     MayhemChampion, MayhemChampionStats, MayhemGame, MayhemOverview, MayhemPlayer,
-    MayhemPopularity, MayhemStats, MayhemTiers, MayhemUpload, MayhemUploadAnswer, PickCount,
-    TierLists, is_mayhem_queue,
+    MayhemPopularity, MayhemProgress, MayhemStats, MayhemTiers, MayhemUpload, MayhemUploadAnswer,
+    PickCount, TierLists, is_mayhem_queue,
 };
 pub use player::{Division, MatchSummary, PlayerProfile, RankedEntry, RiotId, Role, Tier};
 pub use progress::{ChampionMastery, LpGame, PostGame, RankedQueue};
