@@ -6,11 +6,11 @@ import { Icon, iconPath, LineIcon } from "../../design/Icon";
 import { TierMark } from "../../design/TierMark";
 import { t } from "../../i18n";
 import { percent } from "../../lib/format";
+import { dotTone, mapDomain, tierBands, xOf, yOf } from "../../lib/meta-map";
 import { ROLE_ICON, roleLabel } from "../../lib/roles";
 import { entryKey, type RankedEntry, wrSide } from "../../lib/stats";
 import type { RoleFilter } from "../../lib/stats-filters";
 import styles from "./MapDialog.module.css";
-import { dotTone, mapDomain, tierBands, xOf, yOf } from "./MiniMap";
 import { championLink } from "./Shelves";
 
 const TICKS = [0.005, 0.01, 0.02, 0.05, 0.1, 0.2];

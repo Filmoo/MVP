@@ -1,56 +1,10 @@
 import { createEffect, createMemo, For, type JSX } from "solid-js";
-import type { TierGrade } from "../../data/generated/TierGrade";
 import { Glyph } from "../../design/Glyph";
 import { Icon } from "../../design/Icon";
 import { t } from "../../i18n";
+import { dotTone, mapDomain, tierBands, xOf, yOf } from "../../lib/meta-map";
 import { entryKey, type RankedEntry } from "../../lib/stats";
 import styles from "./MiniMap.module.css";
-
-// ——— The meta map's plane: strength (the score) up, popularity (pick rate, log) across ———
-
-export interface MapDomain {
-  y0: number;
-  y1: number;
-  x0: number;
-  x1: number;
-}
-
-export function mapDomain(rows: readonly RankedEntry[]): MapDomain {
-  let low = -3;
-  let high = 3;
-  let few = 0.004;
-  let many = 0.12;
-  for (const e of rows) {
-    low = Math.min(low, e.score);
-    high = Math.max(high, e.score);
-    if (e.pickRate > 0) {
-      few = Math.min(few, e.pickRate);
-      many = Math.max(many, e.pickRate);
-    }
-  }
-  return { y0: low - 0.5, y1: high + 0.5, x0: Math.log(few * 0.9), x1: Math.log(many * 1.25) };
-}
-
-/** Across, 0 (rarely picked) to 1 (most picked). */
-export const xOf = (d: MapDomain, pickRate: number): number => (Math.log(Math.max(pickRate, 1e-4)) - d.x0) / (d.x1 - d.x0);
-/** Down, 0 (strongest, at the top) to 1. */
-export const yOf = (d: MapDomain, score: number): number => 1 - (score - d.y0) / (d.y1 - d.y0);
-
-/** Score cut-offs (crates/aggregate): each tier is a band of the strength axis. */
-const CUTS: Record<TierGrade, [number, number]> = { S: [2, 99], A: [0.75, 2], B: [-0.75, 0.75], C: [-2, -0.75], D: [-99, -2] };
-
-/** Each tier's band, top and height as shares of the plot (empty bands left out). */
-export function tierBands(d: MapDomain): Array<{ tier: TierGrade; top: number; height: number }> {
-  return (Object.keys(CUTS) as TierGrade[]).flatMap((tier) => {
-    const [lo, hi] = CUTS[tier];
-    const top = Math.max(0, yOf(d, Math.min(hi, d.y1)));
-    const bottom = Math.min(1, yOf(d, Math.max(lo, d.y0)));
-    return bottom > top ? [{ tier, top, height: bottom - top }] : [];
-  });
-}
-
-/** A dot's colour: its tier's, always (lane colours match tier colours: one meaning per page). */
-export const dotTone = (e: RankedEntry): string => `var(--tier-${e.tier.toLowerCase()})`;
 
 /**
  * Marks the champion lit (`data-lit` on its `data-key` element inside `root`): one effect for a
