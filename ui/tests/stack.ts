@@ -1,8 +1,8 @@
 import type { Page } from "@playwright/test";
-import { GESTURE_GAP_MS } from "../src/views/home/stack";
+import { GESTURE_GAP_MS, SETTLE_MS } from "../src/views/home/stack";
 import { animationsDone, expect } from "./app";
 
-// The stack of opened games (views/home/GameStack.tsx), for the suites: its windows, its game,
+// The stack of opened games (views/home/GameStack.tsx), for the suites: its windows, their tabs,
 // the wheel.
 
 /** The match rows' buttons, newest first. */
@@ -11,8 +11,10 @@ export const rows = (page: Page) => page.locator("[data-testid=match-row] > butt
 export const stack = (page: Page) => page.getByTestId("game-stack");
 /** The current game's window. */
 export const current = (page: Page) => page.locator("[data-testid=game-window][data-current]");
-/** The current game's scroller. */
+/** The current window's room for its tab (it never scrolls). */
 export const body = (page: Page) => current(page).getByTestId("game-body");
+/** The current window's tabs. */
+export const tabs = (page: Page) => current(page).getByTestId("game-tabs").getByRole("radio");
 /** The game of row `at` (newest first): its match id. */
 export const gameOf = async (page: Page, at: number) => ((await rows(page).nth(at).getAttribute("id")) ?? "").replace(/^match-/, "");
 
@@ -35,24 +37,29 @@ async function middle(page: Page): Promise<{ x: number; y: number }> {
   return { x: (box?.x ?? 0) + (box?.width ?? 0) / 2, y: (box?.y ?? 0) + (box?.height ?? 0) / 2 };
 }
 
-/** Scrolls the current game to its top or end, points at it, and waits for the next wheel gesture. */
-export async function toEdge(page: Page, edge: "top" | "end"): Promise<void> {
-  await body(page).evaluate((el, end) => {
-    el.scrollTop = end ? el.scrollHeight : 0;
-  }, edge === "end");
+/** Points at the current window and waits until the next wheel event starts a gesture of its own. */
+export async function aim(page: Page): Promise<void> {
   const at = await middle(page);
   await page.mouse.move(at.x, at.y);
-  await page.waitForTimeout(GESTURE_GAP_MS + 50);
+  await page.waitForTimeout(Math.max(GESTURE_GAP_MS, SETTLE_MS) + 50);
 }
 
-/** Wheel notches over the current window, sent back to back (all at once: a busy machine spaced awaited ones out). */
+/**
+ * Wheel notches over the middle of the current window, back to back: one gesture, whatever the
+ * machine's load (made in the page, all at once: a busy browser handing input over late would
+ * spread notches sent from outside into gestures of their own).
+ */
 export async function notches(page: Page, count: number, dy: number): Promise<void> {
   const at = await middle(page);
-  const cdp = await page.context().newCDPSession(page);
-  await Promise.all(
-    Array.from({ length: count }, () => cdp.send("Input.dispatchMouseEvent", { type: "mouseWheel", ...at, deltaX: 0, deltaY: dy })),
+  await page.evaluate(
+    ({ x, y, count, dy }) => {
+      const target = document.elementFromPoint(x, y);
+      for (let i = 0; i < count; i++) {
+        target?.dispatchEvent(new WheelEvent("wheel", { deltaY: dy, clientX: x, clientY: y, bubbles: true, cancelable: true }));
+      }
+    },
+    { ...at, count, dy },
   );
-  await cdp.detach();
 }
 
 /** How the stack is pulled right now (`null`: it isn't), and what the hint says. */
@@ -90,7 +97,7 @@ export async function recordPulls(page: Page): Promise<() => Promise<Pulls>> {
       if (dialog?.dataset.pulling) {
         seen.how ??= dialog.dataset.pulling;
         seen.edge ??= cue?.dataset.edge ?? null;
-        seen.said ??= cue?.textContent ?? null;
+        seen.said ??= cue?.textContent || null;
       }
     };
     for (const el of [dialog, track]) if (el) new MutationObserver(look).observe(el, { attributes: true });
@@ -98,3 +105,23 @@ export async function recordPulls(page: Page): Promise<() => Promise<Pulls>> {
   });
   return () => page.evaluate(() => (window as unknown as { __pulls: Pulls }).__pulls);
 }
+
+/**
+ * What scrolls, or would have to, in the current window: every box whose content outgrows it
+ * (text cut short with an ellipsis aside). Nothing may: a window's tabs fit it.
+ */
+export const scrolled = (page: Page) =>
+  current(page).evaluate((win) =>
+    [win, ...win.querySelectorAll("*")].flatMap((el) => {
+      const cs = getComputedStyle(el);
+      if (cs.display === "none" || cs.textOverflow === "ellipsis" || el.closest("svg")) return [];
+      const tall = el.scrollHeight > el.clientHeight + 1 && cs.overflowY !== "visible";
+      const wide = el.scrollWidth > el.clientWidth + 1 && cs.overflowX !== "visible";
+      const scroller = /auto|scroll/.test(cs.overflowY + cs.overflowX);
+      return tall || wide || scroller
+        ? [
+            `${el.tagName.toLowerCase()}.${String(el.className).split(" ")[0]} ${el.scrollWidth}×${el.scrollHeight} in ${el.clientWidth}×${el.clientHeight}`,
+          ]
+        : [];
+    }),
+  );

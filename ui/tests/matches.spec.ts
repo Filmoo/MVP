@@ -3,12 +3,12 @@ import type { Page } from "@playwright/test";
 import type {} from "../src/data/mock";
 import { signedPoints } from "../src/lib/format";
 import { GESTURE_GAP_MS, RELEASE_MS, TOUCH_CLOSE, TOUCH_MOVE } from "../src/views/home/stack";
-import { animationsDone, expect, openApp, test, trackErrors } from "./app";
-import { body, current, gameOf, notches, openGame, pulling, recordPulls, rows, showing, stack, toEdge } from "./stack";
+import { animationsDone, expect, openApp, settle, test, trackErrors } from "./app";
+import { aim, current, gameOf, notches, openGame, pulling, recordPulls, rows, scrolled, showing, stack, tabs } from "./stack";
 
 // Match rows: every game's grade (and its why), and the stack of opened games a row opens: one
-// window of glass per game of the history, the page behind; its players' pages a click away, its
-// end-of-game stats a tab away.
+// window of glass per game of the history, over the page receded behind it; its players' pages a
+// click away, its end-of-game stats a tab away; the wheel moves from game to game.
 
 const calls = (page: Page, command: string) =>
   page.evaluate((name) => window.__SCOUT_MOCK__?.calls.filter((c) => c === name).length ?? 0, command);
@@ -69,22 +69,61 @@ test("matches: a row opens the stack on its game, a modal window of glass; only 
     await expect(neighbour).toHaveAttribute("aria-hidden", "true");
   }
   await expect(current(page)).not.toHaveAttribute("inert");
-  // The current window covers the page beside the rail, but for its neighbours' edges.
+  // The current window floats over most of the page, beside its receded rail (3 % of the width
+  // in, 72 px × 0.94 wide), a margin around it.
   const box = await current(page).boundingBox();
+  expect(box?.width ?? 0).toBeGreaterThan(1000);
   expect(box?.height ?? 0).toBeGreaterThan(640);
-  expect(box?.width ?? 0).toBeGreaterThan(1100);
+  expect(box?.x ?? 0).toBeGreaterThan(1280 * 0.03 + 72 + 16);
+  expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThan(1280 - 16);
   // Three games asked for: this one and its neighbours, nothing else.
   expect(await calls(page, "match_details")).toBe(3);
   // Both teams; yours is marked; a player in streamer mode stays hidden.
   await expect(current(page).getByTestId("game-player")).toHaveCount(10);
   await expect(current(page).locator("[data-widget=match-details]").getByRole("list")).toHaveCount(2);
   await expect(current(page).locator("[data-marked][data-testid=game-player]")).toContainText("Fillmo");
+  // Its tabs: the scoreboard, then the end-of-game stats.
+  const words = t.matchDetails.tabs;
+  await expect(tabs(page)).toHaveText([words.scoreboard, words.damage, words.vision, words.combat]);
+  await expect(tabs(page).first()).toHaveAttribute("aria-checked", "true");
   // The page behind is inert: its search can't be reached while the stack is open.
   await page.keyboard.press("Control+k");
   await expect(page.getByTestId("search-input")).not.toBeFocused();
   await expect(dialog).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+// The page behind recedes in every effects level (a test each: the same URL again doesn't reload).
+for (const [effects, drawn] of [
+  ["full", "shader"],
+  ["light", "css"],
+  ["off", "flat"],
+] as const) {
+  test(`matches: the page behind recedes, smaller and dimmer, and comes back when the stack closes (${effects})`, async ({ page }) => {
+    const errors = trackErrors(page);
+    const shell = page.locator("[data-ambient-host]");
+    const look = () => shell.evaluate((el) => ({ scale: getComputedStyle(el).scale, opacity: getComputedStyle(el).opacity }));
+    await openApp(page, { effects });
+    expect(await page.evaluate(() => document.documentElement.dataset.effects)).toBe(drawn);
+    await openGame(page, 2);
+    expect(await look()).toEqual({ scale: "0.94", opacity: "0.55" });
+    // Around the window, the page; the window a layer over it: bent glass in Full, a solid surface
+    // with a clear edge without it.
+    const glass = current(page).locator("[data-liquid=sheet]");
+    if (effects === "full") {
+      await expect.poll(() => glass.evaluate((el) => el.style.getPropertyValue("--lg-filter"))).toMatch(/^url\(#lg-/);
+    } else {
+      // Light: a little of the page through it, blurred; Off (no blur): opaque, nothing through it.
+      await expect(glass).toHaveCSS("background-color", effects === "light" ? "rgba(19, 20, 30, 0.9)" : "rgb(17, 18, 27)");
+    }
+    // Closed, the page comes back as it was.
+    await page.keyboard.press("Escape");
+    await expect(stack(page)).toHaveCount(0);
+    await animationsDone(page);
+    expect(await look()).toEqual({ scale: "none", opacity: "1" });
+    expect(errors).toEqual([]);
+  });
+}
 
 test("matches: the newest game has no neighbour above it, the oldest none below", async ({ page }) => {
   await openApp(page);
@@ -122,142 +161,124 @@ test("matches: a window's head says the game at once: its LP, your grade and wha
   expect(errors).toEqual([]);
 });
 
-test("matches: scrolling on past a game's end moves to the older one; past its top back to the newer one", async ({ page, t }) => {
+// ── The wheel, a finger and the keys: from game to game ──────────────────────────────────────
+
+test("matches: one wheel gesture moves one game: down to the older one, up to the newer one; nothing pulls on the way", async ({
+  page,
+}) => {
+  const errors = trackErrors(page);
+  await openApp(page);
+  const [second, third, fourth] = [await gameOf(page, 1), await gameOf(page, 2), await gameOf(page, 3)];
+  await openGame(page, 1);
+  await aim(page);
+  const pulls = await recordPulls(page);
+  // A notch: the older game, with the keyboard in it.
+  await notches(page, 1, 100);
+  await showing(page, third);
+  await expect(current(page)).toBeFocused();
+  await expect(rows(page).nth(1)).toHaveAttribute("aria-expanded", "true");
+  // Its neighbours are built as it arrives: the next one down is asked for.
+  await expect(stack(page).locator("[data-place=older]")).toHaveCount(1);
+  // A spin of five notches is one gesture: one game.
+  await aim(page);
+  await notches(page, 5, 100);
+  await showing(page, fourth);
+  // Up: back to the newer games, one a gesture.
+  await aim(page);
+  await notches(page, 3, -100);
+  await showing(page, third);
+  await aim(page);
+  await notches(page, 1, -100);
+  await showing(page, second);
+  // Between games the stack never follows the wheel, and nothing is said.
+  expect(await pulls()).toEqual({ most: 0, how: null, edge: null, said: null });
+  expect(errors).toEqual([]);
+});
+
+test("matches: a touchpad's flick and its inertia move one game, a nudge none", async ({ page }) => {
   const errors = trackErrors(page);
   await openApp(page);
   const [second, third] = [await gameOf(page, 1), await gameOf(page, 2)];
   await openGame(page, 1);
-  // Past the end: the stack follows with resistance under a hint, then moves on.
-  await toEdge(page, "end");
-  const pulls = await recordPulls(page);
-  await notches(page, 1, 100);
-  await expect.poll(pulls).toMatchObject({ how: "wheel", edge: "end", said: t.matchDetails.stack.older });
-  expect((await pulls()).most).toBeLessThan(-20);
-  // Let go, it springs back.
-  await page.waitForTimeout(RELEASE_MS);
-  await expect.poll(() => pulling(page)).toBe(null);
+  await aim(page);
+  // A nudge of a few pixels: nothing.
+  const wheel = (deltas: number[]) =>
+    current(page).evaluate(async (el, list) => {
+      for (const dy of list) {
+        el.dispatchEvent(new WheelEvent("wheel", { deltaY: dy, bubbles: true, cancelable: true }));
+        await new Promise((r) => setTimeout(r, 16));
+      }
+    }, deltas);
+  await wheel([3, 4, 3, 2]);
+  await page.waitForTimeout(RELEASE_MS + 50);
   await showing(page, second);
-  // Two notches, begun at the edge: the older game, at its top, with the keyboard in it.
-  await page.waitForTimeout(GESTURE_GAP_MS);
-  await notches(page, 2, 100);
+  // A flick: its deltas grow, then its inertia shrinks them for a second and a half, no pause.
+  await wheel([6, 14, 26, 40, ...Array.from({ length: 90 }, (_, i) => 60 * 0.95 ** i)]);
   await showing(page, third);
-  await expect(body(page)).toBeFocused();
-  expect(await body(page).evaluate((el) => el.scrollTop)).toBe(0);
-  await expect(rows(page).nth(1)).toHaveAttribute("aria-expanded", "true");
-  // Its neighbours are built as it arrives: the next one down is asked for.
-  await expect(stack(page).locator("[data-place=older]")).toHaveCount(1);
-  // Past its top, back to the newer game.
-  await toEdge(page, "top");
-  await notches(page, 2, -100);
-  await showing(page, second);
   expect(errors).toEqual([]);
 });
 
-test("matches: the rest of a scroll that moved the stack doesn't scroll the game it brought", async ({ page }) => {
-  await openApp(page, { width: 1280, height: 640 });
-  const next = await gameOf(page, 3);
-  await openGame(page, 2);
-  // On the Details tab the game scrolls: the next game's too.
-  await current(page).getByTestId("game-tabs").getByRole("radio").nth(1).click();
-  await toEdge(page, "end");
-  // Five notches in one spin: two move on, the three left are swallowed.
-  await notches(page, 5, 100);
-  await showing(page, next);
-  expect(await body(page).evaluate((el) => el.scrollTop)).toBe(0);
-});
-
-test("matches: inertia never moves on, only a deliberate scroll does", async ({ page }) => {
+test("matches: ↑/↓ and PageUp/PageDown move between games, Home and End go to the ends; ←/→ change the tab", async ({ page, t }) => {
   const errors = trackErrors(page);
-  await openApp(page, { width: 1280, height: 640 });
-  const game = await gameOf(page, 2);
-  await openGame(page, 2);
-  await current(page).getByTestId("game-tabs").getByRole("radio").nth(1).click();
-  await toEdge(page, "top");
-  // A fast spin or a flick that scrolls the game to its end, and its momentum hitting the end:
-  // wheel events a frame apart, the browser scrolling after each (as it does).
-  const pulled = await body(page).evaluate(async (el) => {
-    const deltas = [...Array.from({ length: 40 }, () => 120), ...Array.from({ length: 40 }, (_, i) => 120 * 0.93 ** i)];
-    let most = 0;
-    for (const dy of deltas) {
-      el.dispatchEvent(new WheelEvent("wheel", { deltaY: dy, bubbles: true, cancelable: true }));
-      el.scrollTop += dy;
-      if (el.closest("dialog")?.dataset.pulling) most = Math.max(most, 1);
-      await new Promise((r) => setTimeout(r, 16));
-    }
-    return most;
-  });
-  expect(pulled, "the gesture that scrolled to the end doesn't pull").toBe(0);
-  // Momentum alone at the end, after a pause: it can't add up to a move.
-  await page.waitForTimeout(GESTURE_GAP_MS + 50);
-  await body(page).evaluate(async (el) => {
-    for (let i = 0; i < 40; i++) {
-      el.dispatchEvent(new WheelEvent("wheel", { deltaY: 90 * 0.9 ** i, bubbles: true, cancelable: true }));
-      await new Promise((r) => setTimeout(r, 16));
-    }
-  });
-  await expect.poll(() => pulling(page)).toBe(null);
-  await showing(page, game);
-  expect(errors).toEqual([]);
-});
-
-test("matches: the keyboard scrolls the game, then moves on; Home and End go to the newest and oldest", async ({ page }) => {
-  const errors = trackErrors(page);
-  await openApp(page, { width: 1280, height: 640 });
+  await openApp(page);
   const games = await Promise.all([0, 1, 2, 3, 11].map((at) => gameOf(page, at)));
   await openGame(page, 1);
-  await current(page).getByTestId("game-tabs").getByRole("radio").nth(1).click();
-  await body(page).focus();
-  // PageDown scrolls the game first…
-  await page.keyboard.press("PageDown");
-  await expect.poll(() => body(page).evaluate((el) => el.scrollTop)).toBeGreaterThan(100);
-  await showing(page, games[1] ?? "");
-  // …at its end, a key held down stops there; pressed again, it moves on.
-  await body(page).evaluate((el) => {
-    el.scrollTop = el.scrollHeight;
-    el.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", repeat: true, bubbles: true, cancelable: true }));
-  });
-  await showing(page, games[1] ?? "");
+  await expect(current(page)).toBeFocused();
   await page.keyboard.press("ArrowDown");
   await showing(page, games[2] ?? "");
-  await expect(body(page)).toBeFocused();
-  // ↑ at the top goes back up, arriving at that game's end (the stack reads like one long page).
+  await expect(current(page)).toBeFocused();
+  await page.keyboard.press("PageDown");
+  await showing(page, games[3] ?? "");
+  await page.keyboard.press("PageUp");
+  await showing(page, games[2] ?? "");
   await page.keyboard.press("ArrowUp");
   await showing(page, games[1] ?? "");
-  expect(await body(page).evaluate((el) => el.scrollHeight - el.clientHeight - el.scrollTop)).toBeLessThanOrEqual(1);
   // End and Home go to the ends of the stack.
   await page.keyboard.press("End");
   await showing(page, games[4] ?? "");
   await page.keyboard.press("Home");
   await showing(page, games[0] ?? "");
-  // ↑ at the newest game's top: nothing (Escape closes).
-  await body(page).evaluate((el) => {
-    el.scrollTop = 0;
-  });
-  await page.keyboard.press("PageUp");
+  // ↑ at the newest game: nothing (Escape closes).
+  await page.keyboard.press("ArrowUp");
   await expect(stack(page)).toBeVisible();
+  await showing(page, games[0] ?? "");
+  // → and ← go through the tabs, round again past the last one.
+  await page.keyboard.press("ArrowRight");
+  await expect(tabs(page).nth(1)).toHaveAttribute("aria-checked", "true");
+  await expect(current(page).getByTestId("game-stats")).toHaveAccessibleName(t.matchDetails.tabs.damage);
+  await page.keyboard.press("ArrowLeft");
+  await page.keyboard.press("ArrowLeft");
+  await expect(tabs(page).nth(3)).toHaveAttribute("aria-checked", "true");
+  await expect(current(page).getByTestId("game-stats")).toHaveAccessibleName(t.matchDetails.tabs.combat);
   await showing(page, games[0] ?? "");
   expect(errors).toEqual([]);
 });
 
-test("matches: the tabs keep their keys; a tab changes the view, not the game", async ({ page, t }) => {
+test("matches: the tabs keep ←/→, Home and End; ↑/↓ there still move between games", async ({ page, t }) => {
   await openApp(page);
-  const game = await gameOf(page, 2);
+  const [game, next] = [await gameOf(page, 2), await gameOf(page, 3)];
   await openGame(page, 2);
-  const tabs = current(page).getByTestId("game-tabs");
-  await tabs.getByRole("radio", { name: t.matchDetails.tabs.scoreboard }).focus();
+  await tabs(page).first().focus();
   await page.keyboard.press("End");
-  await expect(tabs.getByRole("radio", { name: t.matchDetails.tabs.details })).toHaveAttribute("aria-checked", "true");
-  await expect(current(page).getByTestId("game-stats")).toBeVisible();
-  await page.keyboard.press("ArrowLeft");
+  await expect(tabs(page).last()).toHaveAttribute("aria-checked", "true");
+  await expect(tabs(page).last()).toBeFocused();
+  await page.keyboard.press("ArrowRight");
+  await expect(tabs(page).first()).toHaveAttribute("aria-checked", "true");
   await expect(current(page).locator("[data-widget=match-details]")).toBeVisible();
+  await page.keyboard.press("ArrowRight");
+  await expect(tabs(page).nth(1)).toHaveAttribute("aria-checked", "true");
+  await expect(current(page).getByTestId("game-stats")).toHaveAccessibleName(t.matchDetails.tabs.damage);
   await showing(page, game);
+  await page.keyboard.press("ArrowDown");
+  await showing(page, next);
+  await expect(tabs(page).nth(1)).toHaveAttribute("aria-checked", "true");
 });
 
 test("matches: pulling past the newest game closes the stack, with a hint; a smaller pull springs back", async ({ page, t }) => {
   const errors = trackErrors(page);
   await openApp(page);
   await openGame(page, 0);
-  await toEdge(page, "top");
+  await aim(page);
   const pulls = await recordPulls(page);
   await notches(page, 2, -100);
   await expect.poll(pulls).toMatchObject({ how: "wheel", edge: "top", said: t.matchDetails.stack.close });
@@ -281,7 +302,7 @@ test("matches: past the last game of the history, the stack only gives, and says
   await openGame(page, 0);
   await page.keyboard.press("End");
   await showing(page, last);
-  await toEdge(page, "end");
+  await aim(page);
   const pulls = await recordPulls(page);
   await notches(page, 6, 100);
   await expect.poll(pulls).toMatchObject({ how: "wheel", edge: "end", said: t.matches.more.end });
@@ -300,22 +321,22 @@ test("matches: Escape closes the stack and gives the focus to the game's row; th
   await row.focus();
   await page.keyboard.press("Enter");
   await expect(current(page).getByTestId("game-player")).toHaveCount(10);
-  // The keyboard scrolls the game at once.
-  await expect(body(page)).toBeFocused();
+  // The keyboard is in the window at once.
+  await expect(current(page)).toBeFocused();
   // Tab goes round inside the current window, never to its neighbours nor the page behind.
   for (let i = 0; i < 30; i++) {
     await page.keyboard.press(i % 3 === 2 ? "Shift+Tab" : "Tab");
     expect(await page.evaluate(() => !!document.activeElement?.closest("[data-current]")), `tab ${i}`).toBe(true);
   }
-  // From the game's body: no tooltip there (one showing, a link's or a grade's, takes the first
+  // From the window itself: no tooltip there (one showing, a link's or a grade's, takes the first
   // Escape: tooltips.spec.ts).
-  await body(page).focus();
+  await current(page).focus();
   await expect(page.locator("[role=tooltip]")).toHaveCount(0);
   await page.keyboard.press("Escape");
   await expect(stack(page)).toHaveCount(0);
   await expect(row).toBeFocused();
   await expect(row).toHaveAttribute("aria-expanded", "false");
-  // Space opens it too; moved on to the next game, closing gives the focus to that game's row.
+  // Space opens it too; moved on to the last game, closing gives the focus to that game's row.
   await page.keyboard.press("Space");
   await expect(current(page).getByTestId("game-player")).toHaveCount(10);
   await page.keyboard.press("End");
@@ -344,32 +365,41 @@ test("matches: a click around the window closes the stack, inside it doesn't, on
   await showing(page, await gameOf(page, 2));
   await stack(page).locator("[data-peek=newer]").click();
   await showing(page, newer);
-  // Beside it, over the dimmed page (the rail).
+  // Beside it, over the page receded behind it.
   await page.mouse.click(20, 400);
   await expect(stack(page)).toHaveCount(0);
   await expect(rows(page).nth(1)).toBeFocused();
   expect(errors).toEqual([]);
 });
 
-test("matches: with reduced motion the stack stays put while pulled; the hint and the moves still work", async ({ page, t }) => {
+test("matches: with reduced motion the page behind recedes at once and pulls don't move the stack; the hint and the moves still work", async ({
+  page,
+  t,
+}) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await openApp(page);
+  const shell = page.locator("[data-ambient-host]");
   const next = await gameOf(page, 1);
-  await openGame(page, 0);
-  await toEdge(page, "end");
+  await rows(page).first().click();
+  // No zoom to watch: the page is already there, nothing animates it.
+  await expect(shell).toHaveCSS("scale", "0.94");
+  expect(await shell.evaluate((el) => el.getAnimations().length)).toBe(0);
+  await expect(current(page).getByTestId("game-player")).toHaveCount(10);
+  await aim(page);
   const pulls = await recordPulls(page);
-  await notches(page, 1, 100);
-  await expect.poll(pulls).toEqual({ most: 0, how: "wheel", edge: "end", said: t.matchDetails.stack.older });
+  await notches(page, 1, -100);
+  await expect.poll(pulls).toEqual({ most: 0, how: "wheel", edge: "top", said: t.matchDetails.stack.close });
   await expect.poll(() => pulling(page)).toBe(null);
-  await page.waitForTimeout(GESTURE_GAP_MS);
-  await notches(page, 2, 100);
+  await aim(page);
+  await notches(page, 1, 100);
   await showing(page, next);
-  // Up past the newest game's top: four notches close it.
+  // Up past the newest game: four notches close it.
   await page.keyboard.press("Home");
   await animationsDone(page);
-  await toEdge(page, "top");
+  await aim(page);
   await notches(page, 4, -100);
   await expect(stack(page)).toHaveCount(0);
+  await expect(shell).toHaveCSS("scale", "none");
 });
 
 test.describe("on a touch screen", () => {
@@ -398,17 +428,14 @@ test.describe("on a touch screen", () => {
     await openApp(page);
     const [first, second] = [await gameOf(page, 0), await gameOf(page, 1)];
     await openGame(page, 0);
-    await toEdge(page, "end");
     // A short drag springs back.
     await drag(page, -TOUCH_MOVE / 2);
     await expect.poll(() => pulling(page)).toBe(null);
     await showing(page, first);
     await drag(page, -(TOUCH_MOVE + 60));
     await showing(page, second);
-    await toEdge(page, "top");
     await drag(page, TOUCH_MOVE + 60);
     await showing(page, first);
-    await toEdge(page, "top");
     await drag(page, TOUCH_CLOSE + 60);
     await expect(stack(page)).toHaveCount(0);
     expect(errors).toEqual([]);
@@ -492,35 +519,29 @@ test("matches: a grade's why shows on hover and on keyboard focus", async ({ pag
   expect(errors).toEqual([]);
 });
 
-// ── The end-of-game stats, a tab away ────────────────────────────────────────────────────────
+// ── The end-of-game stats, a few groups a tab; nothing scrolls ───────────────────────────────
 
-/** The current window's end-of-game stats: its Details tab, or under its scoreboard on a tall window. */
-async function details(page: Page): Promise<void> {
-  const tabs = current(page).getByTestId("game-tabs");
-  if ((await tabs.count()) > 0) await tabs.getByRole("radio").nth(1).click();
-  await expect(current(page).getByTestId("game-stats")).toBeAttached();
+/** The current window's stats tab `at` (1: damage, 2: vision and gold, 3: combat). */
+async function statsTab(page: Page, at: 1 | 2 | 3): Promise<void> {
+  await tabs(page).nth(at).click();
+  await expect(current(page).getByTestId("game-stats")).toBeVisible();
 }
 const stat = (page: Page, key: string) => current(page).locator(`[data-testid=game-stats] tr[data-stat=${key}]`);
 
-test("matches: your game's end-of-game stats: what the League client counts, each row's top marked", async ({ page, t }) => {
+test("matches: your game's end-of-game stats, a few groups a tab: what the League client counts, each row's top marked", async ({
+  page,
+  t,
+}) => {
   const errors = trackErrors(page);
   await openApp(page);
   await openGame(page);
-  await details(page);
   const table = current(page).getByTestId("game-stats");
-  await expect(table).toHaveAccessibleName(t.matchDetails.stats.title);
-  // Ten players as columns, their champions as heads; the groups in order.
-  await expect(table.locator("thead th")).toHaveCount(10);
   const groups = t.matchDetails.stats.groups;
-  await expect(table.locator("th[scope=rowgroup]")).toHaveText([
-    groups.combat,
-    groups.damageDealt,
-    groups.damageTaken,
-    groups.vision,
-    groups.income,
-    groups.objectives,
-  ]);
-  await expect(stat(page, "crowdControl").locator("th")).toHaveText(t.matchDetails.stats.rows.crowdControl);
+  // Damage: ten players as columns, their champions as heads; the damage dealt, then taken.
+  await statsTab(page, 1);
+  await expect(table).toHaveAccessibleName(t.matchDetails.tabs.damage);
+  await expect(table.locator("thead th")).toHaveCount(10);
+  await expect(table.locator("th[scope=rowgroup]")).toHaveText([groups.damageDealt, groups.damageTaken]);
   // The League client's match history doesn't count the healing and shielding done to
   // teammates: those rows are left out, never shown as zeros.
   await expect(stat(page, "healing")).toHaveCount(1);
@@ -532,59 +553,80 @@ test("matches: your game's end-of-game stats: what the League client counts, eac
   const top = values.indexOf(Math.max(...values));
   await expect(cells.nth(top)).toHaveAttribute("data-top", "");
   await expect(stat(page, "toChampions").locator("td[data-top]")).toHaveCount(values.filter((v) => v === values[top]).length);
-  // Exactly one first blood, marked.
-  await expect(stat(page, "firstBlood").getByRole("img", { name: t.matchDetails.stats.yes })).toHaveCount(1);
-  // Gold and vision are there (the scoreboard leaves them to this tab).
+  // Vision and gold: what the scoreboard leaves to them.
+  await statsTab(page, 2);
+  await expect(table.locator("th[scope=rowgroup]")).toHaveText([groups.vision, groups.income]);
   await expect(stat(page, "goldEarned").locator("td").first()).toHaveText(/\d/);
   await expect(stat(page, "visionScore")).toHaveCount(1);
+  // Combat: exactly one first blood, marked; then the objectives.
+  await statsTab(page, 3);
+  await expect(table.locator("th[scope=rowgroup]")).toHaveText([groups.combat, groups.objectives]);
+  await expect(stat(page, "firstBlood").getByRole("img", { name: t.matchDetails.stats.yes })).toHaveCount(1);
+  await expect(stat(page, "crowdControl").locator("th")).toHaveText(t.matchDetails.stats.rows.crowdControl);
+  expect(await scrolled(page)).toEqual([]);
   expect(errors).toEqual([]);
 });
 
-test("matches: the view chosen stays from game to game", async ({ page, t }) => {
+test("matches: the tab chosen stays from game to game", async ({ page, t }) => {
   await openApp(page);
   await openGame(page, 1);
-  await details(page);
-  await body(page).focus();
+  await statsTab(page, 2);
+  await current(page).focus();
   await page.keyboard.press("End");
   await showing(page, await gameOf(page, 11));
-  await expect(current(page).getByTestId("game-tabs").getByRole("radio", { name: t.matchDetails.tabs.details })).toHaveAttribute(
-    "aria-checked",
-    "true",
-  );
+  await expect(tabs(page).nth(2)).toHaveText(t.matchDetails.tabs.vision);
+  await expect(tabs(page).nth(2)).toHaveAttribute("aria-checked", "true");
   await expect(current(page).getByTestId("game-stats")).toBeVisible();
   await expect(current(page).locator("[data-widget=match-details]")).toHaveCount(0);
 });
 
-test("matches: a tall window shows the scoreboard, then the stats under their title, no tabs", async ({ page, t }) => {
+test("matches: nothing scrolls in a window, at any size and in any tab: its lines share its height", async ({ page }) => {
+  test.slow();
   const errors = trackErrors(page);
-  await openApp(page, { width: 1920, height: 1080 });
-  await openGame(page, 1);
-  await expect(current(page).getByTestId("game-tabs")).toHaveCount(0);
-  await expect(current(page).locator("[data-widget=match-details]")).toBeVisible();
-  await expect(current(page).getByRole("heading", { level: 3, name: t.matchDetails.stats.title })).toBeVisible();
-  await expect(current(page).getByTestId("game-stats")).toHaveAccessibleName(t.matchDetails.stats.title);
-  // The game scrolls through both before the stack moves on.
-  expect(await body(page).evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
-  // A neighbour's stats wait until it arrives.
-  await expect(stack(page).locator("[data-place=older] [data-testid=game-stats]")).toHaveCount(0);
+  await openApp(page);
+  await openGame(page, 2);
+  for (const [width, height] of [
+    [400, 560],
+    [420, 800],
+    [820, 760],
+    [1280, 720],
+    [1600, 900],
+    [2560, 1440],
+  ] as const) {
+    await page.setViewportSize({ width, height });
+    await settle(page);
+    await animationsDone(page);
+    for (let at = 0; at < 4; at++) {
+      await tabs(page).nth(at).click();
+      await expect(current(page).locator("[data-testid=game-player], [data-testid=game-stats]").first()).toBeVisible();
+      expect(await scrolled(page), `${width}×${height}, tab ${at}`).toEqual([]);
+    }
+    // A short window keeps a line of text a player; a big one their second line too.
+    await tabs(page).first().click();
+    const second = current(page).getByTestId("game-player").first().getByText(/KP/);
+    if (height <= 560) await expect(second, `${width}×${height}`).toBeHidden();
+    if (width >= 1280) await expect(second, `${width}×${height}`).toBeVisible();
+  }
   expect(errors).toEqual([]);
 });
 
-test("matches: on a narrow window the stats scroll sideways to your column, beside the labels", async ({ page }) => {
+test("matches: on a narrow window the stats turn around: the players as rows, the tab's leading stats as columns", async ({ page, t }) => {
   const errors = trackErrors(page);
   await openApp(page, { width: 420, height: 800 });
   await openGame(page);
-  await details(page);
-  // Your column (the mid's, third) first after the labels, which stay put (sticky).
-  const place = () =>
-    current(page)
-      .getByTestId("game-stats")
-      .evaluate((region) => {
-        const labels = region.querySelector("thead td")?.getBoundingClientRect();
-        const mine = region.querySelector("thead th[class*=marked]")?.getBoundingClientRect();
-        return { scrolled: region.scrollLeft > 0, beside: !!labels && !!mine && Math.abs(mine.left - labels.right) <= 1 };
-      });
-  await expect.poll(place).toEqual({ scrolled: true, beside: true });
+  await statsTab(page, 1);
+  const table = current(page).getByTestId("game-stats");
+  // A row per player, their champion as its head; yours marked.
+  await expect(table.locator("tbody tr")).toHaveCount(10);
+  await expect(table.locator("tbody th[scope=row]").nth(2)).toHaveAccessibleName(/Fillmo/);
+  await expect(table.locator("tbody tr").nth(2)).toHaveClass(/marked/);
+  // Each group's first stat, then the next ones, as many as fit (never the damage by type).
+  const heads = table.locator("thead th:visible");
+  await expect(heads.first()).toHaveText(t.matchDetails.stats.rows.toChampions);
+  await expect(heads.nth(1)).toHaveText(t.matchDetails.stats.rows.taken);
+  expect(await heads.count()).toBeGreaterThanOrEqual(3);
+  await expect(table.locator("thead th[data-stat=physical]")).toHaveCount(0);
+  expect(await scrolled(page)).toEqual([]);
   expect(errors).toEqual([]);
 });
 
@@ -595,20 +637,24 @@ test("matches: someone else's game (our backend) has every stat row", async ({ p
   await expect(current(page).locator("[data-marked][data-testid=game-player]")).toContainText("Blade Dancer");
   // No LP on someone else's games (MVP only follows yours).
   await expect(current(page).getByTestId("game-lp")).toHaveCount(0);
-  await details(page);
+  await statsTab(page, 1);
   await expect(stat(page, "healingOnTeammates")).toHaveCount(1);
   await expect(stat(page, "shieldingOnTeammates")).toHaveCount(1);
+  expect(await scrolled(page)).toEqual([]);
   expect(errors).toEqual([]);
 });
 
-test("matches: a game on Howling Abyss has no vision or monster stats", async ({ page }) => {
+test("matches: a game on Howling Abyss has no vision or monster stats", async ({ page, t }) => {
   const errors = trackErrors(page);
   await openApp(page, { scenario: "howling-abyss", width: 1920, height: 1080 });
-  // ARAM: Mayhem, then ARAM: nobody has a vision score there.
+  // ARAM: Mayhem, then ARAM: nobody has a vision score there (its tab says gold only).
   for (const at of [0, 1]) {
     await openGame(page, at);
-    await details(page);
+    await expect(tabs(page).nth(2)).toHaveText(t.matchDetails.columns.gold);
+    await statsTab(page, 2);
     for (const key of ["visionScore", "wardsPlaced", "controlWards", "monsters"]) await expect(stat(page, key)).toHaveCount(0);
+    await expect(stat(page, "goldEarned")).toHaveCount(1);
+    await statsTab(page, 1);
     await expect(stat(page, "toChampions")).toHaveCount(1);
     // Away from the game's tooltips (one showing would take the Escape).
     await page.mouse.move(0, 0);
@@ -618,7 +664,84 @@ test("matches: a game on Howling Abyss has no vision or monster stats", async ({
   }
   // A ranked game keeps them.
   await openGame(page, 2);
-  await details(page);
+  await statsTab(page, 2);
   await expect(stat(page, "wardsPlaced")).toHaveCount(1);
   expect(errors).toEqual([]);
 });
+
+for (const effects of ["full", "light", "off"] as const) {
+  test(`matches: the window's text keeps its contrast on the ground under it (${effects})`, async ({ page }) => {
+    test.slow();
+    await openApp(page, { effects });
+    await openGame(page, 0);
+    for (const [width, height, at] of [
+      [1280, 800, 0],
+      [1280, 800, 1],
+      [420, 560, 1],
+    ] as const) {
+      await page.setViewportSize({ width, height });
+      await settle(page);
+      await tabs(page).nth(at).click();
+      await animationsDone(page);
+      await page.mouse.move(0, 0);
+      expect(await contrasts(page), `${width}×${height}, tab ${at}`).toEqual([]);
+    }
+  });
+}
+
+/**
+ * The current window's texts whose contrast with the ground under them (the window's glass and
+ * the page behind as drawn, or their own fill) is under 4.5:1: each text's line boxes, measured on
+ * a screenshot with the window's words and pictures hidden, at its ground's 95th percentile.
+ */
+async function contrasts(page: Page): Promise<string[]> {
+  const texts = await current(page).evaluate((win) =>
+    [...win.querySelectorAll("*")].flatMap((el) => {
+      const nodes = [...el.childNodes].filter((n) => n.nodeType === Node.TEXT_NODE && n.textContent?.trim());
+      const first = nodes[0];
+      const last = nodes.at(-1);
+      const cs = getComputedStyle(el);
+      if (!first || !last || cs.visibility === "hidden" || el.closest("[inert]")) return [];
+      const range = document.createRange();
+      range.setStartBefore(first);
+      range.setEndAfter(last);
+      const r = range.getBoundingClientRect();
+      return r.width < 1 || r.height < 1
+        ? []
+        : [{ x: r.x, y: r.y, w: r.width, h: r.height, color: cs.color, text: el.textContent?.trim() ?? "" }];
+    }),
+  );
+  const hide = await page.addStyleTag({
+    content: "[data-current] * { color: transparent !important } [data-current] :is(img, svg) { visibility: hidden !important }",
+  });
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+  const png = (await page.screenshot()).toString("base64");
+  await hide.evaluate((el) => el.parentNode?.removeChild(el));
+  return page.evaluate(
+    async ({ png, texts }) => {
+      const img = new Image();
+      img.src = `data:image/png;base64,${png}`;
+      await img.decode();
+      const ctx = new OffscreenCanvas(img.width, img.height).getContext("2d");
+      if (!ctx) return ["no canvas"];
+      ctx.drawImage(img, 0, 0);
+      const channel = (c: number) => {
+        const v = c / 255;
+        return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+      };
+      const luminance = (r: number, g: number, b: number) => 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+      return texts.flatMap((t) => {
+        const d = ctx.getImageData(Math.round(t.x), Math.round(t.y), Math.max(1, Math.round(t.w)), Math.max(1, Math.round(t.h))).data;
+        const ground: number[] = [];
+        for (let i = 0; i < d.length; i += 4) ground.push(luminance(d[i] ?? 0, d[i + 1] ?? 0, d[i + 2] ?? 0));
+        ground.sort((a, b) => a - b);
+        const under = ground[Math.floor(ground.length * 0.95)] ?? 0;
+        const [r = 0, g = 0, b = 0] = (t.color.match(/[\d.]+/g) ?? []).map(Number);
+        const text = luminance(r, g, b);
+        const ratio = (Math.max(text, under) + 0.05) / (Math.min(text, under) + 0.05);
+        return ratio < 4.5 ? [`"${t.text.slice(0, 30)}" ${t.color} on ${under.toFixed(3)}: ${ratio.toFixed(2)}`] : [];
+      });
+    },
+    { png, texts },
+  );
+}

@@ -2,7 +2,7 @@ import type { Page } from "@playwright/test";
 import { scenarioNames } from "../src/data/mock/scenarios";
 import { expect, FRENCH_SIZES, isFrench, openApp, SIZES, settle, test, trackErrors, VIEWS } from "./app";
 import { auditLayout } from "./layout-rules";
-import { body, current, openGame, rows, stack } from "./stack";
+import { current, openGame, rows, scrolled, stack, tabs } from "./stack";
 
 const EXPECTED_ERRORS: Record<string, RegExp> = {
   "widget-crash": /widget:recent-matches|Cannot read properties/,
@@ -129,8 +129,8 @@ for (const { view, scenario } of SCENARIO_VIEWS) {
 }
 
 /**
- * The stack of opened games: the current window inside the room beside the rail and under the
- * title bar, laid out on its scoreboard (at its top and its end) and its details (at their end).
+ * The stack of opened games: the current window inside the window, a margin around it where the
+ * page shows, laid out on each of its tabs, none of which scrolls.
  */
 async function auditStack(page: Page, size: { name: string; width: number; height: number }): Promise<void> {
   // Once it has risen in (its own animations only: a loading skeleton pulses for good).
@@ -139,24 +139,18 @@ async function auditStack(page: Page, size: { name: string; width: number; heigh
     .first()
     .evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
   const box = await current(page).boundingBox();
-  const inside = box && box.x >= 0 && box.y >= 40 && box.x + box.width <= size.width && box.y + box.height <= size.height;
-  expect(inside, `${size.name}: the window under the title bar, inside the window: ${JSON.stringify(box)}`).toBe(true);
-  expect(await page.evaluate(auditLayout), `${size.name} opened`).toEqual([]);
-  const end = () =>
-    body(page).evaluate((el) => {
-      el.scrollTop = el.scrollHeight;
-    });
-  await end();
-  expect(await page.evaluate(auditLayout), `${size.name} at its end`).toEqual([]);
-  const tabs = current(page).getByTestId("game-tabs").getByRole("radio");
-  if ((await tabs.count()) === 0) return;
-  await tabs.nth(1).click();
-  await end();
-  expect(await page.evaluate(auditLayout), `${size.name} its details`).toEqual([]);
-  await tabs.nth(0).click();
+  const inside = box && box.x >= 12 && box.y >= 8 && box.x + box.width <= size.width - 12 && box.y + box.height <= size.height - 8;
+  expect(inside, `${size.name}: the window inside the window, the page around it: ${JSON.stringify(box)}`).toBe(true);
+  const count = await tabs(page).count();
+  for (let at = 0; at < Math.max(1, count); at++) {
+    if (count > 0) await tabs(page).nth(at).click();
+    expect(await page.evaluate(auditLayout), `${size.name}, tab ${at}`).toEqual([]);
+    expect(await scrolled(page), `${size.name}, tab ${at}: nothing scrolls`).toEqual([]);
+  }
+  if (count > 0) await tabs(page).nth(0).click();
 }
 
-// An opened game at every size (its window at its top, its end, its details), and a grade's why
+// An opened game at every size (each of its tabs, nothing scrolling), and a grade's why
 // in it: a popover, which the audit leaves out (fixed), so it is held inside the window here.
 test("home: the stack of opened games and a grade's why lay out at every size", async ({ page, locale }) => {
   // Eight sizes, each settled, audited three times and hovered twice: more than 30 s on a busy machine.
@@ -170,12 +164,8 @@ test("home: the stack of opened games and a grade's why lay out at every size", 
     await page.setViewportSize({ width: size.width, height: size.height });
     await settle(page);
     await auditStack(page, size);
-    await body(page).evaluate((el) => {
-      el.scrollTop = 0;
-    });
     for (const at of [0, 6]) {
       const grade = current(page).locator("[data-grade]").nth(at);
-      await grade.evaluate((el) => el.scrollIntoView({ block: "nearest" }));
       await grade.hover();
       const why = await page.getByTestId("grade-why").boundingBox();
       expect(why, `${size.name} why ${at}`).not.toBeNull();

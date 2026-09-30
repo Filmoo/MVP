@@ -304,6 +304,7 @@ const SAME = new Set([
   "matchDetails.columns.cs",
   "matchDetails.columns.vision",
   "matchDetails.kp",
+  "matchDetails.tabs.combat",
   "matchDetails.stats.groups.combat",
   "matchDetails.stats.groups.vision",
   "matchDetails.stats.rows.kda",

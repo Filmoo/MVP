@@ -1,11 +1,13 @@
 /**
- * The raw end-of-game numbers of an opened game, like the League client's post-game Stats tab:
- * stats in groups as rows, the ten players as columns (their champions as heads, in their team's
- * colour, the page owner's column marked), each row's highest value marked. A row no player of
- * the game has is left out (no wards on Howling Abyss, what the source doesn't count). Narrow
- * sheets scroll it sideways under its sticky first column.
+ * The raw end-of-game numbers of an opened game, like the League client's post-game Stats tab, a
+ * few groups at a time: the tabs of a window past its scoreboard (`STAT_TABS`), each one fitting a
+ * window (nothing scrolls there). Stats in groups as rows, the ten players as columns (their
+ * champions as heads, in their team's colour, the page owner's column marked), each row's highest
+ * value marked. A row no player of the game has is left out (no wards on Howling Abyss, what the
+ * source doesn't count). A narrow window has no room for ten columns: it turns the table around,
+ * the players as rows and the tab's leading stats as columns, as many as fit.
  */
-import { For, type JSX, onCleanup, onMount } from "solid-js";
+import { createMemo, For, type JSX, Show } from "solid-js";
 import { useData } from "../../data/context";
 import type { EndOfGameStats } from "../../data/generated/EndOfGameStats";
 import type { MatchDetails } from "../../data/generated/MatchDetails";
@@ -19,6 +21,7 @@ import { formatRiotId } from "../../lib/riot-id";
 import styles from "./MatchStats.module.css";
 
 type Words = ReturnType<typeof t>["matchDetails"]["stats"];
+type Group = keyof Words["groups"];
 
 /** How a stat reads: a count (default), a detail of the row above, seconds, a mark, or K / D / A. */
 type Kind = "sub" | "seconds" | "flag" | "kda";
@@ -32,65 +35,59 @@ const of =
     return value === null ? null : Number(value);
   };
 
-const GROUPS: ReadonlyArray<[keyof Words["groups"], Stat[]]> = [
-  [
-    "combat",
-    [
-      // Ranked by KDA ratio (a game without deaths counts its takedowns).
-      ["kda", (p) => (p.kills + p.assists) / Math.max(1, p.deaths), "kda"],
-      ["largestKillingSpree", of("largestKillingSpree")],
-      ["largestMultiKill", of("largestMultiKill")],
-      ["firstBlood", of("firstBlood"), "flag"],
-      ["crowdControl", of("crowdControlSeconds"), "seconds"],
-    ],
+const GROUPS: Record<Group, Stat[]> = {
+  combat: [
+    // Ranked by KDA ratio (a game without deaths counts its takedowns).
+    ["kda", (p) => (p.kills + p.assists) / Math.max(1, p.deaths), "kda"],
+    ["largestKillingSpree", of("largestKillingSpree")],
+    ["largestMultiKill", of("largestMultiKill")],
+    ["firstBlood", of("firstBlood"), "flag"],
+    ["crowdControl", of("crowdControlSeconds"), "seconds"],
   ],
-  [
-    "damageDealt",
-    [
-      ["toChampions", (p) => p.damageToChampions],
-      ["physical", of("physicalDamageToChampions"), "sub"],
-      ["magic", of("magicDamageToChampions"), "sub"],
-      ["trueDamage", of("trueDamageToChampions"), "sub"],
-      ["toTurrets", of("damageToTurrets")],
-      ["toObjectives", of("damageToObjectives")],
-    ],
+  damageDealt: [
+    ["toChampions", (p) => p.damageToChampions],
+    ["physical", of("physicalDamageToChampions"), "sub"],
+    ["magic", of("magicDamageToChampions"), "sub"],
+    ["trueDamage", of("trueDamageToChampions"), "sub"],
+    ["toTurrets", of("damageToTurrets")],
+    ["toObjectives", of("damageToObjectives")],
   ],
-  [
-    "damageTaken",
-    [
-      ["taken", of("damageTaken")],
-      ["selfMitigated", of("damageSelfMitigated")],
-      ["healing", of("healing")],
-      ["healingOnTeammates", of("healingOnTeammates")],
-      ["shieldingOnTeammates", of("shieldingOnTeammates")],
-    ],
+  damageTaken: [
+    ["taken", of("damageTaken")],
+    ["selfMitigated", of("damageSelfMitigated")],
+    ["healing", of("healing")],
+    ["healingOnTeammates", of("healingOnTeammates")],
+    ["shieldingOnTeammates", of("shieldingOnTeammates")],
   ],
-  [
-    "vision",
-    [
-      ["visionScore", (p) => p.visionScore],
-      ["wardsPlaced", of("wardsPlaced")],
-      ["wardsDestroyed", of("wardsDestroyed")],
-      ["controlWards", of("controlWards")],
-    ],
+  vision: [
+    ["visionScore", (p) => p.visionScore],
+    ["wardsPlaced", of("wardsPlaced")],
+    ["wardsDestroyed", of("wardsDestroyed")],
+    ["controlWards", of("controlWards")],
   ],
-  [
-    "income",
-    [
-      ["goldEarned", (p) => p.gold],
-      ["goldSpent", of("goldSpent")],
-      ["minions", of("minions")],
-      ["monsters", of("monsters")],
-    ],
+  income: [
+    ["goldEarned", (p) => p.gold],
+    ["goldSpent", of("goldSpent")],
+    ["minions", of("minions")],
+    ["monsters", of("monsters")],
   ],
-  [
-    "objectives",
-    [
-      ["turrets", of("turretsDestroyed")],
-      ["inhibitors", of("inhibitorsDestroyed")],
-    ],
+  objectives: [
+    ["turrets", of("turretsDestroyed")],
+    ["inhibitors", of("inhibitorsDestroyed")],
   ],
-];
+};
+
+/** A window's tabs past its scoreboard: the stats' groups, two by two (each tab fits a window). */
+export const STAT_TABS = {
+  damage: ["damageDealt", "damageTaken"],
+  vision: ["vision", "income"],
+  combat: ["combat", "objectives"],
+} as const satisfies Record<string, readonly Group[]>;
+export type StatTab = keyof typeof STAT_TABS;
+
+/** A window tab's name: on Howling Abyss (no vision there) "Vision & gold" is only gold. */
+export const tabName = (tab: StatTab | "scoreboard", queueId: number): string =>
+  tab === "vision" && onHowlingAbyss(queueId) ? t().matchDetails.columns.gold : t().matchDetails.tabs[tab];
 
 interface Row {
   key: keyof Words["rows"];
@@ -99,13 +96,13 @@ interface Row {
   top: number;
 }
 
-/** The groups and rows `game` has: a row shows when a player has more than nothing in it. */
-export function statRows(game: MatchDetails): Array<{ group: keyof Words["groups"]; rows: Row[] }> {
+/** The groups and rows of `tab` that `game` has: a row shows when a player has more than nothing in it. */
+export function statRows(game: MatchDetails, tab: StatTab): Array<{ group: Group; rows: Row[] }> {
   const players = game.teams.flatMap((team) => team.players);
-  return GROUPS.flatMap(([group, stats]) => {
-    // Howling Abyss has no wards: no vision there (like the team tables' column).
+  return STAT_TABS[tab].flatMap((group) => {
+    // Howling Abyss has no wards: no vision there (like the scoreboard's column).
     if (group === "vision" && onHowlingAbyss(game.queueId)) return [];
-    const rows = stats.flatMap(([key, value, kind]) => {
+    const rows = GROUPS[group].flatMap(([key, value, kind]) => {
       const values = players.map(value);
       const top = Math.max(0, ...values.map((v) => v ?? 0));
       return top > 0 ? [{ key, kind, values, top }] : [];
@@ -114,16 +111,29 @@ export function statRows(game: MatchDetails): Array<{ group: keyof Words["groups
   });
 }
 
+/** A narrow window's columns, most telling first: each group's first stat, then each one's second… (never a detail of the row above). */
+function leading(groups: ReadonlyArray<{ rows: Row[] }>): Row[] {
+  const lists = groups.map((g) => g.rows.filter((row) => row.kind !== "sub"));
+  const most = Math.max(0, ...lists.map((list) => list.length));
+  return Array.from({ length: most }, (_, i) => lists.flatMap((list) => list[i] ?? [])).flat();
+}
+
+type Column = { player: MatchPlayer; win: boolean; first: boolean };
+
 export function MatchStats(props: {
   game: MatchDetails;
+  tab: StatTab;
   marked: MatchPlayer | undefined;
-  /** The id of the heading that names the table. */
-  labelledBy?: string | undefined;
+  /** A narrow window: the players as rows, the tab's leading stats as columns. */
+  narrow?: boolean | undefined;
 }): JSX.Element {
   const { gameData } = useData();
   const words = () => t().matchDetails.stats;
-  const columns = () => props.game.teams.flatMap((team) => team.players.map((player, i) => ({ player, win: team.win, first: i === 0 })));
-  const groups = () => statRows(props.game);
+  const columns = createMemo(() =>
+    props.game.teams.flatMap((team) => team.players.map((player, i): Column => ({ player, win: team.win, first: i === 0 }))),
+  );
+  const groups = createMemo(() => statRows(props.game, props.tab));
+  const lead = createMemo(() => leading(groups()));
   const name = (p: MatchPlayer) => {
     const champion = gameData()?.champions.get(p.championId)?.name ?? t().common.championN(p.championId);
     const who = p.riotId ? formatRiotId(p.riotId) : p.hidden ? t().live.hidden : t().live.unknown;
@@ -150,75 +160,90 @@ export function MatchStats(props: {
         return integer(v);
     }
   };
-  // A column's cells: its team's side (the second team starts after a gap) and the owner's mark.
-  const cell = (c: { player: MatchPlayer; win: boolean; first: boolean }, i: number) =>
-    `${c.first && i > 0 ? styles.split : ""} ${c.player === props.marked ? styles.marked : ""}`;
-  let region!: HTMLElement;
-  // Scrolled sideways (narrow sheets): your column (or the page owner's) first, by the labels.
-  // Read in the first frame, from the layout its paint makes anyway: measured while mounting, the
-  // table (and the sheet around it) would be laid out an extra time, mid-render.
-  onMount(() => {
-    const frame = requestAnimationFrame(() => {
-      const mark = region.querySelector<HTMLElement>(`thead .${styles.marked}`);
-      const labels = region.querySelector<HTMLElement>("thead td")?.offsetWidth ?? 0;
-      if (mark && region.scrollWidth > region.clientWidth) region.scrollLeft = mark.offsetLeft - labels;
-    });
-    onCleanup(() => cancelAnimationFrame(frame));
-  });
+  // A player's cells: their team's side (the second team starts after a hairline) and the owner's mark.
+  const side = (c: Column, i: number) => `${c.first && i > 0 ? styles.split : ""} ${c.player === props.marked ? styles.marked : ""}`;
+  /** Player `i`'s number in `row`, the row's highest marked. */
+  const number = (row: Row, c: Column, i: number, cls?: string) => {
+    const v = row.values[i] ?? null;
+    return (
+      <td class={cls} data-top={v === row.top ? "" : undefined} data-zero={v === 0 ? "" : undefined}>
+        {value(row, c.player, v)}
+      </td>
+    );
+  };
+  /** A player: their champion, on their team's colour, and who they are (its name, and its card on hover). */
+  const player = (c: Column, scope: "col" | "row", cls = "") => (
+    <th scope={scope} class={`${cls} ${c.win ? styles.win : styles.loss}`} aria-label={name(c.player)} data-hint={name(c.player)}>
+      <ChampionIcon championId={c.player.championId} size={scope === "col" ? 32 : 24} />
+    </th>
+  );
   return (
-    // A region: on narrow sheets it scrolls sideways, and takes the keyboard's arrows for it.
-    <section ref={region} class={styles.scroll} tabindex="0" aria-labelledby={props.labelledBy} data-testid="game-stats">
-      <table class={`${styles.table} num`}>
-        <thead>
-          <tr>
-            <td class={styles.corner} />
-            {/* Each head: its champion and player, as its name and in its card on hover (quiet: no echo). */}
-            <For each={columns()}>
-              {(c, i) => (
-                <th
-                  scope="col"
-                  class={`${cell(c, i())} ${c.win ? styles.win : styles.loss}`}
-                  aria-label={name(c.player)}
-                  data-hint={name(c.player)}
-                >
-                  <ChampionIcon championId={c.player.championId} size={24} />
-                </th>
+    <div class={styles.stats}>
+      <Show
+        when={props.narrow}
+        fallback={
+          <table
+            class={`${styles.table} ${styles.rows} num`}
+            aria-label={tabName(props.tab, props.game.queueId)}
+            // Its lines share the window's height (MatchStats.module.css).
+            style={{ "--lines": String(groups().reduce((n, g) => n + 1 + g.rows.length, 0)) }}
+            data-testid="game-stats"
+          >
+            <thead>
+              <tr>
+                <td class={styles.corner} />
+                <For each={columns()}>{(c, i) => player(c, "col", side(c, i()))}</For>
+              </tr>
+            </thead>
+            <For each={groups()}>
+              {(group) => (
+                <tbody>
+                  {/* Its own cells too: the owner's column and the teams' hairline run unbroken. */}
+                  <tr class={styles.group}>
+                    <th scope="rowgroup">{words().groups[group.group]}</th>
+                    <For each={columns()}>{(c, i) => <td class={side(c, i())} />}</For>
+                  </tr>
+                  <For each={group.rows}>
+                    {(row) => (
+                      <tr data-stat={row.key}>
+                        <th scope="row" class={row.kind === "sub" ? styles.sub : undefined}>
+                          {words().rows[row.key]}
+                        </th>
+                        <For each={columns()}>{(c, i) => number(row, c, i(), side(c, i()))}</For>
+                      </tr>
+                    )}
+                  </For>
+                </tbody>
               )}
             </For>
-          </tr>
-        </thead>
-        <For each={groups()}>
-          {(group) => (
-            <tbody>
-              {/* Its own cells too: the owner's column and the teams' hairline run unbroken. */}
-              <tr class={styles.group}>
-                <th scope="rowgroup">{words().groups[group.group]}</th>
-                <For each={columns()}>{(c, i) => <td class={cell(c, i())} />}</For>
-              </tr>
-              <For each={group.rows}>
+          </table>
+        }
+      >
+        <table class={`${styles.table} ${styles.across} num`} aria-label={tabName(props.tab, props.game.queueId)} data-testid="game-stats">
+          <thead>
+            <tr>
+              <td class={styles.corner} />
+              <For each={lead()}>
                 {(row) => (
-                  <tr data-stat={row.key}>
-                    <th scope="row" class={row.kind === "sub" ? styles.sub : undefined}>
-                      {words().rows[row.key]}
-                    </th>
-                    <For each={columns()}>
-                      {(c, i) => {
-                        const v = row.values[i()] ?? null;
-                        const top = v === row.top;
-                        return (
-                          <td class={cell(c, i())} data-top={top ? "" : undefined} data-zero={v === 0 ? "" : undefined}>
-                            {value(row, c.player, v)}
-                          </td>
-                        );
-                      }}
-                    </For>
-                  </tr>
+                  <th scope="col" data-stat={row.key}>
+                    {words().rows[row.key]}
+                  </th>
                 )}
               </For>
-            </tbody>
-          )}
-        </For>
-      </table>
-    </section>
+            </tr>
+          </thead>
+          <tbody>
+            <For each={columns()}>
+              {(c, i) => (
+                <tr class={side(c, i())}>
+                  {player(c, "row")}
+                  <For each={lead()}>{(row) => number(row, c, i())}</For>
+                </tr>
+              )}
+            </For>
+          </tbody>
+        </table>
+      </Show>
+    </div>
   );
 }

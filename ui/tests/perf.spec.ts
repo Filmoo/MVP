@@ -109,8 +109,9 @@ for (const view of ["/tier-list", "/champions?id=103", "/tier-list?view=table"])
   });
 }
 
-// The stack of opened games (three windows of glass, the whole game, its stats table), once it has
-// risen in and after it moved on to the next game: as quiet as the page under it; closed, too.
+// The stack of opened games (three windows of glass, the whole game, a stats tab, the page receded
+// behind), once it has risen in and after it moved on to the next game: as quiet as the page under
+// it; closed, too.
 test("idle with a game open: no scripts, layouts or style work", async ({ page }) => {
   await openApp(page, { freezeClock: false });
   await page.locator("[data-testid=match-row] > button").nth(1).click();
@@ -118,7 +119,7 @@ test("idle with a game open: no scripts, layouts or style work", async ({ page }
   await current.getByTestId("game-tabs").getByRole("radio").nth(1).click();
   await expect(current.getByTestId("game-stats")).toBeVisible();
   // On to the oldest game (none below it then).
-  await current.getByTestId("game-body").focus();
+  await current.focus();
   await page.keyboard.press("End");
   await expect(page.locator("[data-testid=game-window][data-place=older]")).toHaveCount(0);
   await settle(page);

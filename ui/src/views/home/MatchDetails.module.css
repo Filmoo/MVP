@@ -123,7 +123,6 @@
 
 .items {
   display: flex;
-  flex-wrap: wrap;
   gap: var(--space-1);
 }
 
@@ -176,6 +175,36 @@
 @container game (max-width: 419px) {
   .pair {
     display: none;
+  }
+}
+
+/*
+ * A short window (MatchTable.module.css): a line of text a player, the portrait alone (its level on
+ * hover) and smaller; the shortest, the grade's chip smaller too.
+ */
+@container game-window (max-height: 449px) {
+  .sub,
+  .bar,
+  .pair,
+  .level {
+    display: none;
+  }
+  .portrait > img {
+    width: 24px;
+    height: 24px;
+  }
+}
+
+@container game-window (max-height: 359px) {
+  .portrait > img {
+    width: 20px;
+    height: 20px;
+  }
+  .grade [data-chip] {
+    width: 20px;
+    height: 20px;
+    border-radius: var(--radius-1);
+    font-size: var(--text-xs);
   }
 }
 

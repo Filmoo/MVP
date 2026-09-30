@@ -1,26 +1,27 @@
 /**
- * The stack of opened games (GameStack.tsx), pure: its wheel, touch and keyboard input, and what
- * going on past a window's edge does. A window's own game scrolls first. Scrolling on past its end
- * (or its top) pulls the stack along with resistance: a big enough pull moves to the next, older
- * game (or the newer one above); a smaller one springs back. Past the newest game's top the pull
- * closes the stack; past the last game loaded it loads older ones (the history's "load more"); at
- * the very end it only gives, like a rubber band.
+ * The stack of opened games (GameStack.tsx), pure: what the wheel and the keyboard do to it.
+ * Nothing scrolls inside a window, so the wheel only changes window: one deliberate gesture moves
+ * to the next, older game (down) or the newer one (up). Past the stack's ends a gesture pulls it
+ * instead, with resistance: far enough past the newest game it closes the stack, past the last
+ * game loaded it loads older ones (the history's "load more"); at the very end it only gives,
+ * like a rubber band; a smaller pull springs back.
  *
- * A pull is always deliberate. A wheel gesture that scrolled the game up to its edge (a fast spin
- * of the wheel, a touchpad flick and its inertia) stops there: the next one, begun at the edge,
- * pulls. Inertia doesn't add to a pull: momentum shrinks event after event, steadily; a hand
- * scrolling doesn't (a wheel's notches are alike, or come merged two or three in one when the page
- * is busy, a touchpad's deltas go up and down). And a gesture that moved the stack is spent: what
- * is left of it (more notches, the inertia) doesn't scroll the game it brought.
+ * A gesture is wheel events less than `GESTURE_GAP_MS` apart; its deltas add up to a pull. It is
+ * deliberate: once the deltas have shrunk twice in a row (momentum: a touchpad's inertia, a flung
+ * wheel) they add nothing more, as a hand's deltas go up and down while momentum's shrink
+ * steadily. A gesture that did what it pulled for is spent: the rest of it (more notches, the
+ * inertia) is swallowed, and the wheel rests `SETTLE_MS` while the stack glides.
  */
 
-/** Wheel pixels past the edge that move to the next or the previous game: two notches of a mouse wheel. */
-export const WHEEL_MOVE = 200;
-/** Wheel pixels past the newest game's top that close the stack: four notches. */
+/** Wheel pixels that move to the next or the previous game: half a notch of a mouse wheel, a short swipe. */
+export const WHEEL_MOVE = 50;
+/** Wheel pixels past the last game loaded that load older games: two notches. */
+export const WHEEL_LOAD = 200;
+/** Wheel pixels past the newest game that close the stack: four notches. */
 export const WHEEL_CLOSE = 360;
-/** Pixels a finger drags past the edge to move to the next or the previous game (on release). */
+/** Pixels a finger drags to move to the next or the previous game, or to load older ones (on release). */
 export const TOUCH_MOVE = 100;
-/** Pixels a finger drags past the newest game's top to close the stack (on release). */
+/** Pixels a finger drags past the newest game to close the stack (on release). */
 export const TOUCH_CLOSE = 140;
 /** A pause this long between two wheel events starts a new gesture. */
 export const GESTURE_GAP_MS = 200;
@@ -39,23 +40,17 @@ export function rubber(distance: number): number {
   return Math.sign(distance) * reach * (1 - 1 / (1 + (Math.abs(distance) * 0.55) / reach));
 }
 
-/** Whether the game can't scroll further up (`atTop`) or down (`atEnd`). */
-export interface Edges {
-  atTop: boolean;
-  atEnd: boolean;
-}
-
 /** Older games of the history: some to load, loading, failed (try again), none left; `undefined`: the list can't load more. */
 export type More = "idle" | "loading" | "failed" | "end" | undefined;
 
 /**
- * What going on past an edge does: move to the newer or the older game, close the stack (past the
- * newest game's top), load older games (past the last one loaded), or nothing but a rubber band
- * (the history's end, or older games on their way).
+ * What a gesture does: move to the newer or the older game, close the stack (past the newest
+ * game), load older games (past the last one loaded), or nothing but a rubber band (the
+ * history's end, or older games on their way).
  */
 export type EdgeAction = "newer" | "older" | "close" | "load" | "loading" | "end";
 
-/** What going on past the current game's edge in `direction` (+1 down, −1 up) does: game `index` of `count`. */
+/** What a gesture in `direction` (+1 down, −1 up) does on game `index` of `count`. */
 export function edgeAction(direction: number, index: number, count: number, more: More): EdgeAction {
   if (direction < 0) return index > 0 ? "newer" : "close";
   if (index < count - 1) return "older";
@@ -63,23 +58,27 @@ export function edgeAction(direction: number, index: number, count: number, more
   return more === "idle" || more === "failed" ? "load" : "end";
 }
 
+/** Whether `action` moves between games at once (else it pulls the stack past one of its ends). */
+export const moves = (action: EdgeAction): boolean => action === "newer" || action === "older";
+
 /** The pull that makes `action` happen, by wheel or by finger: none (`Infinity`) where nothing does. */
 export function threshold(action: EdgeAction, touch: boolean): number {
   if (action === "close") return touch ? TOUCH_CLOSE : WHEEL_CLOSE;
   if (action === "end" || action === "loading") return Number.POSITIVE_INFINITY;
-  return touch ? TOUCH_MOVE : WHEEL_MOVE;
+  if (touch) return TOUCH_MOVE;
+  return action === "load" ? WHEEL_LOAD : WHEEL_MOVE;
 }
 
 /** Wheel input, the first event of a gesture on. */
 export interface WheelPull {
   /**
-   * The pull after this event (signed pixels, + past the end); `null` when the event belongs to a
-   * gesture already spent: nothing may scroll with it.
+   * The pull after this event (signed pixels, + down); `null` when the event belongs to a gesture
+   * already spent: it does nothing.
    */
-  wheel(time: number, dy: number, edges: Edges): number | null;
+  wheel(time: number, dy: number): number | null;
   /** Lets go: the pull springs back (the gesture may pull again). */
   release(): void;
-  /** The pull did what it pulled for (moved, loaded): the rest of its gesture is swallowed, and the wheel rests `SETTLE_MS`. */
+  /** The pull did what it pulled for (moved, closed, loaded): the rest of its gesture is swallowed, and the wheel rests `SETTLE_MS`. */
   spend(): void;
 }
 
@@ -88,16 +87,14 @@ export function wheelPull(): WheelPull {
   let previous = 0;
   /** Events in a row that were smaller than the one before. */
   let shrinking = 0;
-  let moved = false;
   let spent = false;
   /** When the gesture was spent. */
   let spentAt = Number.NEGATIVE_INFINITY;
   let distance = 0;
   return {
-    wheel(time, dy, { atTop, atEnd }) {
+    wheel(time, dy) {
       if (dy === 0) return spent ? null : distance;
       if (time - last > GESTURE_GAP_MS && time - spentAt > SETTLE_MS) {
-        moved = false;
         spent = false;
         previous = 0;
         shrinking = 0;
@@ -105,15 +102,13 @@ export function wheelPull(): WheelPull {
       last = time;
       if (spent) return null;
       const size = Math.abs(dy);
-      shrinking = size < previous ? shrinking + 1 : 0;
-      const over = dy > 0 ? atEnd : atTop;
-      if (!over || distance * dy < 0) {
-        // The game scrolls (this gesture can't pull anymore), or the pull turns back.
-        moved = true;
+      // Turned back: a pull the other way begins.
+      if (distance * dy < 0) {
         distance = 0;
-      } else if (!moved && shrinking < 2) {
-        distance += dy;
+        previous = 0;
       }
+      shrinking = size < previous ? shrinking + 1 : 0;
+      if (shrinking < 2) distance += dy;
       previous = size;
       return distance;
     },
@@ -128,44 +123,19 @@ export function wheelPull(): WheelPull {
   };
 }
 
-/** Touch input: a finger dragging past the edge pulls (a finger is always deliberate). */
-export function touchPull(): { start(y: number): void; move(y: number, edges: Edges): number } {
-  let at = 0;
-  let distance = 0;
-  return {
-    start(y) {
-      at = y;
-      distance = 0;
-    },
-    move(y, { atTop, atEnd }) {
-      const dy = at - y;
-      at = y;
-      if (distance === 0 && !(dy > 0 ? atEnd : dy < 0 && atTop)) return 0;
-      const next = distance + dy;
-      // Dragged back past where the pull began: the game scrolls again.
-      distance = next * distance < 0 ? 0 : next;
-      return distance;
-    },
-  };
-}
-
 /**
- * What a key does to the stack: scroll the game by a line (`line`) or a page (`page`), down (+1)
- * or up (−1), and past its edge move on like the wheel; Home and End go to the newest and the
- * oldest game loaded. `undefined`: not a key of the stack.
+ * What a key does to the stack: move to the next game (+1, down) or the previous one (−1), or go
+ * to the newest (`first`) or the oldest game loaded (`last`). `undefined`: not a key of the stack
+ * (←/→ are the window's tabs').
  */
-export function keyStep(key: string, shift: boolean): { by: "line" | "page"; direction: 1 | -1 } | "first" | "last" | undefined {
+export function keyStep(key: string): 1 | -1 | "first" | "last" | undefined {
   switch (key) {
     case "ArrowDown":
-      return { by: "line", direction: 1 };
-    case "ArrowUp":
-      return { by: "line", direction: -1 };
     case "PageDown":
-      return { by: "page", direction: 1 };
+      return 1;
+    case "ArrowUp":
     case "PageUp":
-      return { by: "page", direction: -1 };
-    case " ":
-      return { by: "page", direction: shift ? -1 : 1 };
+      return -1;
     case "Home":
       return "first";
     case "End":

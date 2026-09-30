@@ -66,9 +66,15 @@ test("tooltips: keyboard focus in an opened game shows them, Escape closes only 
   const game = page.locator("[data-testid=game-window][data-current]");
   await expect(game.getByTestId("game-player")).toHaveCount(10);
 
-  // From the game: the KDA column's explanation, the grade column's, then the first player's
-  // spells, keystone and tree, then their items.
+  // From its window: its close button, its tabs, then in the game the KDA column's explanation, the
+  // grade column's, then the first player's spells, keystone and tree, then their items.
   const focused = page.locator(":focus");
+  await expect(game).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(focused).toHaveAccessibleName(t.matchDetails.close);
+  await page.keyboard.press("Tab");
+  await expect(focused).toHaveAttribute("role", "radio");
+  await expect(focused).toHaveAccessibleName(t.matchDetails.tabs.scoreboard);
   await page.keyboard.press("Tab");
   await expect(focused).toHaveAttribute("data-hint", t.matchDetails.columns.kdaHint);
   await page.keyboard.press("Tab");
