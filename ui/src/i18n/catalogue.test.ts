@@ -324,7 +324,6 @@ const SAME = new Set([
   "champions.build",
   "champions.runes",
   "champions.matchups",
-  "champions.duos",
   "champions.summary.runes",
   "mayhem.augments",
   "mayhem.champion",

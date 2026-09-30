@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // One entry point for every quality gate, used locally, by the Claude Code hook and by CI.
-//   node scripts/check.mjs fast   → lint, types, unit tests, UI build/budgets, Rust tests (~1 min)
+//   node scripts/check.mjs fast   → secrets, lint, types, unit tests, UI build/budgets, Rust tests (~1 min)
 //   node scripts/check.mjs full   → fast + UI suites (layout, coherence, errors, perf) + website + roadmap
 //   node scripts/check.mjs ui     → build + UI suites + website (the browser suites)
 //   node scripts/check.mjs site   → website only (site/: pages, releases, links, EN/FR; ~15 s)
@@ -12,6 +12,8 @@ const root = resolve(import.meta.dirname, "..");
 
 const mode = process.argv[2] ?? "fast";
 
+// First: a key or token in the working tree must never get as far as a commit.
+const secrets = [["secrets", "node", ["scripts/check-secrets.mjs"]]];
 const rust = [
   ["cargo fmt", "cargo", ["fmt", "--all", "--check"]],
   ["cargo clippy", "cargo", ["clippy", "--workspace", "--all-targets", "--", "-D", "warnings"]],
@@ -65,9 +67,9 @@ const roadmap = [
 ];
 
 const plans = {
-  fast: [...web, ...build, ...rust],
-  full: [...web, ...build, ...rust, ...ui, ...site, ...roadmap],
-  ui: [...build, ...ui, ...site],
+  fast: [...secrets, ...web, ...build, ...rust],
+  full: [...secrets, ...web, ...build, ...rust, ...ui, ...site, ...roadmap],
+  ui: [...secrets, ...build, ...ui, ...site],
   site,
   roadmap,
 };

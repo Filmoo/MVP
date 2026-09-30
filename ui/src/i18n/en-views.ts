@@ -447,8 +447,10 @@ export const enViews = {
     nth: (n: number) => `${n}th item`,
     matchups: "Matchups",
     lane: "Lane",
-    vsJungler: "vs Jungler",
-    duos: "Duos",
+    /** How the champion does depending on the enemy team's jungler (who ganks the lane). */
+    vsJungler: "Enemy jungler",
+    /** How the champion does with each teammate. */
+    duos: "Teammates",
     bestWith: "Best with",
     bestAgainst: "Best against",
     worstWith: "Worst with",

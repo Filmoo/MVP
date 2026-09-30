@@ -8,7 +8,9 @@ name: Release
 #
 # Once, on the owner's machine: `node scripts/setup-updates.mjs` makes the key pair, commits-ready
 # the public key (apps/desktop/tauri.conf.json plugins.updater.pubkey: installed apps verify every
-# update with it) and sets these secrets (repository settings → Secrets and variables → Actions):
+# update with it) and sets these secrets on the `release` environment (Settings → Environments),
+# never on the repository: only this job can read them, only for a `v*` tag, and only once the
+# owner approves the run (the environment's required reviewer).
 #   TAURI_SIGNING_PRIVATE_KEY           the private key
 #   TAURI_SIGNING_PRIVATE_KEY_PASSWORD  its password
 on:
@@ -21,8 +23,11 @@ permissions:
 jobs:
   windows:
     runs-on: windows-latest
+    environment: release
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: The tag is the app's version
         shell: bash
         run: |
@@ -48,9 +53,9 @@ jobs:
           fi
       - name: Rust toolchain (from rust-toolchain.toml)
         run: rustup show active-toolchain || rustup toolchain install
-      - uses: Swatinem/rust-cache@v2
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
           cache: pnpm
@@ -62,6 +67,8 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # The app's server (repository variable; MVP: https://api.mvpgg.com).
+          MVP_BACKEND_URL: ${{ vars.MVP_BACKEND_URL }}
         run: pnpm build:exe --config '{"bundle":{"createUpdaterArtifacts":true}}'
       # What installed apps read: the latest release's latest.json (the installer's URL and signature).
       - name: Update manifest (latest.json)
@@ -83,7 +90,7 @@ jobs:
           ' "${GITHUB_REF_NAME#v}" "$url" "$installer.sig"
           cat target/release/bundle/nsis/latest.json
       - name: Publish release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           prerelease: ${{ contains(github.ref_name, '-') }}
           make_latest: ${{ !contains(github.ref_name, '-') }}
@@ -93,6 +100,8 @@ jobs:
             target/release/bundle/nsis/latest.json
       - name: Updater command
         shell: bash
+        env:
+          MVP_BACKEND_URL: ${{ vars.MVP_BACKEND_URL }}
         run: |
           version="${GITHUB_REF_NAME#v}"
           installer=$(ls target/release/bundle/nsis/*-setup.exe | head -n 1)
@@ -103,8 +112,13 @@ jobs:
           url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/${name// /.}"
           {
             echo "### Published"
-            echo "Installed apps find it on GitHub within 6 hours (or at once: Settings → About → Check for updates)."
-            echo "Once MVP's own server serves updates, offer it there too:"
+            if [ -n "$MVP_BACKEND_URL" ]; then
+              # updater.rs: the first source that answers decides, "no update" included.
+              echo "Installed apps ask $MVP_BACKEND_URL for updates first, and its answer decides: they only see this release once it is offered there (GitHub's latest.json serves when the server can't be reached). On the server (\`ssh mvp\`, then \`sudo\` in front):"
+            else
+              echo "Installed apps find it on GitHub within 6 hours (or at once: Settings → About → Check for updates)."
+              echo "Once MVP's own server serves updates, offer it there too:"
+            fi
             echo '```sh'
             echo "docker exec mvp-backend mvp-backend release add --version $version --channel $channel \\"
             echo "  --url '$url' \\"
