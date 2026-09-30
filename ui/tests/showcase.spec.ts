@@ -472,13 +472,14 @@ for (const [view, width, height, by] of [
   ["/", 1280, 800, 200],
   ["/", 420, 800, 470],
   ["/tier-list", 420, 800, 300],
-  // Mid-way through the A group: its letter stays in view beside the tiles.
+  // The shelves under the title bar, mid-way through the A shelf.
+  ["/tier-list?view=shelves&role=all", 1280, 800, 640],
 ] as const) {
   test(`scrolled ${view} ${width}x${height}`, async ({ page }) => {
     await openApp(page, { view, width, height });
     await page.locator("main").evaluate((main, y) => main.scrollTo(0, y), by);
     await settle(page);
-    const name = view === "/" ? "home" : view.slice(1);
+    const name = view === "/" ? "home" : view.slice(1).split("?")[0];
     await page.screenshot({ path: `${OUT}/scrolled-${name}-${width}x${height}.png` });
   });
 }
@@ -691,7 +692,15 @@ for (const lang of ["en", "fr"] as const) {
     const hintPrefix = lang === "fr" ? "fr-hint" : "hint";
     const HINTS = [
       { name: "status", view: "/", target: "[data-testid=client-status]", width: 1280 },
-      { name: "rail", view: "/", target: "nav a[href='#/champions']", width: 1280 },
+      { name: "rail", view: "/", target: "nav a[href='#/tier-list']", width: 1280 },
+      // The tier list's icon-only choices: a lane, the table view.
+      {
+        name: "lane",
+        view: "/tier-list?view=shelves&role=middle",
+        target: "[data-testid=role-filter] [role=radio]:nth-of-type(3)",
+        width: 1280,
+      },
+      { name: "rank", view: "/tier-list", target: "[data-testid=rank-button]", width: 1280 },
       { name: "tier", view: "/champions?id=103", target: "[data-testid=champion-tier]", width: 1280 },
       { name: "option", view: "/champions?id=103", target: "[data-widget=champion-items] [data-hint]", width: 1280 },
       { name: "import-disabled", view: "/champions?id=103", target: "[data-testid=import-spells]", width: 1280 },

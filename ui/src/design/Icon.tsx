@@ -30,10 +30,10 @@ const paths = {
   info: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 16v-5M12 8h.01",
   download: "M12 4v11M7 10.5l5 5 5-5M5 20h14",
   // Roles, read like the game's own position icons (drawn here): the lane on a map square (top
-  // and bottom along the edges, mid across), the jungle's thorned claw, the support's winged crest.
+  // and bottom along the edges, mid across), the jungle's three talons, the support's winged crest.
   roleTop: "M4 20V4h16M9 9h5v5H9z",
   roleJungle:
-    "M11.8 21c-.9-5.9 0-11.9 3.3-18M11.4 15.8C8.6 14.6 6.5 12 5.7 8.3c2.8.7 4.9 2.3 6 4.6M12.4 12.6c1.3-2.5 3.5-4.1 6.3-4.6-.3 3-2 5.3-4.8 6.6",
+    "M12 20.5C10.3 15.6 10.5 9 12.8 3.5c1.4 5.3 1.6 11.4-.8 17zM11.2 20.2C7.6 18.6 4.8 14.6 4 8c3.2 2.4 5.8 6.4 7.2 12.2zM12.8 20.2c3.6-1.6 6.4-5.6 7.2-12.2-3.2 2.4-5.8 6.4-7.2 12.2z",
   roleMiddle: "M5 19 19 5M4 9V4h5M20 15v5h-5",
   roleBottom: "M20 4v16H4M10 10h5v5h-5z",
   roleSupport:

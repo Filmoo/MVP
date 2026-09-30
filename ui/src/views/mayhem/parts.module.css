@@ -117,19 +117,10 @@
   white-space: nowrap;
 }
 
-/* A tier's letter, a square badge like the stats pages' grades (the Mayhem page's headings). */
+/* A tier's medallion, as on the tier list (the Mayhem page's headings). */
 .mark {
   flex: none;
   display: inline-grid;
-  place-items: center;
-  width: 24px;
-  height: 24px;
-  border-radius: var(--radius-2);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-bold);
-  line-height: 1;
-  letter-spacing: 0;
-  color: var(--text-on-accent);
 }
 
 .tierS {

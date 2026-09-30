@@ -33,7 +33,7 @@
   cursor: default;
 }
 
-/* The line under the one shown: grows from its middle. */
+/* The line under the one shown: grows from its middle, never wider than its tab (no overshoot). */
 .tab::after {
   content: "";
   position: absolute;
@@ -44,7 +44,7 @@
   border-radius: var(--radius-full);
   background: var(--accent);
   transform: scaleX(0);
-  transition: transform var(--dur-spring) var(--ease-spring);
+  transition: transform var(--dur-glide) var(--ease-glide);
 }
 
 .tab[aria-checked="true"]::after {
@@ -182,5 +182,15 @@
 @container page (max-width: 559px) {
   .rankName {
     font-size: var(--text-sm);
+  }
+}
+
+/* The narrowest pages: the three tabs keep one line in French too ("ARAM du chaos"). */
+@container page (max-width: 439px) {
+  .tabs {
+    gap: var(--space-6);
+  }
+  .tab {
+    font-size: var(--text-md);
   }
 }

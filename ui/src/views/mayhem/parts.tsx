@@ -14,6 +14,7 @@ import type { Transport } from "../../data/transport";
 import { ItemIcon } from "../../design/GameIcon";
 import { Segmented } from "../../design/Segmented";
 import { Skeleton } from "../../design/States";
+import { TierMark as Medallion } from "../../design/TierMark";
 import { type Lang, lang, t } from "../../i18n";
 import { percent } from "../../lib/format";
 import { backendError } from "../../lib/players";
@@ -104,17 +105,20 @@ export function RankPill(props: { tier: AugmentTier; rank: number }): JSX.Elemen
   );
 }
 
-/** A tier's letter as a badge in its colour (the Mayhem page's headings), with what MVP's tiers are. */
+/**
+ * A tier's medallion, as on the tier list (the Mayhem page's headings), with what MVP's tiers are:
+ * made by hand, not the tier list's win rates.
+ */
 export function TierMark(props: { tier: AugmentTier }): JSX.Element {
   return (
     <span
-      class={`${styles.mark} ${styles[`tier${props.tier}`]}`}
+      class={styles.mark}
       role="img"
       aria-label={t().mayhem.tier(props.tier)}
       data-hint-title={t().mayhem.tier(props.tier)}
       data-hint={t().mayhem.tierHint}
     >
-      {props.tier}
+      <Medallion grade={props.tier} size="md" decorative />
     </span>
   );
 }

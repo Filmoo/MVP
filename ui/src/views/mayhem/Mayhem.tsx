@@ -259,9 +259,11 @@ export default function Mayhem(): JSX.Element {
           </p>
         </Show>
       </div>
-      <div class={styles.filters}>
-        {/* The tier list's queue tabs: Ranked Solo or ARAM goes back to it. */}
+      {/* The tier list's queue tabs, in the same place: Ranked Solo or ARAM goes back to it. */}
+      <div class={styles.tabsRow}>
         <QueueTabs mayhem={{ selected: true, onSelect: () => {}, onLeave: () => navigate("/tier-list") }} />
+      </div>
+      <div class={styles.filters}>
         <Show when={!championId()}>
           <Segmented
             label={t().mayhem.rarity}

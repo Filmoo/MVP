@@ -13,7 +13,21 @@ import styles from "./DesignLab.module.css";
  * the emblem lab), not product words.
  */
 
-const GLYPHS: GlyphName[] = ["roleAll", "winRate", "pick", "ban", "games", "patch", "ranked", "aram", "crown", "map", "shelves", "table"];
+const GLYPHS: GlyphName[] = [
+  "roleAll",
+  "winRate",
+  "pick",
+  "ban",
+  "games",
+  "patch",
+  "ranked",
+  "aram",
+  "mayhem",
+  "crown",
+  "map",
+  "shelves",
+  "table",
+];
 const ROLES = ["roleTop", "roleJungle", "roleMiddle", "roleBottom", "roleSupport"] as const;
 const TONES = ["var(--role-top)", "var(--role-jungle)", "var(--role-middle)", "var(--role-bottom)", "var(--role-support)"];
 const TIERS: TierGrade[] = ["S", "A", "B", "C", "D"];
