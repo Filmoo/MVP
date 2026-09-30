@@ -392,3 +392,12 @@ post-game scoreboard shared as inspiration, not to copy.) Calls:
 - **Budget, over**: the sheet merged onto main (with ARAM: Mayhem) was already 139.3 KB of JS in
   all, over the 136 KB budget; the stack adds 1.5 KB (140.8 KB; startup 41.0 of 46 KB). Not raised:
   the owner's call (raise it in its own commit, or trim elsewhere).
+
+## 2026-09-30 — The glass for everyone (owner decided)
+On the owner's PC Windows' "Transparency effects" is off, so the default (Auto) showed the flat
+look and the owner saw no glass ("why isn't glass working on the version I have!"); it had looked
+fine only because test scripts forced Full. Asked whether players should follow Windows or get
+the glass, the owner chose the glass for everyone: Auto is now Full whatever that switch says, and
+only a GPU too slow for the shader (the first-frame probe) falls back to CSS, with its reason in
+Settings. Light and Off stay one click away; reduced motion is still followed. This replaces the
+"Full means Full" default above (the Windows switch no longer matters at all).

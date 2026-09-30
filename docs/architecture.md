@@ -841,11 +841,10 @@ rest: no rAF loop, no timers (the perf suite asserts 0 renders over 3 s, and a m
   first frame matches; shown on `<html data-effects>`; Settings → App → Visual effects): `full` →
   `shader`, falling back to `css` when WebGL is missing, the first frame takes more than 8 ms GPU
   included (software rendering, weak GPU), or the context is lost (back to `shader` when
-  restored). `auto` (default, never offered as such) is `full` unless Windows asks for less
-  transparency (its "Transparency effects" switch sets `prefers-reduced-transparency`), then
-  `css` with the reason `reduced-transparency`; Settings shows the default as what it draws
-  (Light, with a note that Full keeps the glass), and a Full the player picks wins over Windows.
-  The OS preferences are followed live (media query `change` events, no restart, nothing polls).
+  restored). `auto` (default, never offered as such) is `full` for everyone, Windows'
+  "Transparency effects" switch included (owner, 2026-09-30: it is off on many PCs for reasons of
+  its own); Settings shows it as Full. Reduced motion is followed live (a media query `change`
+  event, no restart, nothing polls).
   `prefers-reduced-motion` keeps the shader but skips glides. `light` → `css`, static gradients
   and plain blur. `off` → `flat`: `--bg-0` only, no blur, opaque floating panels.
   `data-effects-fallback` says why a fallback happened (Settings words it).

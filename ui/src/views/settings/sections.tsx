@@ -8,7 +8,7 @@ import type { Settings } from "../../data/generated/Settings";
 import type { UpdateStatus } from "../../data/generated/UpdateStatus";
 import type { GameDataView } from "../../data/static-data";
 import { Button } from "../../design/Button";
-import { osEnvironment, rendered, setEffects } from "../../design/backdrop";
+import { rendered, setEffects } from "../../design/backdrop";
 import { Card } from "../../design/Card";
 import { Choice, type ChoiceOption } from "../../design/Choice";
 import { Icon } from "../../design/Icon";
@@ -276,19 +276,15 @@ export function AppSettings(props: SectionProps & { installId?: string | null | 
   // Only when the language itself changes (a settings change re-reads `props.settings`).
   const language = createMemo(() => props.settings.language);
   createEffect(on(language, (next) => void setLanguage(next), { defer: true }));
-  // The default shows as what it draws: Light while Windows asks for less transparency, else Full.
-  const shownEffects = (): Effects => {
-    const chosen = props.settings.effects;
-    if (chosen !== "auto") return chosen;
-    return osEnvironment().reducedTransparency ? "light" : "full";
-  };
-  // Why the glass is off when Full was chosen or is the default: Windows' switch, or the GPU.
+  // The default is the glass: it shows as Full.
+  const shownEffects = (): Effects => (props.settings.effects === "auto" ? "full" : props.settings.effects);
+  // Why the glass is off when Full was chosen or is the default: the GPU.
   const effectsNote = () => {
     const chosen = props.settings.effects;
     const reason = rendered().reason;
     if (!(chosen === "auto" || chosen === "full") || rendered().rendering === "shader" || !reason) return undefined;
     const words = t().settings.app.effects;
-    return reason === "reduced-transparency" ? words.windowsOff : words.fallback(words.reasons[reason] ?? reason);
+    return words.fallback(words.reasons[reason] ?? reason);
   };
   const words = () => t().settings.app;
   const match = useContext(SearchMatch);

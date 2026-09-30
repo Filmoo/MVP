@@ -71,37 +71,16 @@ test("the speed probe decides on its own and says why when it declines", async (
   }
 });
 
-test("Windows' transparency off: the default draws Light and says why; Full brings the glass back", async ({ page, t }) => {
-  // Windows' "Transparency effects" switch sets this media feature (off on a real test PC).
+test("Windows' transparency off: the default keeps the glass, shown as Full, with nothing to explain", async ({ page }) => {
+  // Windows' "Transparency effects" switch sets this media feature (off on the owner's PC). The
+  // glass is the default for everyone all the same (owner, 2026-09-30).
   const cdp = await page.context().newCDPSession(page);
-  const transparency = (value: "reduce" | "no-preference") =>
-    cdp.send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-transparency", value }] });
-  await transparency("reduce");
+  await cdp.send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-transparency", value: "reduce" }] });
   await openApp(page, { view: "/settings" });
-  expect(await effects(page)).toBe("css");
-  expect(await fallback(page)).toBe("reduced-transparency");
-  const choice = page.getByTestId("setting-effects");
-  // The default shows as what it draws.
-  await expect(choice.locator("input:checked")).toHaveValue("light");
-  const note = page.getByTestId("effects-fallback");
-  await expect(note).toContainText(t.settings.app.effects.windowsOff);
-  // The control is described by it too.
-  const described = await choice.getAttribute("aria-describedby");
-  expect(described?.split(" ")).toContain(await page.locator("p:has([data-testid=effects-fallback])").getAttribute("id"));
-  // Turned on in Windows: followed at once, no restart.
-  await transparency("no-preference");
-  await expect.poll(() => effects(page)).toBe("shader");
-  await expect(note).toBeHidden();
-  await expect(choice.locator("input:checked")).toHaveValue("full");
-  // Off again, and the player picks Full: the glass stays, whatever Windows says.
-  await transparency("reduce");
-  await expect.poll(() => effects(page)).toBe("css");
-  await choice.locator("label", { hasText: t.settings.app.effects.levels.full }).click();
-  await expect.poll(() => effects(page)).toBe("shader");
-  await expect(note).toBeHidden();
-  await expect(choice.locator("input:checked")).toHaveValue("full");
-  const saved = await page.evaluate(() => window.__SCOUT_MOCK__?.log.filter((c) => c.command === "update_settings").map((c) => c.args));
-  expect(JSON.stringify(saved)).toContain('"effects":"full"');
+  expect(await effects(page)).toBe("shader");
+  expect(await fallback(page)).toBeUndefined();
+  await expect(page.getByTestId("setting-effects").locator("input:checked")).toHaveValue("full");
+  await expect(page.getByTestId("effects-fallback")).toHaveCount(0);
 });
 
 test("light: today's gradients, no shader", async ({ page }) => {
