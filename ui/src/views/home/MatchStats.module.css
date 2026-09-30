@@ -1,0 +1,172 @@
+/*
+ * An opened game's end-of-game stats (MatchStats.tsx): a quiet well under the teams, a row per
+ * stat, a column per player. Numbers sit right under their champion; the labels' column stays
+ * put while a narrow sheet scrolls the numbers sideways (it needs a solid background for that:
+ * the well's).
+ */
+.scroll {
+  container: stats / inline-size;
+  overflow-x: auto;
+  border-radius: var(--radius-3);
+  background: var(--bg-1);
+  box-shadow: inset 0 0 0 1px var(--line-1);
+}
+
+.table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--text-md);
+  white-space: nowrap;
+}
+
+/* Cells' sides line the labels up with the teams above (and fit big numbers without scrolling). */
+.table th,
+.table td {
+  height: 28px;
+  padding: 0 var(--space-4);
+  font-weight: var(--weight-regular);
+}
+
+/* The labels: sticky, on the well's colour so numbers pass under them. */
+.table th[scope="row"],
+.table th[scope="rowgroup"],
+.corner {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--bg-1);
+  color: var(--text-2);
+  text-align: left;
+}
+
+/* The damage by type, under the damage to champions: quieter, labels and numbers. */
+.table th.sub {
+  padding-left: var(--space-8);
+  color: var(--text-3);
+}
+
+.table td {
+  min-width: 64px;
+  text-align: right;
+  color: var(--text-2);
+}
+
+.table tr:has(> th.sub) td,
+.table td[data-zero] {
+  color: var(--text-3);
+}
+
+/* A row's highest value: the only one in full colour. */
+.table td[data-top] {
+  color: var(--text-1);
+  font-weight: var(--weight-semibold);
+}
+
+.slash {
+  padding: 0 var(--space-1);
+  color: var(--text-3);
+}
+
+/* The heads: each player's champion, on a bar in their team's colour (blue won, rose lost). */
+.table thead th,
+.corner {
+  height: 40px;
+  vertical-align: middle;
+}
+
+/* Right-aligned over its numbers. */
+.table thead th {
+  text-align: right;
+}
+
+.table thead th img,
+.table thead th [role="img"] {
+  display: inline-block;
+  vertical-align: middle;
+  border-radius: var(--radius-2);
+}
+
+.win {
+  box-shadow: inset 0 2px 0 var(--win);
+}
+
+.loss {
+  box-shadow: inset 0 2px 0 var(--loss);
+}
+
+/* The second team starts after a hairline. */
+.split {
+  border-left: 1px solid var(--line-2);
+}
+
+/* The page owner's column (you on Home): its head marked, its numbers on a breath of the accent. */
+.marked {
+  background: var(--bg-lens);
+}
+
+.table thead .marked {
+  background: var(--accent-soft);
+}
+
+/* A group's name, over its rows, in the labels' column (the first one close under the heads). */
+.table .group > * {
+  height: 32px;
+  padding-top: var(--space-4);
+  vertical-align: bottom;
+}
+
+.table thead + tbody .group > * {
+  height: 24px;
+  padding-top: 0;
+}
+
+.table .group th {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.table tbody:last-child tr:last-child > * {
+  padding-bottom: var(--space-2);
+}
+
+/* The row under the pointer, across all ten players. */
+.table tbody tr:not(.group):hover > * {
+  background: var(--bg-3);
+}
+
+/*
+ * In a wide window of glass (GameWindow.tsx's `stats-well`) nothing scrolls under the labels: the
+ * well lets the window's glass show instead of standing in it as a solid slab.
+ */
+@container stats-well (min-width: 960px) {
+  .scroll,
+  .table th[scope="row"],
+  .table th[scope="rowgroup"],
+  .corner {
+    background: transparent;
+  }
+}
+
+/* Narrow sheets: the labels wrap (two lines at most) and cells tighten, so more players fit. */
+@container stats (max-width: 599px) {
+  .table th,
+  .table td {
+    padding: 0 var(--space-3);
+  }
+  .table th[scope="row"] {
+    width: 120px;
+    padding-block: var(--space-2);
+    white-space: normal;
+    line-height: 1.25;
+  }
+  .table th.sub {
+    padding-left: var(--space-6);
+  }
+  .table td {
+    min-width: 56px;
+  }
+}

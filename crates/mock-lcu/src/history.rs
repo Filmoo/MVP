@@ -83,6 +83,27 @@ const PACE: [[u32; 6]; 5] = [
     [1, 260, 300, 880, 3, 60],
 ];
 
+/// End-of-game numbers by lane: damage to champions that is physical and magic (percent, the
+/// rest is true damage), share of the damage to objectives dealt to turrets (percent), healing
+/// per minute, wards placed and destroyed per 25 minutes, control wards bought, seconds of crowd
+/// control per 30 minutes.
+const END: [[u32; 8]; 5] = [
+    [60, 30, 70, 120, 8, 2, 1, 25],
+    [55, 35, 15, 150, 14, 5, 3, 30],
+    [15, 80, 60, 60, 9, 3, 1, 20],
+    [85, 5, 70, 90, 8, 2, 1, 8],
+    [20, 70, 50, 250, 30, 8, 5, 45],
+];
+
+/// A seat's scoreboard numbers its end-of-game numbers follow.
+#[derive(Debug, Clone, Copy)]
+struct Totals {
+    kills: u32,
+    gold: u32,
+    damage: u32,
+    objectives: u32,
+}
+
 const FLASH: u32 = 4;
 const SMITE: u32 = 11;
 const IGNITE: u32 = 14;
@@ -193,6 +214,37 @@ impl Game {
             (8008, 8000, 8200),
             (8214, 8200, 8300),
         ][lane];
+        let gold = bonus(pace[1] * minutes) + n(7) * 150;
+        let damage = bonus(pace[2] * minutes) + n(8) * 900;
+        let objectives = bonus(pace[5] * minutes) + n(11) * 400;
+        let mut stats = json!({
+            "win": won, "kills": kills, "deaths": deaths, "assists": assists,
+            "champLevel": 12 + minutes / 5 + n(5) / 3,
+            "totalMinionsKilled": if lane == 1 { minions / 4 } else { minions },
+            "neutralMinionsKilled": if lane == 1 { minions * 3 / 4 } else { n(6) },
+            "goldEarned": gold,
+            "totalDamageDealtToChampions": damage,
+            "totalDamageTaken": pace[3] * minutes + n(9) * 700,
+            "damageSelfMitigated": pace[3] * minutes / 2,
+            "visionScore": pace[4] * minutes + n(10) * 2,
+            "damageDealtToObjectives": objectives,
+            "item0": items[0], "item1": items[1], "item2": items[2], "item3": 0,
+            "item4": items[3], "item5": 0, "item6": trinket,
+            "perk0": keystone, "perkPrimaryStyle": primary, "perkSubStyle": secondary,
+            "playerAugment1": augments[0], "playerAugment2": augments[1], "playerAugment3": augments[2],
+            "playerAugment4": augments[3], "playerAugment5": augments[4], "playerAugment6": augments[5]
+        });
+        let totals = Totals {
+            kills,
+            gold,
+            damage,
+            objectives,
+        };
+        if let (Some(stats), Value::Object(more)) =
+            (stats.as_object_mut(), self.end_of_game(seat, &totals))
+        {
+            stats.extend(more);
+        }
         json!({
             "participantId": seat + 1,
             "teamId": if blue { 100 } else { 200 },
@@ -200,23 +252,51 @@ impl Game {
             "spell1Id": spells[0],
             "spell2Id": spells[1],
             "timeline": { "lane": lane_name, "role": role },
-            "stats": {
-                "win": won, "kills": kills, "deaths": deaths, "assists": assists,
-                "champLevel": 12 + minutes / 5 + n(5) / 3,
-                "totalMinionsKilled": if lane == 1 { minions / 4 } else { minions },
-                "neutralMinionsKilled": if lane == 1 { minions * 3 / 4 } else { n(6) },
-                "goldEarned": bonus(pace[1] * minutes) + n(7) * 150,
-                "totalDamageDealtToChampions": bonus(pace[2] * minutes) + n(8) * 900,
-                "totalDamageTaken": pace[3] * minutes + n(9) * 700,
-                "damageSelfMitigated": pace[3] * minutes / 2,
-                "visionScore": pace[4] * minutes + n(10) * 2,
-                "damageDealtToObjectives": bonus(pace[5] * minutes) + n(11) * 400,
-                "item0": items[0], "item1": items[1], "item2": items[2], "item3": 0,
-                "item4": items[3], "item5": 0, "item6": trinket,
-                "perk0": keystone, "perkPrimaryStyle": primary, "perkSubStyle": secondary,
-                "playerAugment1": augments[0], "playerAugment2": augments[1], "playerAugment3": augments[2],
-                "playerAugment4": augments[3], "playerAugment5": augments[4], "playerAugment6": augments[5]
+            "stats": stats
+        })
+    }
+
+    /// The end-of-game numbers the client keeps with each game, for seat `seat` (its match
+    /// history has no healing or shielding done to teammates).
+    fn end_of_game(&self, seat: usize, totals: &Totals) -> Value {
+        let lane = seat % 5;
+        let won = (seat < 5) == self.win;
+        let minutes = self.duration / 60;
+        let n = |salt: u64| self.noise(seat, salt);
+        let Totals {
+            kills,
+            gold,
+            damage,
+            objectives,
+        } = *totals;
+        let end = END[lane];
+        let (physical, magic) = (damage * end[0] / 100, damage * end[1] / 100);
+        // No wards on Howling Abyss.
+        let wards = |per_25: u32, salt: u64| {
+            if self.aram() {
+                0
+            } else {
+                per_25 * minutes / 25 + n(salt) / 2
             }
+        };
+        // First blood: one of the winners' laners.
+        let first_blood =
+            seat == usize::try_from(self.game_id % 4).unwrap_or(0) + if self.win { 0 } else { 5 };
+        json!({
+            "largestKillingSpree": kills.min(2 + n(12) / 2),
+            "largestMultiKill": match kills { 0 => 0, 1..=5 => 1, _ => 2 + n(13) / 4 },
+            "firstBloodKill": first_blood, "firstBloodAssist": false,
+            "physicalDamageDealtToChampions": physical,
+            "magicDamageDealtToChampions": magic,
+            "trueDamageDealtToChampions": damage - physical - magic,
+            "damageDealtToTurrets": objectives * end[2] / 100,
+            "totalHeal": end[3] * minutes + n(14) * 100,
+            "wardsPlaced": wards(end[4], 15), "wardsKilled": wards(end[5], 16),
+            "visionWardsBoughtInGame": if self.aram() { 0 } else { end[6] + n(17) / 3 },
+            "goldSpent": gold - gold / 12,
+            "timeCCingOthers": end[7] * minutes / 30 + n(18) * 2,
+            "turretKills": if won { [2, 0, 1, 2, 0][lane] } else { u32::from(lane == 0) },
+            "inhibitorKills": u32::from(won && lane == 3)
         })
     }
 

@@ -66,6 +66,20 @@ export const LIQUID = {
     specular: 0.8,
   },
   /**
+   * The windows of opened games (views/home/GameStack.tsx), as big as the page's column and over
+   * its rows of colour (the history's win and loss marks): a panel's bend, frosted deeper and not
+   * saturated, so the page shows as light behind the tables, never as ghost rows or stripes along
+   * the rim (the design review, 2026-09-30).
+   */
+  sheet: {
+    glass: { profile: "parabola", bezel: 14, thickness: 13, elevation: 18 },
+    frost: 3,
+    frostCore: 16,
+    saturate: 1,
+    brightness: 1.04,
+    specular: 0.8,
+  },
+  /**
    * Clear glass over art (the rank pane, a champion's tier): a wide bent rim, the art frosted a
    * little in the middle for the text on it. Their CSS corners match the bezel (`--radius-5`).
    */

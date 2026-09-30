@@ -444,12 +444,13 @@
     {
       "key": "game-sheet",
       "title": "The opened game as a sheet of glass",
-      "description": "An in-window sheet of liquid glass with every player's end-of-game stats table; scroll down to close, player names open their pages.",
+      "description": "An in-window sheet of liquid glass with every player's end-of-game stats table; scroll down to close, player names open their pages. Grew into the game windows (2026-09-30).",
       "version": "0.3",
-      "status": "in_progress",
+      "status": "done",
       "area": "profile",
       "proposedBy": "owner",
       "createdOn": "2026-09-29",
+      "doneOn": "2026-09-29",
       "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/architecture.md", "label": "architecture · Match insights" }]
     },
     {
@@ -919,11 +920,15 @@
       "title": "Game windows you scroll between",
       "description": "Owner, 2026-09-30: the game view is a near full-size glass window over the page, one per game; scrolling carries you from one game to the next (a stack in history order), the page stays visible behind. It opens by itself on the game that just ended (replacing the \"Your last game\" card) and on any game you click.",
       "version": "0.3",
-      "status": "accepted",
+      "status": "done",
       "area": "profile",
       "proposedBy": "owner",
       "createdOn": "2026-09-30",
-      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/HANDOFF.md", "label": "docs/HANDOFF.md" }]
+      "doneOn": "2026-09-30",
+      "links": [
+        { "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/decisions.md", "label": "decisions · Opened games are a stack of windows" },
+        { "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/architecture.md", "label": "architecture · Match insights" }
+      ]
     },
     {
       "key": "mayhem-augments-in-game-window",
@@ -946,6 +951,17 @@
       "proposedBy": "claude",
       "createdOn": "2026-09-30",
       "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/site/README.md", "label": "site/README.md" }]
+    },
+    {
+      "key": "champ-select-glass-lobby",
+      "title": "Champion select, a lobby with life: glass animations",
+      "description": "Owner, 2026-09-30: very cool glass animations (and a version without glass) in the pre-game lobby: an effect when a champion is locked in; the last seconds of the timer, 5 to 0, as big numbers in the background from yellow to red; glass effects that feel almost like simulated fluids. Rendered nearly for free (almost no GPU cost), sober, never overloading the page; idle when nothing moves; reduced motion respected. Techniques to explore: precomputed displacement maps moved by CSS transforms, the gooey SVG blob at low resolution, one small low-res WebGL pass only while something moves, CSS @property gradients for the countdown.",
+      "version": "0.4",
+      "status": "accepted",
+      "area": "draft",
+      "proposedBy": "owner",
+      "createdOn": "2026-09-30",
+      "links": [{ "url": "https://github.com/Filmoo/MVP/blob/HEAD/docs/decisions.md", "label": "docs/decisions.md" }]
     }
   ]
 }

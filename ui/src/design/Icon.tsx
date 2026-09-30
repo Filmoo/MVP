@@ -31,6 +31,7 @@ const paths = {
   download: "M12 4v11M7 10.5l5 5 5-5M5 20h14",
   back: "M15 5l-7 7 7 7",
   chevronDown: "M6 9l6 6 6-6",
+  arrowDown: "M12 5v14M6 13l6 6 6-6",
 } as const;
 
 export type IconName = keyof typeof paths;

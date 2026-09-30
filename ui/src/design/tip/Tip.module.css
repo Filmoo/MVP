@@ -173,6 +173,8 @@
   font-size: var(--text-sm);
   color: var(--text-2);
   text-wrap: pretty;
+  /* A name in full can be one long word (a Riot ID of 22 W's): it breaks at the card's edge. */
+  overflow-wrap: anywhere;
 }
 
 .hintLine + .hintLine {

@@ -19,8 +19,9 @@ use crate::watched::write_atomic;
 
 pub const SNAPSHOT_FILE: &str = "cache/riot-cache.json";
 /// 2: compacted matches hold every participant's stats, names, spells and runes (grades and
-/// match details); older snapshots are ignored (their matches lack them).
-const FORMAT: u32 = 2;
+/// match details); 3: and their end-of-game stats (the opened game's stats table). Older
+/// snapshots are ignored (their matches lack them).
+const FORMAT: u32 = 3;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Snapshot {

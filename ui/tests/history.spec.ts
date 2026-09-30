@@ -3,11 +3,13 @@ import type { Page } from "@playwright/test";
 import type {} from "../src/data/mock";
 import { winPostGame } from "../src/data/mock/progress-fixtures";
 import { integer, signedPoints } from "../src/lib/format";
-import { expect, openApp, settle, test, trackErrors } from "./app";
+import { GESTURE_GAP_MS } from "../src/views/home/stack";
+import { animationsDone, expect, openApp, settle, test, trackErrors } from "./app";
 import { auditLayout } from "./layout-rules";
+import { body, current, gameOf, notches, openGame, pulling, recordPulls, showing, stack, toEdge } from "./stack";
 
-// Home's history (filters, older games, the LP of each ranked game), the last game's summary on
-// top of it, the LP graph and your mastery.
+// Home's history (filters, older games, the LP of each ranked game), the stack of opened games
+// going further back, the game that just ended opening by itself, the LP graph and your mastery.
 
 const rows = (page: Page) => page.locator("[data-testid=match-row]");
 /** Every call of `command` with its arguments, in order. */
@@ -126,28 +128,108 @@ test("profile: the LP graph sums your tracked ranked games; mastery in the champ
   await expect(mastery.first()).toContainText("12");
 });
 
-test("post-game: the last game tops Home, with its LP, until closed for good", async ({ page, t }) => {
+// ── The stack of opened games, past the last game loaded ────────────────────────────────────
+
+test("history: pulling past the last game loaded loads older games, then moves on to them", async ({ page, t }) => {
+  const errors = trackErrors(page);
+  await openApp(page, { scenario: "history-long" });
+  await openGame(page, 0);
+  await page.keyboard.press("End");
+  await showing(page, await gameOf(page, 19));
+  await toEdge(page, "end");
+  const pulls = await recordPulls(page);
+  // A pull that says what it does…
+  await notches(page, 1, 100);
+  await expect.poll(pulls).toMatchObject({ edge: "end", said: t.matchDetails.stack.load });
+  await expect.poll(() => pulling(page)).toBe(null);
+  // …and one long enough: the next page of the history, then its first game.
+  await page.waitForTimeout(GESTURE_GAP_MS);
+  await notches(page, 2, 100);
+  await expect(rows(page)).toHaveCount(40);
+  await showing(page, await gameOf(page, 20));
+  expect(await calls(page, "older_matches")).toEqual([{ begIndex: 20 }]);
+  // Its grade comes like the others' (asked for the rows shown).
+  await expect(current(page).getByTestId("game-grade")).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("history: at the history's very end, the stack only gives, and says so", async ({ page, t }) => {
+  const errors = trackErrors(page);
+  await openApp(page, { scenario: "history-long" });
+  // Every page loaded (47 games), the button says it was all.
+  for (const count of [40, 47]) {
+    await page.getByTestId("load-more").click();
+    await expect(rows(page)).toHaveCount(count);
+  }
+  await openGame(page, 0);
+  await page.keyboard.press("End");
+  await showing(page, await gameOf(page, 46));
+  await toEdge(page, "end");
+  const pulls = await recordPulls(page);
+  await notches(page, 6, 100);
+  await expect.poll(pulls).toMatchObject({ edge: "end", said: t.matches.more.end });
+  await expect.poll(() => pulling(page)).toBe(null);
+  await showing(page, await gameOf(page, 46));
+  expect(await calls(page, "older_matches")).toHaveLength(2);
+  expect(errors).toEqual([]);
+});
+
+test("history: older games on their way say so in the stack; a failure too, and a pull tries again", async ({ page, t }) => {
+  await openApp(page, { scenario: "history-more-slow" });
+  await openGame(page, 0);
+  await page.keyboard.press("End");
+  await showing(page, await gameOf(page, 19));
+  // The keyboard asks too: ↓ at the last game's end.
+  await body(page).evaluate((el) => {
+    el.scrollTop = el.scrollHeight;
+  });
+  await page.keyboard.press("ArrowDown");
+  const cue = page.getByTestId("scroll-cue");
+  await expect(stack(page)).toHaveAttribute("data-status", "loading");
+  await expect(cue).toHaveText(t.matches.more.loading);
+  await expect(cue).toHaveCSS("opacity", "1");
+  expect(await page.evaluate(auditLayout)).toEqual([]);
+  await showing(page, await gameOf(page, 20));
+  await expect(stack(page)).not.toHaveAttribute("data-status");
+
+  await openApp(page, { scenario: "history-more-error" });
+  await openGame(page, 0);
+  await page.keyboard.press("End");
+  await showing(page, await gameOf(page, 19));
+  await toEdge(page, "end");
+  await notches(page, 2, 100);
+  await expect(stack(page)).toHaveAttribute("data-status", "failed");
+  await expect(page.getByTestId("scroll-cue")).toHaveText(t.matchDetails.stack.failed);
+  await page.waitForTimeout(GESTURE_GAP_MS + 50);
+  await notches(page, 2, 100);
+  await expect.poll(async () => (await calls(page, "older_matches")).length).toBe(2);
+  await showing(page, await gameOf(page, 19));
+});
+
+// ── After a game: its window opens by itself ─────────────────────────────────────────────────
+
+test("post-game: the game that just ended opens by itself, with its LP and your grade; closed, it's gone for good", async ({ page, t }) => {
   const errors = trackErrors(page);
   await openApp(page, { scenario: "post-game" });
-  const card = page.locator("[data-widget=post-game]");
-  await expect(card.getByTestId("post-game")).toContainText(t.matches.outcome.win);
-  await expect(card.getByTestId("post-game-grade")).toContainText(t.gradeWhy.mvp);
-  await expect(card.getByTestId("post-game-lp")).toContainText(t.matches.lp(signedPoints(21, 0)));
-  await expect(card).toContainText(t.postGame.laneOpponent);
-  // The opponent's name opens their page; their whole Riot ID shows in a designed tooltip, never
-  // a native one.
-  await expect(card.getByRole("link")).toHaveAttribute("href", /^#\/player\/euw1\//);
-  await expect(card.locator("[title]")).toHaveCount(0);
-  await card.getByRole("link").hover();
-  await expect(page.getByTestId("hint")).toContainText("#");
-  await page.mouse.move(0, 0);
-  // Its row says the same LP.
-  await expect(rows(page).first()).toContainText(t.matches.lp(signedPoints(21, 0)));
+  await expect(stack(page)).toBeVisible();
+  await showing(page, "EUW1_7510240000");
+  await expect(current(page).locator("h2")).toHaveText(`${t.matches.outcome.win} · ${t.queues[420]}`);
+  await expect(current(page).getByTestId("game-lp")).toContainText(t.matches.lp(signedPoints(21, 0)));
+  await expect(current(page).getByTestId("game-grade")).toContainText(t.grade.mvp);
+  expect(await current(page).getByTestId("game-grade").getByRole("listitem").count()).toBeGreaterThanOrEqual(2);
+  // The keyboard is in the game; the stack goes on to your older games.
+  await expect(body(page)).toBeFocused();
+  await expect(stack(page).locator("[data-place=older]")).toHaveCount(1);
+  // Home has no card for it anymore: the window says it all.
+  await expect(page.locator("[data-widget=post-game]")).toHaveCount(0);
 
-  await card.getByRole("button", { name: t.postGame.close }).click();
-  await expect(card).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(stack(page)).toHaveCount(0);
   expect(await calls(page, "dismiss_post_game")).toEqual([{ matchId: "EUW1_7510240000" }]);
-  // Gone for good: back on Home, it doesn't come back.
+  // Its row says the same LP, and has the focus.
+  await expect(rows(page).first()).toContainText(t.matches.lp(signedPoints(21, 0)));
+  await expect(rows(page).first().getByRole("button")).toBeFocused();
+  // Gone for good: back on Home, it doesn't open again.
   await page.evaluate(() => {
     window.location.hash = "#/champions";
   });
@@ -157,41 +239,65 @@ test("post-game: the last game tops Home, with its LP, until closed for good", a
   });
   await settle(page);
   await expect(rows(page).first()).toBeVisible();
-  await expect(page.locator("[data-widget=post-game]")).toHaveCount(0);
+  await expect(stack(page)).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
-test("post-game: a demotion, an unknown LP, an LP on its way, ARAM", async ({ page, t }) => {
+test("post-game: the next champion select stops it", async ({ page }) => {
+  const errors = trackErrors(page);
+  await openApp(page, { scenario: "post-game" });
+  await showing(page, "EUW1_7510240000");
+  // The core hides the summary when a champion select begins.
+  await page.evaluate(() => window.__SCOUT_MOCK__?.emit("post-game", null));
+  await expect(stack(page)).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test("post-game: a game that ends while the stack is open joins it, nothing jumps", async ({ page }) => {
+  const errors = trackErrors(page);
+  await openApp(page);
+  const game = await gameOf(page, 3);
+  await openGame(page, 3);
+  await page.evaluate((summary) => window.__SCOUT_MOCK__?.emit("post-game", summary), winPostGame);
+  await expect.poll(async () => (await calls(page, "dismiss_post_game")).length).toBe(1);
+  await showing(page, game);
+  expect(errors).toEqual([]);
+});
+
+test("post-game: a demotion, an LP on its way, an unknown LP, ARAM", async ({ page, t }) => {
   await openApp(page, { scenario: "post-game-demotion" });
-  const lp = page.getByTestId("post-game-lp");
+  const lp = current(page).getByTestId("game-lp");
   await expect(lp).toContainText(t.matches.lp(signedPoints(-35, 0)));
-  await expect(lp).toContainText(t.postGame.lp.demoted);
+  await expect(lp).toContainText(t.matchDetails.lp.demoted);
   await expect(lp).toContainText(t.tiers.platinum);
 
-  await openApp(page, { scenario: "post-game-lp-unknown" });
-  await expect(page.getByTestId("post-game-lp")).toHaveText(t.postGame.lp.unknown);
-
-  // The client counts the game a moment later: the summary and its row follow.
+  // The client counts the game a moment later: the window and its row follow.
   await openApp(page, { scenario: "post-game-lp-pending" });
-  await expect(page.getByTestId("post-game-lp")).toHaveText(t.postGame.lp.pending);
+  await expect(current(page).getByTestId("game-lp")).toHaveText(t.matchDetails.lp.pending);
   await expect(rows(page).first()).not.toContainText(t.matches.lp(signedPoints(21, 0)));
   await page.evaluate((game) => window.__SCOUT_MOCK__?.emit("post-game", game), winPostGame);
-  await expect(page.getByTestId("post-game-lp")).toContainText(t.matches.lp(signedPoints(21, 0)));
+  await expect(current(page).getByTestId("game-lp")).toContainText(t.matches.lp(signedPoints(21, 0)));
   await expect(rows(page).first()).toContainText(t.matches.lp(signedPoints(21, 0)));
   expect(await calls(page, "current_profile"), "the same game again: only its LP is read again").toHaveLength(1);
 
+  // A ranked game MVP didn't see start: no LP said.
+  await openApp(page, { scenario: "post-game-lp-unknown" });
+  await expect(current(page).getByTestId("game-grade")).toBeVisible();
+  await expect(current(page).getByTestId("game-lp")).toHaveCount(0);
+
   await openApp(page, { scenario: "post-game-aram" });
-  await expect(page.getByTestId("post-game")).toContainText(t.queues[450]);
-  await expect(page.getByTestId("post-game-lp")).toHaveCount(0);
-  await expect(page.locator("[data-widget=post-game]")).toContainText(t.postGame.closestDamage);
+  await expect(current(page).locator("h2")).toContainText(t.queues[450]);
+  await expect(current(page).getByTestId("game-lp")).toHaveCount(0);
 });
 
-test("post-game: the summary lays out at every size", async ({ page }) => {
+test("post-game: the window lays out at every size", async ({ page }) => {
   test.slow();
   const errors = trackErrors(page);
   for (const scenario of ["post-game", "post-game-demotion"] as const) {
     for (const width of [400, 560, 820, 1280, 2560]) {
       await openApp(page, { scenario, width, height: 900 });
+      await expect(current(page).getByTestId("game-player")).toHaveCount(10);
+      await animationsDone(page);
       expect(await page.evaluate(auditLayout), `${scenario} @ ${width}`).toEqual([]);
     }
   }

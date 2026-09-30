@@ -147,6 +147,80 @@ pub struct MatchPlayer {
     pub secondary_tree: Option<u32>,
     /// `None` for remakes and modes without two teams of five.
     pub grade: Option<MatchGrade>,
+    /// The end-of-game numbers (the opened game's stats table); all `None` from a server that
+    /// doesn't send them yet.
+    #[serde(default)]
+    pub stats: EndOfGameStats,
+}
+
+/// One player's end-of-game numbers, as the League client's post-game "Stats" tab lists them.
+/// Each is `None` when the source doesn't carry it (the League client's match history may lack
+/// the healing and shielding done to teammates): the stats table leaves out a row no player of
+/// the game has. Kills, deaths, assists, damage to champions, gold earned and the vision score
+/// are the scoreboard's, on [`MatchPlayer`].
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase", default)]
+#[ts(export)]
+pub struct EndOfGameStats {
+    pub largest_killing_spree: Option<u32>,
+    pub largest_multi_kill: Option<u32>,
+    /// Got the game's first kill.
+    pub first_blood: Option<bool>,
+    pub physical_damage_to_champions: Option<u32>,
+    pub magic_damage_to_champions: Option<u32>,
+    pub true_damage_to_champions: Option<u32>,
+    pub damage_to_turrets: Option<u32>,
+    /// Damage to buildings and epic monsters.
+    pub damage_to_objectives: Option<u32>,
+    pub damage_taken: Option<u32>,
+    pub damage_self_mitigated: Option<u32>,
+    pub healing: Option<u32>,
+    pub healing_on_teammates: Option<u32>,
+    pub shielding_on_teammates: Option<u32>,
+    pub wards_placed: Option<u32>,
+    pub wards_destroyed: Option<u32>,
+    /// Control wards bought.
+    pub control_wards: Option<u32>,
+    pub gold_spent: Option<u32>,
+    /// Lane minions killed.
+    pub minions: Option<u32>,
+    /// Neutral monsters killed.
+    pub monsters: Option<u32>,
+    /// Riot's `timeCCingOthers`: seconds of crowd control on enemy champions.
+    pub crowd_control_seconds: Option<u32>,
+    pub turrets_destroyed: Option<u32>,
+    pub inhibitors_destroyed: Option<u32>,
+}
+
+impl EndOfGameStats {
+    /// Riot's fields, named alike in a Match-V5 participant and in the League client's
+    /// `participants[].stats`: `number(key)` and `flag(key)` look one up (`None` when absent).
+    pub fn read(number: impl Fn(&str) -> Option<u32>, flag: impl Fn(&str) -> Option<bool>) -> Self {
+        Self {
+            largest_killing_spree: number("largestKillingSpree"),
+            largest_multi_kill: number("largestMultiKill"),
+            first_blood: flag("firstBloodKill"),
+            physical_damage_to_champions: number("physicalDamageDealtToChampions"),
+            magic_damage_to_champions: number("magicDamageDealtToChampions"),
+            true_damage_to_champions: number("trueDamageDealtToChampions"),
+            damage_to_turrets: number("damageDealtToTurrets"),
+            damage_to_objectives: number("damageDealtToObjectives"),
+            damage_taken: number("totalDamageTaken"),
+            damage_self_mitigated: number("damageSelfMitigated"),
+            healing: number("totalHeal"),
+            healing_on_teammates: number("totalHealsOnTeammates"),
+            shielding_on_teammates: number("totalDamageShieldedOnTeammates"),
+            wards_placed: number("wardsPlaced"),
+            wards_destroyed: number("wardsKilled"),
+            control_wards: number("visionWardsBoughtInGame"),
+            gold_spent: number("goldSpent"),
+            minions: number("totalMinionsKilled"),
+            monsters: number("neutralMinionsKilled"),
+            crowd_control_seconds: number("timeCCingOthers"),
+            turrets_destroyed: number("turretKills"),
+            inhibitors_destroyed: number("inhibitorKills"),
+        }
+    }
 }
 
 impl MatchTeam {
@@ -186,6 +260,38 @@ mod tests {
 
     fn json(value: &impl Serialize) -> String {
         serde_json::to_string(value).expect("serializable")
+    }
+
+    #[test]
+    fn end_of_game_stats_read_riots_names_and_default_when_absent() {
+        let stats = EndOfGameStats::read(
+            |key| match key {
+                "largestMultiKill" => Some(3),
+                "timeCCingOthers" => Some(42),
+                "visionWardsBoughtInGame" => Some(4),
+                _ => None,
+            },
+            |key| (key == "firstBloodKill").then_some(true),
+        );
+        assert_eq!(stats.largest_multi_kill, Some(3));
+        assert_eq!(stats.crowd_control_seconds, Some(42));
+        assert_eq!(stats.control_wards, Some(4));
+        assert_eq!(stats.first_blood, Some(true));
+        assert_eq!(stats.healing_on_teammates, None);
+        let wire = json(&stats);
+        assert!(wire.contains(r#""crowdControlSeconds":42"#), "{wire}");
+        assert!(wire.contains(r#""healingOnTeammates":null"#), "{wire}");
+
+        // A server that doesn't send them yet: every player's stats are empty, not an error.
+        let player: MatchPlayer = serde_json::from_str(
+            r#"{ "riotId": null, "hidden": true, "isMe": false, "championId": 1,
+                 "championLevel": 12, "role": null, "kills": 1, "deaths": 2, "assists": 3,
+                 "creepScore": 100, "gold": 8000, "damageToChampions": 9000, "visionScore": 10,
+                 "items": [], "trinket": null, "spells": [4, 14], "keystone": null,
+                 "secondaryTree": null, "grade": null }"#,
+        )
+        .expect("an older server's player");
+        assert_eq!(player.stats, EndOfGameStats::default());
     }
 
     #[test]

@@ -1,4 +1,4 @@
-import { createResource, createSignal, type JSX, lazy, Match, onCleanup, Show, Suspense, Switch } from "solid-js";
+import { createResource, createSignal, type JSX, Match, onCleanup, Switch } from "solid-js";
 import { useData } from "../../data/context";
 import { createFollowed } from "../../data/follow";
 import type { ChampionMastery } from "../../data/generated/ChampionMastery";
@@ -12,13 +12,8 @@ import { Icon } from "../../design/Icon";
 import { PenguinArt } from "../../design/PenguinArt";
 import { EmptyState, ErrorState } from "../../design/States";
 import { t } from "../../i18n";
-import { Widget } from "../../widgets/Widget";
 import page from "../page.module.css";
 import { ProfileContent, ProfileSkeleton, profileArt } from "./Profile";
-import { chunk } from "./RecentMatches";
-
-/** The last game's summary: its code comes with an opened game's, when there is one to show. */
-const PostGameCard = lazy(() => chunk().then((m) => ({ default: m.PostGameCard })));
 
 /** The League client is up but doesn't answer: a wait (the core asks it again by itself), not an error. */
 function notAnswering(error: unknown): boolean {
@@ -44,7 +39,8 @@ export function Home(): JSX.Element {
   loadLp();
   void transport.call("champion_mastery").then(setMastery, () => undefined);
 
-  // The game that just ended, until closed or the next game.
+  // The game that just ended (the core's summary), until closed or the next champion select: its
+  // window of the stack of opened games opens by itself, once; closed, it's gone for good.
   let summed: string | undefined;
   const [post, { mutate }] = createFollowed(
     () =>
@@ -71,6 +67,16 @@ export function Home(): JSX.Element {
     mutate(null);
     void transport.call("dismiss_post_game", { matchId }).catch(() => undefined);
   };
+  const lastGame = () => {
+    const game = shown();
+    return game ? { matchId: game.matchId, lpPending: game.lpPending, seen: () => dismiss(game.matchId) } : undefined;
+  };
+  // Its LP comes with the summary first: the history's (read again then) catches up.
+  const lpAll = () => {
+    const counted = shown()?.lp;
+    const list = lp();
+    return counted && !list.some((g) => g.gameId === counted.gameId) ? [counted, ...list] : list;
+  };
 
   // Reload when the client comes up (or answers again after it stopped: the error goes by
   // itself) and after every game (new match, new LP).
@@ -86,15 +92,6 @@ export function Home(): JSX.Element {
 
   return (
     <div class={page.page}>
-      <Show when={shown()}>
-        {(game) => (
-          <Widget name="post-game">
-            <Suspense fallback={<div data-state="loading" hidden />}>
-              <PostGameCard game={game()} onClose={() => dismiss(game().matchId)} />
-            </Suspense>
-          </Widget>
-        )}
-      </Show>
       <Switch>
         <Match when={profile.state === "errored" && notAnswering(profile.error)}>
           {/* MVP's own words, the title bar's, never the request's text with its address. */}
@@ -147,9 +144,10 @@ export function Home(): JSX.Element {
           {(p) => (
             <ProfileContent
               profile={p()}
-              lp={lp()}
+              lp={lpAll()}
               mastery={mastery()}
               older={(begIndex) => transport.call("older_matches", { begIndex })}
+              lastGame={lastGame()}
             />
           )}
         </Match>
